@@ -2,15 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+TODO: adapt and integrate color pallete https://tailwindcss.com
+*/
 :root {
-  --background: #eb1c1c;
+  --background: #bdeebb;
   --foreground: #128623;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #e2f0d5;
-    --foreground: #1e9e69;
+    --background: #284d04;
+    --foreground: #17e717;
   }
 }
 
