@@ -1,22 +1,24 @@
 // src/pages/index.tsx
 import type { NextPage } from 'next';
-import Head from 'next/head';
+import { useState } from 'react';
+import Map, { MapType } from '../components/maps/Map';
 
 const Home: NextPage = () => {
+  const [mapType, setMapType] = useState<MapType>('openlayers');
   return (
     <>
       <div className="container mx-auto p-4">
-        <h1 className="text-3xl font-bold">GeoWeaverAI</h1>
-        <nav className="mt-4">
-          <ul className="flex space-x-4">
-            <li>
-              About
-            </li>
-            <li>
-              Contact
-            </li>
-          </ul>
-        </nav>
+      <div className="min-h-screen">
+      <button
+        onClick={() => setMapType(mapType === 'openlayers' ? 'leaflet' : 'openlayers')}
+        className="m-4 p-2 bg-blue-600 text-white rounded"
+      >
+        Toggle Map Library
+      </button>
+      <div className="w-full h-96">
+        <Map mapType={mapType} layers={[]} areas={[]} />
+      </div>
+    </div>
       </div>
     </>
   );
