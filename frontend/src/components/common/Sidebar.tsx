@@ -2,9 +2,11 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Head from 'next/head';
+import { useMapContext } from '../../contexts/MapContext';
 
 const Sidebar: React.FC = () => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const { mapType, toggleMapType } = useMapContext();
 
   const toggleSidebar = () => {
     setIsExpanded((prev) => !prev);
@@ -14,7 +16,7 @@ const Sidebar: React.FC = () => {
     <>
     <Head>
       <title>GeoWeaverAI</title>
-      <meta name="description" content="geospatial insights, with ease" />
+      <meta name="description" content="geospatial insights, with ease"/>
     </Head>
     <aside
       className={`flex flex-col h-screen transition-all duration-300 text-white bg-green-700 ${
@@ -63,25 +65,19 @@ const Sidebar: React.FC = () => {
 
           {/* History Button */}
           <button className="p-4 hover:bg-green-900 focus:outline-none">
-            <svg
-              className="w-6 h-6 mx-auto"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8m-9 4v6"
-              />
-            </svg>
+            Last requests
           </button>
         </div>
 
         {/* Expanded Menu Items */}
         {isExpanded && (
           <div className="mt-4 flex flex-col space-y-2">
+            <button
+            onClick={toggleMapType}
+            className="p-4 hover:bg-green-900 focus:outline-none"
+          >
+            Toggle Map
+          </button>
             <Link href="/last-requests">
                 Last Requests
             </Link>

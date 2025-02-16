@@ -2,15 +2,14 @@
 import type { NextPage } from 'next';
 import { useState } from 'react';
 import Map, { MapType } from '../components/maps/Map';
+import { useMapContext } from '../contexts/MapContext';
 
 const Home: NextPage = () => {
-  const [mapType, setMapType] = useState<MapType>('openlayers');
+  const { mapType } = useMapContext();
   return (
     <>
-      <div className="flex-1">
-        <Map mapType={mapType} layers={[]} areas={[]} />
-      </div>
-      </>
+      <Map mapType={mapType} layers={[]} areas={[]} />
+    </>
   );
   
 };
