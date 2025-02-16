@@ -1,6 +1,7 @@
 // src/components/common/Sidebar.tsx
 import { useState } from 'react';
 import Link from 'next/link';
+import Head from 'next/head';
 
 const Sidebar: React.FC = () => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -10,6 +11,11 @@ const Sidebar: React.FC = () => {
   };
 
   return (
+    <>
+    <Head>
+      <title>GeoWeaverAI</title>
+      <meta name="description" content="geospatial insights, with ease" />
+    </Head>
     <aside
       className={`flex flex-col h-screen transition-all duration-300 text-white bg-green-700 ${
         isExpanded ? 'w-64' : 'w-20'
@@ -89,6 +95,7 @@ const Sidebar: React.FC = () => {
         )}
       </nav>
     </aside>
+    </>
   );
 };
 
