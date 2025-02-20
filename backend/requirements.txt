@@ -3,3 +3,6 @@ uvicorn[standard]>=0.34.0
 langchain>=0.3.18
 langchain_community>=0.3.17
 openai>=1.63.0
+psycopg[binary]>=3.2.4
+psycopg[pool]>=3.2.4
+langgraph>=0.2.73
