@@ -13,7 +13,6 @@ RUN yarn build
 # Stage 2: Serve the built app using custom Nginx with envsubst for runtime config
 FROM nginx:alpine
 
-# Copy custom Nginx configuration template and entrypoint script
 COPY nginx/nginx.conf.envsubst /etc/nginx/nginx.conf.envsubst
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
