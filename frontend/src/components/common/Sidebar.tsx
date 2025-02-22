@@ -3,6 +3,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Head from 'next/head';
 import { useMapContext } from '../../contexts/MapContext';
+import SearchPrompt from './SearchPrompt';
 
 const Sidebar: React.FC = () => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -14,6 +15,7 @@ const Sidebar: React.FC = () => {
 
   return (
     <>
+    <SearchPrompt></SearchPrompt>
     <Head>
       <title>GeoWeaverAI</title>
       <meta name="description" content="geospatial insights, with ease"/>
@@ -27,7 +29,6 @@ const Sidebar: React.FC = () => {
       <div className="flex items-center justify-center p-4 border-b border-darkgreen-700">
         {/* Replace with your actual profile image or icon */}
         <div className="w-10 h-10 rounded-full bg-gray-300 flex items-center justify-center text-blue-800 font-bold">
-          U
         </div>
       </div>
 
@@ -62,13 +63,13 @@ const Sidebar: React.FC = () => {
               )}
             </svg>
           </button>
-
+          
           {/* History Button */}
           <button className="p-4 hover:bg-green-900 focus:outline-none">
             Last requests
           </button>
         </div>
-
+        
         {/* Expanded Menu Items */}
         {isExpanded && (
           <div className="mt-4 flex flex-col space-y-2">
