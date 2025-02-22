@@ -1,5 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM python:3.10-slim
+FROM python:3.13-slim
 
 # Set environment variables to ensure output is sent straight to terminal and to prevent Python from buffering stdout/stderr.
 ENV PYTHONDONTWRITEBYTECODE=1
