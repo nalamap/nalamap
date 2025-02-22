@@ -1,0 +1,28 @@
+version: '3.8'
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_AZURE_URL=postgresql://ROU:Geow3ave@geoweave.postgres.database.azure.com:5432/geollm
+      # Add additional backend-specific environment variables as needed
+    command: uvicorn main:app --reload --host 0.0.0.0 --port 8000 # auto-reload enabled
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules # prevents overwriting container node_modules with host’s empty folder
+    environment:
+      - BACKEND_PROTOCOL=http
+      - BACKEND_URL=backend:8000
+    ports:
+      - "3000:3000"
+    command: yarn dev # starts Next.js in dev mode with hot reloading
+    depends_on:
+      - backend
