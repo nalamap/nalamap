@@ -10,7 +10,7 @@ interface LeafletMapProps {
 
 const LeafletMap: React.FC<LeafletMapProps> = ({ layers = [], areas = [] }) => {
   return (
-    <MapContainer center={[0, 0]} zoom={13} className="w-full h-full">
+    <MapContainer center={[0, 0]} zoom={5} className="w-full h-full">
       <TileLayer
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         attribution="&copy; OpenStreetMap contributors"
