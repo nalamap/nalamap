@@ -30,6 +30,9 @@ const SearchPrompt: React.FC<SearchPromptProps> = ({ onResults }) => {
     setInputValue(e.target.value);
   };
 
+  // Base URL for your FastAPI backend
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000/api';
+
   // Handle form submission and API call
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -40,7 +43,8 @@ const SearchPrompt: React.FC<SearchPromptProps> = ({ onResults }) => {
     setError(null);
 
     try {
-      const response = await fetch(`api/search/?query=${encodeURIComponent(trimmedValue)}`);
+      // TODO: move into api.tsx
+      const response = await fetch(`${API_BASE_URL}/search/?query=${encodeURIComponent(trimmedValue)}`);
       if (!response.ok) {
         throw new Error('Network response was not ok');
       }
@@ -84,7 +88,7 @@ const SearchPrompt: React.FC<SearchPromptProps> = ({ onResults }) => {
 
       {loading && <p>Loading...</p>}
       {error && <p style={{ color: 'red' }}>{error}</p>}
-      
+
       {/* Display results if available */}
       {results.length > 0 && (
         <div style={{ marginTop: '20px' }}>

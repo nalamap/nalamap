@@ -5,8 +5,10 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     environment:
-      - DATABASE_AZURE_URL=postgresql://ROU:Geow3ave@geoweave.postgres.database.azure.com:5432/geollm
-      # Add additional backend-specific environment variables as needed
+      - DATABASE_AZURE_URL=${DATABASE_AZURE_URL}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
+      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
     ports:
       - "8000:8000"
 
@@ -17,6 +19,7 @@ services:
     environment:
       - BACKEND_PROTOCOL=http
       - BACKEND_URL=backend:8000
+      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
     ports:
       - "80:80"
     depends_on:

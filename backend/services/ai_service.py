@@ -1,4 +1,4 @@
-from langchain.llms import OpenAI
+from langchain_community.llms import OpenAI
 
 def generate_ai_response(message: str) -> str:
     """
