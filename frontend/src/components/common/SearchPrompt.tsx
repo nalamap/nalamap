@@ -1,13 +1,6 @@
 import React, { useState } from 'react';
+import { useSearch, SearchResult } from '@/contexts/SearchContext';
 
-interface SearchResult {
-  id: number;
-  source_type: string;
-  access_url: string;
-  llm_description: string;
-  bounding_box: string;
-  score: number;
-}
 
 interface BackendResponse {
   query: string;
@@ -20,6 +13,7 @@ interface SearchPromptProps {
 }
 
 const SearchPrompt: React.FC<SearchPromptProps> = ({ onResults }) => {
+  const { setSelectedResult } = useSearch();
   const [inputValue, setInputValue] = useState<string>('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -63,47 +57,74 @@ const SearchPrompt: React.FC<SearchPromptProps> = ({ onResults }) => {
 
   return (
     <div>
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <input
-          type="text"
-          value={inputValue}
-          onChange={handleInputChange}
-          placeholder="Type your question here..."
-          style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }}
-        />
-        <button
-          type="submit"
-          style={{
-            padding: '10px 20px',
-            borderRadius: '4px',
-            border: 'none',
-            backgroundColor: '#007bff',
-            color: '#fff',
-            cursor: 'pointer'
-          }}
-        >
-          Submit
-        </button>
-      </form>
-
-      {loading && <p>Loading...</p>}
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-
-      {/* Display results if available */}
-      {results.length > 0 && (
-        <div style={{ marginTop: '20px' }}>
-          {results.map((result) => (
-            <div key={result.id} style={{ border: '1px solid #ccc', padding: '15px', marginBottom: '10px' }}>
-              <h2>{result.source_type}</h2>
-              <p>{result.llm_description}</p>
-              <a href={result.access_url} target="_blank" rel="noopener noreferrer">
-                View Data
-              </a>
-              <p><strong>Score:</strong> {result.score}</p>
+      <div
+        style={{
+          position: 'absolute',
+          bottom: '10px',
+          left: '80px',
+          height: '35%',
+          width: '300px',
+          backgroundColor: 'rgba(255, 255, 255, 0.9)',
+          zIndex: 100,
+          padding: '10px',
+          borderRadius: '4px',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        {/* Results / Response area */}
+        <div style={{ flex: 1, overflowY: 'auto', marginBottom: '10px' }}>
+          {loading && <p>Loading...</p>}
+          {error && <p style={{ color: 'red' }}>{error}</p>}
+          {results.length > 0 && (
+            <div>
+              {results.map((result) => (
+                <div
+                  key={result.id}
+                  style={{
+                    border: '1px solid #ccc',
+                    padding: '10px',
+                    marginBottom: '5px',
+                    backgroundColor: '#fff',
+                  }}
+                >
+                  <h2>{result.source_type}</h2>
+                  <p>{result.llm_description}</p>
+                  <button onClick={() => setSelectedResult(result)}>
+                    View Data
+                  </button>
+                  <p>
+                    <strong>Score:</strong> {result.score}
+                  </p>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
-      )}
+        {/* Search form at the bottom */}
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <input
+            type="text"
+            value={inputValue}
+            onChange={handleInputChange}
+            placeholder="Type your question here..."
+            style={{ padding: '10px', borderRadius: '4px', border: '1px solid #ccc' }}
+          />
+          <button
+            type="submit"
+            style={{
+              padding: '10px 20px',
+              borderRadius: '4px',
+              border: 'none',
+              backgroundColor: '#007bff',
+              color: '#fff',
+              cursor: 'pointer',
+            }}
+          >
+            Submit
+          </button>
+        </form>
+      </div>
     </div>
   );
 };

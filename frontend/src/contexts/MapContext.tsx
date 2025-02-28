@@ -14,7 +14,7 @@ export const MapProvider = ({ children }: { children: ReactNode }) => {
   const [mapType, setMapType] = useState<MapType>('openlayers');
 
   const toggleMapType = () => {
-    setMapType((prev) => (prev === 'openlayers' ? 'leaflet' : 'openlayers'));
+    setMapType((prev) => (prev === 'openlayers' ? 'maplibre' : 'openlayers'));
   };
 
   return (

@@ -3,7 +3,6 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Head from 'next/head';
 import { useMapContext } from '../../contexts/MapContext';
-import SearchPrompt from './SearchPrompt';
 
 const Sidebar: React.FC = () => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -15,7 +14,6 @@ const Sidebar: React.FC = () => {
 
   return (
     <>
-      <SearchPrompt></SearchPrompt>
       <Head>
         <title>GeoWeaverAI</title>
         <meta name="description" content="geospatial insights, with ease" />
