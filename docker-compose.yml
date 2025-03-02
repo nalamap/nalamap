@@ -1,5 +1,18 @@
 version: '3.8'
 services:
+
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    environment:
+      - BACKEND_PROTOCOL=http
+      - BACKEND_URL=backend:8000
+      - FRONTEND_PROTOCOL=http
+      - FRONTEND_URL=frontend:3000
+    ports:
+      - "80:80"
+
   backend:
     build:
       context: ./backend
@@ -11,16 +24,12 @@ services:
       - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
     ports:
       - "8000:8000"
-
+  
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     environment:
-      - BACKEND_PROTOCOL=http
-      - BACKEND_URL=backend:8000
       - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
     ports:
-      - "80:80"
-    depends_on:
-      - backend
+      - "3000:3000"

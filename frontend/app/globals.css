@@ -1,7 +1,10 @@
-@tailwind base;
-@tailwind components;
+@import "tailwindcss";
 @tailwind utilities;
 
+@theme {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
 /* Global Design Parameters and Gradient Scales https://tailwindcss.com, gradients by https://uicolors.app/create, other color documentation: https://tailwindcss.com/docs/color */
 :root {
   /* Base Colors */

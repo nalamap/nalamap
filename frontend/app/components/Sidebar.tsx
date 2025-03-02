@@ -1,12 +1,13 @@
+'use client'
+
+
 // src/components/common/Sidebar.tsx
 import { useState } from 'react';
 import Link from 'next/link';
 import Head from 'next/head';
-import { useMapContext } from '../../contexts/MapContext';
 
 const Sidebar: React.FC = () => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const { mapType, toggleMapType } = useMapContext();
 
   const toggleSidebar = () => {
     setIsExpanded((prev) => !prev);
@@ -70,12 +71,6 @@ const Sidebar: React.FC = () => {
           {/* Expanded Menu Items */}
           {isExpanded && (
             <div className="mt-4 flex flex-col space-y-2 items-center">
-              <button
-                onClick={toggleMapType}
-                className="p-4 hover:bg-secondary-900 focus:outline-none"
-              >
-                Toggle Map
-              </button>
               <Link className="p-4 hover:bg-secondary-900 focus:outline-none" href="/last-requests">
                 Last Requests
               </Link>

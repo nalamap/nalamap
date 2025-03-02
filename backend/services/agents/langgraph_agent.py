@@ -1,32 +1,44 @@
-from langgraph.graph import StateGraph, START, END
-from langgraph.prebuilt import ToolNode
+from fastapi import FastAPI, Body
+from langgraph.graph import StateGraph, START
 from pydantic import BaseModel
-import json
 from services.database.database import get_db
 
-# Define your state schema
-class GeoState(BaseModel):
-    query: str
-    results: list = []
-    
-# Define the schema for LangGraph state
+
+# Define the state schema for the search operation.
 class SearchState(BaseModel):
     query: str
     results: list = []
-    
+
 async def query_postgis(state: SearchState) -> SearchState:
-    """Executes a PostGIS SQL function using LangGraph."""
+    """
+    Executes a PostGIS SQL function using LangGraph.
+    Given a query in the state, it retrieves matching rows from the database,
+    maps each row to a dictionary of attributes, and returns the updated state.
+    """
     query = state.query
-    async for cur in get_db():  # Fetch database cursor
-        await cur.execute("SELECT * FROM dataset_metadata_search(%s, %s)", (query, 10))
+    async for cur in get_db():  # Fetch a database cursor
+        await cur.execute("SELECT id, source_type, access_url, llm_description, ST_AsText(bounding_box), score FROM dataset_metadata_search(%s, %s)", (query, 10))
         rows = await cur.fetchall()
 
-    state.results = [{"id": row[0], "source_type": row[1], "access_url": row[2], "llm_description": row[3], "bounding_box": row[4], "score": row[5]} for row in rows]
+    # Map rows to a list of dictionaries with all expected attributes.
+    state.results = [
+        {
+            "id": row[0],
+            "source_type": row[1],
+            "access_url": row[2],
+            "llm_description": row[3],
+            "bounding_box": row[4],
+            "score": row[5]
+        }
+        for row in rows
+    ]
     return state
-# Define LangGraph execution pipeline
+
+# Set up the LangGraph pipeline using SearchState as the state schema.
 graph = StateGraph(state_schema=SearchState)
-graph.add_node("query_postgis", query_postgis)  # Add the query function as a node
+graph.add_node("query_postgis", query_postgis)
 graph.add_edge(START, "query_postgis")
 
-# Build the graph
+# Compile the graph to obtain an executor.
 executor = graph.compile()
+
