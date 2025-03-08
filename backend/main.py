@@ -51,38 +51,13 @@ app.add_middleware(
 #async def shutdown():
 #    await close_db()  # Clean up DB connections when FastAPI shuts down
 
-# Example in your FastAPI endpoint
-@app.post("/api/search", response_model=ChatResponse)
-async def search_endpoint(payload: dict = Body(...)):
-    """
-    FastAPI endpoint for search.
-    Extracts the query from the incoming payload (using 'query', 'input', or the last message's content),
-    passes it to the LangGraph executor, and wraps the search results in a chat response.
-    """
-    query = payload.get("query") or payload.get("input")
-    if not query and "messages" in payload and payload["messages"]:
-        query = payload["messages"][-1].get("content")
-    if not query:
-        raise HTTPException(status_code=400, detail="Query field is missing")
-    
-    # ... (query extraction and executor call)
-    state = SearchState(query=query)
-    result_state = await executor.ainvoke(state)
-    results = result_state.get("results")
-    print(results)
-    # Return an assistant message with friendly content (or empty) and attach results.
-    response = ChatResponse(
-        id=payload.get("id", "map-chat"),
-        messages=[
-            ChatMessage(
-                id="assistant-response",
-                role="assistant",
-                content="Search completed.",  # You can set this to empty if preferred.
-                parts=results  # Attach the search results.
-            )
-        ]
-    )
-    return response
+
+@app.get("/api/search")
+async def search(query: str = Query()):
+    state = SearchState(query=query)  
+    results = await executor.ainvoke(state)
+    return results
+
 
 
 

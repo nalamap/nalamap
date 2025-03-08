@@ -17,18 +17,22 @@ async def query_postgis(state: SearchState) -> SearchState:
     """
     query = state.query
     async for cur in get_db():  # Fetch a database cursor
-        await cur.execute("SELECT id, source_type, access_url, llm_description, ST_AsText(bounding_box), score FROM dataset_metadata_search(%s, %s)", (query, 10))
+        await cur.execute("SELECT resource_id, source_type, name, title, description, access_url, format, llm_description, ST_AsText(bounding_box), score FROM dataset_resources_search(%s, %s)", (query, 10))
         rows = await cur.fetchall()
 
     # Map rows to a list of dictionaries with all expected attributes.
     state.results = [
         {
-            "id": row[0],
+            "resource_id": row[0],
             "source_type": row[1],
-            "access_url": row[2],
-            "llm_description": row[3],
-            "bounding_box": row[4],
-            "score": row[5]
+            "name": row[2],
+            "title": row[3],
+            "description": row[4],
+            "access_url": row[5],
+            "format": row[6],
+            "llm_description": row[7],
+            "bounding_box": row[8],
+            "score": row[9]
         }
         for row in rows
     ]

@@ -4,14 +4,17 @@ import { useRef, useEffect, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
-// Define the interface for each layer's data.
-interface LayerData {
-  id: number | string;
-  access_url: string;
-  bounding_box: any; // You can type this more strictly if you know the structure (e.g. number[])
-  llm_description: string;
-  score: number;
+export interface LayerData {
+  resource_id: number | string;
   source_type: string;
+  name: string;
+  title: string;
+  description: string;
+  access_url: string;
+  format: string;
+  llm_description: string;
+  bounding_box: any; // You can further type this if you know its structure, e.g. number[] or a specific object type.
+  score: number;
 }
 
 // Define the component props.
@@ -38,7 +41,7 @@ export default function MapLibreMap({ layers }: MapLibreMapProps) {
           layer.access_url.toLowerCase().includes("json")
         ) {
           // Use the layer id as a string for the source.
-          const sourceId = layer.id.toString();
+          const sourceId = layer.resource_id.toString();
           // Only add the source if it doesn't already exist.
           if(mapRef.current) {
             if (!mapRef.current.getSource(sourceId)) {
@@ -60,7 +63,7 @@ export default function MapLibreMap({ layers }: MapLibreMapProps) {
           }
             } else {
             // For layers that do not meet the GeoJSON criteria, you could implement alternative handling.
-            console.log(`Layer ${layer.id} does not qualify as a GeoJSON layer.`);
+            console.log(`Layer ${layer.resource_id} does not qualify as a GeoJSON layer.`);
             }
       });
     }
@@ -111,7 +114,7 @@ export default function MapLibreMap({ layers }: MapLibreMapProps) {
       {/* Basemap switch button at the top left corner */}
       <button
         onClick={toggleBasemap}
-        className="absolute top-2 left-2 z-10 bg-white p-2 rounded shadow"
+        className="absolute top-2 right-2 z-10 bg-white p-2 rounded shadow"
       >
         Switch Basemap
       </button>
