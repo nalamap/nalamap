@@ -1,10 +1,33 @@
 "use client";
 
-import { MapContainer, LayersControl, TileLayer,  WMSTileLayer, GeoJSON, useMap  } from "react-leaflet";
+import { MapContainer, LayersControl, TileLayer, WMSTileLayer, GeoJSON, useMap } from "react-leaflet";
 import { useState, useEffect } from "react";
 import "leaflet/dist/leaflet.css";
 import { LayerData } from "./MapLibreMap"; // Assuming the same type definition
 import L from "leaflet";
+import "leaflet-fullscreen/dist/leaflet.fullscreen.css";
+import "leaflet-fullscreen";
+
+// Extend the global L object to include fullscreen functionality
+declare global {
+  interface FullscreenOptions {
+    position?: L.ControlPosition;
+    title?: {
+      'false': string;
+      'true': string;
+    };
+  }
+  
+  namespace L {
+    namespace control {
+      function fullscreen(options?: FullscreenOptions): Control;
+    }
+    
+    interface Map {
+      fullscreenControl?: Control;
+    }
+  }
+}
 
 // Helper: Parse a full WMS access_url into its base URL and WMS parameters.
 function parseWMSUrl(access_url: string) {
@@ -40,6 +63,38 @@ function LeafletGeoJSONLayer({ url }: { url: string }) {
   return data ? <GeoJSON data={data} /> : null;
 }
 
+
+// Component to add the fullscreen control to the map
+function FullscreenControl() {
+  const map = useMap();
+  
+  useEffect(() => {
+    if (!map.fullscreenControl) {
+      // Add fullscreen control below the zoom control
+      const fullscreenControl = L.control.fullscreen({
+        position: 'topleft',
+        title: {
+          'false': 'View Fullscreen',
+          'true': 'Exit Fullscreen'
+        }
+      });
+      
+      map.addControl(fullscreenControl);
+      
+      // Store a reference to the control
+      map.fullscreenControl = fullscreenControl;
+    }
+    
+    return () => {
+      if (map.fullscreenControl) {
+        map.removeControl(map.fullscreenControl);
+        map.fullscreenControl = undefined;
+      }
+    };
+  }, [map]);
+  
+  return null;
+}
 
 // Custom component to handle GetFeatureInfo requests for WMS layers.
 function GetFeatureInfo({ wmsLayer }: { wmsLayer: { baseUrl: string; layers: string; format: string; transparent: boolean; } }) {
@@ -119,7 +174,10 @@ export default function LeafletMapComponent({ layers }: { layers: LayerData[] })
   return (
     <div className="relative w-full h-full">
         <div className="absolute inset-0 z-0">
-            <MapContainer center={[0, 0]} zoom={2} style={{ height: "100%", width: "100%" }}>
+            <MapContainer center={[0, 0]} zoom={2} style={{ height: "100%", width: "100%" }} fullscreenControl={true}>
+                {/* Add the fullscreen control */}
+                <FullscreenControl />
+                
                 {/* LayersControl renders a nice base layer switching control */}
                 <LayersControl position="topright">
                 <LayersControl.BaseLayer checked name="OpenStreetMap">
@@ -154,6 +212,9 @@ export default function LeafletMapComponent({ layers }: { layers: LayerData[] })
                 {wmsLayer && wmsLayerData && (
                     <Legend wmsLayer={wmsLayer} title={wmsLayerData.title || wmsLayerData.name} />
                 )}
+                
+                {/* Add GetFeatureInfo handler if a WMS layer exists */}
+                {wmsLayer && <GetFeatureInfo wmsLayer={wmsLayer} />}
             </MapContainer>
         </div>
     </div>
