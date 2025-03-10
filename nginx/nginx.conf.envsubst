@@ -1,0 +1,37 @@
+worker_processes 1;
+
+events { 
+  worker_connections 1024; 
+}
+
+http {
+  include       mime.types;
+  default_type  application/octet-stream;
+  sendfile      on;
+  keepalive_timeout 65;
+
+  server {
+    listen 80;
+    server_name _;
+
+    # Serve static files and enable SPA routing
+    location / {
+      proxy_pass ${FRONTEND_PROTOCOL}://${FRONTEND_URL};
+      proxy_http_version 1.1;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection 'upgrade';
+      proxy_set_header Host $host;
+      proxy_cache_bypass $http_upgrade;
+    }
+
+    # Proxy API requests to the backend using env variables
+    location /api/ {
+      proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL};
+      proxy_http_version 1.1;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection 'upgrade';
+      proxy_set_header Host $host;
+      proxy_cache_bypass $http_upgrade;
+    }
+  }
+}
