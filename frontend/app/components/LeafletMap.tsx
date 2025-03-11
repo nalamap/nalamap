@@ -140,10 +140,6 @@ export default function LeafletMapComponent({ layers }: { layers: LayerData[] })
                 <LayersControl.BaseLayer name="Google Terrain">
                     <TileLayer url="https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}" />
                 </LayersControl.BaseLayer>
-                <LayersControl.BaseLayer name="NASA Earth at Night">
-                    <TileLayer url="https://map1.vis.earthdata.nasa.gov/wmts-webmerc/VIIRS_Black_Marble/default/{time}/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpg" 
-                        time="2012" />
-                </LayersControl.BaseLayer>
                 </LayersControl>
                 {layers.map((layer) => {
                     if (layer.source_type.toUpperCase() === "WMS") {
