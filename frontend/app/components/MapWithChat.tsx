@@ -14,6 +14,7 @@ export default function MapWithChat() {
   const { input, setInput, searchResults, loading, error, search } =
     useSearch(API_BASE_URL);
   // State to store the layer(s) the user selects to visualize.
+  // Initialize with a default empty layer to ensure the map loads with our baselayers
   const [mapLayers, setMapLayers] = useState<any[]>([]);
   // State for conversation with the agent.
   const [conversation, setConversation] = useState<Message[]>([]);

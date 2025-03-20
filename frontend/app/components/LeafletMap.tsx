@@ -122,11 +122,23 @@ export default function LeafletMapComponent({ layers }: { layers: LayerData[] })
             <MapContainer center={[0, 0]} zoom={2} style={{ height: "100%", width: "100%" }}>
                 {/* LayersControl renders a nice base layer switching control */}
                 <LayersControl position="topright">
-                <LayersControl.BaseLayer checked name="OpenStreetMap">
+                <LayersControl.BaseLayer checked name="CartoDB Positron">
+                    <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
+                </LayersControl.BaseLayer>
+                <LayersControl.BaseLayer name="CartoDB Dark Matter">
+                    <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+                </LayersControl.BaseLayer>
+                <LayersControl.BaseLayer name="OpenStreetMap">
                     <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                 </LayersControl.BaseLayer>
-                <LayersControl.BaseLayer name="CartoDB Positron">
-                    <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
+                <LayersControl.BaseLayer name="Google Satellite">
+                    <TileLayer url="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}" />
+                </LayersControl.BaseLayer>
+                <LayersControl.BaseLayer name="Google Hybrid">
+                    <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" />
+                </LayersControl.BaseLayer>
+                <LayersControl.BaseLayer name="Google Terrain">
+                    <TileLayer url="https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}" />
                 </LayersControl.BaseLayer>
                 </LayersControl>
                 {layers.map((layer) => {
