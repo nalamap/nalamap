@@ -212,9 +212,6 @@ export default function LeafletMapComponent({ layers }: { layers: LayerData[] })
                 {wmsLayer && wmsLayerData && (
                     <Legend wmsLayer={wmsLayer} title={wmsLayerData.title || wmsLayerData.name} />
                 )}
-                
-                {/* Add GetFeatureInfo handler if a WMS layer exists */}
-                {wmsLayer && <GetFeatureInfo wmsLayer={wmsLayer} />}
             </MapContainer>
         </div>
     </div>
