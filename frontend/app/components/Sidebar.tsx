@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Head from 'next/head';
+import { User, Maximize, RefreshCcw, Settings } from 'lucide-react';
 
 const toggleFullscreen = () => {
   const elem = document.documentElement;
@@ -26,43 +27,39 @@ const toggleFullscreen = () => {
   }
 };
 
-
 export default function Sidebar() {
-
   return (
     <>
       <Head>
         <title>GeoWeaverAI</title>
         <meta name="description" content="geospatial insights, with ease" />
       </Head>
-        {/* Top Icon Section */}
-        <div className="flex flex-col items-center py-4 space-y-4 border-b border-darkgreen-700">
-          {/* Account Icon */}
-          <button className="hover:bg-secondary-900 p-2 rounded focus:outline-none" title="Account">
-            <span className="text-2xl">👤</span>
-          </button>
+      {/* Top Icon Section */}
+      <div className="flex flex-col items-center py-4 space-y-4 border-b border-darkgreen-700">
+        {/* Account Icon */}
+        <button className="hover:bg-secondary-900 p-2 rounded focus:outline-none" title="Account">
+          <User className="w-6 h-6" />
+        </button>
 
-          {/* Fullscreen Icon */}
-          <button
-            onClick={toggleFullscreen}
-            className="hover:bg-secondary-900 p-2 rounded focus:outline-none"
-            title="Fullscreen Mode"
-          >
-            <span className="text-2xl">🖥️</span>
-          </button>
+        {/* Fullscreen Icon */}
+        <button
+          onClick={toggleFullscreen}
+          className="hover:bg-secondary-900 p-2 rounded focus:outline-none"
+          title="Fullscreen Mode"
+        >
+          <Maximize className="w-6 h-6" />
+        </button>
 
+        {/* Reset Icon */}
+        <button className="hover:bg-secondary-900 p-2 rounded focus:outline-none" title="Reset App">
+          <RefreshCcw className="w-6 h-6" />
+        </button>
 
-          {/* Reset Icon */}
-          <button className="hover:bg-secondary-900 p-2 rounded focus:outline-none" title="Reset App">
-            <span className="text-2xl">🔄</span>
-          </button>
-
-          {/* Settings Icon */}
-          <button className="hover:bg-secondary-900 p-2 rounded focus:outline-none" title="Settings">
-            <span className="text-2xl">⚙️</span>
-          </button>
-        </div>
+        {/* Settings Icon */}
+        <button className="hover:bg-secondary-900 p-2 rounded focus:outline-none" title="Settings">
+          <Settings className="w-6 h-6" />
+        </button>
+      </div>
     </>
   );
 };
-

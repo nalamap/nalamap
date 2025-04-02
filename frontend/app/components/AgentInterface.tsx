@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useSearch } from "../hooks/useSearch";
+import { useLayerStore } from "../stores/layerStore";
+
 
 interface Props {
   onLayerSelect: (layers: any[]) => void;
@@ -37,10 +39,10 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
   };
 
   const handleLayerSelect = (layer: any) => {
-    onLayerSelect([layer]);
+    useLayerStore.getState().addLayer(layer);
     setConversation((prev) => [
       ...prev,
-      { role: "agent", content: `Layer \"${layer.name}\" added to the map.` },
+      { role: "agent", content: `Layer "${layer.name}" added to the map.` },
     ]);
   };
 
