@@ -62,3 +62,4 @@ https://www.geoboundaries.org/
 
 if __name__ == "__main__":
     print(geocode_using_nominatim.invoke({"query": "Frankfurt", "geojson": True}))
+    print(geocode_using_geonames.invoke({"query": "Frankfurt"}))
