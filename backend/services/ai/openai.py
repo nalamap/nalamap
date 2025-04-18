@@ -1,4 +1,12 @@
-from langchain_community.llms import ChatOpenAI
+from langchain_openai import ChatOpenAI
+from os import getenv
 
-def initlialize_openai_llm(model_name: str, max_tokens: int) -> ChatOpenAI:
-    return ChatOpenAI(model_name=model_name, max_tokens=max_tokens)
+def get_llm(max_tokens: int = 5000):
+    return ChatOpenAI(
+        model="gpt-4.1-nano",
+        temperature=0,
+        max_tokens=max_tokens,
+        timeout=None,
+        max_retries=3,
+    )
+
