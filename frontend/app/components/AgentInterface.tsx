@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useSearch } from "../hooks/useGeoweaverAgent";
+import { ArrowUp } from "lucide-react";
 import { useLayerStore } from "../stores/layerStore";
 
 
@@ -47,7 +48,7 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
   };
 
   return (
-    <div className="w-[24rem] min-w-[20rem] bg-white border-l shadow-lg flex flex-col overflow-y-auto relative">
+    <div className="w-[26rem] min-w-[20rem] bg-white border-l shadow-lg flex flex-col overflow-hidden relative">
       {/* Chat content area */}
       <div className="flex-1 p-4">
         <div className="overflow-y-auto text-sm mb-2 px-2">
@@ -79,7 +80,7 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
       </div>
 
       {/* Tool selector and input */}
-      <div className="p-4 border-t flex flex-col gap-2">
+      <div className="p-4 border-t flex flex-col gap-2 min-w-0">
         <div className="flex gap-2 justify-center">
           <button
             onClick={() => setActiveTool("search")}
@@ -101,16 +102,21 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex gap-2">
+        
+        <form onSubmit={handleSubmit} className="relative">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={`Type a ${activeTool} command...`}
-            className="flex-1 border rounded px-4 py-2 focus:outline-none focus:ring"
+            className="w-full border border-gray-300 bg-gray-100 rounded px-4 py-3 pr-10 focus:outline-none focus:ring focus:ring-secondary-300"
           />
-          <button type="submit" className="bg-secondary-700 text-white px-4 py-2 rounded">
-            Send
+          <button
+            type="submit"
+            className="absolute right-2 bottom-2 text-gray-500 hover:text-gray-900 transition-colors"
+            title="Send"
+          >
+            <ArrowUp size={20}  />
           </button>
         </form>
       </div>

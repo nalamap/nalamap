@@ -40,7 +40,7 @@ export default function LayerManagement() {
   };
 
   return (
-    <div className="w-64 bg-gray-100 p-4 border-r overflow-y-auto">
+    <div className="w-72 bg-gray-100 p-4 border-r overflow-hidden">
       <h2 className="text-xl font-bold mb-4">Layer Management</h2>
 
       {/* Upload Section */}
@@ -75,7 +75,7 @@ export default function LayerManagement() {
                 key={layer.resource_id}
                 className="bg-white p-2 rounded shadow flex items-center justify-between"
               >
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <div className="font-bold text-gray-800 truncate">{layer.name}</div>
                   <div className="text-xs text-gray-500">{layer.source_type}</div>
                 </div>
