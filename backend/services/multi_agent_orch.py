@@ -33,8 +33,9 @@ async def geo_helper_node(state: Dict) -> Command:
         or ai_state.get("output")
         or "⚠️ Geo Helper returned no response."
     )
-    print(output)
-    return Command(goto=END)
+    new_msgs = state["messages"] + [{"role": "assistant", "content": output}]
+    print(new_msgs)
+    return {"messages": new_msgs}
 
 def convert_to_search_input(state: Dict) -> Dict:
     # Only use the latest user message for the query
