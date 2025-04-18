@@ -3,7 +3,7 @@ from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from pydantic import BaseModel
-from services.ai_service import generate_ai_response
+from backend.services.multi_agent_orch import generate_ai_response
 #from sqlalchemy.ext.asyncio import AsyncSession
 from services.database.database import get_db, init_db, close_db
 from services.agents.langgraph_agent import executor, SearchState
