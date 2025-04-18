@@ -31,7 +31,7 @@ def geocode_using_geonames(location: str, maxRows: int = 3) -> str:
 # Note: Contains GeoJSON & Bounding Box: TODO: sidechannel GeoJSON to not overload our LLMs
 @tool
 def geocode_using_nominatim(query: str, geojson: bool = False, maxRows: int = 3) -> str:
-    """Geocode an address using PpenStreetMap Nominatim API ."""
+    """Geocode an address using OpenStreetMap Nominatim API ."""
     url: str = (
         f"https://nominatim.openstreetmap.org/search?q={query}&format=json&polygon_kml={1 if geojson else 0}&addressdetails=1&limit={maxRows}"
     )
