@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useSearch } from "../hooks/useSearch";
-import { useGeocode } from "../hooks/useGeocode";
+import { useSearch } from "../hooks/useGeoweaverAgent";
 import { useLayerStore } from "../stores/layerStore";
 
 
@@ -16,7 +15,6 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
   const [activeTool, setActiveTool] = useState<"search" | "process" | "geocode" | null>("search");
   const { input, setInput, searchResults, loading, error, search } = useSearch(API_BASE_URL);
-  const { geocodeInput, setGeocodeInput, geocodeResults, geocodeLoading, geocodeError, geocode } = useGeocode(API_BASE_URL);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,12 +27,6 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
       setConversation((prev) => [
         ...prev,
         { role: "agent", content: "Search completed." },
-      ]);
-    } else if (activeTool === "geocode") {
-      await geocode();
-      setConversation((prev) => [
-        ...prev,
-        { role: "agent", content: "Geocoding completed." },
       ]);
     } else if (activeTool === "process") {
       setConversation((prev) => [

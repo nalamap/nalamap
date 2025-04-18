@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import MapSwitcher from "./MapSwitcher";
-import { useSearch } from "../hooks/useSearch";
+import { useSearch } from "../hooks/useGeoweaverAgent";
 
 type Message = { role: "user" | "agent"; content: string };
 

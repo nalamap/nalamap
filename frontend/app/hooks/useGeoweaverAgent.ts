@@ -1,4 +1,4 @@
-// hooks/useSearch.ts
+// hooks/useGeoweaver.ts
 "use client";
 
 import { useState } from "react";
