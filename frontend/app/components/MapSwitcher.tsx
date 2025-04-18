@@ -36,6 +36,7 @@ export default function MapSwitcher({ layers }: MapComponentProps) {
 
   return (
     <div className="relative w-full h-full">
+      {/*
       <div className="absolute top-2 left-13 z-20">
         <button
           onClick={() =>
@@ -46,6 +47,7 @@ export default function MapSwitcher({ layers }: MapComponentProps) {
           Switch to {framework === "maplibre" ? "Leaflet" : "MapLibre"}
         </button>
       </div>
+      */}
       {framework === "maplibre" ? (
         <MapLibreMap layers={layers} />
       ) : (
