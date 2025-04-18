@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException, Query, Body
-from typing import List, Optional
+from typing import List, Optional, Any, Dict
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from pydantic import BaseModel
@@ -7,6 +7,8 @@ from services.ai_service import generate_ai_response
 #from sqlalchemy.ext.asyncio import AsyncSession
 from services.database.database import get_db, init_db, close_db
 from services.agents.langgraph_agent import executor, SearchState
+from services.tools.geocoding import geocode_using_nominatim
+import json
 
 class ChatMessage(BaseModel):
     role: str
@@ -59,7 +61,67 @@ async def search(query: str = Query()):
     return results
 
 
-
+@app.get("/api/geocode")
+async def geocode(query: str = Query(...)) -> Dict[str, Any]:
+    # 1) Invoke the tool (returns a JSON string)
+    raw = geocode_using_nominatim.invoke(
+        {"query": query, "geojson": True}
+    )
+    # 2) Parse into a Python dict, handling single-quoted JSON safely
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        # Fallback: convert single quotes to double quotes for JSON parsing
+        fixed = raw.replace("'", '"')
+        data = json.loads(fixed)
+    
+    # 3) Build our own result list
+    results: List[Dict[str, Any]] = []
+    print(str(data)[:500])
+    # Nominatim returns a list of places
+    for props in data:
+        place_id     = props.get("place_id")
+        osm_type     = props.get("osm_type")
+        display_name = props.get("display_name")
+        name_prop    = props.get("name")
+        typ          = props.get("type")
+        importance   = props.get("importance")
+        bbox         = props.get("boundingbox")  # [lat_min, lat_max, lon_min, lon_max]
+        raw_geo      = props.get("geokml")
+        
+        # turn bbox into WKT POLYGON string
+        bounding_box: Optional[str]
+        if bbox and len(bbox) == 4:
+            lat_min, lat_max, lon_min, lon_max = map(float, bbox)
+            bounding_box = (
+                f"POLYGON(({lon_max} {lat_min},"
+                         f"{lon_max} {lat_max},"
+                         f"{lon_min} {lat_max},"
+                         f"{lon_min} {lat_min},"
+                         f"{lon_max} {lat_min}))"
+            )
+        else:
+            bounding_box = None
+        
+        results.append({
+            "resource_id":     place_id,
+            "source_type":     osm_type,
+            "name":            display_name,
+            "title":           name_prop,
+            "description":     typ,
+            "access_url":      None,
+            "format":          None,
+            "llm_description": display_name,
+            "bounding_box":    bounding_box,
+            "raw_geo_data":    raw_geo,
+            "score":           importance,
+        })
+    
+    # 4) Return wrapped payload
+    return {
+        "query":   query,
+        "results": results
+    }
 
 class AIRequest(BaseModel):
     message: str
