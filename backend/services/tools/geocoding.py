@@ -1,6 +1,7 @@
 from os import getenv
 from langchain_core.tools import tool
 import requests
+import json
 
 headers_geoweaver = {
     "User-Agent": "GeoWeaver, github.com/geoweaveai, next generation geospatial analysis using agents"
@@ -22,7 +23,7 @@ def geocode_using_geonames(location: str, maxRows: int = 3) -> str:
         data = response.json()
         if len(data) > 0:
             places = data["geonames"]
-            return str(places)
+            return json.dumps(places)
         else:
             return "No results found."
     else:
@@ -33,16 +34,17 @@ def geocode_using_geonames(location: str, maxRows: int = 3) -> str:
 def geocode_using_nominatim(query: str, geojson: bool = False, maxRows: int = 3) -> str:
     """Geocode an address using PpenStreetMap Nominatim API ."""
     url: str = (
-        f"https://nominatim.openstreetmap.org/search?q={query}&format=json&polygon_kml={1 if geojson else 0}&addressdetails=1&limit=${maxRows}"
+        f"https://nominatim.openstreetmap.org/search?q={query}&format=json&polygon_kml={1 if geojson else 0}&addressdetails=1&limit={maxRows}"
     )
     response = requests.get(url, headers=headers_geoweaver)
     if response.status_code == 200:
         data = response.json()
         if len(data):
-            return str(data)
+            return json.dumps(data)
         else:
             return "No results found."
     else:
+        print(response.json())
         return "Error querying the Nominatim API."
 
 
