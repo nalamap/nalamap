@@ -11,6 +11,7 @@ services:
       - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
       - AZURE_OPENAI_DEPLOYMENT=${AZURE_OPENAI_DEPLOYMENT}
       - AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION}
+      - LLM_PROVIDER=${LLM_PROVIDER}
     command: uvicorn main:app --reload --host 0.0.0.0 --port 8000 # auto-reload enabled
     ports:
       - "8000:8000"
