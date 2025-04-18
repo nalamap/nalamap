@@ -2,7 +2,9 @@ import json
 from typing import Literal
 from os import getenv
 
-from langchain_openai import AzureChatOpenAI
+from services.ai.llm_config import get_llm
+from core.config import *  # Import config if needed
+
 from langgraph.graph import MessagesState, START, END
 from langgraph.types import Command
 
@@ -28,10 +30,8 @@ DATASET_KEYWORDS = {
 }
 
 def choose_agent(messages) -> str:
-    text = next(
-        (m["content"].lower() for m in messages if m["role"] == "user"),
-        ""
-    )
+    user_messages = [m for m in messages if m["role"] == "user"]
+    text = user_messages[-1]["content"].lower() if user_messages else ""
     if any(kw in text for kw in DATASET_KEYWORDS):
         return "librarien"
     # If no keywords, ask the LLM to decide
@@ -42,28 +42,18 @@ def choose_agent(messages) -> str:
         return "librarien"
     return "geo_helper"
 
-def get_azure_llm(max_tokens: int = 5000):
-    return AzureChatOpenAI(
-        azure_deployment=getenv("AZURE_OPENAI_DEPLOYMENT"),
-        api_version=getenv("AZURE_OPENAI_API_VERSION"),
-        temperature=0,
-        max_tokens=max_tokens,
-        timeout=None,
-        max_retries=3
-    )
-
-llm = get_azure_llm()
+# Replace direct AzureChatOpenAI usage with get_llm
+llm = get_llm()
 
 class State(MessagesState):
     next: str = ""
     reason: str = ""
 
 async def supervisor_node(state: State) -> Command[Literal["geo_helper","librarien","finish"]]:
-    user_text = next(
-        (m["content"].lower() for m in state["messages"] if m["role"] == "user"),
-        ""
-    )
-    messages = [{"role": "system", "content": LLM_PROMPT.format(query=user_text)}] + state["messages"]
+    # Only consider the latest user message
+    user_messages = [m for m in state["messages"] if m["role"] == "user"]
+    user_text = user_messages[-1]["content"].lower() if user_messages else ""
+    messages = [{"role": "system", "content": LLM_PROMPT.format(query=user_text)}] + user_messages[-1:]
     response = await llm.ainvoke(messages)
     raw = response.content.strip()
     try:

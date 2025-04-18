@@ -2,9 +2,9 @@ from langgraph.graph import StateGraph, START, END
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional
 import json
-from os import getenv
 
-from langchain_openai import AzureChatOpenAI
+from services.ai.llm_config import get_llm
+from core.config import *  
 from langchain.schema import HumanMessage, AIMessage, SystemMessage
 
 class AIState(BaseModel):
@@ -14,20 +14,7 @@ class AIState(BaseModel):
     error: Optional[str] = None
     status: str = "pending"
 
-def get_azure_llm(max_tokens: int = 5000):
-    llm = AzureChatOpenAI(
-        azure_deployment=getenv("AZURE_OPENAI_DEPLOYMENT"),
-        api_version=getenv("AZURE_OPENAI_API_VERSION"),
-        temperature=0,
-        max_tokens=max_tokens,
-        timeout=None,
-        max_retries=3,
-    )
-    print("[geo_weaver_ai] Initialized AzureChatOpenAI")
-    return llm
-
 def prepare_messages(state: AIState) -> AIState:
-    print("[geo_weaver_ai] ▶ prepare_messages (incoming state):", state)
     if state.messages:
         state.messages.append({"role": "user", "content": state.input})
     else:
@@ -39,8 +26,7 @@ def prepare_messages(state: AIState) -> AIState:
     return state
 
 async def query_ai(state: AIState) -> AIState:
-    print("[geo_weaver_ai] ▶ query_ai, messages:", state.messages)
-    llm = get_azure_llm()
+    llm = get_llm()  
     langchain_messages = []
     for msg in state.messages:
         if msg["role"] == "system":
@@ -49,11 +35,8 @@ async def query_ai(state: AIState) -> AIState:
             langchain_messages.append(HumanMessage(content=msg["content"]))
         else:
             langchain_messages.append(AIMessage(content=msg["content"]))
-
-    print("[geo_weaver_ai]    sending to Azure:", langchain_messages)
     response = await llm.ainvoke(langchain_messages)
-    print("[geo_weaver_ai]    Azure returned:", response)
-
+    print(response.content)
     state.response = response.content if hasattr(response, "content") else str(response)
     state.messages.append({"role": "assistant", "content": state.response})
     state.status = "completed"

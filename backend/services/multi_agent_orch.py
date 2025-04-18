@@ -12,7 +12,8 @@ from services.agents.supervisor_agent import choose_agent, supervisor_node as ll
 
 
 async def supervisor_node(state: Dict) -> Command:
-    choice = choose_agent(state["messages"])
+    latest_user_message = [m for m in state["messages"] if m["role"] == "user"][-1:]
+    choice = choose_agent(latest_user_message)
     print(f"[Orch] ▶ supervisor_node chose: {choice}")
     return Command()
 
@@ -22,7 +23,6 @@ def convert_to_geo_input(state: Dict) -> Dict:
 
 async def geo_helper_node(state: Dict) -> Command:
     inp = convert_to_geo_input(state)
-    print(f"[Orch] ▶ geo_helper_node, sending to LLM: {inp}")
     ai_state = await geo_helper_executor.ainvoke(inp)
 
     output = (
@@ -32,16 +32,14 @@ async def geo_helper_node(state: Dict) -> Command:
         or "⚠️ Geo Helper returned no response."
     )
     new_msgs = state["messages"] + [{"role": "assistant", "content": output}]
-    print(new_msgs)
     return {"messages": new_msgs}
 
 def convert_to_search_input(state: Dict) -> Dict:
-    query = next((m["content"] for m in state["messages"] if m["role"] == "user"), "")
+    query = next((m["content"] for m in reversed(state["messages"]) if m["role"] == "user"), "")
     return {"query": query, "results": []}
 
 async def librarien_node(state: Dict) -> Command:
     inp = convert_to_search_input(state)
-    print(f"[Orch] ▶ librarien_node, querying DB with: {inp}")
     search_state = await librarien_executor.ainvoke(inp)
 
     results = getattr(search_state, "results", None) or search_state.get("results", [])
@@ -66,7 +64,7 @@ graph.set_entry_point("supervisor")
 
 graph.add_conditional_edges(
     "supervisor",
-    lambda state: choose_agent(state["messages"]),
+    lambda state: choose_agent([m for m in state["messages"] if m["role"] == "user"][-1:]),
     {"geo_helper": "geo_helper", "librarien": "librarien"}
 )
 
@@ -78,14 +76,24 @@ multi_agent_executor = graph.compile()
 
 # --- Runner ---
 async def main():
-    user_input = input("Enter your message: ")
-    initial = {"messages": [{"role": "user", "content": user_input}]}
-    supervisor_result = await llm_supervisor_node(initial)
-    reason = supervisor_result.update.get("reason", "")
-    if reason:
-        print(f"[Orch] ▶ Supervisor explanation: {reason}")
+    messages = []
+    print("Type 'exit' or 'quit' to end the conversation.")
+    while True:
+        user_input = input("Enter your message: ")
+        if user_input.strip().lower() in {"exit", "quit"}:
+            print("Goodbye!")
+            break
+        messages.append({"role": "user", "content": user_input})
 
-    await multi_agent_executor.ainvoke(initial)
+        initial = {"messages": messages}
+
+        supervisor_result = await llm_supervisor_node(initial)
+        reason = supervisor_result.update.get("reason", "")
+        next_agent = supervisor_result.goto
+        if reason:
+            print(f"[Orch] ▶ Supervisor explanation: {reason}")
+
+        await multi_agent_executor.ainvoke(initial)
 
 if __name__ == "__main__":
     asyncio.run(main())
