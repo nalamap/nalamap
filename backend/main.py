@@ -1,17 +1,22 @@
 from fastapi import FastAPI, HTTPException, Query, Body
-from typing import List, Optional
+from typing import List, Optional, Literal
+from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from pydantic import BaseModel
-from services.ai_service import generate_ai_response
+from services.multi_agent_orch import multi_agent_executor
 #from sqlalchemy.ext.asyncio import AsyncSession
 from services.database.database import get_db, init_db, close_db
 from services.agents.langgraph_agent import executor, SearchState
 
 class ChatMessage(BaseModel):
-    role: str
+    role: Literal["user", "assistant", "system"]
     content: str
-    parts: Optional[List[dict]] = None
+
+class OrchestratorRequest(BaseModel):
+    messages: List[ChatMessage]
+
+class OrchestratorResponse(BaseModel):
+    messages: List[ChatMessage]
 
 # Define a model to represent the incoming payload from useChat.
 class ChatPayload(BaseModel):
@@ -68,18 +73,16 @@ class AIRequest(BaseModel):
 class AIResponse(BaseModel):
     response: str
 
-@app.post("/api/geoweaver/generate", 
-        response_model=AIResponse,
-    summary="Generate GeoWeaver Response",
-    description="Receives a message and returns an AI-generated response using GeoWeaverAI.",
-    tags=["GeoWeaver"])
-async def get_ai_response(request: AIRequest):
-    try:
-        result = generate_ai_response(request.message)
-        return AIResponse(response=result)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    
+@app.post("/api/orchestrate", response_model=OrchestratorResponse)
+async def orchestrate(req: OrchestratorRequest):
+    state = {
+        "messages": [m.dict() for m in req.messages],
+        "next": ""
+    }
+    final_state = await multi_agent_executor.ainvoke(state)
+
+
+    return OrchestratorResponse(messages=final_state["messages"])
 
 
 if __name__ == "__main__":
