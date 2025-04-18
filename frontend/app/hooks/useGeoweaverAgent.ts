@@ -36,7 +36,6 @@ export function useGeoweaverAgent(apiUrl: string) {
       }
       // Expecting the response to be a JSON array of search objects.
       const data = await response.json();
-      console.log(data);
 
       // Convert any raw_geo_data into a KML file blob URL
       const processed: GeoweaverMapData[] = data.results.map((item: GeoweaverMapData) => {
@@ -96,7 +95,7 @@ export function useGeoweaverAgent(apiUrl: string) {
 
           const newLayer = {
             resource_id: item.resource_id,
-            name: `${item.resource_id}.geojson`,            // set file-like name
+            name: `${item.name}_${item.resource_id}.geojson`,            // set file-like name
             source_type: 'uploaded',
             access_url: geojsonUrl,
             visible: true,
