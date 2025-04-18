@@ -49,7 +49,7 @@ export default function MapSwitcher({ layers }: MapComponentProps) {
       {framework === "maplibre" ? (
         <MapLibreMap layers={layers} />
       ) : (
-        <LeafletMapComponent layers={layers} />
+        <LeafletMapComponent/>
       )}
     </div>
   );

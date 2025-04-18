@@ -8,6 +8,9 @@ import L from "leaflet";
 import "leaflet-fullscreen/dist/leaflet.fullscreen.css";
 import "leaflet-fullscreen";
 
+import { useMapStore } from "../stores/mapStore"; // Adjust path accordingly
+import { useLayerStore } from "../stores/layerStore";
+
 // Extend the global L object to include fullscreen functionality
 declare global {
   interface FullscreenOptions {
@@ -163,7 +166,9 @@ function Legend({
     );
   }
 
-export default function LeafletMapComponent({ layers }: { layers: LayerData[] }) {
+export default function LeafletMapComponent() {
+  const basemap = useMapStore((state) => state.basemap);
+  const layers = useLayerStore((state) => state.layers);
 
     // Get the first WMS layer from the layers array (if any) for GetFeatureInfo.
   const wmsLayerData = layers.find(
@@ -177,8 +182,8 @@ export default function LeafletMapComponent({ layers }: { layers: LayerData[] })
             <MapContainer center={[0, 0]} zoom={2} style={{ height: "100%", width: "100%" }} fullscreenControl={true}>
                 {/* Add the fullscreen control */}
                 <FullscreenControl />
-                
                 {/* LayersControl renders a nice base layer switching control */}
+                {/*
                 <LayersControl position="topright">
                 <LayersControl.BaseLayer checked name="CartoDB Positron">
                     <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
@@ -198,8 +203,11 @@ export default function LeafletMapComponent({ layers }: { layers: LayerData[] })
                 <LayersControl.BaseLayer name="Google Terrain">
                     <TileLayer url="https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}" />
                 </LayersControl.BaseLayer>
-                </LayersControl>
+                </LayersControl> */}
+                <TileLayer url={basemap} />
                 {layers.map((layer) => {
+                    if (!layer.visible) return null;
+                    
                     if (layer.source_type.toUpperCase() === "WMS") {
                     const { baseUrl, layers: wmsLayers, format, transparent } = parseWMSUrl(layer.access_url);
                     return (
