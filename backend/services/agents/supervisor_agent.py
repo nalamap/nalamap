@@ -28,8 +28,10 @@ DATASET_KEYWORDS = {
 }
 
 def choose_agent(messages) -> str:
-    user_messages = [m for m in messages if m["role"] == "user"]
-    text = user_messages[-1]["content"].lower() if user_messages else ""
+    text = next(
+        (m["content"].lower() for m in messages if m["role"] == "user"),
+        ""
+    )
     if any(kw in text for kw in DATASET_KEYWORDS):
         return "librarien"
     # If no keywords, ask the LLM to decide
@@ -57,10 +59,11 @@ class State(MessagesState):
     reason: str = ""
 
 async def supervisor_node(state: State) -> Command[Literal["geo_helper","librarien","finish"]]:
-    # Only consider the latest user message
-    user_messages = [m for m in state["messages"] if m["role"] == "user"]
-    user_text = user_messages[-1]["content"].lower() if user_messages else ""
-    messages = [{"role": "system", "content": LLM_PROMPT.format(query=user_text)}] + user_messages[-1:]  # Only latest user message
+    user_text = next(
+        (m["content"].lower() for m in state["messages"] if m["role"] == "user"),
+        ""
+    )
+    messages = [{"role": "system", "content": LLM_PROMPT.format(query=user_text)}] + state["messages"]
     response = await llm.ainvoke(messages)
     raw = response.content.strip()
     try:
