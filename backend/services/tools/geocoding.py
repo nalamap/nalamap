@@ -15,8 +15,7 @@ def geocode_using_geonames(location: str, maxRows: int = 3) -> str:
     Geocode a location to get the responding bounding box using the GeoNames API. 
     """
     url: str = (
-        f"http://api.geonames.org/searchJSON?q={location}&maxRows={maxRows}&username={getenv("GEONAMES_USER", "geoweaver")}"
-    )
+        f"http://api.geonames.org/searchJSON?q={location}&maxRows={maxRows}&username={getenv('GEONAMES_USER', 'geoweaver')}"
     response = requests.get(url)
 
     if response.status_code == 200:
