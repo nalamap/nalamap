@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useSearch } from "../hooks/useSearch";
+import { useGeocode } from "../hooks/useGeocode";
 import { useLayerStore } from "../stores/layerStore";
 
 
@@ -13,8 +14,9 @@ interface Props {
 
 export default function AgentInterface({ onLayerSelect, conversation, setConversation }: Props) {
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
-  const [activeTool, setActiveTool] = useState<"search" | "process" | null>("search");
+  const [activeTool, setActiveTool] = useState<"search" | "process" | "geocode" | null>("search");
   const { input, setInput, searchResults, loading, error, search } = useSearch(API_BASE_URL);
+  const { geocodeInput, setGeocodeInput, geocodeResults, geocodeLoading, geocodeError, geocode } = useGeocode(API_BASE_URL);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,6 +29,12 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
       setConversation((prev) => [
         ...prev,
         { role: "agent", content: "Search completed." },
+      ]);
+    } else if (activeTool === "geocode") {
+      await geocode();
+      setConversation((prev) => [
+        ...prev,
+        { role: "agent", content: "Geocoding completed." },
       ]);
     } else if (activeTool === "process") {
       setConversation((prev) => [
@@ -83,15 +91,21 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
         <div className="flex gap-2 justify-center">
           <button
             onClick={() => setActiveTool("search")}
-            className={`px-4 py-1 rounded ${activeTool === "search" ? "bg-secondary-700 text-white" : "bg-gray-200"}`}
+            className={`px-2 py-1 rounded ${activeTool === "search" ? "bg-secondary-700 text-white" : "bg-gray-200"}`}
           >
             Search
           </button>
           <button
             onClick={() => setActiveTool("process")}
-            className={`px-4 py-1 rounded ${activeTool === "process" ? "bg-secondary-700 text-white" : "bg-gray-200"}`}
+            className={`px-2 py-1 rounded ${activeTool === "process" ? "bg-secondary-700 text-white" : "bg-gray-200"}`}
           >
             Geoprocessing
+          </button>
+          <button
+            onClick={() => setActiveTool("geocode")}
+            className={`px-2 py-1 rounded ${activeTool === "geocode" ? "bg-secondary-700 text-white" : "bg-gray-200"}`}
+          >
+            Geocoding
           </button>
         </div>
 
