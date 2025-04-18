@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useSearch } from "../hooks/useGeoweaverAgent";
+import { useGeoweaverAgent } from "../hooks/useGeoweaverAgent";
 import { ArrowUp } from "lucide-react";
 import { useLayerStore } from "../stores/layerStore";
 
@@ -15,7 +15,7 @@ interface Props {
 export default function AgentInterface({ onLayerSelect, conversation, setConversation }: Props) {
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
   const [activeTool, setActiveTool] = useState<"search" | "process" | "geocode" | null>("search");
-  const { input, setInput, searchResults, loading, error, search } = useSearch(API_BASE_URL);
+  const { input, setInput, geoweaverAgentResults, loading, error, queryGeoweaverAgent } = useGeoweaverAgent(API_BASE_URL);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,7 +24,7 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
     setConversation((prev) => [...prev, { role: "user", content: input }]);
 
     if (activeTool === "search") {
-      await search();
+      await queryGeoweaverAgent();
       setConversation((prev) => [
         ...prev,
         { role: "agent", content: "Search completed." },
@@ -59,10 +59,10 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
           ))}
         </div>
 
-        {activeTool === "search" && searchResults.length > 0 && (
+        {activeTool === "search" && geoweaverAgentResults.length > 0 && (
           <div className="max-h-100 overflow-y-auto mb-2 px-2 bg-gray-50 rounded border">
             <div className="font-semibold p-1">Search Results:</div>
-            {searchResults.map((result) => (
+            {geoweaverAgentResults.map((result) => (
               <div
                 key={result.resource_id}
                 onClick={() => handleLayerSelect(result)}

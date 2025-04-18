@@ -3,23 +3,24 @@
 
 import { useState } from "react";
 
-export function useSearch(apiUrl: string) {
+export function useGeoweaverAgent(apiUrl: string) {
   const [input, setInput] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [geoweaverAgentResults, setGeoweaverAgentResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  async function search() {
+  async function queryGeoweaverAgent(endpoint: string = "search") {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(`${apiUrl}/search?query=${encodeURIComponent(input)}`);
+      const response = await fetch(`${apiUrl}/${endpoint}?query=${encodeURIComponent(input)}`);
       if (!response.ok) {
         throw new Error("Network response was not ok");
       }
       // Expecting the response to be a JSON array of search objects.
       const data = await response.json();
-      setSearchResults(data.results);
+      // TODO: Handle different result data
+      setGeoweaverAgentResults(data.results);
     } catch (err: any) {
       setError(err.message || "Something went wrong");
     } finally {
@@ -27,5 +28,5 @@ export function useSearch(apiUrl: string) {
     }
   }
 
-  return { input, setInput, searchResults, loading, error, search };
+  return { input, setInput, geoweaverAgentResults, loading, error, queryGeoweaverAgent };
 }

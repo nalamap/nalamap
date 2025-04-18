@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import MapSwitcher from "./MapSwitcher";
-import { useSearch } from "../hooks/useGeoweaverAgent";
+import { useGeoweaverAgent } from "../hooks/useGeoweaverAgent";
 
 type Message = { role: "user" | "agent"; content: string };
 
@@ -11,8 +11,8 @@ export default function MapWithChat() {
   const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
   // Custom search hook.
-  const { input, setInput, searchResults, loading, error, search } =
-    useSearch(API_BASE_URL);
+  const { input, setInput, geoweaverAgentResults, loading, error, queryGeoweaverAgent } =
+    useGeoweaverAgent(API_BASE_URL);
   // State to store the layer(s) the user selects to visualize.
   // Initialize with a default empty layer to ensure the map loads with our baselayers
   const [mapLayers, setMapLayers] = useState<any[]>([]);
@@ -24,7 +24,7 @@ export default function MapWithChat() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await search();
+    await queryGeoweaverAgent();
     setIsSearchResultsVisible(true);
   };
 
@@ -90,13 +90,13 @@ export default function MapWithChat() {
         {error && (
           <div className="mt-2 text-center text-red-500">{error}</div>
         )}
-        {isSearchResultsVisible && searchResults.length > 0 && (
+        {isSearchResultsVisible && geoweaverAgentResults.length > 0 && (
           <div className="mt-2 bg-primary rounded shadow p-4 max-h-64 overflow-y-auto">
             <h3 className="font-bold mb-2 text-center">
               Search Results
             </h3>
             <div className="space-y-2">
-            {searchResults.map((result) => (
+            {geoweaverAgentResults.map((result) => (
               <div
                 key={result.resource_id}
                 className="p-2 border rounded cursor-pointer hover:bg-primary-100"
