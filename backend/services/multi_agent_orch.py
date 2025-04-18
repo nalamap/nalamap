@@ -5,8 +5,7 @@ from typing import Dict
 
 from langgraph.graph import StateGraph, END
 from langgraph.types import Command
-
-from services.database.database import init_db
+import json
 from services.agents.geo_weaver_ai import ai_executor as geo_helper_executor
 from services.agents.langgraph_agent import executor as librarien_executor
 from services.agents.supervisor_agent import choose_agent, supervisor_node as llm_supervisor_node
@@ -41,19 +40,20 @@ def convert_to_search_input(state: Dict) -> Dict:
     return {"query": query, "results": []}
 
 async def librarien_node(state: Dict) -> Command:
-    print("[Orch] ▶ librarien_node: Initializing DB pool…")
-    await init_db()
-
     inp = convert_to_search_input(state)
     print(f"[Orch] ▶ librarien_node, querying DB with: {inp}")
     search_state = await librarien_executor.ainvoke(inp)
 
     results = getattr(search_state, "results", None) or search_state.get("results", [])
     print("Search results:")
+    output="####BEGIN_DB_RESULTS####"
     for r in results:
         print(r)
-
-    return Command(goto=END)
+        output+=json.dumps(r)+"####"
+    output+="END_DB_RESULTS####"
+    print(output)
+    new_msgs = state["messages"] + [{"role": "assistant", "content": output}]
+    return {"messages": new_msgs}
 
 
 # --- Build the graph ---
