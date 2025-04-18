@@ -24,7 +24,13 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
     setConversation((prev) => [...prev, { role: "user", content: input }]);
 
     if (activeTool === "search") {
-      await queryGeoweaverAgent();
+      await queryGeoweaverAgent(activeTool);
+      setConversation((prev) => [
+        ...prev,
+        { role: "agent", content: "Search completed." },
+      ]);
+    } else if (activeTool === "geocode") {
+      await queryGeoweaverAgent(activeTool);
       setConversation((prev) => [
         ...prev,
         { role: "agent", content: "Search completed." },
@@ -59,7 +65,7 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
           ))}
         </div>
 
-        {activeTool === "search" && geoweaverAgentResults.length > 0 && (
+        {(activeTool === "search" || activeTool === "geocode") && geoweaverAgentResults.length > 0 && (
           <div className="max-h-100 overflow-y-auto mb-2 px-2 bg-gray-50 rounded border">
             <div className="font-semibold p-1">Search Results:</div>
             {geoweaverAgentResults.map((result) => (
@@ -102,7 +108,7 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
           </button>
         </div>
 
-        
+
         <form onSubmit={handleSubmit} className="relative">
           <input
             type="text"
@@ -116,7 +122,7 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
             className="absolute right-2 bottom-2 text-gray-500 hover:text-gray-900 transition-colors"
             title="Send"
           >
-            <ArrowUp size={20}  />
+            <ArrowUp size={20} />
           </button>
         </form>
       </div>
