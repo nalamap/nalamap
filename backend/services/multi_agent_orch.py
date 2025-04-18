@@ -13,7 +13,8 @@ from services.agents.supervisor_agent import choose_agent, supervisor_node as ll
 
 
 async def supervisor_node(state: Dict) -> Command:
-    choice = choose_agent(state["messages"])
+    latest_user_message = [m for m in state["messages"] if m["role"] == "user"][-1:]
+    choice = choose_agent(latest_user_message)
     print(f"[Orch] ▶ supervisor_node chose: {choice}")
     return Command()
 
@@ -36,7 +37,8 @@ async def geo_helper_node(state: Dict) -> Command:
     return Command(goto=END)
 
 def convert_to_search_input(state: Dict) -> Dict:
-    query = next((m["content"] for m in state["messages"] if m["role"] == "user"), "")
+    # Only use the latest user message for the query
+    query = next((m["content"] for m in reversed(state["messages"]) if m["role"] == "user"), "")
     return {"query": query, "results": []}
 
 async def librarien_node(state: Dict) -> Command:
@@ -65,7 +67,8 @@ graph.set_entry_point("supervisor")
 
 graph.add_conditional_edges(
     "supervisor",
-    lambda state: choose_agent(state["messages"]),
+    # Only pass the latest user message for agent selection
+    lambda state: choose_agent([m for m in state["messages"] if m["role"] == "user"][-1:]),
     {"geo_helper": "geo_helper", "librarien": "librarien"}
 )
 
@@ -77,17 +80,24 @@ multi_agent_executor = graph.compile()
 
 # --- Runner ---
 async def main():
-    user_input = input("Enter your message: ")
-    initial = {"messages": [{"role": "user", "content": user_input}]}
+    messages = []
+    print("Type 'exit' or 'quit' to end the conversation.")
+    while True:
+        user_input = input("Enter your message: ")
+        if user_input.strip().lower() in {"exit", "quit"}:
+            print("Goodbye!")
+            break
+        messages.append({"role": "user", "content": user_input})
 
+        initial = {"messages": messages}
 
-    supervisor_result = await llm_supervisor_node(initial)
-    reason = supervisor_result.update.get("reason", "")
-    next_agent = supervisor_result.goto
-    if reason:
-        print(f"[Orch] ▶ Supervisor explanation: {reason}")
+        supervisor_result = await llm_supervisor_node(initial)
+        reason = supervisor_result.update.get("reason", "")
+        next_agent = supervisor_result.goto
+        if reason:
+            print(f"[Orch] ▶ Supervisor explanation: {reason}")
 
-    await multi_agent_executor.ainvoke(initial)
+        await multi_agent_executor.ainvoke(initial)
 
 if __name__ == "__main__":
     asyncio.run(main())
