@@ -6,14 +6,41 @@ from langchain_openai import AzureChatOpenAI
 from langgraph.graph import MessagesState, START, END
 from langgraph.types import Command
 
-system_prompt = (
-    "You are a supervisor managing a conversation between two workers: geo_helper and librarien. "
-    "Analyze the conversation and decide which worker is best suited to answer the query. "
-    "The Geo_Helper Agent is a LLM for general geospatial questions. "
-    "The Librarien Agent searches a PostGIS database for datasets. "
-    "Return a JSON object with: 'next' (one of 'geo_helper','librarien','finish') "
-    "and 'reason' (short explanation)."
-)
+# Use a single, clear system prompt for all LLM decisions
+LLM_PROMPT = """
+You are an orchestration agent that decides which downstream agent should handle a user query.
+There are two agents:
+- geo_helper: answers and explains general geospatial questions.
+- librarien: searches a PostGIS database for datasets and returns metadata.
+
+Given the user query, produce **only** a JSON object with two keys:
+  1. "next"   – one of "geo_helper", "librarien" or "finish"
+  2. "reason" – a brief justification (1–2 Sätze), warum genau dieser Agent gewählt wurde.
+
+User query: {query}
+
+Respond with JSON only.
+"""
+
+DATASET_KEYWORDS = {
+    "dataset", "datasets", "data", "download",
+    "search database",
+}
+
+def choose_agent(messages) -> str:
+    text = next(
+        (m["content"].lower() for m in messages if m["role"] == "user"),
+        ""
+    )
+    if any(kw in text for kw in DATASET_KEYWORDS):
+        return "librarien"
+    # If no keywords, ask the LLM to decide
+    llm_prompt = LLM_PROMPT.format(query=text)
+    response = llm.invoke([{"role": "system", "content": llm_prompt}])
+    agent = response.content.strip().lower()
+    if "librarien" in agent:
+        return "librarien"
+    return "geo_helper"
 
 def get_azure_llm(max_tokens: int = 5000):
     return AzureChatOpenAI(
@@ -32,7 +59,11 @@ class State(MessagesState):
     reason: str = ""
 
 async def supervisor_node(state: State) -> Command[Literal["geo_helper","librarien","finish"]]:
-    messages = [{"role":"system","content":system_prompt}] + state["messages"]
+    user_text = next(
+        (m["content"].lower() for m in state["messages"] if m["role"] == "user"),
+        ""
+    )
+    messages = [{"role": "system", "content": LLM_PROMPT.format(query=user_text)}] + state["messages"]
     response = await llm.ainvoke(messages)
     raw = response.content.strip()
     try:

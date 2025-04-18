@@ -9,21 +9,11 @@ from langgraph.types import Command
 from services.database.database import init_db
 from services.agents.geo_weaver_ai import ai_executor as geo_helper_executor
 from services.agents.langgraph_agent import executor as librarien_executor
+from services.agents.supervisor_agent import choose_agent, supervisor_node as llm_supervisor_node
 
-DATASET_KEYWORDS = {
-    "dataset", "datasets", "data", "download",
-    "search database", "show me", "find", "search",
-}
-
-def choose_agent(state: Dict) -> str:
-    text = next(
-        (m["content"].lower() for m in state["messages"] if m["role"] == "user"),
-        ""
-    )
-    return "librarien" if any(kw in text for kw in DATASET_KEYWORDS) else "geo_helper"
 
 async def supervisor_node(state: Dict) -> Command:
-    choice = choose_agent(state)
+    choice = choose_agent(state["messages"])
     print(f"[Orch] ▶ supervisor_node chose: {choice}")
     return Command()
 
@@ -75,7 +65,7 @@ graph.set_entry_point("supervisor")
 
 graph.add_conditional_edges(
     "supervisor",
-    choose_agent,
+    lambda state: choose_agent(state["messages"]),
     {"geo_helper": "geo_helper", "librarien": "librarien"}
 )
 
@@ -89,6 +79,14 @@ multi_agent_executor = graph.compile()
 async def main():
     user_input = input("Enter your message: ")
     initial = {"messages": [{"role": "user", "content": user_input}]}
+
+
+    supervisor_result = await llm_supervisor_node(initial)
+    reason = supervisor_result.update.get("reason", "")
+    next_agent = supervisor_result.goto
+    if reason:
+        print(f"[Orch] ▶ Supervisor explanation: {reason}")
+
     await multi_agent_executor.ainvoke(initial)
 
 if __name__ == "__main__":
