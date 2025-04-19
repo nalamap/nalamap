@@ -12,10 +12,10 @@ interface Props {
   setConversation: React.Dispatch<React.SetStateAction<{ role: "user" | "agent"; content: string }[]>>;
 }
 
-export default function AgentInterface({ onLayerSelect, conversation, setConversation }: Props) {
+export default function AgentInterface({ onLayerSelect, conversation: conversation_old, setConversation }: Props) {
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
-  const [activeTool, setActiveTool] = useState<"search" | "process" | "geocode" | null>("search");
-  const { input, setInput, geoweaverAgentResults, loading, error, queryGeoweaverAgent } = useGeoweaverAgent(API_BASE_URL);
+  const [activeTool, setActiveTool] = useState<"search" | "chat" | "geocode" | null>("chat");
+  const { input, setInput, messages: conversation, geoDataList, loading, error, queryGeoweaverAgent } = useGeoweaverAgent(API_BASE_URL);
   const containerRef = useRef<HTMLDivElement>(null);
 
   //automate scroll to bottom with new entry
@@ -24,7 +24,7 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
     if (el) el.scrollTop = el.scrollHeight;
   }, [conversation]);
 
-  
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
@@ -43,7 +43,8 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
         ...prev,
         { role: "agent", content: "Search completed." },
       ]);
-    } else if (activeTool === "process") {
+    } else if (activeTool === "chat") {
+      await queryGeoweaverAgent(activeTool);
       setConversation((prev) => [
         ...prev,
         { role: "agent", content: `Processing request: ${input}` },
@@ -73,12 +74,12 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
           ))}
         </div>
 
-        {(activeTool === "search" || activeTool === "geocode") && geoweaverAgentResults.length > 0 && (
+        {(activeTool === "search" || activeTool === "geocode" || activeTool === "chat") && geoDataList.length > 0 && (
           <div className="max-h-100 overflow-y-auto mb-2 px-2 bg-gray-50 rounded border">
             <div className="font-semibold p-1">Search Results:</div>
-            {geoweaverAgentResults.map((result) => (
+            {geoDataList.map((result) => (
               <div
-                key={result.resource_id}
+                key={result.id}
                 onClick={() => handleLayerSelect(result)}
                 className="p-2 border-b last:border-none cursor-pointer hover:bg-gray-100"
               >
@@ -86,7 +87,7 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
                 <div className="text-xs text-gray-600 truncate" title={result.llm_description}>
                   {result.llm_description}
                 </div>
-                <div className="text-[10px] text-gray-500">{result.source_type} | Score: {result.score}</div>
+                <div className="text-[10px] text-gray-500">{result.data_origin} | Score: {result.score}</div>
               </div>
             ))}
           </div>
@@ -97,16 +98,16 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
       <div className="p-4 border-t flex flex-col gap-2 min-w-0">
         <div className="flex gap-2 justify-center">
           <button
+            onClick={() => setActiveTool("chat")}
+            className={`px-2 py-1 rounded ${activeTool === "chat" ? "bg-secondary-700 text-white" : "bg-gray-200"}`}
+          >
+            Chat
+          </button>
+          <button
             onClick={() => setActiveTool("search")}
             className={`px-2 py-1 rounded ${activeTool === "search" ? "bg-secondary-700 text-white" : "bg-gray-200"}`}
           >
             Search
-          </button>
-          <button
-            onClick={() => setActiveTool("process")}
-            className={`px-2 py-1 rounded ${activeTool === "process" ? "bg-secondary-700 text-white" : "bg-gray-200"}`}
-          >
-            Geoprocessing
           </button>
           <button
             onClick={() => setActiveTool("geocode")}

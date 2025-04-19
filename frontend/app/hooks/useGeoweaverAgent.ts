@@ -4,25 +4,12 @@
 import { useState } from "react";
 import { kml } from "@tmcw/togeojson";
 import { BBox } from "geojson";
-
-interface GeoweaverMapData {
-  resource_id: string;
-  source_type: string | null;
-  name: string | null;
-  title?: string | null;
-  description?: string | null;
-  access_url: string | null;
-  format?: string | null;
-  llm_description?: string;
-  bounding_box?: string | null;
-  raw_geo_data?: string | null;
-  score?: number | null;
-  visible?: boolean | null;
-}
+import { ChatMessage, GeoDataObject, GeoweaverRequest } from "../models/geodatamodel";
 
 export function useGeoweaverAgent(apiUrl: string) {
   const [input, setInput] = useState("");
-  const [geoweaverAgentResults, setGeoweaverAgentResults] = useState<GeoweaverMapData[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [geoDataList, setGeoDataList] = useState<GeoDataObject[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -30,16 +17,38 @@ export function useGeoweaverAgent(apiUrl: string) {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(`${apiUrl}/${endpoint}?query=${encodeURIComponent(input)}`);
+      let response = null;
+      if (endpoint === "search" || endpoint == "geocode") {
+        response = await fetch(`${apiUrl}/${endpoint}?query=${encodeURIComponent(input)}`);
+      } else {
+        const payload: GeoweaverRequest = {
+          messages,
+          query: input,
+          geodata: geoDataList
+        }
+        response = await fetch(`${apiUrl}/${endpoint}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+      }
       if (!response.ok) {
         throw new Error("Network response was not ok");
       }
       // Expecting the response to be a JSON array of search objects.
       const data = await response.json();
 
+      console.log(data)
+
+      setGeoDataList(data.geodata);
+      setMessages(data.messages);
       // Convert any raw_geo_data into a KML file blob URL
-      const processed: GeoweaverMapData[] = data.results.map((item: GeoweaverMapData) => {
-        if (!item.access_url && item.raw_geo_data) {
+      /*
+      const processed: GeoDataObject[] = data.results.map((item: GeoDataObject) => {
+      
+        if (!item.data_link && item.raw_geo_data) {
           // 1) Parse KML string to XML DOM (and add surrounding KML structure)
           const parser = new DOMParser();
           const fullKml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -82,7 +91,7 @@ export function useGeoweaverAgent(apiUrl: string) {
               ? collection.features[0].geometry
               : collection,
             properties: {
-              resource_id: item.resource_id,
+              id: item.id,
               name: item.name,
               description: item.description,
               score: item.score
@@ -94,9 +103,9 @@ export function useGeoweaverAgent(apiUrl: string) {
           const geojsonUrl = URL.createObjectURL(geojsonBlob);
 
           const newLayer = {
-            resource_id: item.resource_id,
-            name: `${item.name}_${item.resource_id}.geojson`,            // set file-like name
-            source_type: 'uploaded',
+            id: item.id,
+            name: `${item.name}_${item.id}.geojson`,            // set file-like name
+            data_origin: 'uploaded',
             access_url: geojsonUrl,
             visible: true,
           };
@@ -106,10 +115,12 @@ export function useGeoweaverAgent(apiUrl: string) {
           };
         }
         // otherwise leave as-is
+        
         return item;
       });
+      setGeoDataList(processed);
+      */
 
-      setGeoweaverAgentResults(processed);
     } catch (err: any) {
       setError(err.message || "Something went wrong");
     } finally {
@@ -117,5 +128,5 @@ export function useGeoweaverAgent(apiUrl: string) {
     }
   }
 
-  return { input, setInput, geoweaverAgentResults, loading, error, queryGeoweaverAgent };
+  return { input, setInput, messages, geoDataList, loading, error, queryGeoweaverAgent };
 }

@@ -16,13 +16,13 @@ export default function LayerManagement() {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-  
+
     // assemble form data
     const formData = new FormData();
     formData.append("file", file);
     const API_UPLOAD_URL = process.env.NEXT_PUBLIC_API_UPLOAD_URL || "http://localhost:8000/upload";
 
-  
+
     try {
       // hit your backend upload endpoint
       // in dev this might be http://localhost:8000/upload;
@@ -34,22 +34,25 @@ export default function LayerManagement() {
           body: formData,
         }
       );
-  
+
       if (!res.ok) {
         console.error("Upload failed", await res.text());
         return;
       }
-  
+
       // expect { url: string; id: string } back
       const { url, id } = await res.json();
-  
+
       // now add to your zustand store
       addLayer({
-        resource_id: id,
+        id: id,
         name: file.name,
-        source_type: "uploaded",
-        access_url: url,
+        data_type: "uploaded",
+        data_link: url,
         visible: true,
+        data_source_id: "manual",
+        data_origin: "uploaded",
+        data_source: "user"
       });
     } catch (err) {
       console.error("Error uploading file:", err);
@@ -58,7 +61,7 @@ export default function LayerManagement() {
       e.target.value = "";
     }
   };
-  
+
 
   const handleBasemapChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selected = e.target.value;
@@ -103,23 +106,23 @@ export default function LayerManagement() {
           <ul className="space-y-2 text-sm">
             {layers.map((layer) => (
               <li
-                key={layer.resource_id}
+                key={layer.id}
                 className="bg-white p-2 rounded shadow flex items-center justify-between"
               >
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-gray-800 truncate">{layer.name}</div>
-                  <div className="text-xs text-gray-500">{layer.source_type}</div>
+                  <div className="text-xs text-gray-500">{layer.data_type}</div>
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
-                    onClick={() => toggleLayerVisibility(layer.resource_id)}
+                    onClick={() => toggleLayerVisibility(layer.id)}
                     title="Toggle Visibility"
                     className="text-gray-600 hover:text-blue-600"
                   >
                     {layer.visible ? <Eye size={16} /> : <EyeOff size={16} />}
                   </button>
                   <button
-                    onClick={() => removeLayer(layer.resource_id)}
+                    onClick={() => removeLayer(layer.id)}
                     title="Remove Layer"
                     className="text-red-500 hover:text-red-700"
                   >

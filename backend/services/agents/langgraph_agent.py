@@ -3,12 +3,13 @@ from langgraph.graph import StateGraph, START
 from pydantic import BaseModel
 from services.database.database import get_db
 from models.geodata import GeoDataObject, DataType, DataOrigin
+from typing import List
 
 
 # Define the state schema for the search operation.
 class SearchState(BaseModel):
     query: str
-    results: list = []
+    results: List[GeoDataObject] = []
 
 async def query_postgis(state: SearchState) -> SearchState:
     """
@@ -24,9 +25,9 @@ async def query_postgis(state: SearchState) -> SearchState:
     state.results = [
         GeoDataObject(
             id=row[0],
-            data_source_id="geoweaver.postgis",  
-            data_type=DataType.GEOJSON,
-            data_origin=DataOrigin.TOOL,  
+            data_source_id="geoweaver.postgis",
+            data_type=DataType.GEOJSON, # TODO: Possible also WMS/WFS/LAYER? - taken from source_type and format?
+            data_origin=DataOrigin.TOOL,
             data_source=row[1],
             data_link=row[5],
             name=row[2],
