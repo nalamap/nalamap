@@ -1,6 +1,6 @@
 import os
 
-llm_provider = os.getenv("LLM_PROVIDER").lower()
+llm_provider = os.getenv("LLM_PROVIDER", "azure").lower()
 
 if llm_provider == "openai":
     from .openai import get_llm
