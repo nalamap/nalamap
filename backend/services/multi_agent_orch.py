@@ -93,7 +93,6 @@ async def main():
                 print(f"[Orch] ▶ Supervisor explanation: {reason}")
 
             executor_result = await multi_agent_executor.ainvoke(state)
-            print(executor_result)
     finally:
         await close_db()
 
