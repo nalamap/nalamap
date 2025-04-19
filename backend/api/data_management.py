@@ -1,6 +1,6 @@
 
 from fastapi import APIRouter, UploadFile, File
-from typing import Any, Dict
+from typing import Dict
 import os
 import uuid
 

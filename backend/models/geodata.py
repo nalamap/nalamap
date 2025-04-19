@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 
 
 class DataType(Enum):
@@ -34,4 +34,4 @@ class GeoDataObject:
     score: Optional[float] = None
     bounding_box: Optional[str] = None
     layer_type: Optional[str] = None
-    properties: Dict[str, any] = field(default_factory=dict)
+    properties: Dict[str, Any] = field(default_factory=dict)
