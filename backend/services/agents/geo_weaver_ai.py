@@ -1,7 +1,6 @@
 from langgraph.graph import StateGraph, START, END
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional
-import json
 
 from services.ai.llm_config import get_llm
 from core.config import *  
