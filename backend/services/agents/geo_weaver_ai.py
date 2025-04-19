@@ -5,15 +5,10 @@ from typing import List, Dict, Optional
 from services.ai.llm_config import get_llm
 from core.config import *  
 from langchain.schema import HumanMessage, AIMessage, SystemMessage
+from models.states import DataState
 
-class AIState(BaseModel):
-    input: str
-    messages: List[Dict[str, str]] = Field(default_factory=list)
-    response: Optional[str] = None
-    error: Optional[str] = None
-    status: str = "pending"
 
-def prepare_messages(state: AIState) -> AIState:
+def prepare_messages(state: DataState) -> DataState:
     if state.messages:
         state.messages.append({"role": "user", "content": state.input})
     else:
@@ -21,10 +16,9 @@ def prepare_messages(state: AIState) -> AIState:
             {"role": "system", "content": "You are a helpful assistant for GeoWeaver, a geospatial data platform."},
             {"role": "user",   "content": state.input}
         ]
-    state.status = "messages_prepared"
     return state
 
-async def query_ai(state: AIState) -> AIState:
+async def query_ai(state: DataState) -> DataState:
     llm = get_llm()  
     langchain_messages = []
     for msg in state.messages:
@@ -38,11 +32,10 @@ async def query_ai(state: AIState) -> AIState:
     print(response.content)
     state.response = response.content if hasattr(response, "content") else str(response)
     state.messages.append({"role": "assistant", "content": state.response})
-    state.status = "completed"
     return state
 
 # build the little graph
-graph = StateGraph(state_schema=AIState)
+graph = StateGraph(state_schema=DataState)
 graph.add_node("prepare_messages", prepare_messages)
 graph.add_node("query_ai", query_ai)
 graph.add_edge(START, "prepare_messages")

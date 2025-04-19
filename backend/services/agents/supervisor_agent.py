@@ -1,16 +1,10 @@
 import json
 from typing import Literal
-from os import getenv
-
 from services.ai.llm_config import get_llm
-from core.config import *  # Import config if needed
 from models.states import DataState
-
 from langgraph.graph import END
 from langgraph.types import Command
 
-
-# Use a single, clear system prompt for all LLM decisions
 LLM_PROMPT = """
 You are an orchestration agent that decides which downstream agent should handle a user query.
 There are two agents:
@@ -31,29 +25,24 @@ DATASET_KEYWORDS = {
     "search database",
 }
 
+llm = get_llm()
+
 def choose_agent(messages) -> str:
     user_messages = [m for m in messages if m["role"] == "user"]
     text = user_messages[-1]["content"].lower() if user_messages else ""
     if any(kw in text for kw in DATASET_KEYWORDS):
         return "librarien"
-    # If no keywords, ask the LLM to decide
     llm_prompt = LLM_PROMPT.format(query=text)
     response = llm.invoke([{"role": "system", "content": llm_prompt}])
     agent = response.content.strip().lower()
     if "librarien" in agent:
         return "librarien"
-    return "geo_helper"
+    if "geo_helper" in agent:
+        return "geo_helper"
+    return "finish"
 
-# Replace direct AzureChatOpenAI usage with get_llm
-llm = get_llm()
-
-class State(DataState):
-    next: str = ""
-    reason: str = ""
-
-async def supervisor_node(state: State) -> Command[Literal["geo_helper","librarien","finish"]]:
-    # Only consider the latest user message
-    user_messages = [m for m in state["messages"] if m["role"] == "user"]
+async def supervisor_node(state: DataState) -> Command[Literal["geo_helper","librarien","finish"]]:
+    user_messages = [m for m in state.messages if m["role"] == "user"]
     user_text = user_messages[-1]["content"].lower() if user_messages else ""
     messages = [{"role": "system", "content": LLM_PROMPT.format(query=user_text)}] + user_messages[-1:]
     response = await llm.ainvoke(messages)
@@ -66,4 +55,7 @@ async def supervisor_node(state: State) -> Command[Literal["geo_helper","librari
         nxt = raw.lower()
         reason = ""
     goto = END if nxt == "finish" else nxt
-    return Command(goto=goto, update={"next": nxt, "reason": reason})
+    return Command(goto=goto, update={
+        "messages": state.messages,
+        "geodata": state.geodata
+    })
