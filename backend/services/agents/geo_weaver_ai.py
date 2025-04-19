@@ -9,29 +9,32 @@ from models.states import DataState
 
 
 def prepare_messages(state: DataState) -> DataState:
-    if state.messages:
-        state.messages.append({"role": "user", "content": state.input})
+    first_message = state["messages"][-1].content
+    # TODO: Remove?
+    if state["messages"]:
+        state["messages"].append(HumanMessage(first_message))
     else:
-        state.messages = [
-            {"role": "system", "content": "You are a helpful assistant for GeoWeaver, a geospatial data platform."},
-            {"role": "user",   "content": state.input}
+        state["messages"] = [
+            SystemMessage("You are a helpful assistant for GeoWeaver, a geospatial data platform."),
+            HumanMessage(first_message)
         ]
     return state
 
 async def query_ai(state: DataState) -> DataState:
-    llm = get_llm()  
+    llm = get_llm() 
+    """
     langchain_messages = []
-    for msg in state.messages:
-        if msg["role"] == "system":
-            langchain_messages.append(SystemMessage(content=msg["content"]))
-        elif msg["role"] == "user":
-            langchain_messages.append(HumanMessage(content=msg["content"]))
+    for msg in state["messages"]:
+        if msg.role == "system":
+            langchain_messages.append(SystemMessage(content=msg.content))
+        elif msg.role == "user":
+            langchain_messages.append(HumanMessage(content=msg.content))
         else:
-            langchain_messages.append(AIMessage(content=msg["content"]))
-    response = await llm.ainvoke(langchain_messages)
+            langchain_messages.append(AIMessage(content=msg.content))"""
+    response = await llm.ainvoke(state["messages"]) # langchain_messages)
     print(response.content)
-    state.response = response.content if hasattr(response, "content") else str(response)
-    state.messages.append({"role": "assistant", "content": state.response})
+    # state.response = response.content if hasattr(response, "content") else str(response)
+    state["messages"].append(AIMessage(response))
     return state
 
 # build the little graph
