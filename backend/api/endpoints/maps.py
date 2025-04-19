@@ -1,1 +1,0 @@
-# TODO: more API endpoints, e.g. for 3rd party GIS tools to use/integrate
