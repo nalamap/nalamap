@@ -2,7 +2,8 @@ from typing import List
 from fastapi import APIRouter, Query
 
 from models.geodata import DataOrigin, DataType, GeoDataObject
-from models.messages.chat_messages import ChatMessage, GeoweaverRequest, GeoweaverResponse
+from models.messages.chat_messages import GeoweaverRequest, GeoweaverResponse
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 
 
 router = APIRouter()
@@ -289,7 +290,7 @@ async def ask_geoweaver(request: GeoweaverRequest):
     # TODO: Receive response and map to result
 
     # Fake response for now
-    messages: List[ChatMessage] = [ChatMessage(role="user", content="Find rivers in Africa!"), ChatMessage(role="assistant", content="I found some rivers!")]
+    messages: List[BaseMessage] = [HumanMessage("Find rivers in Africa!"), AIMessage("I found some rivers!")]
     
     response: GeoweaverResponse = GeoweaverResponse(messages=messages, response="I found some rivers!", geodata=mock_geodata_objects())
     return response

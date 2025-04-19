@@ -2,25 +2,26 @@ from fastapi import APIRouter, Query
 from typing import List, Optional, Any, Dict
 import json
 
-from models.messages.chat_messages import OrchestratorRequest, OrchestratorResponse
+from models.messages.chat_messages import GeoweaverResponse, OrchestratorRequest, OrchestratorResponse
 from services.multi_agent_orch import multi_agent_executor
 from services.agents.langgraph_agent import executor, SearchState
 from services.tools.geocoding import geocode_using_nominatim
-
+from langchain_core.messages import HumanMessage, AIMessage
 
 router = APIRouter()
 
-@router.get("/api/search", tags=["debug"])
+@router.get("/api/search", tags=["debug"], response_model=GeoweaverResponse)
 async def search(query: str = Query()):
     """
     Searches the annotated datasets provided by the librarian 
     """
     state = SearchState(query=query)  
-    results = await executor.ainvoke(state)
-    return results
+    result_state: SearchState = await executor.ainvoke(state)
+    response: GeoweaverResponse = GeoweaverResponse(messages=[HumanMessage("Search layers for '${query}'"), AIMessage("Here are relevant layers:")], response="Here are relevant layers:", geodata=result_state["results"])
+    return response
 
 
-@router.get("/api/geocode", tags=["debug"])
+@router.get("/api/geocode", tags=["debug"], response_model=GeoweaverResponse)
 async def geocode(query: str = Query(...)) -> Dict[str, Any]:
     """
     Geocode the given request using the OpenStreetMap API. Returns and geokml some additional information.

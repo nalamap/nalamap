@@ -21,14 +21,14 @@ async def query_postgis(state: SearchState) -> SearchState:
     async for cur in get_db():  # Fetch a database cursor
         await cur.execute("SELECT resource_id, source_type, name, title, description, access_url, format, llm_description, ST_AsText(bounding_box), score FROM dataset_resources_search(%s, %s)", (query, 10))
         rows = await cur.fetchall()
-
+    print([f"{row[1]} {row[6]}" for row in rows])
     state.results = [
         GeoDataObject(
             id=row[0],
             data_source_id="geoweaver.postgis",
-            data_type=DataType.GEOJSON, # TODO: Possible also WMS/WFS/LAYER? - taken from source_type and format?
+            data_type=DataType.GEOJSON if row[1] == "geojson" else DataType.LAYER, # TODO: FIX
             data_origin=DataOrigin.TOOL,
-            data_source=row[1],
+            data_source=row[1], # TODO: Fix
             data_link=row[5],
             name=row[2],
             title=row[3],
@@ -36,6 +36,7 @@ async def query_postgis(state: SearchState) -> SearchState:
             llm_description=row[7],
             score=row[9],
             bounding_box=row[8],
+            layer_type=row[1],
         )
         for row in rows
     ]
