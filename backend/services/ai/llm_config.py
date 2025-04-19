@@ -1,6 +1,10 @@
+from dotenv import load_dotenv
 import os
 
+# Load environment variables from .env file
+load_dotenv()
 llm_provider = os.getenv("LLM_PROVIDER", "azure").lower()
+
 
 if llm_provider == "openai":
     from .openai import get_llm

@@ -1,9 +1,12 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+
+from fastapi.staticfiles import StaticFiles
 #from sqlalchemy.ext.asyncio import AsyncSession
 from services.database.database import init_db, close_db
-from api import debug, geoweaver
+from api import data_management, debug, geoweaver
 
 
 tags_metadata = [
@@ -21,10 +24,10 @@ app = FastAPI()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_db()  # Initialize DB pool when FastAPI starts
+    await init_db()
     yield
-    await close_db() # close connection when app is finished
-    
+    await close_db()
+
 app = FastAPI(
     title="GeoWeaver API",
     description="API for making geospatial data accessible",
@@ -33,22 +36,28 @@ app = FastAPI(
     openapi_tags=tags_metadata
 )
 
-# Enable CORS for all origins (adjust allow_origins as needed)
+# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # or specify a list like ["https://example.com"]
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Local upload directory and base URL
+LOCAL_UPLOAD_DIR = os.getenv("LOCAL_UPLOAD_DIR", "./uploads")
+# Serve local uploads
+os.makedirs(LOCAL_UPLOAD_DIR, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=LOCAL_UPLOAD_DIR), name="uploads")
+
 app.include_router(debug.router)
 app.include_router(geoweaver.router)
+app.include_router(data_management.router)
 
 #@app.on_event("shutdown")
 #async def shutdown():
 #    await close_db()  # Clean up DB connections when FastAPI shuts down
-
 
 
 if __name__ == "__main__":
