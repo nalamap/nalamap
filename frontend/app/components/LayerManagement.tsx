@@ -13,21 +13,52 @@ export default function LayerManagement() {
   const toggleLayerVisibility = useLayerStore((state) => state.toggleLayerVisibility);
   const removeLayer = useLayerStore((state) => state.removeLayer);
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (files && files.length > 0) {
-      const file = files[0];
-      const newLayer = {
-        resource_id: Date.now().toString(),
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+  
+    // assemble form data
+    const formData = new FormData();
+    formData.append("file", file);
+    const API_UPLOAD_URL = process.env.NEXT_PUBLIC_API_UPLOAD_URL || "http://localhost:8000/upload";
+
+  
+    try {
+      // hit your backend upload endpoint
+      // in dev this might be http://localhost:8000/upload;
+      // in prod use NEXT_PUBLIC_API_URL
+      const res = await fetch(
+        API_UPLOAD_URL,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+  
+      if (!res.ok) {
+        console.error("Upload failed", await res.text());
+        return;
+      }
+  
+      // expect { url: string; id: string } back
+      const { url, id } = await res.json();
+  
+      // now add to your zustand store
+      addLayer({
+        resource_id: id,
         name: file.name,
         source_type: "uploaded",
-        access_url: URL.createObjectURL(file),
+        access_url: url,
         visible: true,
-      };
-      addLayer(newLayer);
-      event.target.value = ""; // Reset input so the same file can be uploaded again if needed
+      });
+    } catch (err) {
+      console.error("Error uploading file:", err);
+    } finally {
+      // reset so same file can be re‑picked
+      e.target.value = "";
     }
   };
+  
 
   const handleBasemapChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selected = e.target.value;

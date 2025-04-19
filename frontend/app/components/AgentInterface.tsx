@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useGeoweaverAgent } from "../hooks/useGeoweaverAgent";
 import { ArrowUp } from "lucide-react";
 import { useLayerStore } from "../stores/layerStore";
@@ -16,7 +16,15 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
   const [activeTool, setActiveTool] = useState<"search" | "process" | "geocode" | null>("search");
   const { input, setInput, geoweaverAgentResults, loading, error, queryGeoweaverAgent } = useGeoweaverAgent(API_BASE_URL);
+  const containerRef = useRef<HTMLDivElement>(null);
 
+  //automate scroll to bottom with new entry
+  useEffect(() => {
+    const el = containerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [conversation]);
+
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
@@ -56,8 +64,8 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
   return (
     <div className="w-[26rem] min-w-[20rem] bg-white border-l shadow-lg flex flex-col overflow-hidden relative">
       {/* Chat content area */}
-      <div className="flex-1 p-4">
-        <div className="overflow-y-auto text-sm mb-2 px-2">
+      <div ref={containerRef} className="overflow-auto flex-1 p-4 break-all scroll-smooth">
+        <div className="text-sm mb-2 px-2">
           {conversation.map((msg, idx) => (
             <div key={idx}>
               <strong>{msg.role === "user" ? "You:" : "Agent:"}</strong> {msg.content}
