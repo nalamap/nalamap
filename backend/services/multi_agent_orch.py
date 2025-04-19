@@ -1,11 +1,13 @@
 # services/multi_agent_orch.py
 
 import asyncio
-from typing import Dict
+from typing import Dict, List
 
 from langgraph.graph import StateGraph, END
 from langgraph.types import Command
 import json
+from api.geoweaver import mock_geodata_objects
+from models.geodata import GeoDataObject
 from services.agents.geo_weaver_ai import ai_executor as geo_helper_executor
 from services.agents.langgraph_agent import executor as librarien_executor
 from services.agents.supervisor_agent import choose_agent, supervisor_node as llm_supervisor_node
@@ -76,24 +78,33 @@ multi_agent_executor = graph.compile()
 
 # --- Runner ---
 async def main():
-    messages = []
-    print("Type 'exit' or 'quit' to end the conversation.")
-    while True:
-        user_input = input("Enter your message: ")
-        if user_input.strip().lower() in {"exit", "quit"}:
-            print("Goodbye!")
-            break
-        messages.append({"role": "user", "content": user_input})
+    from services.database.database import init_db, close_db
+    try:
+        await init_db()
+        messages = []
+        print("Type 'exit' or 'quit' to end the conversation.")
+        while True:
+            user_input = input("Enter your message: ")
+            if user_input.strip().lower() in {"exit", "quit"}:
+                print("Goodbye!")
+                break
+            messages.append({"role": "user", "content": user_input})
 
-        initial = {"messages": messages}
+            # initial state
+            geo_data: List[GeoDataObject] = mock_geodata_objects()
+            initial = {"messages": messages, "geo_data": geo_data}
 
-        supervisor_result = await llm_supervisor_node(initial)
-        reason = supervisor_result.update.get("reason", "")
-        next_agent = supervisor_result.goto
-        if reason:
-            print(f"[Orch] ▶ Supervisor explanation: {reason}")
+            supervisor_result = await llm_supervisor_node(initial)
+            print(supervisor_result)
+            reason = supervisor_result.update.get("reason", "")
+            next_agent = supervisor_result.goto
+            if reason:
+                print(f"[Orch] ▶ Supervisor explanation: {reason}")
 
-        await multi_agent_executor.ainvoke(initial)
+            executor_result = await multi_agent_executor.ainvoke(initial)
+            print(executor_result)
+    finally:
+        await close_db()
 
 if __name__ == "__main__":
     asyncio.run(main())
