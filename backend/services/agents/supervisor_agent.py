@@ -4,9 +4,11 @@ from os import getenv
 
 from services.ai.llm_config import get_llm
 from core.config import *  # Import config if needed
+from models.states import DataState
 
-from langgraph.graph import MessagesState, START, END
+from langgraph.graph import END
 from langgraph.types import Command
+
 
 # Use a single, clear system prompt for all LLM decisions
 LLM_PROMPT = """
@@ -45,7 +47,7 @@ def choose_agent(messages) -> str:
 # Replace direct AzureChatOpenAI usage with get_llm
 llm = get_llm()
 
-class State(MessagesState):
+class State(DataState):
     next: str = ""
     reason: str = ""
 

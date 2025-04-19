@@ -34,4 +34,4 @@ class GeoDataObject:
     score: Optional[float] = None
     bounding_box: Optional[str] = None
     layer_type: Optional[str] = None
-    properties: Dict[str, str] = field(default_factory=dict)
+    properties: Dict[str, any] = field(default_factory=dict)
