@@ -1,4 +1,4 @@
-from typing import List, Optional, Any, Literal
+from typing import List, Optional, Literal
 from pydantic import BaseModel
 from models.geodata import GeoDataObject
 
