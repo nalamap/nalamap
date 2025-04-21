@@ -62,7 +62,7 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
   };
 
   return (
-    <div className="h-full w-full bg-gray-100 p-4 flex flex-col overflow-hidden relative">
+    <div className="h-full w-full bg-gray-100 p-4 flex flex-col overflow-hidden relative border-l">
       {/* Header */}
       <h2 className="text-xl font-bold mb-4">Map Assistant</h2>
       
