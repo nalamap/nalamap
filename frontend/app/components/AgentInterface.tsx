@@ -62,12 +62,12 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
   };
 
   return (
-    <div className="h-full w-full bg-gray-100 flex flex-col overflow-hidden relative">
+    <div className="h-full w-full bg-gray-100 p-4 flex flex-col overflow-hidden relative">
       {/* Header */}
-      <h2 className="text-xl font-bold mb-4 p-4 border-b">Map Assistant</h2>
+      <h2 className="text-xl font-bold mb-4">Map Assistant</h2>
       
       {/* Chat content area */}
-      <div ref={containerRef} className="overflow-auto flex-1 p-4 break-all scroll-smooth">
+      <div ref={containerRef} className="overflow-auto flex-1 break-all scroll-smooth">
         <div className="text-sm mb-2 px-2">
           {conversation.map((msg, idx) => (
             <div key={idx}>
@@ -96,8 +96,10 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
         )}
       </div>
 
+      <hr className="my-4" />
+
       {/* Tool selector and input */}
-      <div className="p-4 border-t flex flex-col gap-2 min-w-0">
+      <div className="mb-4">
         <div className="flex flex-wrap gap-2 justify-center sm:flex-row flex-col">
           <button
             onClick={() => setActiveTool("search")}
@@ -129,7 +131,7 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
         </div>
 
 
-        <form onSubmit={handleSubmit} className="relative">
+        <form onSubmit={handleSubmit} className="relative mt-4">
           <input
             type="text"
             value={input}
