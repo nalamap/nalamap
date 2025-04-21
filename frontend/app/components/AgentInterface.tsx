@@ -67,17 +67,33 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
       <h2 className="text-xl font-bold mb-4">Map Assistant</h2>
       
       {/* Chat content area */}
-      <div ref={containerRef} className="overflow-auto flex-1 break-all scroll-smooth">
-        <div className="text-sm mb-2 px-2">
+      <div ref={containerRef} className="overflow-auto flex-1 scroll-smooth pb-2">
+        <div className="flex flex-col space-y-3">
           {conversation.map((msg, idx) => (
-            <div key={idx}>
-              <strong>{msg.role === "user" ? "You:" : "Agent:"}</strong> {msg.content}
+            <div 
+              key={idx} 
+              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+            >
+              <div 
+                className={`max-w-[80%] px-4 py-2 rounded-lg ${
+                  msg.role === "user" 
+                    ? "bg-blue-100 rounded-tr-none text-right" 
+                    : "bg-gray-50 rounded-tl-none border"
+                }`}
+              >
+                <div className="text-sm break-words">
+                  {msg.content}
+                </div>
+                <div className="text-xs text-gray-500 mt-1">
+                  {msg.role === "user" ? "You" : "Agent"}
+                </div>
+              </div>
             </div>
           ))}
         </div>
 
         {(activeTool === "search" || activeTool === "geocode") && geoweaverAgentResults.length > 0 && (
-          <div className="max-h-100 overflow-y-auto mb-2 px-2 bg-gray-50 rounded border">
+          <div className="max-h-100 overflow-y-auto mt-6 mb-2 px-2 bg-gray-50 rounded border">
             <div className="font-semibold p-1">Search Results:</div>
             {geoweaverAgentResults.map((result) => (
               <div
