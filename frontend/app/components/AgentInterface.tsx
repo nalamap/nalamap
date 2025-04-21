@@ -95,24 +95,27 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
 
       {/* Tool selector and input */}
       <div className="p-4 border-t flex flex-col gap-2 min-w-0">
-        <div className="flex gap-2 justify-center">
+        <div className="flex flex-wrap gap-2 justify-center sm:flex-row flex-col">
           <button
             onClick={() => setActiveTool("search")}
-            className={`px-2 py-1 rounded ${activeTool === "search" ? "bg-secondary-700 text-white" : "bg-gray-200"}`}
+            className={`px-2 py-1 rounded text-white ${activeTool === "search" ? "bg-secondary-700" : "bg-gray-700"}`}
+            style={{ backgroundColor: activeTool === "search" ? undefined : 'rgb(64, 64, 64)' }}
           >
             Search
           </button>
           <button
             onClick={() => setActiveTool("process")}
-            className={`px-2 py-1 rounded ${activeTool === "process" ? "bg-secondary-700 text-white" : "bg-gray-200"}`}
+            className={`px-2 py-1 rounded text-white ${activeTool === "process" ? "bg-secondary-700" : "bg-gray-700"}`}
+            style={{ backgroundColor: activeTool === "process" ? undefined : 'rgb(64, 64, 64)' }}
           >
-            Geoprocessing
+            Geoprocess
           </button>
           <button
             onClick={() => setActiveTool("geocode")}
-            className={`px-2 py-1 rounded ${activeTool === "geocode" ? "bg-secondary-700 text-white" : "bg-gray-200"}`}
+            className={`px-2 py-1 rounded text-white ${activeTool === "geocode" ? "bg-secondary-700" : "bg-gray-700"}`}
+            style={{ backgroundColor: activeTool === "geocode" ? undefined : 'rgb(64, 64, 64)' }}
           >
-            Geocoding
+            Geocode
           </button>
         </div>
 
