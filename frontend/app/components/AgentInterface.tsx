@@ -62,7 +62,7 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
   };
 
   return (
-    <div className="w-[26rem] min-w-[20rem] bg-white border-l shadow-lg flex flex-col overflow-hidden relative">
+    <div className="h-full w-full bg-white flex flex-col overflow-hidden relative">
       {/* Chat content area */}
       <div ref={containerRef} className="overflow-auto flex-1 p-4 break-all scroll-smooth">
         <div className="text-sm mb-2 px-2">

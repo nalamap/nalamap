@@ -71,7 +71,7 @@ export default function LayerManagement() {
   };
 
   return (
-    <div className="w-72 bg-gray-100 p-4 border-r overflow-hidden">
+    <div className="w-full h-full bg-gray-100 p-4 border-r overflow-auto">
       <h2 className="text-xl font-bold mb-4">Layer Management</h2>
 
       {/* Upload Section */}
