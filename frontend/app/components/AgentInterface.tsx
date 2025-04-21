@@ -63,6 +63,9 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
 
   return (
     <div className="h-full w-full bg-white flex flex-col overflow-hidden relative">
+      {/* Header */}
+      <h2 className="text-xl font-bold mb-4 p-4 border-b">Map Assistant</h2>
+      
       {/* Chat content area */}
       <div ref={containerRef} className="overflow-auto flex-1 p-4 break-all scroll-smooth">
         <div className="text-sm mb-2 px-2">
@@ -98,22 +101,28 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
         <div className="flex flex-wrap gap-2 justify-center sm:flex-row flex-col">
           <button
             onClick={() => setActiveTool("search")}
-            className={`px-2 py-1 rounded text-white ${activeTool === "search" ? "bg-secondary-700" : "bg-gray-700"}`}
-            style={{ backgroundColor: activeTool === "search" ? undefined : 'rgb(64, 64, 64)' }}
+            className={`px-2 py-1 rounded text-white`}
+            style={{ 
+              backgroundColor: activeTool === "search" ? 'rgb(102, 102, 102)' : 'rgb(64, 64, 64)' 
+            }}
           >
             Search
           </button>
           <button
             onClick={() => setActiveTool("process")}
-            className={`px-2 py-1 rounded text-white ${activeTool === "process" ? "bg-secondary-700" : "bg-gray-700"}`}
-            style={{ backgroundColor: activeTool === "process" ? undefined : 'rgb(64, 64, 64)' }}
+            className={`px-2 py-1 rounded text-white`}
+            style={{ 
+              backgroundColor: activeTool === "process" ? 'rgb(102, 102, 102)' : 'rgb(64, 64, 64)' 
+            }}
           >
             Geoprocess
           </button>
           <button
             onClick={() => setActiveTool("geocode")}
-            className={`px-2 py-1 rounded text-white ${activeTool === "geocode" ? "bg-secondary-700" : "bg-gray-700"}`}
-            style={{ backgroundColor: activeTool === "geocode" ? undefined : 'rgb(64, 64, 64)' }}
+            className={`px-2 py-1 rounded text-white`}
+            style={{ 
+              backgroundColor: activeTool === "geocode" ? 'rgb(102, 102, 102)' : 'rgb(64, 64, 64)' 
+            }}
           >
             Geocode
           </button>
