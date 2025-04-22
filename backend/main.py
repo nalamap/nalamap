@@ -242,9 +242,11 @@ async def geoprocess(req: GeoProcessRequest):
     state = {
         "query": req.query,
         "input_layers": input_layers,
-        "available_operations": [
+        "available_operations_and_params": [
             # backend-supported operations
-            "buffer", "intersection", "union", "clip", "difference", "simplify"
+            "operation: buffer params: radius", "operation: intersection params:", 
+            "operation: union params:", "operation: clip params:", "operation: difference params:", 
+            "operation: simplify params: tolerance"
         ],
         "tool_sequence": [],  # to be filled by the agent
     }

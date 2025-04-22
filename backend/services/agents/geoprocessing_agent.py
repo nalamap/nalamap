@@ -79,7 +79,7 @@ async def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     query = state.get("query", "")
     layers: List[Dict[str, Any]] = state.get("input_layers", [])
-    available_ops: List[str] = state.get("available_operations", [])
+    available_ops: List[str] = state.get("available_operations_and_params", [])
 
     # 0) Summarize layers to metadata to reduce context size
     layer_meta = []
@@ -104,8 +104,8 @@ async def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
         "You are a geospatial processing assistant. "
         "You have the following input layers with metadata (id, name, geometry_type, bbox). "
         "Based on the user request and available operations, choose the best sequence of operations. "
-        "Return a JSON with 'steps' array, each having 'operation' (one of: "
-        + ", ".join(available_ops) + ") and optional 'params' dict."
+        "Return a JSON with 'steps' array, each having 'operation with params' (one of: "
+        + ", ".join(available_ops) + "). Dont define at any operation params with layer or layers as all functions are called as func(layers: result, **params)"
     )
     user_payload = {
         "query": query,
