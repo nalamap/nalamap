@@ -13,7 +13,6 @@ import uuid
 import json
 import io
 # Geo conversion
-from fastkml import kml as fastkml_lib
 from shapely.geometry import mapping
 from kml2geojson.main import convert as kml2geojson_convert
 
