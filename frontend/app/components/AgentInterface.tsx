@@ -14,9 +14,20 @@ interface Props {
 
 export default function AgentInterface({ onLayerSelect, conversation, setConversation }: Props) {
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
-  const [activeTool, setActiveTool] = useState<"search" | "process" | "geocode" | null>("search");
-  const { input, setInput, geoweaverAgentResults, loading, error, queryGeoweaverAgent } = useGeoweaverAgent(API_BASE_URL);
+  const [activeTool, setActiveTool] = useState<"search" | "geoprocess" | "geocode" | null>("search");
+  const {
+    input,
+    setInput,
+    results,
+    processedUrls,
+    toolsUsed,
+    loading,
+    error,
+    query,
+  } = useGeoweaverAgent(API_BASE_URL);
   const containerRef = useRef<HTMLDivElement>(null);
+  const addLayer = useLayerStore((s) => s.addLayer);
+  const getLayers = useLayerStore.getState;
 
   //automate scroll to bottom with new entry
   useEffect(() => {
@@ -25,28 +36,46 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
   }, [conversation]);
 
   
-  const handleSubmit = async (e: React.FormEvent) => {
+   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
 
-    setConversation((prev) => [...prev, { role: "user", content: input }]);
+    // Add user message
+    setConversation((c) => [...c, { role: "user", content: input }]);
 
-    if (activeTool === "search") {
-      await queryGeoweaverAgent(activeTool);
-      setConversation((prev) => [
-        ...prev,
-        { role: "agent", content: "Search completed." },
+    if (activeTool === "search" || activeTool === "geocode") {
+      await query(activeTool);
+      setConversation((c) => [...c, { role: "agent", content: "Done." }]);
+    } else if (activeTool === "geoprocess") {
+      setConversation((c) => [
+        ...c,
+        { role: "agent", content: `Processing: ${input}` },
       ]);
-    } else if (activeTool === "geocode") {
-      await queryGeoweaverAgent(activeTool);
-      setConversation((prev) => [
-        ...prev,
-        { role: "agent", content: "Search completed." },
-      ]);
-    } else if (activeTool === "process") {
-      setConversation((prev) => [
-        ...prev,
-        { role: "agent", content: `Processing request: ${input}` },
+
+      // pass current layer URLs to the geoprocess endpoint
+      const urls = getLayers().layers.map((l) => l.access_url);
+      await query("geoprocess", urls);
+
+      // once done, add each new URL as a layer
+      processedUrls.forEach((url) => {
+        const id = url.split("/").pop()!;
+        addLayer({
+          resource_id: id,
+          name: `Processed ${id}`,
+          source_type: "processed",
+          access_url: url,
+          format: "geojson",
+          visible: true,
+        });
+      });
+
+      // report back to user
+      setConversation((c) => [
+        ...c,
+        {
+          role: "agent",
+          content: `Finished. Tools used: ${toolsUsed.join(", ")}`,
+        },
       ]);
     }
 
@@ -73,10 +102,10 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
           ))}
         </div>
 
-        {(activeTool === "search" || activeTool === "geocode") && geoweaverAgentResults.length > 0 && (
+        {(activeTool === "search" || activeTool === "geocode") && results.length > 0 && (
           <div className="max-h-100 overflow-y-auto mb-2 px-2 bg-gray-50 rounded border">
             <div className="font-semibold p-1">Search Results:</div>
-            {geoweaverAgentResults.map((result) => (
+            {results.map((result) => (
               <div
                 key={result.resource_id}
                 onClick={() => handleLayerSelect(result)}
@@ -103,8 +132,8 @@ export default function AgentInterface({ onLayerSelect, conversation, setConvers
             Search
           </button>
           <button
-            onClick={() => setActiveTool("process")}
-            className={`px-2 py-1 rounded ${activeTool === "process" ? "bg-secondary-700 text-white" : "bg-gray-200"}`}
+            onClick={() => setActiveTool("geoprocess")}
+            className={`px-2 py-1 rounded ${activeTool === "geoprocess" ? "bg-secondary-700 text-white" : "bg-gray-200"}`}
           >
             Geoprocessing
           </button>
