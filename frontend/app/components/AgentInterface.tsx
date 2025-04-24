@@ -63,19 +63,37 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
   };
 
   return (
-    <div className="w-[26rem] min-w-[20rem] bg-white border-l shadow-lg flex flex-col overflow-hidden relative">
+    <div className="h-full w-full bg-gray-100 p-4 flex flex-col overflow-hidden relative border-l">
+      {/* Header */}
+      <h2 className="text-xl font-bold mb-4">Map Assistant</h2>
+
       {/* Chat content area */}
-      <div ref={containerRef} className="overflow-auto flex-1 p-4 break-all scroll-smooth">
-        <div className="text-sm mb-2 px-2">
+      <div ref={containerRef} className="overflow-auto flex-1 scroll-smooth pb-2">
+        <div className="flex flex-col space-y-3">
           {conversation.map((msg, idx) => (
-            <div key={idx}>
-              <strong>{msg.role === "user" ? "You:" : "Agent:"}</strong> {msg.content}
+            <div
+              key={idx}
+              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+            >
+              <div
+                className={`max-w-[80%] px-4 py-2 rounded-lg ${msg.role === "user"
+                    ? "bg-blue-100 rounded-tr-none text-right"
+                    : "bg-gray-50 rounded-tl-none border"
+                  }`}
+              >
+                <div className="text-sm break-words">
+                  {msg.content}
+                </div>
+                <div className="text-xs text-gray-500 mt-1">
+                  {msg.role === "user" ? "You" : "Agent"}
+                </div>
+              </div>
             </div>
           ))}
         </div>
 
         {(activeTool === "search" || activeTool === "geocode" || activeTool === "chat") && geoDataList.length > 0 && (
-          <div className="max-h-100 overflow-y-auto mb-2 px-2 bg-gray-50 rounded border">
+          <div className="max-h-100 overflow-y-auto mt-6 mb-2 px-2 bg-gray-50 rounded border">
             <div className="font-semibold p-1">Search Results:</div>
             {geoDataList.map((result) => (
               <div
@@ -94,31 +112,42 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
         )}
       </div>
 
+      <hr className="my-4" />
+
       {/* Tool selector and input */}
-      <div className="p-4 border-t flex flex-col gap-2 min-w-0">
-        <div className="flex gap-2 justify-center">
+      <div className="mb-4">
+        <div className="flex flex-wrap gap-2 justify-center sm:flex-row flex-col">
           <button
             onClick={() => setActiveTool("chat")}
-            className={`px-2 py-1 rounded ${activeTool === "chat" ? "bg-secondary-700 text-white" : "bg-gray-200"}`}
+            className={`px-2 py-1 rounded text-white`}
+            style={{
+              backgroundColor: activeTool === "chat" ? 'rgb(102, 102, 102)' : 'rgb(64, 64, 64)'
+            }}
           >
             Chat
           </button>
           <button
             onClick={() => setActiveTool("search")}
-            className={`px-2 py-1 rounded ${activeTool === "search" ? "bg-secondary-700 text-white" : "bg-gray-200"}`}
+            className={`px-2 py-1 rounded text-white`}
+            style={{
+              backgroundColor: activeTool === "search" ? 'rgb(102, 102, 102)' : 'rgb(64, 64, 64)'
+            }}
           >
             Search
           </button>
           <button
             onClick={() => setActiveTool("geocode")}
-            className={`px-2 py-1 rounded ${activeTool === "geocode" ? "bg-secondary-700 text-white" : "bg-gray-200"}`}
+            className={`px-2 py-1 rounded text-white`}
+            style={{
+              backgroundColor: activeTool === "geocode" ? 'rgb(102, 102, 102)' : 'rgb(64, 64, 64)'
+            }}
           >
-            Geocoding
+            Geocode
           </button>
         </div>
 
 
-        <form onSubmit={handleSubmit} className="relative">
+        <form onSubmit={handleSubmit} className="relative mt-4">
           <input
             type="text"
             value={input}
