@@ -22,19 +22,9 @@ def prepare_messages(state: DataState) -> DataState:
 
 async def query_ai(state: DataState) -> DataState:
     llm = get_llm() 
-    """
-    langchain_messages = []
-    for msg in state["messages"]:
-        if msg.role == "system":
-            langchain_messages.append(SystemMessage(content=msg.content))
-        elif msg.role == "user":
-            langchain_messages.append(HumanMessage(content=msg.content))
-        else:
-            langchain_messages.append(AIMessage(content=msg.content))"""
-    response = await llm.ainvoke(state["messages"]) # langchain_messages)
+    response = await llm.ainvoke(state["messages"]) 
     print(response.content)
-    # state.response = response.content if hasattr(response, "content") else str(response)
-    state["messages"].append(AIMessage(response))
+    state["messages"].append(AIMessage(response.content))
     return state
 
 # build the little graph
