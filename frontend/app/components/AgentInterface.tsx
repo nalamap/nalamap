@@ -14,7 +14,7 @@ interface Props {
 
 export default function AgentInterface({ onLayerSelect, conversation: conversation_old, setConversation }: Props) {
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
-  const [activeTool, setActiveTool] = useState < "search" | "chat" | "geocode" | "geoprocess" | null>("chat");
+  const [activeTool, setActiveTool] = useState<"search" | "chat" | "geocode" | "geoprocess" | null>("chat");
   const { input, setInput, messages: conversation, geoDataList, loading, error, queryGeoweaverAgent } = useGeoweaverAgent(API_BASE_URL);
   const containerRef = useRef<HTMLDivElement>(null);
   const addLayer = useLayerStore((s) => s.addLayer);
@@ -103,8 +103,8 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
             >
               <div
                 className={`max-w-[80%] px-4 py-2 rounded-lg ${msg.role === "user"
-                    ? "bg-blue-100 rounded-tr-none text-right"
-                    : "bg-gray-50 rounded-tl-none border"
+                  ? "bg-blue-100 rounded-tr-none text-right"
+                  : "bg-gray-50 rounded-tl-none border"
                   }`}
               >
                 <div className="text-sm break-words">
@@ -118,7 +118,7 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
           ))}
         </div>
 
-        {(activeTool === "search" || activeTool === "geocode" || activeTool === "chat") && geoDataList.length > 0 && (
+        {(activeTool === "search" || activeTool === "geocode" || activeTool === "chat" || activeTool === "geoprocess") && geoDataList.length > 0 && (
           <div className="max-h-100 overflow-y-auto mt-6 mb-2 px-2 bg-gray-50 rounded border">
             <div className="font-semibold p-1">Search Results:</div>
             {geoDataList.map((result) => (
@@ -163,7 +163,10 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
           </button>
           <button
             onClick={() => setActiveTool("geoprocess")}
-            className={`px-2 py-1 rounded ${activeTool === "geoprocess" ? "bg-secondary-700 text-white" : "bg-gray-200"}`}
+            className={`px-2 py-1 rounded text-white`}
+            style={{
+              backgroundColor: activeTool === "geoprocess" ? 'rgb(102, 102, 102)' : 'rgb(64, 64, 64)'
+            }}
           >
             Geoprocessing
           </button>

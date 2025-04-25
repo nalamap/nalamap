@@ -1,14 +1,17 @@
+import io
+import uuid
 from fastapi import APIRouter, HTTPException, Query
-from typing import List, Optional, Any, Dict
+from typing import List, Optional, Any, Dict, TextIO
 import json
 
 from pydantic import BaseModel
 
+from models.geodata import DataOrigin, DataType, GeoDataObject
 from models.messages.chat_messages import GeoweaverResponse, OrchestratorRequest, OrchestratorResponse
 from services.multi_agent_orch import multi_agent_executor
 from services.agents.langgraph_agent import executor, SearchState
 from services.tools.geocoding import geocode_using_nominatim
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 import os
 
 # Geo conversion
@@ -43,6 +46,9 @@ async def geocode(query: str = Query(...)) -> Dict[str, Any]:
     """
     Geocode the given request using the OpenStreetMap API. Returns and geokml some additional information.
     """
+    # futue input: request: GeoweaverRequest
+    response: str = "Geocoding results:"
+    messages: List[BaseMessage] = [HumanMessage(f"Geocode {query}!"), AIMessage(response)]
     # 1) Invoke the tool (returns a JSON string)
     raw = geocode_using_nominatim.invoke(
         {"query": query, "geojson": True}
@@ -55,9 +61,16 @@ async def geocode(query: str = Query(...)) -> Dict[str, Any]:
         fixed = raw.replace("'", '"')
         data = json.loads(fixed)
     
+    # TODO: Adapt tool to add GeoDataObject to calling state and summary or so
+    
+    geocodeResponse: GeoweaverResponse = GeoweaverResponse()
+    geocodeResponse.messages = messages
+    geocodeResponse.response = response
+
+    geodata: List[GeoDataObject] = []
     # 3) Build our own result list
     results: List[Dict[str, Any]] = []
-    print(str(data)[:500])
+    # print(str(data)[:500])
     # Nominatim returns a list of places
     for props in data:
         place_id     = props.get("place_id")
@@ -83,25 +96,50 @@ async def geocode(query: str = Query(...)) -> Dict[str, Any]:
         else:
             bounding_box = None
         
-        results.append({
-            "resource_id":     place_id,
-            "source_type":     osm_type,
-            "name":            display_name,
-            "title":           name_prop,
-            "description":     typ,
-            "access_url":      None,
-            "format":          None,
-            "llm_description": display_name,
-            "bounding_box":    bounding_box,
-            "raw_geo_data":    raw_geo,
-            "score":           importance,
-        })
-    
-    # 4) Return wrapped payload
-    return {
-        "query":   query,
-        "results": results
-    }
+        # Convert GeoKML to GeoJSON
+        geo_kml_string: str = f"""<?xml version="1.0" encoding="UTF-8"?>
+            <kml xmlns="http://www.opengis.net/kml/2.2">
+              <Document>
+                <Placemark>
+                  ${raw_geo}
+                </Placemark>
+              </Document>
+            </kml>        
+            """
+
+        geojson_dict = kml2geojson_convert(io.StringIO(geo_kml_string))
+        # print(json.dump(geojson_dict))
+
+        out_filename = f"{name_prop}_geocode_{uuid.uuid4().hex}.geojson"
+        out_path = os.path.join(LOCAL_UPLOAD_DIR, out_filename)
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(geojson_dict, f)
+        out_url = f"{BASE_URL}/uploads/{out_filename}"
+
+        # Copy selected properties
+        properties: Dict[str, Any] = dict()
+        for property in ["place_id", "licence", "osm_type", "osm_id", "lat", "lon",  "class", "type", "place_rank", "addresstype", "address"]:
+            if property in props:
+                properties[property] = props.get(property)
+        
+        geodata.append(GeoDataObject(
+            id=place_id,
+            data_source_id="geocode",
+            data_type=DataType.GEOJSON,
+            data_origin=DataOrigin.TOOL,
+            data_source=props.get("licence"),
+            data_link=out_url,
+            name=name_prop,
+            title=name_prop,
+            description=display_name,
+            llm_description=display_name,
+            score=importance,
+            bounding_box=bounding_box,
+            layer_type="GeoJSON",
+            properties=properties
+        ))
+    geocodeResponse.geodata=geodata
+    return geocodeResponse
 
 @router.post("/api/orchestrate", tags=["debug"], response_model=OrchestratorResponse)
 async def orchestrate(req: OrchestratorRequest):
@@ -121,7 +159,7 @@ class GeoProcessRequest(BaseModel):
     layer_urls: List[str]  # URLs to existing GeoJSON files in the uploads folder
 
 class GeoProcessResponse(BaseModel):
-    layer_urls: List[str]            # URL to the new GeoJSON file
+    layer_urls: List[str]            # URL to the new GeoJSON file # TODO: Move API Endpoint to GeoData Model
     tools_used: Optional[List[str]] = None
 
 
