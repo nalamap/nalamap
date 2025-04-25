@@ -1,6 +1,7 @@
 export interface ChatMessage {
-    role: 'user' | 'assistant' | 'system'
+    type: 'human' | 'ai' | 'system'
     content: string
+    additional_kwargs?: Record<string, unknown>
 }
 
 export interface GeoDataObject {
