@@ -6,7 +6,7 @@ from models.states import DataState
 from langgraph.graph import StateGraph, END
 from langgraph.types import Command
 import json
-from api.geoweaver import mock_geodata_objects
+from models.geodata import mock_geodata_objects
 from models.geodata import GeoDataObject
 from services.agents.geo_weaver_ai import ai_executor as geo_helper_executor
 from services.agents.langgraph_agent import executor as librarien_executor
