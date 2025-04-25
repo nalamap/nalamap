@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
+
 from fastapi.staticfiles import StaticFiles
 #from sqlalchemy.ext.asyncio import AsyncSession
 from services.database.database import init_db, close_db
@@ -54,10 +55,6 @@ app.mount("/uploads", StaticFiles(directory=LOCAL_UPLOAD_DIR), name="uploads")
 app.include_router(debug.router)
 app.include_router(geoweaver.router)
 app.include_router(data_management.router)
-
-#@app.on_event("shutdown")
-#async def shutdown():
-#    await close_db()  # Clean up DB connections when FastAPI shuts down
 
 
 if __name__ == "__main__":

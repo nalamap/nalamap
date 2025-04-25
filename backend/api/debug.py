@@ -1,14 +1,31 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional, Any, Dict
 import json
+
+from pydantic import BaseModel
 
 from models.messages.chat_messages import GeoweaverResponse, OrchestratorRequest, OrchestratorResponse
 from services.multi_agent_orch import multi_agent_executor
 from services.agents.langgraph_agent import executor, SearchState
 from services.tools.geocoding import geocode_using_nominatim
 from langchain_core.messages import HumanMessage, AIMessage
+import os
+
+# Geo conversion
+from shapely.geometry import mapping
+from kml2geojson.main import convert as kml2geojson_convert
 
 router = APIRouter()
+
+# TODO: Move configs to /core/config.py 
+
+# Optional Azure Blob storage
+USE_AZURE = os.getenv("USE_AZURE_STORAGE", "false").lower() == "true"
+AZ_CONN = os.getenv("AZURE_CONN_STRING", "")
+AZ_CONTAINER = os.getenv("AZURE_CONTAINER", "")
+# Local upload directory and base URL
+LOCAL_UPLOAD_DIR = os.getenv("LOCAL_UPLOAD_DIR", "./uploads")
+BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
 
 @router.get("/api/search", tags=["debug"], response_model=GeoweaverResponse)
 async def search(query: str = Query()):
@@ -96,3 +113,86 @@ async def orchestrate(req: OrchestratorRequest):
 
 
     return OrchestratorResponse(messages=final_state["messages"])
+
+
+# --- New Geoprocessing Endpoint ---
+class GeoProcessRequest(BaseModel):
+    query: str
+    layer_urls: List[str]  # URLs to existing GeoJSON files in the uploads folder
+
+class GeoProcessResponse(BaseModel):
+    layer_urls: List[str]            # URL to the new GeoJSON file
+    tools_used: Optional[List[str]] = None
+
+
+@router.post("/api/geoprocess", response_model=GeoProcessResponse)
+async def geoprocess(req: GeoProcessRequest):
+    """
+    Accepts a natural language query and a list of GeoJSON URLs.
+    Loads the GeoJSON from local storage, delegates processing to the geoprocess executor,
+    then saves the resulting FeatureCollection and returns its URL.
+    """
+    # 0) Load GeoJSON features from provided URLs
+    input_layers: List[Dict[str, Any]] = []
+    for url in req.layer_urls:
+        filename = os.path.basename(url)
+        path = os.path.join(LOCAL_UPLOAD_DIR, filename)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                gj = json.load(f)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=f"Could not load {url}: {exc}")
+        if gj.get("type") == "FeatureCollection":
+            input_layers.extend(gj.get("features", []))
+        elif gj.get("type") == "Feature":
+            input_layers.append(gj)
+
+    state = {
+        "query": req.query,
+        "input_layers": input_layers,
+        "available_operations_and_params": [
+            # backend-supported operations
+            "operation: buffer params: radius", "operation: intersection params:", 
+            "operation: union params:", "operation: clip params:", "operation: difference params:", 
+            "operation: simplify params: tolerance"
+        ],
+        "tool_sequence": [],  # to be filled by the agent
+    }
+    # 2) Invoke geoprocess agent (stubbed service)
+    from services.agents.geoprocessing_agent import geoprocess_executor
+    
+    final_state = await geoprocess_executor(state)
+
+
+    # 3) Execute each step in the tool sequence
+    result_layers = final_state.get("result_layers", [])
+    tools_used = final_state.get("tool_sequence", [])
+
+    # Note: actual tool implementations should be invoked here, e.g.:
+    # for step in tools_used:
+    #     tool = TOOL_REGISTRY[step["operation"]]
+    #     result = tool(step["layers"], **step.get("params", {}))
+    #     result_layers = [result]
+
+    # 4) Write output as a new GeoJSON file in uploads
+    out_urls=[]
+    for result_layer in result_layers:
+        out_filename = f"{uuid.uuid4().hex}_geoprocess.geojson"
+        out_path = os.path.join(LOCAL_UPLOAD_DIR, out_filename)
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(result_layer, f)
+        out_url = f"{BASE_URL}/uploads/{out_filename}"
+        out_urls.append(out_url)
+    #output_fc = {"type": "FeatureCollection", "features": result_layers}
+    #out_filename = f"{uuid.uuid4().hex}_geoprocess.geojson"
+    #out_path = os.path.join(LOCAL_UPLOAD_DIR, out_filename)
+    #with open(out_path, "w", encoding="utf-8") as f:
+    #    json.dump(output_fc, f)
+    #out_url = f"{BASE_URL}/uploads/{out_filename}"
+
+    # 5) Return the URL of the new file
+    return GeoProcessResponse(
+        layer_urls=out_urls,
+        tools_used=tools_used
+    )
+    

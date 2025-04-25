@@ -9,3 +9,5 @@ langgraph>=0.2.73
 langchain_openai>=0.3.12
 azure-storage-blob
 python-multipart
+shapely
+kml2geojson

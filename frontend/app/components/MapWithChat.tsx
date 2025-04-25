@@ -22,9 +22,10 @@ export default function MapWithChat() {
   const [isSearchResultsVisible, setIsSearchResultsVisible] =
     useState(true);
 
+  // TODO: verify
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await queryGeoweaverAgent();
+    await queryGeoweaverAgent("search");
     setIsSearchResultsVisible(true);
   };
 

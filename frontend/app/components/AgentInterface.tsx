@@ -14,9 +14,11 @@ interface Props {
 
 export default function AgentInterface({ onLayerSelect, conversation: conversation_old, setConversation }: Props) {
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
-  const [activeTool, setActiveTool] = useState<"search" | "chat" | "geocode" | null>("chat");
+  const [activeTool, setActiveTool] = useState < "search" | "chat" | "geocode" | "geoprocess" | null>("chat");
   const { input, setInput, messages: conversation, geoDataList, loading, error, queryGeoweaverAgent } = useGeoweaverAgent(API_BASE_URL);
   const containerRef = useRef<HTMLDivElement>(null);
+  const addLayer = useLayerStore((s) => s.addLayer);
+  const getLayers = useLayerStore.getState;
 
   //automate scroll to bottom with new entry
   useEffect(() => {
@@ -29,19 +31,16 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
     e.preventDefault();
     if (!input.trim()) return;
 
-    setConversation((prev) => [...prev, { role: "user", content: input }]);
+    // Add user message
+    setConversation((c) => [...c, { role: "user", content: input }]);
 
-    if (activeTool === "search") {
+    if (activeTool === "search" || activeTool === "geocode") {
       await queryGeoweaverAgent(activeTool);
-      setConversation((prev) => [
-        ...prev,
-        { role: "agent", content: "Search completed." },
-      ]);
-    } else if (activeTool === "geocode") {
-      await queryGeoweaverAgent(activeTool);
-      setConversation((prev) => [
-        ...prev,
-        { role: "agent", content: "Search completed." },
+      setConversation((c) => [...c, { role: "agent", content: "Done." }]);
+    } else if (activeTool === "geoprocess") {
+      setConversation((c) => [
+        ...c,
+        { role: "agent", content: `Processing: ${input}` },
       ]);
     } else if (activeTool === "chat") {
       await queryGeoweaverAgent(activeTool);
@@ -49,6 +48,33 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
         ...prev,
         { role: "agent", content: `Processing request: ${input}` },
       ]);
+
+      /* TODO: Move to Backend
+      // pass current layer URLs to the geoprocess endpoint
+      const urls = getLayers().layers.map((l) => l.access_url);
+      await query("geoprocess", urls);
+
+      // once done, add each new URL as a layer
+      processedUrls.forEach((url) => {
+        const id = url.split("/").pop()!;
+        addLayer({
+          resource_id: id,
+          name: `Processed ${id}`,
+          source_type: "processed",
+          access_url: url,
+          format: "geojson",
+          visible: true,
+        });
+      });
+
+      // report back to user
+      setConversation((c) => [
+        ...c,
+        {
+          role: "agent",
+          content: `Finished. Tools used: ${toolsUsed.join(", ")}`,
+        },
+      ]);*/
     }
 
     setInput("");
@@ -134,6 +160,12 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
             }}
           >
             Search
+          </button>
+          <button
+            onClick={() => setActiveTool("geoprocess")}
+            className={`px-2 py-1 rounded ${activeTool === "geoprocess" ? "bg-secondary-700 text-white" : "bg-gray-200"}`}
+          >
+            Geoprocessing
           </button>
           <button
             onClick={() => setActiveTool("geocode")}

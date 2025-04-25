@@ -2,9 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { kml } from "@tmcw/togeojson";
-import { BBox } from "geojson";
-import { ChatMessage, GeoDataObject, GeoweaverRequest } from "../models/geodatamodel";
+import { ChatMessage, GeoDataObject, GeoweaverRequest, GeoweaverResponse } from "../models/geodatamodel";
 
 export function useGeoweaverAgent(apiUrl: string) {
   const [input, setInput] = useState("");
@@ -13,13 +11,26 @@ export function useGeoweaverAgent(apiUrl: string) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  async function queryGeoweaverAgent(endpoint: string = "search") {
+  async function queryGeoweaverAgent(
+    endpoint: "chat" | "search" | "geocode" | "geoprocess",
+    layerUrls: string[] = []
+  ) {
     setLoading(true);
     setError("");
     try {
       let response = null;
       if (endpoint === "search" || endpoint == "geocode") {
         response = await fetch(`${apiUrl}/${endpoint}?query=${encodeURIComponent(input)}`);
+      } else if (endpoint === "geoprocess") {
+        // POST a JSON body for geoprocess // TODO: Use standard geodata model
+        response = await fetch(`${apiUrl}/geoprocess`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query: input,
+            layer_urls: layerUrls,
+          }),
+        });
       } else {
         const payload: GeoweaverRequest = {
           messages,
@@ -37,13 +48,18 @@ export function useGeoweaverAgent(apiUrl: string) {
       if (!response.ok) {
         throw new Error("Network response was not ok");
       }
-      // Expecting the response to be a JSON array of search objects.
-      const data = await response.json();
-
+      const data: GeoweaverResponse = await response.json();
       console.log(data)
+      if (!data.geodata) {
+        throw new Error("Response was missing GeoData");
+      }
+      if (!data.messages) {
+        throw new Error("Response was missing Messages");
+      }
 
       setGeoDataList(data.geodata);
       setMessages(data.messages);
+
       // Convert any raw_geo_data into a KML file blob URL
       /*
       const processed: GeoDataObject[] = data.results.map((item: GeoDataObject) => {
@@ -120,13 +136,13 @@ export function useGeoweaverAgent(apiUrl: string) {
       });
       setGeoDataList(processed);
       */
-
-    } catch (err: any) {
-      setError(err.message || "Something went wrong");
+    } catch (e: any) {
+      setError(e.message || "Something went wrong");
     } finally {
       setLoading(false);
     }
   }
 
   return { input, setInput, messages, geoDataList, loading, error, queryGeoweaverAgent };
+
 }
