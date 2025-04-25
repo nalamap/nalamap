@@ -7,7 +7,7 @@ import json
 from pydantic import BaseModel
 
 from models.geodata import DataOrigin, DataType, GeoDataObject
-from models.messages.chat_messages import GeoweaverResponse, OrchestratorRequest, OrchestratorResponse
+from models.messages.chat_messages import GeoweaverRequest, GeoweaverResponse, OrchestratorRequest, OrchestratorResponse
 from services.multi_agent_orch import multi_agent_executor
 from services.agents.langgraph_agent import executor, SearchState
 from services.tools.geocoding import geocode_using_nominatim
@@ -37,7 +37,7 @@ async def search(query: str = Query()):
     """
     state = SearchState(query=query)  
     result_state: SearchState = await executor.ainvoke(state)
-    response: GeoweaverResponse = GeoweaverResponse(messages=[HumanMessage("Search layers for '${query}'"), AIMessage("Here are relevant layers:")], response="Here are relevant layers:", geodata=result_state["results"])
+    response: GeoweaverResponse = GeoweaverResponse(messages=[HumanMessage(f"Search layers for '{query}'"), AIMessage("Here are relevant layers:")], response="Here are relevant layers:", geodata=result_state["results"])
     return response
 
 
@@ -73,7 +73,7 @@ async def geocode(query: str = Query(...)) -> Dict[str, Any]:
     # print(str(data)[:500])
     # Nominatim returns a list of places
     for props in data:
-        place_id     = props.get("place_id")
+        place_id     = str(props.get("place_id"))
         osm_type     = props.get("osm_type")
         display_name = props.get("display_name")
         name_prop    = props.get("name")
@@ -163,16 +163,19 @@ class GeoProcessResponse(BaseModel):
     tools_used: Optional[List[str]] = None
 
 
-@router.post("/api/geoprocess", response_model=GeoProcessResponse)
-async def geoprocess(req: GeoProcessRequest):
+@router.post("/api/geoprocess", response_model=GeoweaverRequest)
+async def geoprocess(req: GeoweaverRequest):
     """
     Accepts a natural language query and a list of GeoJSON URLs.
     Loads the GeoJSON from local storage, delegates processing to the geoprocess executor,
     then saves the resulting FeatureCollection and returns its URL.
     """
+    # Get layer urls from request:
+    layer_urls = [gd.data_link for gd in req.geodata if gd.data_type == DataType.GEOJSON
+]
     # 0) Load GeoJSON features from provided URLs
     input_layers: List[Dict[str, Any]] = []
-    for url in req.layer_urls:
+    for url in layer_urls:
         filename = os.path.basename(url)
         path = os.path.join(LOCAL_UPLOAD_DIR, filename)
         try:
@@ -180,6 +183,8 @@ async def geoprocess(req: GeoProcessRequest):
                 gj = json.load(f)
         except Exception as exc:
             raise HTTPException(status_code=400, detail=f"Could not load {url}: {exc}")
+        if isinstance(gj, List): # GeoJSON list? TODO: Verify GeoCoding
+            gj = gj[0]
         if gj.get("type") == "FeatureCollection":
             input_layers.extend(gj.get("features", []))
         elif gj.get("type") == "Feature":
@@ -212,15 +217,33 @@ async def geoprocess(req: GeoProcessRequest):
     #     result = tool(step["layers"], **step.get("params", {}))
     #     result_layers = [result]
 
+    new_geodata: List[GeoDataObject] = []
     # 4) Write output as a new GeoJSON file in uploads
     out_urls=[]
     for result_layer in result_layers:
-        out_filename = f"{uuid.uuid4().hex}_geoprocess.geojson"
+        out_uuid: str = uuid.uuid4().hex
+        out_filename = f"{out_uuid}_geoprocess.geojson"
         out_path = os.path.join(LOCAL_UPLOAD_DIR, out_filename)
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(result_layer, f)
         out_url = f"{BASE_URL}/uploads/{out_filename}"
         out_urls.append(out_url)
+        new_geodata.append(GeoDataObject(
+            id=out_uuid,
+            data_source_id="geoprocess",
+            data_type=DataType.GEOJSON,
+            data_origin=DataOrigin.TOOL,
+            data_source="GeoweaverGeoprocess",
+            data_link=out_url,
+            name="Geoprocess Result",
+            title="Geoprocess Result",
+            description="Geoprocess Result",
+            llm_description="Geoprocess Result",
+            score=0.2,
+            bounding_box=None,
+            layer_type="GeoJSON",
+            properties=None
+        ))
     #output_fc = {"type": "FeatureCollection", "features": result_layers}
     #out_filename = f"{uuid.uuid4().hex}_geoprocess.geojson"
     #out_path = os.path.join(LOCAL_UPLOAD_DIR, out_filename)
@@ -229,8 +252,15 @@ async def geoprocess(req: GeoProcessRequest):
     #out_url = f"{BASE_URL}/uploads/{out_filename}"
 
     # 5) Return the URL of the new file
-    return GeoProcessResponse(
-        layer_urls=out_urls,
-        tools_used=tools_used
-    )
-    
+    #return GeoProcessResponse(
+    #    layer_urls=out_urls,
+    #    tools_used=tools_used
+    #)
+
+    # Convert to common Geodatamodel
+    response_str: str = f"Here are the processing results, used Tools: {", ".join(tools_used)}:"
+    geodataResponse: GeoweaverResponse = GeoweaverResponse()
+    geodataResponse.response = response_str
+    geodataResponse.geodata = new_geodata
+    geodataResponse.messages = [*req.messages, AIMessage(response_str)]
+    return geodataResponse

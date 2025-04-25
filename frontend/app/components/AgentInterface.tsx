@@ -38,6 +38,7 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
       await queryGeoweaverAgent(activeTool);
       setConversation((c) => [...c, { role: "agent", content: "Done." }]);
     } else if (activeTool === "geoprocess") {
+      await queryGeoweaverAgent(activeTool);
       setConversation((c) => [
         ...c,
         { role: "agent", content: `Processing: ${input}` },
@@ -99,10 +100,10 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
           {conversation.map((msg, idx) => (
             <div
               key={idx}
-              className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+              className={`flex ${msg.type === "human" ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={`max-w-[80%] px-4 py-2 rounded-lg ${msg.role === "user"
+                className={`max-w-[80%] px-4 py-2 rounded-lg ${msg.type === "human"
                   ? "bg-blue-100 rounded-tr-none text-right"
                   : "bg-gray-50 rounded-tl-none border"
                   }`}
@@ -111,7 +112,7 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
                   {msg.content}
                 </div>
                 <div className="text-xs text-gray-500 mt-1">
-                  {msg.role === "user" ? "You" : "Agent"}
+                  {msg.type === "human" ? "You" : "Agent"}
                 </div>
               </div>
             </div>
