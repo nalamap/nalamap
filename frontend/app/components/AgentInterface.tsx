@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import wellknown from "wellknown";
 import { useGeoweaverAgent } from "../hooks/useGeoweaverAgent";
 import { ArrowUp } from "lucide-react";
 import { useLayerStore } from "../stores/layerStore";
@@ -20,12 +21,16 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
   const addLayer = useLayerStore((s) => s.addLayer);
   const getLayers = useLayerStore.getState;
 
+  // which one we’ll use for the bbox filter
+  const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
+  // portal filter string
+  const [portalFilter, setPortalFilter] = useState<string>("");
+
   //automate scroll to bottom with new entry
   useEffect(() => {
     const el = containerRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [conversation]);
-
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
