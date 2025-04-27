@@ -25,12 +25,11 @@ export function useGeoweaverAgent(apiUrl: string) {
         const url = new URL(`${apiUrl}/search`);
         url.searchParams.set("query", input);
         if (options?.portal) url.searchParams.set("portals", options.portal);
-        if (options?.bboxWkt) url.searchParams.set("bbox", options.bboxWkt);
         response = await fetch(url.toString(), {
           method: "GET",
         });
       }
-      if (endpoint == "geocode") {
+      else if (endpoint == "geocode") {
         response = await fetch(`${apiUrl}/${endpoint}?query=${encodeURIComponent(input)}`);
       } else if (endpoint === "geoprocess" || endpoint === "chat") {
         const payload: GeoweaverRequest = {

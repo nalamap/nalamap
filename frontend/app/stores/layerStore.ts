@@ -8,6 +8,7 @@ type LayerStore = {
   removeLayer: (resource_id: string | number) => void;
   toggleLayerVisibility: (resource_id: string | number) => void;
   resetLayers: () => void;
+  selectLayerForSearch: (resource_id: string | number) => void;
 };
 
 export const useLayerStore = create<LayerStore>((set) => ({
@@ -42,4 +43,12 @@ export const useLayerStore = create<LayerStore>((set) => ({
       ),
     })),
   resetLayers: () => set({ layers: [] }),
+  // new implementation:
+  selectLayerForSearch: (resource_id) =>
+    set((state) => ({
+      layers: state.layers.map((l) => ({
+        ...l,
+        selected: l.id === resource_id,
+      })),
+    })),
 }));

@@ -16,10 +16,11 @@ export interface GeoDataObject {
     description?: string
     llm_description?: string
     score?: number
-    bounding_box?: string
+    bounding_box?: any // string unterschiedliche Formate von bounding boxes
     layer_type?: string
     properties?: Record<string, string>
     visible?: boolean
+    selected?: boolean;     // <— new flag
 }
 
 export interface GeoweaverRequest {

@@ -3,9 +3,33 @@
 import { useState, useEffect, useRef } from "react";
 import wellknown from "wellknown";
 import { useGeoweaverAgent } from "../hooks/useGeoweaverAgent";
-import { ArrowUp } from "lucide-react";
+import { ArrowUp, X } from "lucide-react";
 import { useLayerStore } from "../stores/layerStore";
+import { GeoDataObject } from "../models/geodatamodel";
 
+// helper to get a WKT string from whatever format the store has
+function toWkt(bbox: GeoDataObject["bounding_box"]): string | undefined {
+  if (!bbox) return undefined;
+
+  // 1) If it's already an object, stringify directly
+  if (typeof bbox === "object") {
+    return wellknown.stringify(bbox);
+  }
+
+  // 2) If it's a string that looks like JSON, parse then stringify
+  const trimmed = bbox.trim();
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    try {
+      const geojson = JSON.parse(bbox);
+      return wellknown.stringify(geojson);
+    } catch {
+      // fall through: maybe it wasn't valid JSON after all
+    }
+  }
+
+  // 3) Otherwise assume the string is already WKT
+  return bbox;
+}
 
 interface Props {
   onLayerSelect: (layers: any[]) => void;
@@ -20,7 +44,11 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
   const containerRef = useRef<HTMLDivElement>(null);
   const addLayer = useLayerStore((s) => s.addLayer);
   const getLayers = useLayerStore.getState;
-
+  // show only first 5 results or all
+  const [showAllResults, setShowAllResults] = useState(false);
+  // state for description modal
+  const [modalData, setModalData] = useState<GeoDataObject | null>(null);
+  const [overlayData, setOverlayData] = useState<GeoDataObject | null>(null);
   // which one we’ll use for the bbox filter
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
   // portal filter string
@@ -39,7 +67,32 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
     // Add user message
     setConversation((c) => [...c, { role: "user", content: input }]);
 
-    if (activeTool === "search" || activeTool === "geocode") {
+    if (activeTool === "search") {
+  
+      let fullQuery = input;
+      const selected = useLayerStore.getState().layers.find((l) => l.selected);
+      if (selected?.bounding_box) {
+        const wkt = toWkt(selected.bounding_box);
+        if (wkt) {
+          fullQuery += ` with given ${wkt}`;
+        }
+      }
+      if (portalFilter.trim()) {
+        fullQuery += ` portal:${portalFilter.trim()}`;
+      }
+
+
+  
+      await queryGeoweaverAgent("search");
+  
+      setConversation((c) => [
+        ...c,
+        { role: "agent", content: "Search complete." },
+      ]);
+    }
+
+      
+    if (activeTool === "geocode") {
       await queryGeoweaverAgent(activeTool);
       setConversation((c) => [...c, { role: "agent", content: "Done." }]);
     } else if (activeTool === "geoprocess") {
@@ -94,6 +147,9 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
     ]);
   };
 
+  // determine which results to show
+  const resultsToShow = showAllResults ? geoDataList : geoDataList.slice(0, 5);
+
   return (
     <div className="h-full w-full bg-gray-100 p-4 flex flex-col overflow-hidden relative border-l">
       {/* Header */}
@@ -127,19 +183,21 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
         {(activeTool === "search" || activeTool === "geocode" || activeTool === "chat" || activeTool === "geoprocess") && geoDataList.length > 0 && (
           <div className="max-h-100 overflow-y-auto mt-6 mb-2 px-2 bg-gray-50 rounded border">
             <div className="font-semibold p-1">Search Results:</div>
-            {geoDataList.map((result) => (
-              <div
-                key={result.id}
-                onClick={() => handleLayerSelect(result)}
-                className="p-2 border-b last:border-none cursor-pointer hover:bg-gray-100"
-              >
-                <div className="font-bold text-sm">{result.name}</div>
-                <div className="text-xs text-gray-600 truncate" title={result.llm_description}>
-                  {result.llm_description}
+            {resultsToShow.map((result) => (
+              <div key={result.id} className="p-2 border-b last:border-none hover:bg-gray-100">
+                <div onClick={() => handleLayerSelect(result)} className="cursor-pointer">
+                  <div className="font-bold text-sm">{result.title}</div>
+                  <div className="text-xs text-gray-600 truncate" title={result.llm_description}>{result.llm_description}</div>
+                  <div className="text-[10px] text-gray-500">{result.data_origin} | Score: {result.score}</div>
                 </div>
-                <div className="text-[10px] text-gray-500">{result.data_origin} | Score: {result.score}</div>
+                <button onClick={() => setOverlayData(result)} className="ml-2 px-2 py-1 bg-blue-500 text-white rounded text-xs">Details</button>
               </div>
             ))}
+            {geoDataList.length > 5 && (
+              <button onClick={() => setShowAllResults((s) => !s)} className="w-full py-2 text-center text-blue-600 hover:underline">
+                {showAllResults ? "Show Less" : `Show More (${geoDataList.length - 5} more)`}
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -205,6 +263,22 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
           </button>
         </form>
       </div>
+      {/* Overlay details panel */}
+      {overlayData && (
+        <div className="fixed right-4 top-16 w-1/3 max-h-[70vh] overflow-y-auto bg-white shadow-lg rounded p-4 z-50">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="text-lg font-bold">{overlayData.title}</h3>
+            <button onClick={() => setOverlayData(null)}><X /></button>
+          </div>
+          <p className="text-sm text-gray-700 mb-2">{overlayData.llm_description}</p>
+          <div className="text-[10px] text-gray-500 mb-1">Source: {overlayData.data_source}</div>
+          <div className="text-[10px] text-gray-500 mb-1">Layer Type: {overlayData.layer_type}</div>
+          <div className="text-[10px] text-gray-500">Score: {overlayData.score}</div>
+          {overlayData.bounding_box && (
+            <pre className="text-[10px] text-gray-500 mt-2 whitespace-pre-wrap break-all">BBox: {overlayData.bounding_box}</pre>
+          )}
+        </div>
+      )}
     </div>
   );
 }

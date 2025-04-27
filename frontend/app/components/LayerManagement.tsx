@@ -3,13 +3,14 @@
 import { useRef } from "react";
 import { useMapStore } from "../stores/mapStore";
 import { useLayerStore } from "../stores/layerStore";
-import { Eye, EyeOff, Trash2 } from "lucide-react";
+import { Eye, EyeOff, Trash2, MapPin } from "lucide-react";
 
 export default function LayerManagement() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const setBasemap = useMapStore((state) => state.setBasemap);
   const layers = useLayerStore((state) => state.layers);
   const addLayer = useLayerStore((state) => state.addLayer);
+  const selectForSearch = useLayerStore((s) => s.selectLayerForSearch);
   const toggleLayerVisibility = useLayerStore((state) => state.toggleLayerVisibility);
   const removeLayer = useLayerStore((state) => state.removeLayer);
 
@@ -114,6 +115,21 @@ export default function LayerManagement() {
                   <div className="text-xs text-gray-500">{layer.data_type}</div>
                 </div>
                 <div className="flex items-center space-x-2">
+                <button
+                    onClick={() => selectForSearch(layer.id)}
+                    title={
+                      layer.selected
+                        ? "Using this layer for search bounding box"
+                        : "Use this layer for search bounding box"
+                    }
+                    className={`p-1 rounded ${
+                      layer.selected
+                        ? "bg-blue-500 text-white"
+                        : "bg-gray-200 text-gray-600"
+                    }`}
+                  >
+                    <MapPin size={16} />
+                  </button>
                   <button
                     onClick={() => toggleLayerVisibility(layer.id)}
                     title="Toggle Visibility"

@@ -10,19 +10,20 @@ import json
 
 
 ## 1) System prompt now instructs the LLM to output JSON with exactly these keys.
-SYSTEM_PROMPT = """
+system_msg  = """
 You are GeoSearchAgent. 
-Given a free‐text user query, extract and return a JSON object with:
+Given a free-text user query, extract and return a JSON object with:
   - searchquery: the text to send to the database
   - portal_filter: portal name (strings) or null
   - bbox_wkt: WKT polygon string or null
 
 Example output:
-{"searchquery":"roads in africa","portal_filter":["fao"],"bbox_wkt":"POLYGON((...))"}
+{"searchquery":"roads in africa","portal_filter":"fao","bbox_wkt":"POLYGON((...))"}
 """
 
-llm = get_llm(system_prompt=SYSTEM_PROMPT)
-
+# Use LangChain chat generate methods since AzureChatOpenAI doesn't have .chat()
+ 
+llm = get_llm()
 # 2) State carries everything, but initially only `raw_query` is set.
 class SearchState(BaseModel):
     raw_query: str
@@ -36,7 +37,7 @@ class SearchState(BaseModel):
 async def parse_llm(state: SearchState) -> SearchState:
     user_msg = state.raw_query
     messages = [
-        SystemMessage(content=SYSTEM_PROMPT),
+        SystemMessage(content=system_msg),
         HumanMessage(content=user_msg)
     ]
     # agenerate expects a list of message‐lists for batching:
@@ -47,7 +48,7 @@ async def parse_llm(state: SearchState) -> SearchState:
     # parse it (you may want to add error‐handling here)
     parsed = json.loads(json_text)
     state.searchquery = parsed["searchquery"]
-    state.portal     = parsed.get("portal", [])
+    state.portal     = parsed.get("portal")
     state.bbox_wkt     = parsed.get("bbox_wkt")
     # keep num_results at its default or override if you want the LLM to set it
     
@@ -100,7 +101,7 @@ async def query_postgis(state: SearchState) -> SearchState:
     return state
 
 # 5) Assemble the graph
-graph = StateGraph(state_schema=SearchState, llm=llm)
+graph = StateGraph(state_schema=SearchState)
 graph.add_node("parse", parse_llm)
 graph.add_node("query_postgis", query_postgis)
 graph.add_edge(START, "parse")

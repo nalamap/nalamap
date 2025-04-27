@@ -36,21 +36,22 @@ async def search(
 ):
     state = SearchState(raw_query=query)
     result_state = await executor.ainvoke(state)
-
+    numresults = result_state["num_results"]
+    results: List[GeoDataObject] = result_state["results"]
     # Decide which message to send based on whether we got anything back
-    if not result_state.results:
+    if numresults==0:
         human_msg = HumanMessage(f"Search layers for “{query}”")
-        ai_msg    = AIMessage("I’m sorry, I couldn’t find any datasets matching your criteria.")
+        ai_msg    = AIMessage("I'm sorry, I couldn't find any datasets matching your criteria.")
         response_text = "No relevant layers found."
     else:
-        human_msg = HumanMessage(f"Search layers for “{query}”")
+        human_msg = HumanMessage(f"{query}")
         ai_msg    = AIMessage("Here are relevant layers:")
         response_text = "Here are relevant layers:"
 
     return GeoweaverResponse(
         messages=[human_msg, ai_msg],
         response=response_text,
-        geodata=result_state.results
+        geodata=results
     )
     
 @router.get("/api/geocode", tags=["debug"], response_model=GeoweaverResponse)
