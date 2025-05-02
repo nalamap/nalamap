@@ -295,6 +295,8 @@ export default function LeafletMapComponent() {
   const basemap = useMapStore((state) => state.basemap);
   const layers = useLayerStore((state) => state.layers);
 
+  const layerOrderKey = layers.map(l => l.id).join("-");
+
   // Get the first WMS layer from the layers array (if any) for GetFeatureInfo.
   const wmsLayerData = layers.find(
     (layer) => layer.layer_type?.toUpperCase() === "WMS"
@@ -330,30 +332,32 @@ export default function LeafletMapComponent() {
                 </LayersControl> */}
           <ZoomToLayer layers={layers} />
           <TileLayer url={basemap} />
-          {layers.map((layer) => {
-            if (!layer.visible) return null;
+          <div key={layerOrderKey}>
+            {[...layers].map((layer) => {
+              if (!layer.visible) return null;
 
-            if (layer.layer_type?.toUpperCase() === "WMS") {
-              // 💡 Automatically zoom to bounding boxes
-              const { baseUrl, layers: wmsLayers, format, transparent } = parseWMSUrl(layer.data_link);
-              return (
-                <WMSTileLayer
-                  key={layer.id}
-                  url={baseUrl}
-                  layers={wmsLayers}
-                  format={format}
-                  transparent={transparent}
-                  zIndex={10}
-                />
-              );
-            } else if (
-              layer.layer_type?.toUpperCase() === "WFS" || layer.layer_type?.toUpperCase() === "UPLOADED" ||
-              layer.data_link.toLowerCase().includes("json")
-            ) {
-              return <LeafletGeoJSONLayer key={layer.id} url={layer.data_link} />;
-            }
-            return null;
-          })}
+              if (layer.layer_type?.toUpperCase() === "WMS") {
+                // 💡 Automatically zoom to bounding boxes
+                const { baseUrl, layers: wmsLayers, format, transparent } = parseWMSUrl(layer.data_link);
+                return (
+                  <WMSTileLayer
+                    key={layer.id}
+                    url={baseUrl}
+                    layers={wmsLayers}
+                    format={format}
+                    transparent={transparent}
+                    zIndex={10}
+                  />
+                );
+              } else if (
+                layer.layer_type?.toUpperCase() === "WFS" || layer.layer_type?.toUpperCase() === "UPLOADED" ||
+                layer.data_link.toLowerCase().includes("json")
+              ) {
+                return <LeafletGeoJSONLayer key={layer.id} url={layer.data_link} />;
+              }
+              return null;
+            })}
+          </div>
           {/* Render legend if a WMS layer exists */}
           {wmsLayer && wmsLayerData && (
             <Legend wmsLayer={wmsLayer} title={wmsLayerData.title || wmsLayerData.name} />

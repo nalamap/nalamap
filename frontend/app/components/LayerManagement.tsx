@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useMapStore } from "../stores/mapStore";
 import { useLayerStore } from "../stores/layerStore";
 import { Eye, EyeOff, Trash2, MapPin } from "lucide-react";
@@ -13,6 +13,8 @@ export default function LayerManagement() {
   const selectForSearch = useLayerStore((s) => s.selectLayerForSearch);
   const toggleLayerVisibility = useLayerStore((state) => state.toggleLayerVisibility);
   const removeLayer = useLayerStore((state) => state.removeLayer);
+  const reorderLayers = useLayerStore((state) => state.reorderLayers);
+  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -22,7 +24,6 @@ export default function LayerManagement() {
     const formData = new FormData();
     formData.append("file", file);
     const API_UPLOAD_URL = process.env.NEXT_PUBLIC_API_UPLOAD_URL || "http://localhost:8000/upload";
-
 
     try {
       // hit your backend upload endpoint
@@ -62,7 +63,6 @@ export default function LayerManagement() {
       e.target.value = "";
     }
   };
-
 
   const handleBasemapChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selected = e.target.value;
@@ -105,17 +105,33 @@ export default function LayerManagement() {
           <p className="text-sm text-gray-500">No layers added yet.</p>
         ) : (
           <ul className="space-y-2 text-sm">
-            {layers.map((layer) => (
+            {[...layers].slice().reverse().map((layer, idx, arr) => (
               <li
                 key={layer.id}
                 className="bg-white p-2 rounded shadow flex items-center justify-between"
+                draggable
+                onDragStart={() => setDraggedIdx(idx)}
+                onDragOver={e => e.preventDefault()}
+                onDrop={() => {
+                  if (draggedIdx === null || draggedIdx === idx) return;
+                  // arr is reversed, so we need to map back to the original index
+                  const from = layers.length - 1 - draggedIdx;
+                  const to = layers.length - 1 - idx;
+                  reorderLayers(from, to);
+                  setDraggedIdx(null);
+                }}
+                style={{
+                  opacity: draggedIdx === idx ? 0.5 : 1,
+                  cursor: "grab"
+                }}
+                title="Drag to reorder"
               >
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-gray-800 truncate">{layer.name}</div>
                   <div className="text-xs text-gray-500">{layer.data_type}</div>
                 </div>
                 <div className="flex items-center space-x-2">
-                <button
+                  <button
                     onClick={() => selectForSearch(layer.id)}
                     title={
                       layer.selected
