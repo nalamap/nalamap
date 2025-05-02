@@ -12,12 +12,24 @@ export function useGeoweaverAgent(apiUrl: string) {
   const [error, setError] = useState("");
 
   async function queryGeoweaverAgent(
-    endpoint: "chat" | "search" | "geocode" | "geoprocess") {
+    endpoint: "chat" | "search" | "geocode" | "geoprocess",
+    layerUrls: string[] = [],
+    options?: { portal?: string; bboxWkt?: string }
+  ) {
+    const params = new URLSearchParams({ query: input, endpoint });
     setLoading(true);
     setError("");
     try {
       let response = null;
-      if (endpoint === "search" || endpoint == "geocode") {
+      if (endpoint === "search") {
+        const url = new URL(`${apiUrl}/search`);
+        url.searchParams.set("query", input);
+        if (options?.portal) url.searchParams.set("portals", options.portal);
+        response = await fetch(url.toString(), {
+          method: "GET",
+        });
+      }
+      else if (endpoint == "geocode") {
         response = await fetch(`${apiUrl}/${endpoint}?query=${encodeURIComponent(input)}`);
       } else if (endpoint === "geoprocess" || endpoint === "chat") {
         const payload: GeoweaverRequest = {

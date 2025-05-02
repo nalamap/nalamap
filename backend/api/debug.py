@@ -31,16 +31,29 @@ LOCAL_UPLOAD_DIR = os.getenv("LOCAL_UPLOAD_DIR", "./uploads")
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
 
 @router.get("/api/search", tags=["debug"], response_model=GeoweaverResponse)
-async def search(query: str = Query()):
-    """
-    Searches the annotated datasets provided by the librarian 
-    """
-    state = SearchState(query=query)  
-    result_state: SearchState = await executor.ainvoke(state)
-    response: GeoweaverResponse = GeoweaverResponse(messages=[HumanMessage(f"Search layers for '{query}'"), AIMessage("Here are relevant layers:")], response="Here are relevant layers:", geodata=result_state["results"])
-    return response
+async def search(
+    query: str = Query(..., description="Free‐text search")
+):
+    state = SearchState(raw_query=query)
+    result_state = await executor.ainvoke(state)
+    numresults = result_state["num_results"]
+    results: List[GeoDataObject] = result_state["results"]
+    # Decide which message to send based on whether we got anything back
+    if numresults==0:
+        human_msg = HumanMessage(f"Search layers for “{query}”")
+        ai_msg    = AIMessage("I'm sorry, I couldn't find any datasets matching your criteria.")
+        response_text = "No relevant layers found."
+    else:
+        human_msg = HumanMessage(f"{query}")
+        ai_msg    = AIMessage("Here are relevant layers:")
+        response_text = "Here are relevant layers:"
 
-
+    return GeoweaverResponse(
+        messages=[human_msg, ai_msg],
+        response=response_text,
+        geodata=results
+    )
+    
 @router.get("/api/geocode", tags=["debug"], response_model=GeoweaverResponse)
 async def geocode(query: str = Query(...)) -> Dict[str, Any]:
     """
