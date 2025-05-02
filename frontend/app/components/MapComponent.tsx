@@ -7,5 +7,9 @@ interface Props {
 }
 
 export default function MapComponent({ layers }: Props) {
-  return <MapSwitcher layers={layers} />;
+  return (
+    <div className="w-full h-full">
+      <MapSwitcher layers={layers} />
+    </div>
+  );
 }

@@ -11,7 +11,7 @@ export default function MapWithChat() {
   const API_BASE_URL =
     process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
   // Custom search hook.
-  const { input, setInput, geoweaverAgentResults, loading, error, queryGeoweaverAgent } =
+  const { input, setInput, geoDataList: geoweaverAgentResults, loading, error, queryGeoweaverAgent } =
     useGeoweaverAgent(API_BASE_URL);
   // State to store the layer(s) the user selects to visualize.
   // Initialize with a default empty layer to ensure the map loads with our baselayers
@@ -22,9 +22,10 @@ export default function MapWithChat() {
   const [isSearchResultsVisible, setIsSearchResultsVisible] =
     useState(true);
 
+  // TODO: verify
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await queryGeoweaverAgent();
+    await queryGeoweaverAgent("search");
     setIsSearchResultsVisible(true);
   };
 
@@ -37,7 +38,7 @@ export default function MapWithChat() {
     const userMsg = `I selected the layer "${result.name}". Can you suggest additional layers?`;
     setConversation((prev) => [...prev, { role: "user", content: userMsg }]);
     // Simulate an agent response.
-    setTimeout(() => { 
+    setTimeout(() => {
       const additionalLayers = [      // Agent responds with additional layers in JSON.
         {
           resource_id: "agent-2",
@@ -96,21 +97,21 @@ export default function MapWithChat() {
               Search Results
             </h3>
             <div className="space-y-2">
-            {geoweaverAgentResults.map((result) => (
-              <div
-                key={result.resource_id}
-                className="p-2 border rounded cursor-pointer hover:bg-primary-100"
-                onClick={() => handleLayerSelect(result)}
-              >
-                <div className="font-bold">{result.name}</div>
-                <div className="text-sm truncate" title={result.llm_description}>
-                  {result.llm_description}
+              {geoweaverAgentResults.map((result) => (
+                <div
+                  key={result.id}
+                  className="p-2 border rounded cursor-pointer hover:bg-primary-100"
+                  onClick={() => handleLayerSelect(result)}
+                >
+                  <div className="font-bold">{result.name}</div>
+                  <div className="text-sm truncate" title={result.llm_description}>
+                    {result.llm_description}
+                  </div>
+                  <div className="text-xs text-gray-600">
+                    {result.data_origin} | Score: {result.score}
+                  </div>
                 </div>
-                <div className="text-xs text-gray-600">
-                  {result.source_type} | Score: {result.score}
-                </div>
-              </div>
-            ))}
+              ))}
             </div>
           </div>
         )}

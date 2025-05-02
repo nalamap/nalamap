@@ -9,11 +9,12 @@ import "leaflet-fullscreen/dist/leaflet.fullscreen.css";
 import "leaflet-fullscreen";
 
 import { useMapStore } from "../stores/mapStore"; // Adjust path accordingly
-import { useLayerStore, LayerData } from "../stores/layerStore";
+import { useLayerStore } from "../stores/layerStore";
 import { ZoomToLayer } from "./ZoomToLayer"; // adjust path
 
 // Fix leaflet's default icon path issue
 import "leaflet/dist/leaflet.css";
+import { GeoDataObject } from "../models/geodatamodel";
 
 const defaultIcon = new L.Icon({
   iconUrl: "/marker-icon.png", // Make sure this is in /public folder
@@ -48,15 +49,15 @@ declare global {
 }
 
 
-function useZoomToLayer(layers: LayerData[]) {
+function useZoomToLayer(layers: GeoDataObject[]) {
   const map = useMap();
   const zoomedLayers = useRef<Set<string | number>>(new Set());
 
   useEffect(() => {
     layers.forEach(async (layer) => {
-      if (!layer.visible || zoomedLayers.current.has(layer.resource_id)) return;
+      if (!layer.visible || zoomedLayers.current.has(layer.id)) return;
 
-      if (layer.source_type.toUpperCase() === "WMS") {
+      if (layer.layer_type?.toUpperCase() === "WMS") {
         // Option 1: Use bounding box from layerStore
         if (layer.bounding_box) {
           const [minX, minY, maxX, maxY] = layer.bounding_box;
@@ -65,7 +66,7 @@ function useZoomToLayer(layers: LayerData[]) {
             [maxY, maxX]  // northeast
           );
           map.fitBounds(bounds);
-          zoomedLayers.current.add(layer.resource_id);
+          zoomedLayers.current.add(layer.id);
         }
       }
     }
@@ -296,9 +297,9 @@ export default function LeafletMapComponent() {
 
   // Get the first WMS layer from the layers array (if any) for GetFeatureInfo.
   const wmsLayerData = layers.find(
-    (layer) => layer.source_type.toUpperCase() === "WMS"
+    (layer) => layer.layer_type?.toUpperCase() === "WMS"
   );
-  const wmsLayer = wmsLayerData ? parseWMSUrl(wmsLayerData.access_url) : null;
+  const wmsLayer = wmsLayerData ? parseWMSUrl(wmsLayerData.data_link) : null;
   return (
     <div className="relative w-full h-full">
       <div className="absolute inset-0 z-0">
@@ -332,12 +333,12 @@ export default function LeafletMapComponent() {
           {layers.map((layer) => {
             if (!layer.visible) return null;
 
-            if (layer.source_type.toUpperCase() === "WMS") {
+            if (layer.layer_type?.toUpperCase() === "WMS") {
               // 💡 Automatically zoom to bounding boxes
-              const { baseUrl, layers: wmsLayers, format, transparent } = parseWMSUrl(layer.access_url);
+              const { baseUrl, layers: wmsLayers, format, transparent } = parseWMSUrl(layer.data_link);
               return (
                 <WMSTileLayer
-                  key={layer.resource_id}
+                  key={layer.id}
                   url={baseUrl}
                   layers={wmsLayers}
                   format={format}
@@ -346,10 +347,10 @@ export default function LeafletMapComponent() {
                 />
               );
             } else if (
-              layer.source_type.toUpperCase() === "WFS" || layer.source_type.toUpperCase() === "UPLOADED" ||
-              layer.access_url.toLowerCase().includes("json")
+              layer.layer_type?.toUpperCase() === "WFS" || layer.layer_type?.toUpperCase() === "UPLOADED" ||
+              layer.data_link.toLowerCase().includes("json")
             ) {
-              return <LeafletGeoJSONLayer key={layer.resource_id} url={layer.access_url} />;
+              return <LeafletGeoJSONLayer key={layer.id} url={layer.data_link} />;
             }
             return null;
           })}

@@ -1,33 +1,34 @@
-from typing import List, Optional, Literal
+from typing import List, Optional
 from pydantic import BaseModel
 from models.geodata import GeoDataObject
+from langchain_core.messages import BaseMessage
 
-class ChatMessage(BaseModel):
-    role: Literal["user", "assistant", "system"]
-    content: str
+#class ChatMessage(BaseModel):
+#    role: Literal["user", "assistant", "system"]
+#    content: str
 
 class OrchestratorRequest(BaseModel):
-    messages: List[ChatMessage]
+    messages: List[BaseMessage]
 
 class OrchestratorResponse(BaseModel):
-    messages: List[ChatMessage]
+    messages: List[BaseMessage]
 
 class ChatPayload(BaseModel):
     id: Optional[str] = None
     input: Optional[str] = None
-    messages: Optional[List[ChatMessage]] = None
+    messages: Optional[List[BaseMessage]] = None
     query: Optional[str] = None
 
 class ChatResponse(BaseModel):
     id: str
-    messages: List[ChatMessage]
+    messages: List[BaseMessage]
 
 # Geoweaver Messages
 class GeoweaverRequest(BaseModel):
     """
     Request of the Frontend to the Geoweaver, which contains the message history, a request and geodata related to the query
     """
-    messages: Optional[List[ChatMessage]] = None
+    messages: Optional[List[BaseMessage]] = None
     query: Optional[str] = None
     geodata: Optional[List[GeoDataObject]] = None
 
@@ -35,6 +36,6 @@ class GeoweaverResponse(BaseModel):
     """
     Reponse of the Geoweaver, which contains the message history, a response and geodata related to the query
     """
-    messages: Optional[List[ChatMessage]] = None
+    messages: Optional[List[BaseMessage]] = None
     response: Optional[str] = None
     geodata: Optional[List[GeoDataObject]] = None

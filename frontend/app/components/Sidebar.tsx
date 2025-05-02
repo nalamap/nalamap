@@ -35,28 +35,28 @@ export default function Sidebar() {
         <meta name="description" content="geospatial insights, with ease" />
       </Head>
       {/* Top Icon Section */}
-      <div className="flex flex-col items-center py-4 space-y-4 border-b border-darkgreen-700">
+      <div className="flex flex-col items-center justify-start py-4 space-y-4 h-full w-full">
         {/* Account Icon */}
-        <button className="hover:bg-secondary-900 p-2 rounded focus:outline-none" title="Account">
+        <button className="hover:bg-secondary-900 p-2 rounded focus:outline-none text-white" title="Account">
           <User className="w-6 h-6" />
         </button>
 
         {/* Fullscreen Icon */}
         <button
           onClick={toggleFullscreen}
-          className="hover:bg-secondary-900 p-2 rounded focus:outline-none"
+          className="hover:bg-secondary-900 p-2 rounded focus:outline-none text-white"
           title="Fullscreen Mode"
         >
           <Maximize className="w-6 h-6" />
         </button>
 
         {/* Reset Icon */}
-        <button className="hover:bg-secondary-900 p-2 rounded focus:outline-none" title="Reset App">
+        <button className="hover:bg-secondary-900 p-2 rounded focus:outline-none text-white" title="Reset App">
           <RefreshCcw className="w-6 h-6" />
         </button>
 
         {/* Settings Icon */}
-        <button className="hover:bg-secondary-900 p-2 rounded focus:outline-none" title="Settings">
+        <button className="hover:bg-secondary-900 p-2 rounded focus:outline-none text-white" title="Settings">
           <Settings className="w-6 h-6" />
         </button>
       </div>

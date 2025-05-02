@@ -1,23 +1,10 @@
 // stores/layerStore.ts
 import { create } from "zustand";
-
-export type LayerData = {
-  resource_id: string | number;
-  name: string;
-  title?: string;
-  description?: string;
-  access_url: string;
-  source_type: string;
-  format?: string;
-  llm_description?: string;
-  bounding_box?: any;
-  score?: number;
-  visible?: boolean;
-};
+import { GeoDataObject } from "../models/geodatamodel";
 
 type LayerStore = {
-  layers: LayerData[];
-  addLayer: (layer: LayerData) => void;
+  layers: GeoDataObject[];
+  addLayer: (layer: GeoDataObject) => void;
   removeLayer: (resource_id: string | number) => void;
   toggleLayerVisibility: (resource_id: string | number) => void;
   resetLayers: () => void;
@@ -29,7 +16,7 @@ export const useLayerStore = create<LayerStore>((set) => ({
     set((state) => {
       // remove any existing layer with this resource_id
       const withoutOld = state.layers.filter(
-        (l) => l.resource_id !== layer.resource_id
+        (l) => l.id !== layer.id
       );
       // add the new layer (always visible by default)
       return {
@@ -44,12 +31,12 @@ export const useLayerStore = create<LayerStore>((set) => ({
     }),
   removeLayer: (resource_id) =>
     set((state) => ({
-      layers: state.layers.filter((layer) => layer.resource_id !== resource_id),
+      layers: state.layers.filter((layer) => layer.id !== resource_id),
     })),
   toggleLayerVisibility: (resource_id) =>
     set((state) => ({
       layers: state.layers.map((layer) =>
-        layer.resource_id === resource_id
+        layer.id === resource_id
           ? { ...layer, visible: !layer.visible }
           : layer
       ),
