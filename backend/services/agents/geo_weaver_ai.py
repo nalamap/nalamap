@@ -4,7 +4,7 @@ from typing import List, Dict, Optional
 
 from services.ai.llm_config import get_llm
 from core.config import *  
-from langchain.schema import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from models.states import DataState
 
 
@@ -21,9 +21,9 @@ def prepare_messages(state: DataState) -> DataState:
     return state
 
 async def query_ai(state: DataState) -> DataState:
+    print(state["messages"])
     llm = get_llm() 
     response = await llm.ainvoke(state["messages"]) 
-    print(response.content)
     state["messages"].append(AIMessage(response.content))
     return state
 

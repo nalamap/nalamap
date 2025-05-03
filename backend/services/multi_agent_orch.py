@@ -26,9 +26,9 @@ def convert_to_geo_input(state: DataState) -> Dict:
 async def geo_helper_node(state: DataState) -> Command:
     geo_input = convert_to_geo_input(state)
     ai_state = await geo_helper_executor.ainvoke(geo_input)
-    output = getattr(ai_state, "response", None) or "⚠️ Geo Helper returned no response."
-    new_msgs = state["messages"] + [{"role": "assistant", "content": output}]
-    return Command(update={"messages": new_msgs, "geodata": getattr(ai_state, "geodata", state["geodata"])})
+    #output = getattr(ai_state, "response", None) or "⚠️ Geo Helper returned no response."
+    #new_msgs = state["messages"] + [{"role": "assistant", "content": output}]
+    return Command(update={"messages": ai_state["messages"], "geodata": ai_state["geodata"]}) # getattr(ai_state, "geodata", state["geodata"])})
 
 def convert_to_search_input(state: DataState) -> Dict:
     query = next((m.content for m in reversed(state["messages"]) if isinstance(m, HumanMessage)), "")

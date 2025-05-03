@@ -1,12 +1,42 @@
-from typing import List
-from fastapi import APIRouter
+from typing import Any, Dict, List
+from fastapi import APIRouter, HTTPException
 
 from models.geodata import GeoDataObject, mock_geodata_objects
 from models.states import DataState
 from models.messages.chat_messages import GeoweaverRequest, GeoweaverResponse
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from services.multi_agent_orch import multi_agent_executor
 import json
+
+def normalize_messages(raw: List[BaseMessage]) -> List[BaseMessage]:
+    normalized: List[BaseMessage] = []
+    for idx, m in enumerate(raw):
+        # If it's already the right subclass, leave it alone:
+        if isinstance(m, (HumanMessage, AIMessage, SystemMessage)):
+            normalized.append(m)
+            continue
+
+        # Otherwise we have a "generic" BaseMessage: inspect .type
+        t = getattr(m, "type", "").lower()
+        content = getattr(m, "content", None)
+        if content is None:
+            raise HTTPException(400, detail=f"message[{idx}].content is missing")
+
+        # Pull through any other kwargs (like metadata) if you want
+        extra = {
+            **getattr(m, "additional_kwargs", {}),
+            **getattr(m, "response_metadata", {}),
+        }
+
+        if t in ("human", "user"):
+            normalized.append(HumanMessage(content=content, **extra))
+        elif t in ("ai", "assistant"):
+            normalized.append(AIMessage(content=content, **extra))
+        elif t == "system":
+            normalized.append(SystemMessage(content=content, **extra))
+        else:
+            raise HTTPException(400, detail=f"message[{idx}].type '{t}' not recognized")
+    return normalized
 
 router = APIRouter()
 @router.post("/api/chatmock", tags=["geoweaver"], response_model=GeoweaverResponse)
@@ -26,13 +56,12 @@ async def ask_geoweaver(request: GeoweaverRequest):
     return response
 
 
-
 @router.post("/api/chat", tags=["geoweaver"], response_model=GeoweaverResponse)
 async def ask_geoweaver(request: GeoweaverRequest):
     """
     Ask a question to the GeoWeaver, which uses tools to respond and analyse geospatial information.
     """
-    messages: List[BaseMessage] = request.messages
+    messages: List[BaseMessage] = normalize_messages(request.messages)
     messages.append(HumanMessage(request.query))
 
     state = DataState(messages=messages, geodata=request.geodata)
