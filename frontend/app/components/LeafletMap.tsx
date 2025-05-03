@@ -10,7 +10,7 @@ import "leaflet-fullscreen";
 
 import { useMapStore } from "../stores/mapStore"; // Adjust path accordingly
 import { useLayerStore } from "../stores/layerStore";
-import { ZoomToLayer } from "./ZoomToLayer"; // adjust path
+import { ZoomToSelected } from "./ZoomToLayer"; // adjust path
 
 // Fix leaflet's default icon path issue
 import "leaflet/dist/leaflet.css";
@@ -330,7 +330,7 @@ export default function LeafletMapComponent() {
                     <TileLayer url="https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}" />
                 </LayersControl.BaseLayer>
                 </LayersControl> */}
-          <ZoomToLayer layers={layers} />
+          <ZoomToSelected />
           <TileLayer url={basemap} />
           <div key={layerOrderKey}>
             {[...layers].map((layer) => {
