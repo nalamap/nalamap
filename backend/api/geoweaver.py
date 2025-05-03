@@ -1,11 +1,12 @@
 from typing import List
 from fastapi import APIRouter
 
-from models.geodata import mock_geodata_objects
+from models.geodata import GeoDataObject, mock_geodata_objects
 from models.states import DataState
 from models.messages.chat_messages import GeoweaverRequest, GeoweaverResponse
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from services.multi_agent_orch import multi_agent_executor
+import json
 
 router = APIRouter()
 @router.post("/api/chatmock", tags=["geoweaver"], response_model=GeoweaverResponse)
@@ -38,6 +39,12 @@ async def ask_geoweaver(request: GeoweaverRequest):
 
     executor_result: DataState = await multi_agent_executor.ainvoke(state)
 
-    response: GeoweaverResponse = GeoweaverResponse(messages=executor_result.messages, response=executor_result.messages[-1].content, geodata=executor_result.geodata)
+    #print(executor_result)
+    #print(executor_result['geodata'])
+    #print(getattr(executor_result, "geodata", state["geodata"]))
+    result_messages: List[BaseMessage] = executor_result['messages']
+    result_response: str = result_messages[-1].content
+    result_geodata: List[GeoDataObject] = executor_result['geodata']
+    response: GeoweaverResponse = GeoweaverResponse(messages=result_messages, response=result_response, geodata=result_geodata)
     return response
 

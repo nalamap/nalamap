@@ -5,4 +5,4 @@ from langgraph.graph import MessagesState  # Passe den Importpfad ggf. an
 
 @dataclass
 class DataState(MessagesState):
-    geodata: List[GeoDataObject] = field(default_factory=list)  
+    geodata: List[GeoDataObject] = field(default_factory=list)

@@ -2,20 +2,21 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import List, Optional, Dict, Any
 
+from pydantic import BaseModel
 
-class DataType(Enum):
+
+class DataType(str, Enum):
     GEOJSON = "GeoJson"
     LAYER = "Layer"
 
 
-class DataOrigin(Enum):
+class DataOrigin(str, Enum):
     UPLOAD = "upload"
     TOOL = "tool"
     GEPROCESSING = "geprocessing"
 
 
-@dataclass
-class GeoDataObject:
+class GeoDataObject(BaseModel):
     # Required (key) fields
     id: str
     data_source_id: str   # e.g. database name
@@ -34,7 +35,13 @@ class GeoDataObject:
     score: Optional[float] = None
     bounding_box: Optional[str] = None
     layer_type: Optional[str] = None
-    properties: Optional[Dict[str, Any]] = field(default_factory=dict)
+    properties: Optional[Dict[str, Any]] = {}
+
+    class Config:
+        # Allow Enum values to be output as raw values
+        use_enum_values = True
+        # Any extra fields in input will be ignored
+        extra = "ignore"
 
 
 def mock_geodata_objects() -> List[GeoDataObject]:
