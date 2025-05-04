@@ -6,10 +6,11 @@ from typing import List, Optional, Dict, Any
 class DataType(Enum):
     GEOJSON = "GeoJson"
     LAYER = "Layer"
+    UPLOADED = "uploaded"
 
 
 class DataOrigin(Enum):
-    UPLOAD = "upload"
+    UPLOAD = "uploaded"
     TOOL = "tool"
     GEPROCESSING = "geprocessing"
 

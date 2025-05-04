@@ -176,7 +176,7 @@ class GeoProcessResponse(BaseModel):
     tools_used: Optional[List[str]] = None
 
 
-@router.post("/api/geoprocess", response_model=GeoweaverRequest)
+@router.post("/api/geoprocess", response_model=GeoweaverResponse)
 async def geoprocess(req: GeoweaverRequest):
     """
     Accepts a natural language query and a list of GeoJSON URLs.
@@ -184,8 +184,7 @@ async def geoprocess(req: GeoweaverRequest):
     then saves the resulting FeatureCollection and returns its URL.
     """
     # Get layer urls from request:
-    layer_urls = [gd.data_link for gd in req.geodata if gd.data_type == DataType.GEOJSON
-]
+    layer_urls = [gd.data_link for gd in req.geodata if gd.data_type == DataType.GEOJSON or gd.data_type == DataType.UPLOADED]
     # 0) Load GeoJSON features from provided URLs
     input_layers: List[Dict[str, Any]] = []
     for url in layer_urls:

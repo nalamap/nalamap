@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import { ChatMessage, GeoDataObject, GeoweaverRequest, GeoweaverResponse } from "../models/geodatamodel";
+import { useLayerStore } from "../stores/layerStore"
 
 export function useGeoweaverAgent(apiUrl: string) {
   const [input, setInput] = useState("");
@@ -21,10 +22,16 @@ export function useGeoweaverAgent(apiUrl: string) {
     setError("");
     try {
       let response = null;
+      let fullQuery = input
       if (endpoint === "search") {
         const url = new URL(`${apiUrl}/search`);
-        url.searchParams.set("query", input);
-        if (options?.portal) url.searchParams.set("portals", options.portal);
+        if (options?.bboxWkt)
+        {
+          fullQuery += ` with given ${options.bboxWkt}`;
+        }
+        url.searchParams.set("query", fullQuery);
+        
+        //if (options?.portal) url.searchParams.set("portals", options.portal);
         response = await fetch(url.toString(), {
           method: "GET",
         });
@@ -32,13 +39,14 @@ export function useGeoweaverAgent(apiUrl: string) {
       else if (endpoint == "geocode") {
         response = await fetch(`${apiUrl}/${endpoint}?query=${encodeURIComponent(input)}`);
       } else if (endpoint === "geoprocess" || endpoint === "chat") {
+        const selectedLayers = useLayerStore.getState().layers.filter((l) => l.selected);
         const payload: GeoweaverRequest = {
           messages: messages.map(m => ({
             content: m.content,
             type: m.type
           })),
           query: input,
-          geodata: geoDataList
+          geodata: selectedLayers
         }
         console.log(payload)
         response = await fetch(`${apiUrl}/${endpoint}`, {

@@ -11,6 +11,7 @@ export default function LayerManagement() {
   const layers = useLayerStore((state) => state.layers);
   const addLayer = useLayerStore((state) => state.addLayer);
   const selectForSearch = useLayerStore((s) => s.selectLayerForSearch);
+  const toggleSelection = useLayerStore((s) => s.toggleLayerSelection);
   const toggleLayerVisibility = useLayerStore((state) => state.toggleLayerVisibility);
   const removeLayer = useLayerStore((state) => state.removeLayer);
   const reorderLayers = useLayerStore((state) => state.reorderLayers);
@@ -132,11 +133,11 @@ export default function LayerManagement() {
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
-                    onClick={() => selectForSearch(layer.id)}
+                    onClick={() => toggleSelection(layer.id)}
                     title={
                       layer.selected
-                        ? "Using this layer for search bounding box"
-                        : "Use this layer for search bounding box"
+                        ? "Using this layer for search bounding box or geoprocessing"
+                        : "Use this layer for search bounding box or geoprocessing"
                     }
                     className={`p-1 rounded ${
                       layer.selected

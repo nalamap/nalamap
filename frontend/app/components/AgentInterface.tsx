@@ -53,6 +53,7 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
   // portal filter string
   const [portalFilter, setPortalFilter] = useState<string>("");
+  let apiOptions: { portal?: string; bboxWkt?: string } | undefined = undefined;
 
   //automate scroll to bottom with new entry
   useEffect(() => {
@@ -68,11 +69,12 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
     setConversation((c) => [...c, { role: "user", content: input }]);
 
     if (activeTool === "search") {
-  
+      let wkt: string | undefined = undefined;
+      let portal: string | undefined = undefined;
       let fullQuery = input;
       const selected = useLayerStore.getState().layers.find((l) => l.selected);
       if (selected?.bounding_box) {
-        const wkt = toWkt(selected.bounding_box);
+        wkt = toWkt(selected.bounding_box);
         if (wkt) {
           fullQuery += ` with given ${wkt}`;
         }
@@ -81,9 +83,12 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
         fullQuery += ` portal:${portalFilter.trim()}`;
       }
 
-
+      apiOptions = { // Pass bbox and portal as separate structured options
+        portal: portal,
+        bboxWkt: wkt
+      };
   
-      await queryGeoweaverAgent("search");
+      await queryGeoweaverAgent("search", undefined , apiOptions);
   
       setConversation((c) => [
         ...c,
