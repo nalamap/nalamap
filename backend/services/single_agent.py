@@ -1,8 +1,9 @@
+from typing_extensions import Annotated
 from pydantic import BaseModel, Field
-from typing import Any, Dict, List
+from typing import Any, Dict, Optional
 from langchain_core.tools import tool
 from langgraph.prebuilt.chat_agent_executor import AgentState
-from langgraph.prebuilt import create_react_agent
+from langgraph.prebuilt import create_react_agent, InjectedState
 from langgraph.graph.graph import CompiledGraph
 from services.ai.llm_config import get_llm
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -16,13 +17,13 @@ class GeoData(AgentState):
 
 
     # --- Internal-only fields (excluded from LLM prompt) ---
-    dataset_cache: Dict[str, Any] = Field(default_factory=dict, exclude=True)
-    user_preferences: Dict[str, Any] = Field(default_factory=dict, exclude=True)
+    dataset_cache: Optional[Dict[str, Any]] = Field(default_factory=dict, exclude=True, validate_default=False)
+    user_preferences: Optional[Dict[str, Any]] = Field(default_factory=dict, exclude=True, validate_default=False)
 
 # 2. Minimal dummy example tool
-
+# TODO: Check tool state handling https://github.com/langchain-ai/langgraph/discussions/1616 -> Command
 @tool
-def get_elevation(state: GeoData) -> Dict[str, Any]:
+def get_elevation(state: Annotated[GeoData, InjectedState]) -> Dict[str, Any]:
     """
     Get elevation (in meters) at the current geodata state
     """
@@ -30,7 +31,7 @@ def get_elevation(state: GeoData) -> Dict[str, Any]:
 
 
 @tool
-def get_weather(state: GeoData) -> Dict[str, Any]:
+def get_weather(state: Annotated[GeoData, InjectedState]) -> Dict[str, Any]:
     """
     Get current weather at the current geodata state
     """
@@ -38,7 +39,7 @@ def get_weather(state: GeoData) -> Dict[str, Any]:
 
 
 @tool
-def calculate_distance(state: GeoData, target_lat: float, target_lon: float) -> Dict[str, Any]:
+def calculate_distance(state: Annotated[GeoData, InjectedState], target_lat: float, target_lon: float) -> Dict[str, Any]:
     """
     Calculate distance (in km) from the current geodata state 
     to a target latitude and longitude: args = (target_lat, target_lon)
@@ -56,7 +57,7 @@ def calculate_distance(state: GeoData, target_lat: float, target_lon: float) -> 
 
 
 @tool
-def list_datasets(state: GeoData) -> Dict[str, Any]:
+def list_datasets(state: Annotated[GeoData, InjectedState]) -> Dict[str, Any]:
     """
     List all available datasets: no args needed
     """
@@ -65,7 +66,7 @@ def list_datasets(state: GeoData) -> Dict[str, Any]:
 
 
 @tool
-def process_dataset(state: GeoData, dataset_id: str) -> Dict[str, Any]:
+def process_dataset(state: Annotated[GeoData, InjectedState], dataset_id: str) -> Dict[str, Any]:
     """
     Process a dataset given its id: args = (dataset_id,)
     """
@@ -108,7 +109,10 @@ if __name__ == "__main__":
 
     initial_state = GeoData(latitude=52.52, longitude=13.405, user_preferences={"units": "metric"})
     initial_state["messages"] = [HumanMessage("Fetch elevation, display weather, then list datasets and process 'sample_ds'.")]
-    initial_state["remaining_steps"] = 6
+    initial_state["dataset_cache"] = {}
+    initial_state["latitude"] = 52.52
+    initial_state["longitude"] = 13.405
+    initial_state["user_preferences"] = {"units": "metric"}
 
     # Ask the agent; private fields are kept internally but not sent to the LLM
     response = agent.invoke(initial_state)
