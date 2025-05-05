@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useMapStore } from "../stores/mapStore";
 import { useLayerStore } from "../stores/layerStore";
 import { Eye, EyeOff, Trash2, MapPin } from "lucide-react";
+import { formatFileSize, isFileSizeValid } from "../utils/fileUtils";
 
 export default function LayerManagement() {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -15,10 +16,43 @@ export default function LayerManagement() {
   const removeLayer = useLayerStore((state) => state.removeLayer);
   const reorderLayers = useLayerStore((state) => state.reorderLayers);
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  
+  // Use ref to store the XMLHttpRequest
+  const xhrRef = useRef<XMLHttpRequest | null>(null);
+  
+  // Define file size limit constant
+  const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB in bytes
+  const MAX_FILE_SIZE_FORMATTED = formatFileSize(MAX_FILE_SIZE);
+
+  const cancelUpload = () => {
+    if (xhrRef.current) {
+      xhrRef.current.abort();
+      xhrRef.current = null;
+      setIsUploading(false);
+      setUploadProgress(0);
+      setUploadError("Upload cancelled by user");
+    }
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Clear any previous error message
+    setUploadError(null);
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    // Check file size limit
+    if (!isFileSizeValid(file, MAX_FILE_SIZE)) {
+      setUploadError(`File size (${formatFileSize(file.size)}) exceeds the ${MAX_FILE_SIZE_FORMATTED} limit. Please upload a smaller file.`);
+      e.target.value = "";
+      setIsUploading(false);
+      return;
+    }
 
     // assemble form data
     const formData = new FormData();
@@ -26,24 +60,50 @@ export default function LayerManagement() {
     const API_UPLOAD_URL = process.env.NEXT_PUBLIC_API_UPLOAD_URL || "http://localhost:8000/upload";
 
     try {
-      // hit your backend upload endpoint
-      // in dev this might be http://localhost:8000/upload;
-      // in prod use NEXT_PUBLIC_API_URL
-      const res = await fetch(
-        API_UPLOAD_URL,
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
-
-      if (!res.ok) {
-        console.error("Upload failed", await res.text());
-        return;
-      }
-
-      // expect { url: string; id: string } back
-      const { url, id } = await res.json();
+      // Use XMLHttpRequest to track upload progress
+      const xhr = new XMLHttpRequest();
+      xhrRef.current = xhr;
+      
+      // Create a promise to handle the upload
+      const uploadPromise = new Promise<{ url: string, id: string }>((resolve, reject) => {
+        xhr.open('POST', API_UPLOAD_URL);
+        
+        // Set up progress tracking
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const percentComplete = Math.round((event.loaded / event.total) * 100);
+            setUploadProgress(percentComplete);
+          }
+        };
+        
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const data = JSON.parse(xhr.responseText);
+              resolve(data);
+            } catch (error) {
+              reject(new Error('Invalid JSON response'));
+            }
+          } else {
+            // Try to parse error as JSON first
+            try {
+              const errorData = JSON.parse(xhr.responseText);
+              reject(new Error(errorData.detail || 'Upload failed'));
+            } catch (e) {
+              reject(new Error(`Upload failed: ${xhr.statusText}`));
+            }
+          }
+        };
+        
+        xhr.onerror = () => reject(new Error('Network error occurred'));
+        xhr.ontimeout = () => reject(new Error('Upload timed out'));
+        xhr.onabort = () => reject(new Error('Upload cancelled by user'));
+        
+        xhr.send(formData);
+      });
+      
+      // Wait for upload to complete
+      const { url, id } = await uploadPromise;
 
       // now add to your zustand store
       addLayer({
@@ -57,10 +117,18 @@ export default function LayerManagement() {
         data_source: "user"
       });
     } catch (err) {
-      console.error("Error uploading file:", err);
+      if (err instanceof Error && err.message === 'Upload cancelled by user') {
+        console.log('Upload was cancelled by the user');
+      } else {
+        setUploadError(`Upload error: ${err instanceof Error ? err.message : String(err)}`);
+        console.error("Error uploading file:", err);
+      }
     } finally {
       // reset so same file can be re‑picked
       e.target.value = "";
+      setIsUploading(false);
+      setUploadProgress(0);
+      xhrRef.current = null;
     }
   };
 
@@ -105,8 +173,8 @@ export default function LayerManagement() {
       <div className="mb-4">
         <h3 className="font-semibold mb-2">Upload Data</h3>
         <div
-          className="border border-dashed border-gray-400 p-4 rounded bg-white text-center cursor-pointer"
-          onClick={() => fileInputRef.current?.click()}
+          className={`border border-dashed border-gray-400 p-4 rounded bg-white text-center cursor-pointer ${isUploading ? 'opacity-75' : ''}`}
+          onClick={() => !isUploading && fileInputRef.current?.click()}
         >
           <input
             ref={fileInputRef}
@@ -114,9 +182,40 @@ export default function LayerManagement() {
             accept=".geojson,.kml,.json,.zip"
             onChange={handleFileUpload}
             className="hidden"
+            disabled={isUploading}
           />
-          <p className="text-sm text-gray-500">Drag & drop or click to upload</p>
+          {isUploading ? (
+            <div className="flex flex-col items-center justify-center">
+              <div className="w-full max-w-xs bg-gray-200 rounded-full h-2.5 mb-2">
+                <div 
+                  className="bg-blue-500 h-2.5 rounded-full transition-all duration-300" 
+                  style={{ width: `${uploadProgress}%` }}
+                ></div>
+              </div>
+              <p className="text-sm text-blue-500">{uploadProgress}% Uploaded</p>
+              <p className="text-xs text-gray-500 mt-1">Please wait...</p>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevent triggering the file input click
+                  cancelUpload();
+                }}
+                className="mt-2 px-3 py-1 bg-red-100 text-red-700 text-xs rounded hover:bg-red-200 transition-colors"
+              >
+                Cancel Upload
+              </button>
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-gray-500">Drag & drop or click to upload</p>
+              <p className="text-xs text-gray-400 mt-1">Maximum file size: {MAX_FILE_SIZE_FORMATTED}</p>
+            </>
+          )}
         </div>
+        {uploadError && (
+          <div className="mt-2 p-2 bg-red-100 border border-red-400 text-red-700 text-sm rounded">
+            {uploadError}
+          </div>
+        )}
       </div>
 
       <hr className="my-4" />
