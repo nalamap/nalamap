@@ -2,6 +2,9 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response, JSONResponse
 
 
 from fastapi.staticfiles import StaticFiles
@@ -21,6 +24,21 @@ tags_metadata = [
     },
 ]
 
+# File size limit (100MB)
+MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB in bytes
+
+# Custom middleware to check request size
+class FileSizeLimitMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if request.method == "POST" and "/upload" in request.url.path:
+            content_length = request.headers.get("content-length")
+            if content_length and int(content_length) > MAX_FILE_SIZE:
+                return JSONResponse(
+                    status_code=413,
+                    content={"detail": "File size exceeds the 100MB limit. Please upload a smaller file."}
+                )
+        return await call_next(request)
+
 app = FastAPI()
 
 @asynccontextmanager
@@ -36,6 +54,9 @@ app = FastAPI(
     lifespan=lifespan,
     openapi_tags=tags_metadata
 )
+
+# Add file size middleware
+app.add_middleware(FileSizeLimitMiddleware)
 
 # CORS
 app.add_middleware(
@@ -69,6 +90,13 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 	logging.error(f"{request}: {exc_str}")
 	content = {'status_code': 10422, 'message': exc_str, 'data': None}
 	return JSONResponse(content=content, status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
+
+@app.exception_handler(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE)
+async def request_entity_too_large_handler(request: Request, exc):
+    return JSONResponse(
+        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+        content={"detail": "File size exceeds the 100MB limit. Please upload a smaller file."}
+    )
 # End debugging
 
 
