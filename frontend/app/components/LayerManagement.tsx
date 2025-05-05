@@ -66,12 +66,35 @@ export default function LayerManagement() {
 
   const handleBasemapChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selected = e.target.value;
-    const baseMapUrls: Record<string, string> = {
-      osm: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-      "carto-light": "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-      satellite: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+    type BasemapKey = 'osm' | 'carto-positron' | 'carto-dark' | 'google-satellite' | 'google-hybrid' | 'google-terrain';
+    
+    const basemaps: Record<BasemapKey, { url: string; attribution: string }> = {
+      osm: {
+        url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+      },
+      "carto-positron": {
+        url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attribution">CARTO</a>'
+      },
+      "carto-dark": {
+        url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attribution">CARTO</a>'
+      },
+      "google-satellite": {
+        url: "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+        attribution: '&copy; Google Satellite'
+      },
+      "google-hybrid": {
+        url: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
+        attribution: '&copy; Google Hybrid'
+      },
+      "google-terrain": {
+        url: "https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}",
+        attribution: '&copy; Google Terrain'
+      }
     };
-    setBasemap(baseMapUrls[selected] || baseMapUrls.osm);
+    setBasemap(basemaps[selected as BasemapKey] || basemaps["carto-positron"]);
   };
 
   return (
@@ -175,11 +198,14 @@ export default function LayerManagement() {
         <select
           className="w-full p-2 border rounded"
           onChange={handleBasemapChange}
-          defaultValue="osm"
+          defaultValue="carto-positron"
         >
           <option value="osm">OpenStreetMap</option>
-          <option value="carto-light">Carto Light</option>
-          <option value="satellite">Satellite</option>
+          <option value="carto-positron">Carto Positron</option>
+          <option value="carto-dark">Carto Dark Matter</option>
+          <option value="google-satellite">Google Satellite</option>
+          <option value="google-hybrid">Google Hybrid</option>
+          <option value="google-terrain">Google Terrain</option>
         </select>
       </div>
     </div>
