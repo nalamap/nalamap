@@ -1,30 +1,16 @@
-from typing_extensions import Annotated
-from pydantic import BaseModel, Field
-from typing import Any, Dict, List, Optional
-from langchain_core.tools import tool
-from langgraph.prebuilt.chat_agent_executor import AgentState
-from langgraph.prebuilt import create_react_agent, InjectedState
+
+from typing import List
+from langchain_core.tools import tool, BaseTool
+from langgraph.prebuilt import create_react_agent
 from langgraph.graph.graph import CompiledGraph
-from models.states import GeoDataAgentState
+from services.tools.geostate_management import describe_geodata_object, list_global_geodata
+from models.states import GeoDataAgentState, get_medium_debug_state
 from services.ai.llm_config import get_llm
-from langchain_core.messages import HumanMessage, SystemMessage
-
-from langgraph.managed import RemainingSteps
-from models.geodata import GeoDataObject, mock_geodata_objects
-
-# Some State Menagement Tools
-@tool
-def list_global_geodata(state: Annotated[GeoDataAgentState, InjectedState]) -> List[Dict[str, str]]:
-    """
-    Lists the datasets in the global state
-    """
-    return [{"id": geodata.id, "data_source_id": geodata.data_source_id, "title": geodata.title} for geodata in state["global_geodata"]]
-
-# Additional tools to show/hide/describe datasets?
 
 
-tools = [
-    list_global_geodata
+tools: List[BaseTool] = [
+    list_global_geodata,
+    describe_geodata_object
 ]
 
 
@@ -50,16 +36,18 @@ if __name__ == "__main__":
     agent = create_geo_agent()
     # Initialize geodata state (e.g. Berlin) with both public and private data
 
-    initial_geo_state: GeoDataAgentState = GeoDataAgentState()
-    initial_geo_state["messages"] = [HumanMessage("Show layers for rivers in egypt")]
-    initial_geo_state["global_geodata"] = mock_geodata_objects()
-    initial_geo_state["current_geodata"] = [initial_geo_state["global_geodata"][0]]
+    debug_tool: bool = True
+    initial_geo_state: GeoDataAgentState = get_medium_debug_state(debug_tool)
 
-    # Ask the agent; private fields are kept internally but not sent to the LLM
-    response = agent.invoke(initial_geo_state)
-    print("-"*64)
-    print(response["messages"])
-    for message in response["messages"]:
-        print(message.type, ":", message.content)
-    #print("-"*64)
-    #print(response["messages"])
+    if not debug_tool:
+        # Ask the agent; private fields are kept internally but not sent to the LLM
+        response = agent.invoke(initial_geo_state)
+        print("-"*64)
+        print(response["messages"])
+        for message in response["messages"]:
+            print(message.type, ":", message.content)
+        #print("-"*64)
+        #print(response["messages"])
+    else:
+        # Tool debugging
+        print(describe_geodata_object.run(state=initial_geo_state, tool_input={"state": initial_geo_state, "id":"1512", "data_source_id": "db_name"}))
