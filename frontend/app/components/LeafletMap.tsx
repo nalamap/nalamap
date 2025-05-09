@@ -10,7 +10,7 @@ import "leaflet-fullscreen";
 
 import { useMapStore } from "../stores/mapStore"; // Adjust path accordingly
 import { useLayerStore } from "../stores/layerStore";
-import { ZoomToLayer } from "./ZoomToLayer"; // adjust path
+import { ZoomToSelected } from "./ZoomToLayer"; // adjust path
 
 // Fix leaflet's default icon path issue
 import "leaflet/dist/leaflet.css";
@@ -308,7 +308,7 @@ export default function LeafletMapComponent() {
         <MapContainer center={[0, 0]} zoom={2} style={{ height: "100%", width: "100%" }} fullscreenControl={true}>
           {/* Add the fullscreen control */}
           <FullscreenControl />
-          <ZoomToLayer layers={layers} />
+          <ZoomToSelected />
           <TileLayer 
             url={basemap.url} 
             attribution={basemap.attribution}

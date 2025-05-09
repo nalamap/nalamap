@@ -3,8 +3,9 @@
 import { useRef, useState } from "react";
 import { useMapStore } from "../stores/mapStore";
 import { useLayerStore } from "../stores/layerStore";
-import { Eye, EyeOff, Trash2, MapPin } from "lucide-react";
+import { Eye, EyeOff, Trash2, Search, MapPin } from "lucide-react";
 import { formatFileSize, isFileSizeValid } from "../utils/fileUtils";
+
 
 export default function LayerManagement() {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -16,6 +17,7 @@ export default function LayerManagement() {
   const toggleLayerVisibility = useLayerStore((state) => state.toggleLayerVisibility);
   const removeLayer = useLayerStore((state) => state.removeLayer);
   const reorderLayers = useLayerStore((state) => state.reorderLayers);
+  const setZoomTo = useLayerStore((s) => s.setZoomTo);
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
@@ -267,7 +269,7 @@ export default function LayerManagement() {
                         : "bg-gray-200 text-gray-600"
                     }`}
                   >
-                    <MapPin size={16} />
+                    <Search size={16} />
                   </button>
                   <button
                     onClick={() => toggleLayerVisibility(layer.id)}

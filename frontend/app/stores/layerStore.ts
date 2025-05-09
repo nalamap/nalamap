@@ -4,17 +4,21 @@ import { GeoDataObject } from "../models/geodatamodel";
 
 type LayerStore = {
   layers: GeoDataObject[];
+  zoomTo: string | number | null;
+  setZoomTo: (id: string | number | null) => void;
   addLayer: (layer: GeoDataObject) => void;
   removeLayer: (resource_id: string | number) => void;
   toggleLayerVisibility: (resource_id: string | number) => void;
   toggleLayerSelection: (resource_id: string | number) => void;
   resetLayers: () => void;
   selectLayerForSearch: (resource_id: string | number) => void;
-  reorderLayers: (from: number, to: number) => void; // <-- add this
+  reorderLayers: (from: number, to: number) => void;
 };
 
 export const useLayerStore = create<LayerStore>((set) => ({
   layers: [],
+  zoomTo: null,
+  setZoomTo: (id) => set({ zoomTo: id }), // now id can be null
   addLayer: (layer) =>
     set((state) => {
       // remove any existing layer with this resource_id
@@ -45,7 +49,6 @@ export const useLayerStore = create<LayerStore>((set) => ({
       ),
     })),
   resetLayers: () => set({ layers: [] }),
-  // new implementation:
   selectLayerForSearch: (resource_id) =>
     set((state) => ({
       layers: state.layers.map((l) => ({
