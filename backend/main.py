@@ -1,8 +1,9 @@
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 
 from fastapi.staticfiles import StaticFiles
 #from sqlalchemy.ext.asyncio import AsyncSession
@@ -57,11 +58,8 @@ app.include_router(geoweaver.router)
 app.include_router(data_management.router)
 
 
-# Debugging 422 errors
+# Exception handlers
 import logging
-from fastapi import FastAPI, Request, status
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -69,7 +67,13 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 	logging.error(f"{request}: {exc_str}")
 	content = {'status_code': 10422, 'message': exc_str, 'data': None}
 	return JSONResponse(content=content, status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
-# End debugging
+
+@app.exception_handler(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE)
+async def request_entity_too_large_handler(request: Request, exc):
+    return JSONResponse(
+        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+        content={"detail": "File size exceeds the 100MB limit. Please upload a smaller file."}
+    )
 
 
 if __name__ == "__main__":

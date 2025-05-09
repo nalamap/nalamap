@@ -1,12 +1,20 @@
 // stores/mapStore.ts
 import { create } from "zustand";
 
+type BasemapInfo = {
+  url: string;
+  attribution: string;
+};
+
 type MapState = {
-  basemap: string;
-  setBasemap: (url: string) => void;
+  basemap: BasemapInfo;
+  setBasemap: (basemap: BasemapInfo) => void;
 };
 
 export const useMapStore = create<MapState>((set) => ({
-  basemap: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-  setBasemap: (url) => set({ basemap: url }),
+  basemap: {
+    url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attribution">CARTO</a>'
+  },
+  setBasemap: (basemap) => set({ basemap }),
 }));

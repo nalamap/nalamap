@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useMap } from "react-leaflet";
 import L from "leaflet";
 import { GeoDataObject } from "../models/geodatamodel";
+import { useLayerStore } from "../stores/layerStore";
 
 function parseBoundingBoxWKT(wkt: string): L.LatLngBounds | null {
   const match = wkt.match(/POLYGON\(\((.+?)\)\)/);
@@ -41,9 +42,27 @@ export function ZoomToLayer({ layers }: { layers: GeoDataObject[] }) {
           zoomedLayers.current.add(layer.id);
         }
       }
-    }
-    );
+    });
   }, [layers, map]);
+
+  return null;
+}
+
+export function ZoomToSelected() {
+  const map = useMap();
+  const zoomTo = useLayerStore((s) => s.zoomTo);
+  const layers = useLayerStore((s) => s.layers);
+  const setZoomTo = useLayerStore((s) => s.setZoomTo);
+
+  useEffect(() => {
+    if (zoomTo == null) return;
+    const layer = layers.find((l) => l.id === zoomTo);
+    if (layer?.bounding_box) {
+      const bounds = parseBoundingBoxWKT(layer.bounding_box as string);
+      if (bounds) map.fitBounds(bounds);
+    }
+    setZoomTo(null);
+  }, [zoomTo, layers, map, setZoomTo]);
 
   return null;
 }

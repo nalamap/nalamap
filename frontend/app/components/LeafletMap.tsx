@@ -10,7 +10,7 @@ import "leaflet-fullscreen";
 
 import { useMapStore } from "../stores/mapStore"; // Adjust path accordingly
 import { useLayerStore } from "../stores/layerStore";
-import { ZoomToLayer } from "./ZoomToLayer"; // adjust path
+import { ZoomToSelected } from "./ZoomToLayer"; // adjust path
 
 // Fix leaflet's default icon path issue
 import "leaflet/dist/leaflet.css";
@@ -308,30 +308,11 @@ export default function LeafletMapComponent() {
         <MapContainer center={[0, 0]} zoom={2} style={{ height: "100%", width: "100%" }} fullscreenControl={true}>
           {/* Add the fullscreen control */}
           <FullscreenControl />
-          {/* LayersControl renders a nice base layer switching control */}
-          {/*
-                <LayersControl position="topright">
-                <LayersControl.BaseLayer checked name="CartoDB Positron">
-                    <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
-                </LayersControl.BaseLayer>
-                <LayersControl.BaseLayer name="CartoDB Dark Matter">
-                    <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
-                </LayersControl.BaseLayer>
-                <LayersControl.BaseLayer name="OpenStreetMap">
-                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                </LayersControl.BaseLayer>
-                <LayersControl.BaseLayer name="Google Satellite">
-                    <TileLayer url="https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}" />
-                </LayersControl.BaseLayer>
-                <LayersControl.BaseLayer name="Google Hybrid">
-                    <TileLayer url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}" />
-                </LayersControl.BaseLayer>
-                <LayersControl.BaseLayer name="Google Terrain">
-                    <TileLayer url="https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}" />
-                </LayersControl.BaseLayer>
-                </LayersControl> */}
-          <ZoomToLayer layers={layers} />
-          <TileLayer url={basemap} />
+          <ZoomToSelected />
+          <TileLayer 
+            url={basemap.url} 
+            attribution={basemap.attribution}
+          />
           <div key={layerOrderKey}>
             {[...layers].map((layer) => {
               if (!layer.visible) return null;
