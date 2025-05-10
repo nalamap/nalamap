@@ -16,7 +16,7 @@ export interface GeoDataObject {
     description?: string
     llm_description?: string
     score?: number
-    bounding_box?: any // string unterschiedliche Formate von bounding boxes
+    bounding_box?: string | number[] // Can be WKT POLYGON string or array [minX, minY, maxX, maxY]
     layer_type?: string
     properties?: Record<string, string>
     visible?: boolean

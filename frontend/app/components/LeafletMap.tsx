@@ -58,19 +58,45 @@ function useZoomToLayer(layers: GeoDataObject[]) {
       if (!layer.visible || zoomedLayers.current.has(layer.id)) return;
 
       if (layer.layer_type?.toUpperCase() === "WMS") {
-        // Option 1: Use bounding box from layerStore
+        // Handle bounding box from layer store
         if (layer.bounding_box) {
-          const [minX, minY, maxX, maxY] = layer.bounding_box;
-          const bounds = L.latLngBounds(
-            [minY, minX], // southwest
-            [maxY, maxX]  // northeast
-          );
-          map.fitBounds(bounds);
-          zoomedLayers.current.add(layer.id);
+          let bounds = null;
+          
+          // Handle WKT polygon format
+          if (typeof layer.bounding_box === 'string' && layer.bounding_box.includes('POLYGON')) {
+            const match = layer.bounding_box.match(/POLYGON\(\((.+?)\)\)/);
+            if (match) {
+              const coords = match[1]
+                .split(",")
+                .map(pair => pair.trim().split(" ").map(Number))
+                .filter(([lng, lat]) => !isNaN(lng) && !isNaN(lat));
+            
+              if (coords.length > 0) {
+                const lats = coords.map(([lng, lat]) => lat);
+                const lngs = coords.map(([lng, lat]) => lng);
+            
+                const southWest = L.latLng(Math.min(...lats), Math.min(...lngs));
+                const northEast = L.latLng(Math.max(...lats), Math.max(...lngs));
+                bounds = L.latLngBounds(southWest, northEast);
+              }
+            }
+          } 
+          // Handle array format [minX, minY, maxX, maxY]
+          else if (Array.isArray(layer.bounding_box) && layer.bounding_box.length >= 4) {
+            const [minX, minY, maxX, maxY] = layer.bounding_box;
+            bounds = L.latLngBounds(
+              [minY, minX], // southwest
+              [maxY, maxX]  // northeast
+            );
+          }
+          
+          if (bounds) {
+            map.fitBounds(bounds);
+            zoomedLayers.current.add(layer.id);
+          }
         }
       }
-    }
-    );
+    });
   }, [layers, map]);
 }
 
