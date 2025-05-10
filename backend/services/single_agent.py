@@ -34,8 +34,9 @@ def create_geo_agent() -> CompiledGraph:
         #response_format=GeoData
     )
 
+single_agent = create_geo_agent()
+
 if __name__ == "__main__":
-    agent = create_geo_agent()
     # Initialize geodata state (e.g. Berlin) with both public and private data
 
     debug_tool: bool = False
@@ -43,7 +44,7 @@ if __name__ == "__main__":
 
     if not debug_tool:
         # Ask the agent; private fields are kept internally but not sent to the LLM
-        response = agent.invoke(initial_geo_state)
+        response = single_agent.invoke(initial_geo_state)
         print(64*"-")
         print(response["messages"])
         for message in response["messages"]:

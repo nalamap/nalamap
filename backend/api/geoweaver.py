@@ -1,8 +1,9 @@
 from typing import Any, Dict, List
 from fastapi import APIRouter, HTTPException
 
+from services.single_agent import single_agent
 from models.geodata import GeoDataObject, mock_geodata_objects
-from models.states import DataState
+from models.states import DataState, GeoDataAgentState
 from models.messages.chat_messages import GeoweaverRequest, GeoweaverResponse
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from services.multi_agent_orch import multi_agent_executor
@@ -56,10 +57,10 @@ async def ask_geoweaver(request: GeoweaverRequest):
     return response
 
 
-@router.post("/api/chat", tags=["geoweaver"], response_model=GeoweaverResponse)
+@router.post("/api/chat2", tags=["geoweaver"], response_model=GeoweaverResponse)
 async def ask_geoweaver(request: GeoweaverRequest):
     """
-    Ask a question to the GeoWeaver, which uses tools to respond and analyse geospatial information.
+    Ask a question to the GeoWeaver Orchestrator, which uses tools to respond and analyse geospatial information.
     """
     messages: List[BaseMessage] = normalize_messages(request.messages)
     messages.append(HumanMessage(request.query))
@@ -77,3 +78,24 @@ async def ask_geoweaver(request: GeoweaverRequest):
     response: GeoweaverResponse = GeoweaverResponse(messages=result_messages, response=result_response, geodata=result_geodata)
     return response
 
+
+@router.post("/api/chat", tags=["geoweaver"], response_model=GeoweaverResponse)
+async def ask_geoweaver(request: GeoweaverRequest):
+    """
+    Ask a question to the GeoWeaver Single Agent, which uses tools to respond and analyse geospatial information.
+    """
+    messages: List[BaseMessage] = normalize_messages(request.messages)
+    messages.append(HumanMessage(request.query)) # TODO: maybe remove query
+
+    state: GeoDataAgentState = GeoDataAgentState(messages=messages, current_geodata=[], global_geodata=request.geodata)
+
+    executor_result: GeoDataAgentState = single_agent.invoke(state)
+
+    #print(executor_result)
+    #print(executor_result['geodata'])
+    #print(getattr(executor_result, "geodata", state["geodata"]))
+    result_messages: List[BaseMessage] = executor_result['messages']
+    result_response: str = result_messages[-1].content
+    result_geodata: List[GeoDataObject] = executor_result['global_geodata']
+    response: GeoweaverResponse = GeoweaverResponse(messages=result_messages, response=result_response, geodata=result_geodata)
+    return response
