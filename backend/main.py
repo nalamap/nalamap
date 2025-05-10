@@ -7,6 +7,7 @@ from fastapi.exceptions import RequestValidationError
 
 from fastapi.staticfiles import StaticFiles
 #from sqlalchemy.ext.asyncio import AsyncSession
+from core.config import LOCAL_UPLOAD_DIR
 from services.database.database import init_db, close_db
 from api import data_management, debug, geoweaver
 
@@ -48,7 +49,6 @@ app.add_middleware(
 )
 
 # Local upload directory and base URL
-LOCAL_UPLOAD_DIR = os.getenv("LOCAL_UPLOAD_DIR", "./uploads")
 # Serve local uploads
 os.makedirs(LOCAL_UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=LOCAL_UPLOAD_DIR), name="uploads")

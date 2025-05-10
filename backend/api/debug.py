@@ -6,6 +6,7 @@ import json
 
 from pydantic import BaseModel
 
+from core.config import BASE_URL, LOCAL_UPLOAD_DIR
 from models.geodata import DataOrigin, DataType, GeoDataObject
 from models.messages.chat_messages import GeoweaverRequest, GeoweaverResponse, OrchestratorRequest, OrchestratorResponse
 from services.multi_agent_orch import multi_agent_executor
@@ -20,15 +21,6 @@ from kml2geojson.main import convert as kml2geojson_convert
 
 router = APIRouter()
 
-# TODO: Move configs to /core/config.py 
-
-# Optional Azure Blob storage
-USE_AZURE = os.getenv("USE_AZURE_STORAGE", "false").lower() == "true"
-AZ_CONN = os.getenv("AZURE_CONN_STRING", "")
-AZ_CONTAINER = os.getenv("AZURE_CONTAINER", "")
-# Local upload directory and base URL
-LOCAL_UPLOAD_DIR = os.getenv("LOCAL_UPLOAD_DIR", "./uploads")
-BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
 
 @router.get("/api/search", tags=["debug"], response_model=GeoweaverResponse)
 async def search(
