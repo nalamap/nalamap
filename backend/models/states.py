@@ -21,7 +21,7 @@ class GeoDataAgentState(AgentState):
 
 def get_minimal_debug_state(tool_call: bool = False) -> GeoDataAgentState:
     initial_geo_state: GeoDataAgentState = GeoDataAgentState()
-    initial_geo_state["messages"] = [HumanMessage("Show layers for rivers in egypt")]
+    initial_geo_state["messages"] = [HumanMessage("Please show Frankfurt")]
     initial_geo_state["global_geodata"] = []
     initial_geo_state["current_geodata"] = []
     if tool_call:

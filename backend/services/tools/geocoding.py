@@ -1,14 +1,19 @@
+from io import BytesIO, StringIO
 from os import getenv
 from langchain_core.tools import tool
 import requests
 import json
+from langgraph.types import Command
 
 from typing_extensions import Annotated
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Union
 from langchain_core.tools import tool
+from langchain_core.tools.base import InjectedToolCallId
+from langchain_core.messages import ToolMessage
 from langgraph.prebuilt import InjectedState
-from models.states import GeoDataAgentState, get_medium_debug_state
-from models.geodata import GeoDataObject
+from services.storage.file_management import store_file
+from models.states import GeoDataAgentState, get_medium_debug_state, get_minimal_debug_state
+from models.geodata import DataOrigin, DataType, GeoDataObject
 
 
 
@@ -54,11 +59,61 @@ def geocode_using_nominatim(query: str, geojson: bool = False, maxRows: int = 3)
         print(response.json())
         return "Error querying the Nominatim API."
 
+def create_geodata_object_from_geojson(nominatim_response: Dict[str, Any]) -> Optional[GeoDataObject]:
+    """Saves the GeoJson response, saves it in storage and create a GeoDataObject from it """
+    if not "geojson" in nominatim_response:
+        return None
+    place_id: str = str(nominatim_response["place_id"])
+    name: str = nominatim_response["name"]
+    geojson: Dict[str, Any] = { "type": "Feature", "geometry": nominatim_response["geojson"]}
+
+    url, unique_id = store_file(f"{place_id}_{name}.json", json.dumps(geojson).encode())
+    # Copy selected properties
+    properties: Dict[str, Any] = dict()
+    for property in ["place_id", "licence", "osm_type", "osm_id", "lat", "lon",  "class", "type", "place_rank", "addresstype", "address"]:
+        if property in nominatim_response:
+            properties[property] = nominatim_response[property]
+    
+    bbox: Optional[List[str]] = nominatim_response["boundingbox"]
+    bounding_box: Optional[str]
+    if bbox and len(bbox) == 4:
+        lat_min, lat_max, lon_min, lon_max = map(float, bbox)
+        bounding_box = (
+            f"POLYGON(({lon_max} {lat_min},"
+                     f"{lon_max} {lat_max},"
+                     f"{lon_min} {lat_max},"
+                     f"{lon_min} {lat_min},"
+                     f"{lon_max} {lat_min}))"
+        )
+    else:
+        bounding_box = None
+
+    geoobject: GeoDataObject = GeoDataObject(
+            id=unique_id,
+            data_source_id="geocodeNominatim",
+            data_type=DataType.GEOJSON,
+            data_origin=DataOrigin.TOOL,
+            data_source=nominatim_response["licence"],
+            data_link=url,
+            name=name,
+            title=name,
+            description=nominatim_response["display_name"],
+            llm_description=nominatim_response["display_name"],
+            score=nominatim_response["importance"],
+            bounding_box=bounding_box,
+            layer_type="GeoJSON",
+            properties=properties
+        )
+    
+    return geoobject
+    
+
+
 @tool
-def geocode_using_nominatim_to_geostate(state: Annotated[GeoDataAgentState, InjectedState], query: str, geojson: bool = False, maxRows: int = 5) -> Dict[str, Any]:
+def geocode_using_nominatim_to_geostate(state: Annotated[GeoDataAgentState, InjectedState], tool_call_id: Annotated[str, InjectedToolCallId],  query: str, geojson: bool = True, maxRows: int = 5) -> Union[Dict[str, Any], Command]:
     """Geocode an address using OpenStreetMap Nominatim API ."""
     url: str = (
-        f"https://nominatim.openstreetmap.org/search?q={query}&format=json&polygon_geojson={1 if geojson else 0}&addressdetails=1&limit={maxRows}"
+        f"https://nominatim.openstreetmap.org/search?q={query}&format=json&polygon_geojson={1 if geojson else 0}&addressdetails=0&limit={maxRows}"
     )
     response = requests.get(url, headers=headers_geoweaver)
     if response.status_code == 200:
@@ -67,12 +122,25 @@ def geocode_using_nominatim_to_geostate(state: Annotated[GeoDataAgentState, Inje
             cleaned_data: List[Dict[str, Any]] = []
             for elem in data:
                 if "geojson" in elem:
-                    # TODO: Remove GeoJSON from result, save into file, create link, id and datasource ID, add ids to result, possibly other results into metadata?
-                    pass
-                else:
-                    cleaned_data.append(elem)
+                    geocoded_object: Optional[GeoDataObject] = create_geodata_object_from_geojson(elem)
+                    del elem["geojson"]
+                    if geocoded_object:
+                        elem["id"] = geocoded_object.id
+                        elem["data_source_id"] = geocoded_object.data_source_id
+                        if "global_geodata" not in state or state["global_geodata"] is None or not isinstance(state["global_geodata"], List):
+                            state["global_geodata"] = [geocoded_object]
+                        else:
+                            state["global_geodata"].append(geocoded_object)
+                cleaned_data.append(elem)
             if geojson:
-                return { "message": f"Retrieved {len(data)} results, added GeoDataObject into the global_state, id and data_source_id were added to the result.", "results": cleaned_data }
+                #return { "message": f"Retrieved {len(data)} results, added GeoDataObject into the global_state, id and data_source_id were added to the result.", "results": cleaned_data }
+                return Command(update={
+                    "messages": [
+                        *state["messages"], 
+                        ToolMessage(f"Retrieved {len(data)} results, added GeoDataObject into the global_state, id and data_source_id were added to the following result: {json.dumps(cleaned_data)}", tool_call_id=tool_call_id )
+                        ] , 
+                    "global_geodata": state["global_geodata"]
+                })
             else: 
                 return { "message": f"Retrieved {len(data)} results.", "results": cleaned_data }
         else:
@@ -97,7 +165,10 @@ https://www.geoboundaries.org/
 """
 
 if __name__ == "__main__":
-    initial_state: GeoDataAgentState = get_medium_debug_state(True)
+    initial_state: GeoDataAgentState = get_minimal_debug_state(True)
     #print(geocode_using_nominatim.invoke({"query": "Frankfurt", "geojson": True}))
     #print(geocode_using_geonames.invoke({"query": "Frankfurt"}))
-    print(geocode_using_nominatim_to_geostate.invoke({"state": initial_state, "query": "Frankfurt", "geojson": False}))
+    print(initial_state)
+    # print(geocode_using_nominatim_to_geostate.invoke({"state": initial_state, "query": "New York", "geojson": True}))
+    print(geocode_using_nominatim_to_geostate.invoke({'args': {"state": initial_state,  'tool_call_id': 'testcallid1234', "query": "New York", "geojson": True}, 'name': 'geocode_nominatim', 'type': 'tool_call', 'id': 'id2',  'tool_call_id': 'testcallid1234'}))
+    print(initial_state)
