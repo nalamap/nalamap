@@ -1,5 +1,5 @@
 # services/agents/geoprocessing_agent.py
-
+import geopandas as gpd
 from typing import Dict, List, Any
 from shapely.geometry import shape, mapping
 from shapely.ops import unary_union
@@ -10,51 +10,107 @@ from services.ai.llm_config import get_llm
 
 # ========== Tool Implementations ==========
 
-def op_buffer(layers: List[Dict[str, Any]], radius: float = 1.0) -> List[Dict[str, Any]]:
-    out = []
-    for feat in layers:
-        geom = shape(feat["geometry"])
-        buf = geom.buffer(radius)
-        out.append({
-            "type": "Feature",
-            "geometry": mapping(buf),
-            "properties": feat.get("properties", {})
-        })
-    return out
+def _flatten_features(layers):
+    """
+    Given a list of Feature or FeatureCollection dicts, return a flat list of Feature dicts.
+    """
+    feats = []
+    for layer in layers:
+        if layer.get("type") == "FeatureCollection":
+            feats.extend(layer.get("features", []))
+        elif layer.get("type") == "Feature":
+            feats.append(layer)
+        else:
+            # skip invalid entries
+            continue
+    return feats
 
 
-def op_intersection(layers: List[Dict[str, Any]], **kwargs) -> List[Dict[str, Any]]:
-    geoms = [shape(feat["geometry"]) for feat in layers]
+def _get_layer_geoms(layers):
+    """
+    Given a list of Feature or FeatureCollection dicts, return a list of shapely geometries,
+    each being the unary_union of one layer's features.
+    """
+    geoms = []
+    for layer in layers:
+        feats = layer.get("features") if layer.get("type") == "FeatureCollection" else ([layer] if layer.get("type") == "Feature" else [])
+        if not feats:
+            continue
+        gdf = gpd.GeoDataFrame.from_features(feats)
+        geoms.append(gdf.unary_union)
+    return geoms
+
+
+def op_buffer(layers, radius=1.0):
+    """Buffers each feature in one or more FeatureCollections."""
+    feats = _flatten_features(layers)
+    if not feats:
+        return []
+    gdf = gpd.GeoDataFrame.from_features(feats)
+    gdf['geometry'] = gdf.geometry.buffer(radius)
+    fc = json.loads(gdf.to_json())
+    return [fc]
+
+
+def op_intersection(layers, **kwargs):
+    """Intersects one FeatureCollection with another (works for N layers)."""
+    geoms = _get_layer_geoms(layers)
+    if not geoms:
+        return []
     inter = geoms[0]
-    for g in geoms[1:]:
-        inter = inter.intersection(g)
-    return [{"type": "Feature", "geometry": mapping(inter), "properties": {}}]
+    for geom in geoms[1:]:
+        inter = inter.intersection(geom)
+    series = gpd.GeoSeries([inter])
+    fc = json.loads(series.to_json())
+    return [fc]
 
 
-def op_union(layers: List[Dict[str, Any]], **kwargs) -> List[Dict[str, Any]]:
-    geoms = [shape(feat["geometry"]) for feat in layers]
-    uni = unary_union(geoms)
-    return [{"type": "Feature", "geometry": mapping(uni), "properties": {}}]
+def op_union(layers, **kwargs):
+    """Unions all input FeatureCollections into one or more geometries."""
+    geoms = _get_layer_geoms(layers)
+    if not geoms:
+        return []
+    union_geom = unary_union(geoms)
+    series = gpd.GeoSeries([union_geom])
+    fc = json.loads(series.to_json())
+    return [fc]
 
 
-def op_difference(layers: List[Dict[str, Any]], **kwargs) -> List[Dict[str, Any]]:
-    base = shape(layers[0]["geometry"])
-    sub = shape(layers[1]["geometry"]) if len(layers) > 1 else None
+def op_difference(layers, **kwargs):
+    """Subtracts the second FeatureCollection from the first."""
+    geoms = _get_layer_geoms(layers)
+    if not geoms:
+        return []
+    base = geoms[0]
+    sub = geoms[1] if len(geoms) > 1 else None
     diff = base.difference(sub) if sub else base
-    return [{"type": "Feature", "geometry": mapping(diff), "properties": {}}]
+    series = gpd.GeoSeries([diff])
+    fc = json.loads(series.to_json())
+    return [fc]
 
 
-def op_clip(layers: List[Dict[str, Any]], **kwargs) -> List[Dict[str, Any]]:
-    return op_intersection(layers)
+def op_clip(layers, **kwargs):
+    """Clips the first FeatureCollection by the second."""
+    if len(layers) < 2:
+        return _flatten_features(layers)
+    subj_feats = layers[0].get("features", []) if layers[0].get("type") == "FeatureCollection" else [layers[0]]
+    mask_feats = layers[1].get("features", []) if layers[1].get("type") == "FeatureCollection" else [layers[1]]
+    subj_gdf = gpd.GeoDataFrame.from_features(subj_feats)
+    mask_geom = unary_union(gpd.GeoDataFrame.from_features(mask_feats).geometry)
+    subj_gdf['geometry'] = subj_gdf.geometry.intersection(mask_geom)
+    fc = json.loads(subj_gdf.to_json())
+    return [fc]
 
 
-def op_simplify(layers: List[Dict[str, Any]], tolerance: float = 0.01) -> List[Dict[str, Any]]:
-    out = []
-    for feat in layers:
-        geom = shape(feat["geometry"])
-        simp = geom.simplify(tolerance)
-        out.append({"type": "Feature", "geometry": mapping(simp), "properties": feat.get("properties", {})})
-    return out
+def op_simplify(layers, tolerance=0.01):
+    """Simplifies each feature geometry with the given tolerance."""
+    feats = _flatten_features(layers)
+    if not feats:
+        return []
+    gdf = gpd.GeoDataFrame.from_features(feats)
+    gdf['geometry'] = gdf.geometry.simplify(tolerance)
+    fc = json.loads(gdf.to_json())
+    return [fc]
 
 # Registry of available tools
 TOOL_REGISTRY = {

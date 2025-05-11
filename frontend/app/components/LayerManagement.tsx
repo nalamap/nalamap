@@ -257,6 +257,13 @@ export default function LayerManagement() {
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
+                      onClick={() => setZoomTo(layer.id)}
+                      title="Zoom to this layer"
+                      className="text-gray-600 hover:text-blue-600"
+                    >
+                      <Search size={16} />
+                  </button>
+                  <button
                     onClick={() => toggleSelection(layer.id)}
                     title={
                       layer.selected
@@ -269,7 +276,7 @@ export default function LayerManagement() {
                         : "bg-gray-200 text-gray-600"
                     }`}
                   >
-                    <Search size={16} />
+                    <MapPin size={16} />
                   </button>
                   <button
                     onClick={() => toggleLayerVisibility(layer.id)}
