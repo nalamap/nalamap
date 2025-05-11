@@ -53,7 +53,10 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
   // portal filter string
   const [portalFilter, setPortalFilter] = useState<string>("");
+  // show/hide tool responses
+  const [expandedToolMessage, setExpandedToolMessage] = useState<Record<number, boolean>>({})
 
+  const showToolMessages = true;
   //automate scroll to bottom with new entry
   useEffect(() => {
     const el = containerRef.current;
@@ -68,7 +71,7 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
     setConversation((c) => [...c, { role: "user", content: input }]);
 
     if (activeTool === "search") {
-  
+
       let fullQuery = input;
       const selected = useLayerStore.getState().layers.find((l) => l.selected);
       if (selected?.bounding_box) {
@@ -82,16 +85,16 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
       }
 
 
-  
+
       await queryGeoweaverAgent("search");
-  
+
       setConversation((c) => [
         ...c,
         { role: "agent", content: "Search complete." },
       ]);
     }
 
-      
+
     if (activeTool === "geocode") {
       await queryGeoweaverAgent(activeTool);
       setConversation((c) => [...c, { role: "agent", content: "Done." }]);
@@ -158,26 +161,79 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
       {/* Chat content area */}
       <div ref={containerRef} className="overflow-auto flex-1 scroll-smooth pb-2">
         <div className="flex flex-col space-y-3">
-          {conversation.map((msg, idx) => (
-            <div
-              key={idx}
-              className={`flex ${msg.type === "human" ? "justify-end" : "justify-start"}`}
-            >
-              <div
-                className={`max-w-[80%] px-4 py-2 rounded-lg ${msg.type === "human"
-                  ? "bg-blue-100 rounded-tr-none text-right"
-                  : "bg-gray-50 rounded-tl-none border"
-                  }`}
-              >
-                <div className="text-sm break-words">
-                  {msg.content}
+          {conversation.map((msg, idx) => {
+            // 1) Handle an AI message that kicked off a tool call
+            if (msg.type === 'ai' && msg.additional_kwargs?.tool_calls?.length) {
+
+              if (!showToolMessages)
+                return; // 
+
+              const call = msg.additional_kwargs.tool_calls[0]
+              const isOpen = !!expandedToolMessage[idx]
+
+              return (
+                <div
+                  key={msg.id}
+                  className="flex justify-start"
+                >
+                  <div className="max-w px-4 py-2 rounded-lg bg-gray-50 rounded-tl-none border">
+                    {/* “Using tool…” header */}
+                    <div className="text-sm font-medium">
+                      Using tool ‘{call.function.name}’ with arguments ‘{call.function.arguments}’
+                    </div>
+
+                    {/* toggle button */}
+                    <button
+                      className="ml-2 px-2 py-1 bg-blue-500 text-white rounded text-xs"
+                      onClick={() =>
+                        setExpandedToolMessage((prev) => ({ ...prev, [idx]: !prev[idx] }))
+                      }
+                    >
+                      {isOpen ? 'Hide result' : 'Show result'}
+                    </button>
+
+                    {/* if expanded, show the next message’s content (must be type "tool") */}
+                    {isOpen &&
+                      conversation[idx + 1]?.type === 'tool' && (
+                        <div className="mt-2 text-sm break-words whitespace-pre-wrap">
+                          {conversation[idx + 1].content}
+                        </div>
+                      )}
+                  </div>
                 </div>
-                <div className="text-xs text-gray-500 mt-1">
-                  {msg.type === "human" ? "You" : "Agent"}
+              )
+            }
+
+            // 2) Don’t render standalone tool messages (they’ll live under their AI caller)
+            if (msg.type === 'tool') {
+              return null
+            }
+
+            // 3) Fall back to your normal human/AI rendering
+            const isHuman = msg.type === 'human'
+            return (
+              <div
+                key={msg.id}
+                className={`flex ${isHuman ? 'justify-end' : 'justify-start'}`}
+              >
+                <div
+                  className={`max-w-[80%] px-4 py-2 rounded-lg ${isHuman
+                    ? 'bg-blue-100 rounded-tr-none text-right'
+                    : 'bg-gray-50 rounded-tl-none border'
+                    }`}
+                >
+                  <div className="text-sm break-words">{msg.content}</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    {isHuman
+                      ? 'You'
+                      : msg.type === 'ai'
+                        ? 'Agent'
+                        : 'Unknown'}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         {(activeTool === "search" || activeTool === "geocode" || activeTool === "chat" || activeTool === "geoprocess") && geoDataList.length > 0 && (
