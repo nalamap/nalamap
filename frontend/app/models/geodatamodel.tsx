@@ -26,11 +26,16 @@ export interface GeoDataObject {
 export interface GeoweaverRequest {
     messages?: ChatMessage[]
     query?: string
-    geodata?: GeoDataObject[]
+    geodata_last_results?: GeoDataObject[]
+    geodata_layers?: GeoDataObject[]
+    global_geodata?: GeoDataObject[]
+    options?: Map<string, Set<string>>
 }
 
 export interface GeoweaverResponse {
     messages?: ChatMessage[]
-    query?: string
-    geodata?: GeoDataObject[]
+    results_title?: string
+    geodata_results?: GeoDataObject[]
+    geodata_layers?: GeoDataObject[]
+    global_geodata?: GeoDataObject[]
 }

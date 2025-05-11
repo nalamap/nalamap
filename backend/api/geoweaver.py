@@ -87,7 +87,7 @@ async def ask_geoweaver(request: GeoweaverRequest):
     messages: List[BaseMessage] = normalize_messages(request.messages)
     messages.append(HumanMessage(request.query)) # TODO: maybe remove query
 
-    state: GeoDataAgentState = GeoDataAgentState(messages=messages, current_geodata=[], global_geodata=request.geodata)
+    state: GeoDataAgentState = GeoDataAgentState(messages=messages, current_geodata=request.geodata_last_results, global_geodata=request.global_geodata)
 
     executor_result: GeoDataAgentState = single_agent.invoke(state)
 
@@ -97,5 +97,5 @@ async def ask_geoweaver(request: GeoweaverRequest):
     result_messages: List[BaseMessage] = executor_result['messages']
     result_response: str = result_messages[-1].content
     result_geodata: List[GeoDataObject] = executor_result['global_geodata']
-    response: GeoweaverResponse = GeoweaverResponse(messages=result_messages, response=result_response, geodata=result_geodata)
+    response: GeoweaverResponse = GeoweaverResponse(messages=result_messages, results_title="Agent results", geodata_results=result_geodata, geodata_layers=request.geodata_layers, global_geodata=result_geodata)
     return response
