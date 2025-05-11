@@ -61,6 +61,13 @@ app.include_router(data_management.router)
 # Exception handlers
 import logging
 
+@app.exception_handler(status.HTTP_400_BAD_REQUEST)
+async def validation_exception_handler(request: Request, exc):
+	exc_str = f'{exc}'.replace('\n', ' ').replace('   ', ' ')
+	logging.error(f"{request}: {exc_str}")
+	content = {'status_code': 10400, 'message': exc_str, 'data': None}
+	return JSONResponse(content=content, status_code=status.HTTP_400_BAD_REQUEST)
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
 	exc_str = f'{exc}'.replace('\n', ' ').replace('   ', ' ')

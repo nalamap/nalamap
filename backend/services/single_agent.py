@@ -3,6 +3,7 @@ from typing import List
 from langchain_core.tools import BaseTool
 from langgraph.prebuilt import create_react_agent
 from langgraph.graph.graph import CompiledGraph
+from services.tools.librarian_tools import query_librarian_postgis
 from services.tools.geocoding import geocode_using_nominatim_to_geostate
 from services.tools.geostate_management import describe_geodata_object, list_global_geodata
 from models.states import GeoDataAgentState, get_medium_debug_state, get_minimal_debug_state
@@ -12,7 +13,8 @@ from services.ai.llm_config import get_llm
 tools: List[BaseTool] = [
     list_global_geodata,
     describe_geodata_object,
-    geocode_using_nominatim_to_geostate
+    geocode_using_nominatim_to_geostate,
+    query_librarian_postgis
 ]
 
 

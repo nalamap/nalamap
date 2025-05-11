@@ -5,7 +5,7 @@ from services.single_agent import single_agent
 from models.geodata import GeoDataObject, mock_geodata_objects
 from models.states import DataState, GeoDataAgentState
 from models.messages.chat_messages import GeoweaverRequest, GeoweaverResponse
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from services.multi_agent_orch import multi_agent_executor
 import json
 
@@ -35,6 +35,10 @@ def normalize_messages(raw: List[BaseMessage]) -> List[BaseMessage]:
             normalized.append(AIMessage(content=content, **extra))
         elif t == "system":
             normalized.append(SystemMessage(content=content, **extra))
+        elif t == "tool":
+            continue
+            # Tool Messages seem to fail with some tool_call_id missing errors -> skipping for now
+            #normalized.append(ToolMessage(content=content, tool_call_id=getattr(m, "id", "noid"),**extra))
         else:
             raise HTTPException(400, detail=f"message[{idx}].type '{t}' not recognized")
     return normalized
