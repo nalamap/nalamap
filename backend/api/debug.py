@@ -213,9 +213,9 @@ async def geoprocess(req: GeoweaverRequest):
         "input_layers": input_layers,
         "available_operations_and_params": [
             # backend-supported operations
-            "operation: buffer params: radius", "operation: intersection params:", 
+            "operation: buffer params: radius=1.0", "operation: intersection params:", 
             "operation: union params:", "operation: clip params:", "operation: difference params:", 
-            "operation: simplify params: tolerance"
+            "operation: simplify params: tolerance=0.01", "operation: reproject params: src_crs=None, dst_crs"
         ],
         "tool_sequence": [],  # to be filled by the agent
     }

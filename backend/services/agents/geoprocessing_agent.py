@@ -112,6 +112,27 @@ def op_simplify(layers, tolerance=0.01):
     fc = json.loads(gdf.to_json())
     return [fc]
 
+def op_reproject(layers, src_crs=None, dst_crs="EPSG:4326"):
+    """
+    Reprojects all input features from src_crs to dst_crs.
+    If src_crs is None, assumes GeoJSON is in WGS84 (EPSG:4326).
+    """
+    feats = _flatten_features(layers)
+    if not feats:
+        return []
+    # Load into GeoDataFrame
+    gdf = gpd.GeoDataFrame.from_features(feats)
+    # Define source CRS if provided
+    if src_crs:
+        gdf.set_crs(src_crs, inplace=True)
+    else:
+        gdf.set_crs("EPSG:4326", inplace=True)
+    # Perform reprojection
+    gdf = gdf.to_crs(dst_crs)
+    # Export back to GeoJSON features
+    fc = json.loads(gdf.to_json())
+    return [fc]
+
 # Registry of available tools
 TOOL_REGISTRY = {
     "buffer": op_buffer,
@@ -119,7 +140,8 @@ TOOL_REGISTRY = {
     "union": op_union,
     "difference": op_difference,
     "clip": op_clip,
-    "simplify": op_simplify
+    "simplify": op_simplify,
+    "reproject": op_reproject
 }
 
 # ========== Geoprocess Executor ==========
