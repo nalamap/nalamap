@@ -13,17 +13,23 @@ class DataState(MessagesState):
 
 class GeoDataAgentState(AgentState):
     # TODO: maybe use references? 
-    current_geodata: Optional[List[GeoDataObject]]
-
+    results_title: Optional[str] = Field(default="", description="Title for the geodata response in 'geodata_results'" )
+    geodata_last_results: Optional[List[GeoDataObject]] = Field(default_factory=list, exclude=False, validate_default=False)
+    geodata_results: Optional[List[GeoDataObject]] = Field(default_factory=list, exclude=False, validate_default=False)
+    geodata_layers: Optional[List[GeoDataObject]] = Field(default_factory=list, exclude=False, validate_default=False)
+    
     # --- Internal-only fields (excluded from LLM prompt) ---
-    global_geodata: Optional[List[GeoDataObject]] = Field(default_factory=dict, exclude=True, validate_default=False)
+    global_geodata: Optional[List[GeoDataObject]] = Field(default_factory=list, exclude=True, validate_default=False)
 
 
 def get_minimal_debug_state(tool_call: bool = False) -> GeoDataAgentState:
     initial_geo_state: GeoDataAgentState = GeoDataAgentState()
     initial_geo_state["messages"] = [HumanMessage("Please show Frankfurt")]
     initial_geo_state["global_geodata"] = []
-    initial_geo_state["current_geodata"] = []
+    initial_geo_state["geodata_last_results"] = []
+    initial_geo_state["geodata_results"] = []
+    initial_geo_state["geodata_layers"] = []
+    initial_geo_state["results_title"] = ""
     if tool_call:
         initial_geo_state["is_last_step"] = False
         initial_geo_state["remaining_steps"] = 5
@@ -33,7 +39,10 @@ def get_medium_debug_state(tool_call: bool = False) -> GeoDataAgentState:
     initial_geo_state: GeoDataAgentState = GeoDataAgentState()
     initial_geo_state["messages"] = [HumanMessage("Show layers for rivers in egypt")]
     initial_geo_state["global_geodata"] = mock_geodata_objects()[0:2]
-    initial_geo_state["current_geodata"] = [initial_geo_state["global_geodata"][0]]
+    initial_geo_state["geodata_last_results"] =  [initial_geo_state["global_geodata"][0]]
+    initial_geo_state["geodata_results"] = []
+    initial_geo_state["geodata_layers"] = []
+    initial_geo_state["results_title"] = ""
     if tool_call:
         initial_geo_state["is_last_step"] = False
         initial_geo_state["remaining_steps"] = 5

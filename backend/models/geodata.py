@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import List, Optional, Dict, Any
 
+from typing import NamedTuple
 from pydantic import BaseModel
 
 
@@ -15,6 +16,11 @@ class DataOrigin(str, Enum):
     TOOL = "tool"
     GEPROCESSING = "geprocessing"
 
+
+
+class GeoDataIdentifier(NamedTuple):
+    id: str
+    data_source_id: str
 
 class GeoDataObject(BaseModel):
     # Required (key) fields

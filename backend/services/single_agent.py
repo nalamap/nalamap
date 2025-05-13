@@ -5,12 +5,13 @@ from langgraph.prebuilt import create_react_agent
 from langgraph.graph.graph import CompiledGraph
 from services.tools.librarian_tools import query_librarian_postgis
 from services.tools.geocoding import geocode_using_nominatim_to_geostate
-from services.tools.geostate_management import describe_geodata_object, list_global_geodata
+from services.tools.geostate_management import describe_geodata_object, list_global_geodata, set_result_list
 from models.states import GeoDataAgentState, get_medium_debug_state, get_minimal_debug_state
 from services.ai.llm_config import get_llm
 
 
 tools: List[BaseTool] = [
+    set_result_list,
     list_global_geodata,
     describe_geodata_object,
     geocode_using_nominatim_to_geostate,
@@ -22,15 +23,16 @@ def create_geo_agent() -> CompiledGraph:
     llm = get_llm()
     system_prompt = (
         "You are LaLaMap: a geospatial assistant with map capabilities. "
-        "You only see the public state (current_geodata). "
-        "The internal state contains 'global_geodata' which contains all geodata in the current user session."  
+        "The public state contains 'geodata_last_results' with the previous results, 'geodata_layers' for the geodata selected by the user. "
+        "The internal state contains 'global_geodata' which contains all geodata in the current user session and retrieved by tools. Use id and data_source_id to reference its datasets." \
+        "If you fetch/find/select/process geodata, please add it to the result list in addition to the response, set 'results_title' like 'Search results' and the list 'geodata_results' for Datasets presented to the user to select from using your tool set_result_list."  
     )
     return create_react_agent(
         name="GeoAgent",
         state_schema=GeoDataAgentState,
         tools=tools,
         model=llm,
-        #prompt=system_prompt,
+        prompt=system_prompt,
         debug=True,
         # config_schema=GeoData,
         #response_format=GeoData

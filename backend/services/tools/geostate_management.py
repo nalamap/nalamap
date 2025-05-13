@@ -1,12 +1,59 @@
+import json
 from typing_extensions import Annotated
-from typing import Dict, List
+from typing import Any, Dict, List, Optional, Tuple, Union
 from langchain_core.tools import tool
 from langgraph.prebuilt import InjectedState
+from langgraph.types import Command
+from langchain_core.tools.base import InjectedToolCallId
 from models.states import GeoDataAgentState, get_medium_debug_state
-from models.geodata import GeoDataObject
+from models.geodata import GeoDataIdentifier, GeoDataObject
+from langchain_core.messages import ToolMessage
+from pydantic import BaseModel, Field
 """
  Utility tools to manage the GeoData State
 """
+
+class SetResultListInputSchema(BaseModel):
+    """Set results_title and append geodata_results, given a string and list of id and data_source_id tuples"""
+    state: Annotated[GeoDataAgentState, InjectedState]
+    tool_call_id: Annotated[str, InjectedToolCallId]
+    results_title: Optional[str] = Field(type=str)
+    result_tuples: Optional[List[GeoDataIdentifier]] = Field(type=List[GeoDataIdentifier], items=GeoDataIdentifier)
+
+
+@tool # (args_schema=SetResultListInputSchema)
+def set_result_list(state: Annotated[GeoDataAgentState, InjectedState], tool_call_id: Annotated[str, InjectedToolCallId],  results_title: str, result_tuples: list[str, str]) -> Union[Dict[str, Any], Command]:
+    """Set results_title and append geodata_results, given a string and list of id and data_source_id tuples"""
+    update_dict: Dict[str, Any] = dict()
+    if results_title is not None and results_title != "":
+        update_dict["results_title"] = results_title
+    if 'result_list' in state:
+        result_list = state['result_list']
+    else:
+        result_list = []
+
+    data_to_look_up: List[Tuple[str, str]] = result_tuples
+
+    for geoobject in state['global_geodata']:
+        identifier: Tuple[str, str] = (geoobject.id, geoobject.data_source_id)
+
+        if (geoobject.id, geoobject.data_source_id) in data_to_look_up:
+            result_list.append(geoobject)
+            data_to_look_up.remove(identifier)
+    
+    message: str
+    if len(data_to_look_up) > 0:
+        message = f"Successfully added {len(result_tuples)} to the result list!"
+    else:
+        message = f"Added {len(result_list)-len(data_to_look_up)} geoobjects to the result list, but the following were not found in global_geodata: {json.dumps(data_to_look_up)} "
+
+    return Command(update={
+                    "messages": [
+                        *state["messages"], 
+                        ToolMessage(message, tool_call_id=tool_call_id )
+                        ],
+                    "geodata_results": result_list
+                })
 
 @tool
 def list_global_geodata(state: Annotated[GeoDataAgentState, InjectedState]) -> List[Dict[str, str]]:
@@ -31,6 +78,8 @@ def describe_geodata_object(state: Annotated[GeoDataAgentState, InjectedState], 
 if __name__ == "__main__":
     initial_geo_state: GeoDataAgentState = get_medium_debug_state(True)
 
-    print(list_global_geodata.run(state=initial_geo_state, tool_input={"state": initial_geo_state}))
+    print(set_result_list.run(state=initial_geo_state, tool_input={"state": initial_geo_state, 'tool_call_id': 'testcallid1234', 'results_title': 'Results:', 'result_tuples': [('1512', 'db_name')]}))
 
-    print(describe_geodata_object.run(state=initial_geo_state, tool_input={"state": initial_geo_state, "id":"1512", "data_source_id": "db_name"}))
+    # print(list_global_geodata.run(state=initial_geo_state, tool_input={"state": initial_geo_state}))
+
+    # print(describe_geodata_object.run(state=initial_geo_state, tool_input={"state": initial_geo_state, "id":"1512", "data_source_id": "db_name"}))

@@ -65,17 +65,19 @@ def query_librarian_postgis(state: Annotated[GeoDataAgentState, InjectedState], 
             for row in rows
         ]
 
+        new_global_geodata: List[GeoDataObject]
+
         if "global_geodata" not in state or state["global_geodata"] is None or not isinstance(state["global_geodata"], List):
-            state["global_geodata"] = results
+            new_global_geodata = results
         else:
-           state["global_geodata"].extend(results)
+            new_global_geodata = state["global_geodata"].extend(results)
 
         return Command(update={
                     "messages": [
                         *state["messages"], 
                         ToolMessage(f"Retrieved {len(results)} results, added GeoDataObjects into the global_state, use id and data_source_id for reference: {json.dumps([ {"id": result.id, "data_source_id": result.data_source_id, "title": result.title} for result in results])}", tool_call_id=tool_call_id )
                         ], 
-                    "global_geodata": state["global_geodata"]
+                    "global_geodata": new_global_geodata
         })
     
     try:

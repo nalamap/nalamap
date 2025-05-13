@@ -1,4 +1,4 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 
 from services.single_agent import single_agent
@@ -91,7 +91,7 @@ async def ask_geoweaver(request: GeoweaverRequest):
     messages: List[BaseMessage] = normalize_messages(request.messages)
     messages.append(HumanMessage(request.query)) # TODO: maybe remove query
 
-    state: GeoDataAgentState = GeoDataAgentState(messages=messages, current_geodata=request.geodata_last_results, global_geodata=request.global_geodata)
+    state: GeoDataAgentState = GeoDataAgentState(messages=messages, geodata_last_results=request.geodata_last_results, geodata_layers=request.geodata_layers, global_geodata=request.global_geodata, results_title="", geodata_results=[])
 
     executor_result: GeoDataAgentState = single_agent.invoke(state)
 
@@ -100,6 +100,15 @@ async def ask_geoweaver(request: GeoweaverRequest):
     #print(getattr(executor_result, "geodata", state["geodata"]))
     result_messages: List[BaseMessage] = executor_result['messages']
     result_response: str = result_messages[-1].content
-    result_geodata: List[GeoDataObject] = executor_result['global_geodata']
-    response: GeoweaverResponse = GeoweaverResponse(messages=result_messages, results_title="Agent results", geodata_results=result_geodata, geodata_layers=request.geodata_layers, global_geodata=result_geodata)
+    results_title: Optional[str] = getattr(executor_result, "results_title", "")
+    if "results_title" in executor_result:
+        results_title = executor_result["results_title"]
+    else:
+        results_title = ""
+    geodata_results: List[GeoDataObject] = executor_result['geodata_results']
+    geodata_layers: List[GeoDataObject] = executor_result['geodata_layers']
+    global_geodata: List[GeoDataObject] = executor_result['global_geodata']
+    if (results_title is None or results_title == "") and geodata_results and isinstance(geodata_results, List) and len(geodata_results) != 0:
+        results_title = "Agent results:"
+    response: GeoweaverResponse = GeoweaverResponse(messages=result_messages, results_title=results_title, geodata_results=geodata_results, geodata_layers=geodata_layers, global_geodata=global_geodata)
     return response

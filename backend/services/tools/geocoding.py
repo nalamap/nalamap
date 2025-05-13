@@ -111,7 +111,7 @@ def create_geodata_object_from_geojson(nominatim_response: Dict[str, Any]) -> Op
 
 @tool
 def geocode_using_nominatim_to_geostate(state: Annotated[GeoDataAgentState, InjectedState], tool_call_id: Annotated[str, InjectedToolCallId],  query: str, geojson: bool = True, maxRows: int = 5) -> Union[Dict[str, Any], Command]:
-    """Geocode an address using OpenStreetMap Nominatim API ."""
+    """Geocode an address using OpenStreetMap Nominatim API. Returns Bounding Box for further request and GeoJson of the area to show to the user."""
     url: str = (
         f"https://nominatim.openstreetmap.org/search?q={query}&format=json&polygon_geojson={1 if geojson else 0}&addressdetails=0&limit={maxRows}"
     )
