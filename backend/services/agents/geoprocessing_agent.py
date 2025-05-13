@@ -41,15 +41,32 @@ def _get_layer_geoms(layers):
     return geoms
 
 
-def op_buffer(layers, radius=1.0):
-    """Buffers each feature in one or more FeatureCollections."""
+def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857"):
+    """
+    Buffers each feature by a given radius in meters.
+    Input geometries are assumed in EPSG:4326. This function:
+      1) Loads features, sets CRS to EPSG:4326
+      2) Reprojects to buffer_crs (default EPSG:3857, meters)
+      3) Applies buffer with `radius` in meters
+      4) Reprojects result back to EPSG:4326
+    If `buffer_crs` is provided by user, uses that CRS instead of EPSG:3857.
+    """
     feats = _flatten_features(layers)
     if not feats:
         return []
+    # Load into GeoDataFrame and set source CRS
     gdf = gpd.GeoDataFrame.from_features(feats)
+    gdf.set_crs("EPSG:4326", inplace=True)
+    # Reproject to chosen metric CRS for buffering
+    gdf = gdf.to_crs(buffer_crs)
+    # Buffer in meter units
     gdf['geometry'] = gdf.geometry.buffer(radius)
+    # Reproject back to geographic coords
+    gdf = gdf.to_crs("EPSG:4326")
+    # Export to GeoJSON Feature list
     fc = json.loads(gdf.to_json())
-    return [fc]
+    return fc['features']
+
 
 
 def op_intersection(layers, **kwargs):
@@ -112,26 +129,6 @@ def op_simplify(layers, tolerance=0.01):
     fc = json.loads(gdf.to_json())
     return [fc]
 
-def op_reproject(layers, src_crs=None, dst_crs="EPSG:4326"):
-    """
-    Reprojects all input features from src_crs to dst_crs.
-    If src_crs is None, assumes GeoJSON is in WGS84 (EPSG:4326).
-    """
-    feats = _flatten_features(layers)
-    if not feats:
-        return []
-    # Load into GeoDataFrame
-    gdf = gpd.GeoDataFrame.from_features(feats)
-    # Define source CRS if provided
-    if src_crs:
-        gdf.set_crs(src_crs, inplace=True)
-    else:
-        gdf.set_crs("EPSG:4326", inplace=True)
-    # Perform reprojection
-    gdf = gdf.to_crs(dst_crs)
-    # Export back to GeoJSON features
-    fc = json.loads(gdf.to_json())
-    return [fc]
 
 # Registry of available tools
 TOOL_REGISTRY = {
@@ -140,8 +137,7 @@ TOOL_REGISTRY = {
     "union": op_union,
     "difference": op_difference,
     "clip": op_clip,
-    "simplify": op_simplify,
-    "reproject": op_reproject
+    "simplify": op_simplify
 }
 
 # ========== Geoprocess Executor ==========
