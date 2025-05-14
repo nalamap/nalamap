@@ -2,12 +2,13 @@ import os
 from typing import Tuple
 import uuid
 
+from utility.string_methods import clean_allow
 from core.config import AZ_CONN, AZ_CONTAINER, BASE_URL, LOCAL_UPLOAD_DIR, USE_AZURE
 
 def store_file(name: str, content: bytes) -> Tuple[str, str]:
     """ Stores the given content in a file based on the name"""
         # Generate unique file name
-    unique_name = f"{uuid.uuid4().hex}_{name}"
+    unique_name = f"{uuid.uuid4().hex}_{clean_allow(name)}"
 
     if USE_AZURE:
         from azure.storage.blob import BlobServiceClient

@@ -6,6 +6,7 @@ import json
 
 from pydantic import BaseModel
 
+from utility.string_methods import clean_allow
 from core.config import BASE_URL, LOCAL_UPLOAD_DIR
 from models.geodata import DataOrigin, DataType, GeoDataObject
 from models.messages.chat_messages import GeoweaverRequest, GeoweaverResponse, OrchestratorRequest, OrchestratorResponse
@@ -110,7 +111,7 @@ async def geocode(req: GeoweaverRequest) -> Dict[str, Any]:
         geojson_dict = kml2geojson_convert(io.StringIO(geo_kml_string))
         # print(json.dump(geojson_dict))
 
-        out_filename = f"{name_prop}_geocode_{uuid.uuid4().hex}.geojson"
+        out_filename = f"{clean_allow(name_prop)}_geocode_{uuid.uuid4().hex}.geojson"
         out_path = os.path.join(LOCAL_UPLOAD_DIR, out_filename)
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(geojson_dict, f)
