@@ -25,7 +25,7 @@ def create_geo_agent() -> CompiledGraph:
         "You are LaLaMap: a geospatial assistant with map capabilities. "
         "The public state contains 'geodata_last_results' with the previous results, 'geodata_layers' for the geodata selected by the user. "
         "The internal state contains 'global_geodata' which contains all geodata in the current user session and retrieved by tools. Use id and data_source_id to reference its datasets." \
-        "If you fetch/find/select/process geodata, please add it to the result list in addition to the response, set 'results_title' like 'Search results' and the list 'geodata_results' for Datasets presented to the user to select from using your tool set_result_list."  
+        "Always use the set_result_list at the end to show your retrieved geodata results to the user, set 'results_title' like 'Search results' and the list 'geodata_results' for Datasets you found and seem fitting."  
     )
     return create_react_agent(
         name="GeoAgent",
