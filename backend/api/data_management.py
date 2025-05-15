@@ -1,20 +1,10 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from typing import Dict
-import os
-import uuid
 
-# TODO: Move configs to /core/config.py 
+from core.config import MAX_FILE_SIZE
+from services.storage.file_management import store_file
 
-# Optional Azure Blob storage
-USE_AZURE = os.getenv("USE_AZURE_STORAGE", "false").lower() == "true"
-AZ_CONN = os.getenv("AZURE_CONN_STRING", "")
-AZ_CONTAINER = os.getenv("AZURE_CONTAINER", "")
-# Local upload directory and base URL
-LOCAL_UPLOAD_DIR = os.getenv("LOCAL_UPLOAD_DIR", "./uploads")
-BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
 
-# File size limit (100MB)
-MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB in bytes
 
 # Helper function for formatting file size
 def format_file_size(bytes_size):
@@ -53,19 +43,6 @@ async def upload_file(file: UploadFile = File(...)) -> Dict[str, str]:
     if 'content' not in locals():
         content = await file.read()
     
-    # Generate unique file name
-    unique_name = f"{uuid.uuid4().hex}_{file.filename}"
-
-    if USE_AZURE:
-        from azure.storage.blob import BlobServiceClient
-        blob_svc = BlobServiceClient.from_connection_string(AZ_CONN)
-        container = blob_svc.get_container_client(AZ_CONTAINER)
-        container.upload_blob(name=unique_name, data=content)
-        url = f"{container.url}/{unique_name}"
-    else:
-        dest_path = os.path.join(LOCAL_UPLOAD_DIR, unique_name)
-        with open(dest_path, "wb") as f:
-            f.write(content)
-        url = f"{BASE_URL}/uploads/{unique_name}"
+    url, unique_name = store_file(file.filename, content) 
 
     return {"url": url, "id": unique_name}
