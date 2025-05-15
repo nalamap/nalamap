@@ -13,7 +13,16 @@ function toWkt(bbox: GeoDataObject["bounding_box"]): string | undefined {
 
   // 1) If it's already an object, stringify directly
   if (typeof bbox === "object") {
-    return wellknown.stringify(bbox);
+    return wellknown.stringify({
+      type: "Polygon",
+      coordinates: [[
+        [bbox[0], bbox[1]],
+        [bbox[2], bbox[1]],
+        [bbox[2], bbox[3]],
+        [bbox[0], bbox[3]],
+        [bbox[0], bbox[1]]
+      ]]
+    });
   }
 
   // 2) If it's a string that looks like JSON, parse then stringify
