@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Any, Dict, List, Literal, Optional, Set, Union
 from pydantic import BaseModel
 from models.geodata import GeoDataObject
 from langchain_core.messages import BaseMessage
@@ -30,12 +30,17 @@ class GeoweaverRequest(BaseModel):
     """
     messages: Optional[List[BaseMessage]] = None
     query: Optional[str] = None
-    geodata: Optional[List[GeoDataObject]] = None
+    geodata_last_results: Optional[List[GeoDataObject]] = None
+    geodata_layers: Optional[List[GeoDataObject]] = None
+    global_geodata: Optional[List[GeoDataObject]] = None
+    options: Optional[Dict[str, Set[Any]]]
 
 class GeoweaverResponse(BaseModel):
     """
     Reponse of the Geoweaver, which contains the message history, a response and geodata related to the query
     """
     messages: Optional[List[BaseMessage]] = None
-    response: Optional[str] = None
-    geodata: Optional[List[GeoDataObject]] = None
+    results_title: Optional[str] = None
+    geodata_results: Optional[List[GeoDataObject]] = None
+    geodata_layers: Optional[List[GeoDataObject]] = None
+    global_geodata: Optional[List[GeoDataObject]] = None

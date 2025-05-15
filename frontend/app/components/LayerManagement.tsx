@@ -1,9 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useMapStore } from "../stores/mapStore";
 import { useLayerStore } from "../stores/layerStore";
-import { Eye, EyeOff, Trash2, Search, MapPin } from "lucide-react";
+import { Eye, EyeOff, Trash2, Search, MapPin, GripVertical } from "lucide-react";
 import { formatFileSize, isFileSizeValid } from "../utils/fileUtils";
 
 
@@ -19,6 +19,9 @@ export default function LayerManagement() {
   const reorderLayers = useLayerStore((state) => state.reorderLayers);
   const setZoomTo = useLayerStore((s) => s.setZoomTo);
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+  const [dropTargetIdx, setDropTargetIdx] = useState<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [recentlyMovedId, setRecentlyMovedId] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
@@ -29,6 +32,17 @@ export default function LayerManagement() {
   // Define file size limit constant
   const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB in bytes
   const MAX_FILE_SIZE_FORMATTED = formatFileSize(MAX_FILE_SIZE);
+
+  // Clear the recently moved highlight after animation completes
+  useEffect(() => {
+    if (recentlyMovedId) {
+      const timer = setTimeout(() => {
+        setRecentlyMovedId(null);
+      }, 1000); // Match this with the CSS animation duration
+      
+      return () => clearTimeout(timer);
+    }
+  }, [recentlyMovedId]);
 
   const cancelUpload = () => {
     if (xhrRef.current) {
@@ -169,7 +183,16 @@ export default function LayerManagement() {
   };
 
   return (
-    <div className="w-full h-full bg-gray-100 p-4 border-r overflow-auto">
+    <div 
+      className="w-full h-full bg-gray-100 p-4 border-r overflow-auto"
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={() => {
+        // Reset all drag and drop state on any drop within container
+        setDraggedIdx(null);
+        setDropTargetIdx(null);
+        setIsDragging(false);
+      }}
+    >
       <h2 className="text-xl font-bold mb-4">Layer Management</h2>
 
       {/* Upload Section */}
@@ -229,72 +252,182 @@ export default function LayerManagement() {
         {layers.length === 0 ? (
           <p className="text-sm text-gray-500">No layers added yet.</p>
         ) : (
-          <ul className="space-y-2 text-sm">
-            {[...layers].slice().reverse().map((layer, idx, arr) => (
-              <li
-                key={layer.id}
-                className="bg-white p-2 rounded shadow flex items-center justify-between"
-                draggable
-                onDragStart={() => setDraggedIdx(idx)}
-                onDragOver={e => e.preventDefault()}
-                onDrop={() => {
-                  if (draggedIdx === null || draggedIdx === idx) return;
-                  // arr is reversed, so we need to map back to the original index
-                  const from = layers.length - 1 - draggedIdx;
-                  const to = layers.length - 1 - idx;
-                  reorderLayers(from, to);
-                  setDraggedIdx(null);
-                }}
-                style={{
-                  opacity: draggedIdx === idx ? 0.5 : 1,
-                  cursor: "grab"
-                }}
-                title="Drag to reorder"
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="font-bold text-gray-800 truncate">{layer.name}</div>
-                  <div className="text-xs text-gray-500">{layer.data_type}</div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <button
-                      onClick={() => setZoomTo(layer.id)}
-                      title="Zoom to this layer"
-                      className="text-gray-600 hover:text-blue-600"
+          <ul className={`space-y-2 text-sm ${isDragging ? 'cursor-grabbing' : ''}`}>
+            {[...layers].slice().reverse().map((layer, idx, arr) => {
+              const isBeingDragged = draggedIdx === idx;
+              const isDropTarget = dropTargetIdx === idx;
+              const isRecentlyMoved = recentlyMovedId === layer.id;
+              
+              // Determine if we're moving the layer upward or downward in the layer stack
+              // If draggedIdx > dropTargetIdx, we're moving a layer up in the display (which is down in the actual stack)
+              // If draggedIdx < dropTargetIdx, we're moving a layer down in the display (which is up in the actual stack)
+              const isMovingUp = draggedIdx !== null && dropTargetIdx !== null && draggedIdx > dropTargetIdx;
+              
+              // Show indicator above for top item OR when moving a layer upward
+              const showIndicatorAbove = idx === 0 || isMovingUp;
+              
+              return (
+                <li
+                  key={layer.id}
+                  className={`relative transition-all duration-200 ${
+                    isDropTarget ? (showIndicatorAbove ? 'mt-8' : 'mb-8') : 'mb-2'
+                  } ${
+                    isBeingDragged ? 'opacity-50 z-10' : 'opacity-100'
+                  }`}
+                  onDragOver={(e) => {
+                    // This prevents the default behavior which would prevent drop
+                    e.preventDefault();
+                  }}
+                >
+                  {/* Drop indicator - showing ABOVE when appropriate */}
+                  {isDropTarget && showIndicatorAbove && (
+                    <div 
+                      className="absolute w-full h-4 -top-4 flex items-center justify-center"
+                      style={{ pointerEvents: 'none' }}
                     >
-                      <Search size={16} />
-                  </button>
-                  <button
-                    onClick={() => toggleSelection(layer.id)}
-                    title={
-                      layer.selected
-                        ? "Using this layer for search bounding box or geoprocessing"
-                        : "Use this layer for search bounding box or geoprocessing"
-                    }
-                    className={`p-1 rounded ${
-                      layer.selected
-                        ? "bg-blue-500 text-white"
-                        : "bg-gray-200 text-gray-600"
+                      <div className="h-1.5 bg-blue-500 w-full rounded-full animate-pulse"></div>
+                    </div>
+                  )}
+                  
+                  <div
+                    className={`bg-white rounded shadow flex items-center justify-between transition-all ${
+                      isDropTarget ? 'border-2 border-blue-400' : ''
+                    } ${
+                      isRecentlyMoved ? 'highlight-animation' : ''
                     }`}
+                    draggable
+                    onDragStart={(e) => {
+                      setDraggedIdx(idx);
+                      setDropTargetIdx(null);
+                      setIsDragging(true);
+                      
+                      // Set drag ghost image if supported
+                      if (e.dataTransfer.setDragImage) {
+                        const ghostElement = document.createElement('div');
+                        ghostElement.style.width = '200px';
+                        ghostElement.style.padding = '8px';
+                        ghostElement.style.borderRadius = '4px';
+                        ghostElement.style.backgroundColor = 'rgba(59, 130, 246, 0.2)';
+                        ghostElement.style.border = '1px solid rgba(59, 130, 246, 0.5)';
+                        ghostElement.style.color = '#1e40af';
+                        ghostElement.style.fontWeight = 'bold';
+                        ghostElement.innerText = layer.name;
+                        document.body.appendChild(ghostElement);
+                        e.dataTransfer.setDragImage(ghostElement, 100, 20);
+                        
+                        // Clean up ghost element after it's been used
+                        setTimeout(() => {
+                          document.body.removeChild(ghostElement);
+                        }, 0);
+                      }
+                    }}
+                    onDragEnd={() => {
+                      setIsDragging(false);
+                      setDraggedIdx(null);
+                      setDropTargetIdx(null);
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (draggedIdx !== idx && dropTargetIdx !== idx) {
+                        setDropTargetIdx(idx);
+                      }
+                    }}
+                    onDragEnter={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (draggedIdx !== idx) {
+                        setDropTargetIdx(idx);
+                      }
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      
+                      // Check if we're leaving the element and not entering a child
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const x = e.clientX;
+                      const y = e.clientY;
+                      
+                      if (
+                        x < rect.left || x >= rect.right || 
+                        y < rect.top || y >= rect.bottom
+                      ) {
+                        if (dropTargetIdx === idx) {
+                          setDropTargetIdx(null);
+                        }
+                      }
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      
+                      if (draggedIdx === null || draggedIdx === idx) return;
+                      
+                      // arr is reversed, so we need to map back to the original index
+                      const from = layers.length - 1 - draggedIdx;
+                      const to = layers.length - 1 - idx;
+                      reorderLayers(from, to);
+                      
+                      // Mark the moved layer for highlight animation
+                      const movedLayerId = arr[draggedIdx].id;
+                      setRecentlyMovedId(movedLayerId);
+                      
+                      // Reset drag state
+                      setIsDragging(false);
+                      setDraggedIdx(null);
+                      setDropTargetIdx(null);
+                    }}
+                    style={{
+                      cursor: isDragging ? "grabbing" : "grab"
+                    }}
+                    title="Drag to reorder"
                   >
-                    <MapPin size={16} />
-                  </button>
-                  <button
-                    onClick={() => toggleLayerVisibility(layer.id)}
-                    title="Toggle Visibility"
-                    className="text-gray-600 hover:text-blue-600"
-                  >
-                    {layer.visible ? <Eye size={16} /> : <EyeOff size={16} />}
-                  </button>
-                  <button
-                    onClick={() => removeLayer(layer.id)}
-                    title="Remove Layer"
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </li>
-            ))}
+                    <div className="flex items-center p-2 flex-1 min-w-0">
+                      <div className="mr-2 text-gray-400 cursor-grab flex-shrink-0">
+                        <GripVertical size={16} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-gray-800 truncate">{layer.name}</div>
+                        <div className="text-xs text-gray-500">{layer.data_type}</div>
+                      </div>
+                      <div className="flex items-center space-x-2 ml-2">
+                        <button
+                          onClick={() => setZoomTo(layer.id)}
+                          title="Zoom to this layer"
+                          className="text-gray-600 hover:text-blue-600"
+                        >
+                          <Search size={16} />
+                        </button>
+                        <button
+                          onClick={() => toggleLayerVisibility(layer.id)}
+                          title="Toggle Visibility"
+                          className="text-gray-600 hover:text-blue-600"
+                        >
+                          {layer.visible ? <Eye size={16} /> : <EyeOff size={16} />}
+                        </button>
+                        <button
+                          onClick={() => removeLayer(layer.id)}
+                          title="Remove Layer"
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Drop indicator - showing BELOW when appropriate */}
+                  {isDropTarget && !showIndicatorAbove && (
+                    <div 
+                      className="absolute w-full h-4 -bottom-4 flex items-center justify-center"
+                      style={{ pointerEvents: 'none' }}
+                    >
+                      <div className="h-1.5 bg-blue-500 w-full rounded-full animate-pulse"></div>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
@@ -317,6 +450,19 @@ export default function LayerManagement() {
           <option value="google-terrain">Google Terrain</option>
         </select>
       </div>
+      
+      {/* Add the animation CSS */}
+      <style jsx global>{`
+        @keyframes highlight {
+          0% { background-color: white; }
+          30% { background-color: rgba(59, 130, 246, 0.2); }
+          100% { background-color: white; }
+        }
+        
+        .highlight-animation {
+          animation: highlight 1s ease;
+        }
+      `}</style>
     </div>
   );
 }

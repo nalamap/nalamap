@@ -1,7 +1,8 @@
 export interface ChatMessage {
-    type: 'human' | 'ai' | 'system'
+    id?: string
+    type: 'human' | 'ai' | 'system' | 'tool'
     content: string
-    additional_kwargs?: Record<string, unknown>
+    additional_kwargs?: Record<string, any>
 }
 
 export interface GeoDataObject {
@@ -26,11 +27,16 @@ export interface GeoDataObject {
 export interface GeoweaverRequest {
     messages?: ChatMessage[]
     query?: string
-    geodata?: GeoDataObject[]
+    geodata_last_results?: GeoDataObject[]
+    geodata_layers?: GeoDataObject[]
+    global_geodata?: GeoDataObject[]
+    options?: Map<string, Set<string>>
 }
 
 export interface GeoweaverResponse {
     messages?: ChatMessage[]
-    query?: string
-    geodata?: GeoDataObject[]
+    results_title?: string
+    geodata_results?: GeoDataObject[]
+    geodata_layers?: GeoDataObject[]
+    global_geodata?: GeoDataObject[]
 }

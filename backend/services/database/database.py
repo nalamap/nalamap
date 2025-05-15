@@ -1,14 +1,8 @@
 import psycopg
 from psycopg_pool import AsyncConnectionPool
 from fastapi import FastAPI
-from dotenv import load_dotenv
-import os
 
-# Load environment variables from .env file
-load_dotenv()
-
-# Database connection URL
-DATABASE_URL = os.getenv('DATABASE_AZURE_URL')
+from core.config import DATABASE_URL
 
 # Initialize connection pool as None
 db_pool = None

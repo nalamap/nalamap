@@ -9,9 +9,9 @@ import json
 from models.geodata import mock_geodata_objects
 from models.geodata import GeoDataObject
 from services.agents.geo_weaver_ai import ai_executor as geo_helper_executor
-from services.agents.langgraph_agent import executor as librarien_executor
+from services.agents.langgraph_agent import SearchState, executor as librarien_executor
 from services.agents.supervisor_agent import choose_agent, supervisor_node as llm_supervisor_node
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, AIMessage
 
 async def supervisor_node(state: DataState) -> Command:
     user_messages = [m for m in state["messages"] if isinstance(m, HumanMessage)]
@@ -26,24 +26,27 @@ def convert_to_geo_input(state: DataState) -> Dict:
 async def geo_helper_node(state: DataState) -> Command:
     geo_input = convert_to_geo_input(state)
     ai_state = await geo_helper_executor.ainvoke(geo_input)
-    output = getattr(ai_state, "response", None) or "⚠️ Geo Helper returned no response."
-    new_msgs = state["messages"] + [{"role": "assistant", "content": output}]
-    return Command(update={"messages": new_msgs, "geodata": getattr(ai_state, "geodata", state["geodata"])})
+    #output = getattr(ai_state, "response", None) or "⚠️ Geo Helper returned no response."
+    #new_msgs = state["messages"] + [{"role": "assistant", "content": output}]
+    return Command(update={"messages": ai_state["messages"], "geodata": ai_state["geodata"]}) # getattr(ai_state, "geodata", state["geodata"])})
 
 def convert_to_search_input(state: DataState) -> Dict:
     query = next((m.content for m in reversed(state["messages"]) if isinstance(m, HumanMessage)), "")
-    return state # {"query": query, "messages": state["messages"], "geodata": state["geodata"]}
+    # return state # {"query": query, "messages": state["messages"], "geodata": state["geodata"]}
+    return SearchState(raw_query=query)
+    
 
 async def librarien_node(state: DataState) -> Command:
     search_input = convert_to_search_input(state)
-    search_state = await librarien_executor.ainvoke(search_input)
+    search_state: SearchState = await librarien_executor.ainvoke(search_input)
     results = getattr(search_state, "results", None) or search_state.get("results", [])
     output = "####BEGIN_DB_RESULTS####"
     for r in results:
-        output += json.dumps(r) + "####"
+        output += json.dumps(r.model_dump()) + "####"
     output += "END_DB_RESULTS####"
-    new_msgs = state["messages"] + [{"role": "assistant", "content": output}]
-    return Command(update={"messages": new_msgs, "geodata": getattr(search_state, "geodata", state["geodata"])})
+    # print(output)
+    new_msgs = state["messages"] + [AIMessage(content="I found some layers and added them to the state ")]# [{"role": "assistant", "content": output}]
+    return Command(update={"messages": new_msgs, "geodata": results })
 
 # --- Build the graph ---
 graph = StateGraph(state_schema=DataState)
