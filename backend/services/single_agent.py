@@ -14,6 +14,7 @@ tools: List[BaseTool] = [
     set_result_list,
     list_global_geodata,
     describe_geodata_object,
+    geocode_using_geonames,
     geocode_using_nominatim_to_geostate,
     query_librarian_postgis,
     geoprocess_tool

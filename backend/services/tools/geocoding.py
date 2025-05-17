@@ -26,8 +26,21 @@ headers_geoweaver = {
 @tool
 def geocode_using_geonames(location: str, maxRows: int = 3) -> str:
     """
-    Geocode a location to get the responding bounding box using the GeoNames API. 
+    Use for: Basic geocoding of place names (e.g., cities, countries, landmarks). Returns coordinates and bounding boxes.  
+    Strengths: 
+    * Provides coordinates and a well managed system of hierarchical geographic data specific to administrational units, places and landmarks.
+    * Is globally consistent and represents better the official administrative units. 
+    * Has mulit language support.
+    * Can be used to quickly retrieve bounding boxes that can feed into other tools such as the query_librarian_postgis
+    * If a user requires a map with multiple locations such as cities and landmarks shown as pointsand a low zoom level, this datasource provides adequate data for the map. 
+     
+    Limitations:
+    * Returns only coordinates and bounding boxes. Is therefore not a good fit if user needs to actually see the boundaries of a country or city on the map
+    * Has no no street-level support and cannot serve for adress-level geocoding. 
     """
+    # Later * Can be used to retrieve hierarchical information on an adress e.g. country, state, city etc. which can be helpful to get more informmation on ambigous geocoding requests.
+  # Later: Tool can be used for reverse geocoding e.g. if a user inputs point data and would like to have a sumamry which points fall within which administrative unit. 
+    # Later: Add support for advanced querries like hierarchical querries, find nearby places, find country information, time zones, elevation etc. 
     url: str = f"http://api.geonames.org/searchJSON?q={location}&maxRows={maxRows}&username={getenv('GEONAMES_USER', 'geoweaver')}"
     response = requests.get(url)
 
@@ -44,7 +57,9 @@ def geocode_using_geonames(location: str, maxRows: int = 3) -> str:
 # Note: Contains GeoJSON & Bounding Box: TODO: sidechannel GeoJSON to not overload our LLMs
 @tool
 def geocode_using_nominatim(query: str, geojson: bool = False, maxRows: int = 3) -> str:
-    """Geocode an address using OpenStreetMap Nominatim API ."""
+    """ Geocoding user requests using the Open Street Map Nominatim API.
+    """
+    # TODO: Add support for OSM tags. 
     url: str = (
         f"https://nominatim.openstreetmap.org/search?q={query}&format=json&polygon_kml={1 if geojson else 0}&addressdetails=1&limit={maxRows}"
     )
@@ -111,7 +126,20 @@ def create_geodata_object_from_geojson(nominatim_response: Dict[str, Any]) -> Op
 
 @tool
 def geocode_using_nominatim_to_geostate(state: Annotated[GeoDataAgentState, InjectedState], tool_call_id: Annotated[str, InjectedToolCallId],  query: str, geojson: bool = True, maxRows: int = 5) -> Union[Dict[str, Any], Command]:
-    """Geocode an address using OpenStreetMap Nominatim API. Returns Bounding Box for further request and GeoJson of the area to show to the user."""
+    """Geocode an address using OpenStreetMap Nominatim API. Returns Bounding Box for further request and GeoJson of the area to show to the user. 
+    Use for:  Geocoding specific addresses or when detailed data (e.g., place types) is needed. 
+    Strengths: 
+    * Provides detailed polygon data as GeoJSON (e.g. polygons of countries, states, cities) which can be used for map visualization and further analysis. 
+    * For forward geocoding: Converts place names or addresses into geographic coordinates.
+    * Detailed address data, including house numbers, street names, neighborhoods, and postcodes.
+    * Provides the geographical extent (min/max latitude and longitude) for places, including cities, countries, and sometimes smaller features like neighborhoods
+    * Categorizes results by OSM tags, indicating the type of place (e.g., city, street, building, amenity, shop)
+    * Reverse geocoding: Converts geographic coordinates into detailed address information.
+    Limitations:
+    * Nominatim relies on crowd-sourced OSM data, so accuracy and completeness depend on community contributions.
+    * Provides limited metadata. It does not include attributes like population, elevation, time zones, or weather data.
+    * does not support broader geographical queries like finding nearby places, hierarchical relationships beyond administrative divisions
+    """
     url: str = (
         f"https://nominatim.openstreetmap.org/search?q={query}&format=json&polygon_geojson={1 if geojson else 0}&addressdetails=0&limit={maxRows}"
     )
