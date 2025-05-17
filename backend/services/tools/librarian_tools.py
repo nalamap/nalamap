@@ -67,16 +67,17 @@ def query_librarian_postgis(state: Annotated[GeoDataAgentState, InjectedState], 
 
         new_global_geodata: List[GeoDataObject]
 
-        if "global_geodata" not in state or state["global_geodata"] is None or not isinstance(state["global_geodata"], List) or len(state["global_geodata"] == 0):
+        if "global_geodata" not in state or state["global_geodata"] is None or not isinstance(state["global_geodata"], List) or len(state["global_geodata"]) == 0:
             new_global_geodata = results
         else:
-            state["global_geodata"].extend(results)
-            new_global_geodata = state["global_geodata"]
+            new_global_geodata = []
+            new_global_geodata.extend(state["global_geodata"])
+            new_global_geodata.extend(results)
 
         return Command(update={
                     "messages": [
                         *state["messages"], 
-                        ToolMessage(f"Retrieved {len(results)} results, added GeoDataObjects into the global_state, use id and data_source_id for reference: {json.dumps([ {"id": result.id, "data_source_id": result.data_source_id, "title": result.title} for result in results])}", tool_call_id=tool_call_id )
+                        ToolMessage(name="query_librarian_postgis", content=f"Retrieved {len(results)} results, added GeoDataObjects into the global_state, use id and data_source_id for reference: {json.dumps([ {"id": result.id, "data_source_id": result.data_source_id, "title": result.title} for result in results])}", tool_call_id=tool_call_id )
                         ], 
                     "global_geodata": new_global_geodata
         })
