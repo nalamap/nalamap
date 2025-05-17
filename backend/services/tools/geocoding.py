@@ -645,7 +645,7 @@ def geocode_using_overpass_to_geostate(
     amenity_key: str, # e.g. "restaurant", "park", "hospital" - to be mapped to OSM tags
     location_name: str, # e.g. "Paris", "London", "near the Colosseum"
     radius_meters: int = 10000, # Default search radius around a point, e.g. 10km
-    max_results: int = 50, # Max results from Overpass (applied by Overpass, not strictly by this post-processing)
+    max_results: int = 250, # Max results from Overpass (applied by Overpass, not strictly by this post-processing) - Increased default
     timeout: int = 300  # Default timeout in seconds
 ) -> Union[Dict[str, Any], Command]:
     """
@@ -760,6 +760,24 @@ def geocode_using_overpass_to_geostate(
         feature_dict = convert_osm_element_to_geojson_feature(element) # Pass osm_tag_kv for potential filtering if needed
 
         if feature_dict and feature_dict["geometry"]:
+            # Ensure the feature actually has the tag we're looking for if it's not a node.
+            # Nodes might be part of a way/relation that has the tag.
+            # For primary features (ways, relations with tags), they must have the tag.
+            # For nodes, they are included if they have the tag OR if they are just geometry for ways/rels.
+            # The convert_osm_element_to_geojson_feature doesn't strictly filter by tag anymore,
+            # so we do a check here for non-node elements if they are meant to be primary features.
+            element_tags = feature_dict.get("properties", {})
+            is_primary_tagged_feature = element_tags.get(osm_query_key) == osm_query_value
+
+            if element['type'] != 'node' and not is_primary_tagged_feature:
+                # This way or relation doesn't have the primary tag, so skip creating a feature from it,
+                # even if "out geom" produced some geometry for it.
+                continue
+            
+            # If it's a node, it's included if it has geometry (it could be a standalone tagged node, 
+            # or a geometry node for a way/relation).
+            # If it's a way/relation, it's included if it has the primary tag and geometry.
+
             processed_osm_ids.add(osm_element_id) # Mark as processed
             geom_type = feature_dict["geometry"]["type"]
             if geom_type == "Point":
@@ -772,7 +790,8 @@ def geocode_using_overpass_to_geostate(
             # convert_osm_element_to_geojson_feature currently produces simple geometries.
 
     created_collections: List[GeoDataObject] = []
-    collection_summaries_for_llm = []
+    # Changed from collection_summaries_for_llm to actionable_layers_info
+    actionable_layers_info = []
 
     if point_features:
         collection_obj = create_collection_geodata_object(
@@ -780,7 +799,7 @@ def geocode_using_overpass_to_geostate(
         )
         if collection_obj:
             created_collections.append(collection_obj)
-            collection_summaries_for_llm.append({"name": collection_obj.name, "type": "Points", "count": len(point_features), "stored_id": collection_obj.id})
+            actionable_layers_info.append({"name": collection_obj.name, "type": "Points", "count": len(point_features), "id": collection_obj.id, "data_source_id": "geocodeOverpassCollection"})
     
     if polygon_features:
         collection_obj = create_collection_geodata_object(
@@ -788,7 +807,7 @@ def geocode_using_overpass_to_geostate(
         )
         if collection_obj:
             created_collections.append(collection_obj)
-            collection_summaries_for_llm.append({"name": collection_obj.name, "type": "Areas", "count": len(polygon_features), "stored_id": collection_obj.id})
+            actionable_layers_info.append({"name": collection_obj.name, "type": "Areas", "count": len(polygon_features), "id": collection_obj.id, "data_source_id": "geocodeOverpassCollection"})
 
     if linestring_features:
         collection_obj = create_collection_geodata_object(
@@ -796,7 +815,7 @@ def geocode_using_overpass_to_geostate(
         )
         if collection_obj:
             created_collections.append(collection_obj)
-            collection_summaries_for_llm.append({"name": collection_obj.name, "type": "Lines", "count": len(linestring_features), "stored_id": collection_obj.id})
+            actionable_layers_info.append({"name": collection_obj.name, "type": "Lines", "count": len(linestring_features), "id": collection_obj.id, "data_source_id": "geocodeOverpassCollection"})
                 
     if not created_collections:
          return Command(update={"messages": [*state["messages"], ToolMessage(name="geocode_using_overpass_to_geostate", content=f"No '{amenity_key_display}' found with parsable geometry near '{resolved_location_display_name}' (within {radius_meters}m).", tool_call_id=tool_call_id)]})
@@ -805,21 +824,16 @@ def geocode_using_overpass_to_geostate(
     if not isinstance(current_geodata, list): current_geodata = []
     current_geodata.extend(created_collections)
 
-    # 6. Return success message
+    # 6. Return success message, structured for agent to easily call set_result_list
     total_features_found = len(point_features) + len(polygon_features) + len(linestring_features)
     
-    summary_parts = []
-    if point_features: summary_parts.append(f"{len(point_features)} point feature(s)")
-    if polygon_features: summary_parts.append(f"{len(polygon_features)} area feature(s)")
-    if linestring_features: summary_parts.append(f"{len(linestring_features)} line feature(s)")
-    
-    if not summary_parts: # Should not happen if created_collections is not empty
-        tool_message_content = f"Found {amenity_key_display} near '{resolved_location_display_name}', but could not form any geometry layers."
+    if not actionable_layers_info: 
+        tool_message_content = f"Found {amenity_key_display} near '{resolved_location_display_name}', but could not form any distinct geometry layers."
     else:
-        tool_message_content = f"Found {total_features_found} '{amenity_key_display}' feature(s) near '{resolved_location_display_name}'. Created {len(created_collections)} collection layer(s): {'; '.join(summary_parts)}."
-
-    if collection_summaries_for_llm:
-        tool_message_content += f" Layer details (name, type, count, stored_id): {json.dumps(collection_summaries_for_llm)}"
+        tool_message_content = f"Found {total_features_found} '{amenity_key_display}' feature(s) near '{resolved_location_display_name}'. Created {len(created_collections)} collection layer(s). "
+        tool_message_content += f"Details for agent: {json.dumps(actionable_layers_info)}. You can now use 'set_result_list' to make these layers available on the map."
+        # Example actionable_layers_info: 
+        # [{"name": "Hospitals (Points) near Bonn", "type": "Points", "count": 10, "id": "uuid1", "data_source_id": "geocodeOverpassCollection"}, ...]
 
     return Command(update={
         "messages": [*state["messages"], ToolMessage(name="geocode_using_overpass_to_geostate", content=tool_message_content, tool_call_id=tool_call_id)],
