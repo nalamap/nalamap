@@ -403,8 +403,9 @@ def create_collection_geodata_object(
     collection_type_name: str, # e.g., "Points", "Areas", "Lines"
     base_query_name: str, # e.g., "restaurants near Eiffel Tower"
     amenity_key_display: str, # e.g., "Restaurants"
-    location_name_display: str, # e.g., "Eiffel Tower"
-    osm_tag_kv_filter: str # e.g. "amenity=restaurant"
+    location_name_display: str, # e.g., "Eiffel Tower (using area bounds)" - for user-facing title/description
+    osm_tag_kv_filter: str, # e.g. "amenity=restaurant"
+    location_name_for_filename: str # e.g., "Eiffel Tower" - for cleaner filenames
     ) -> Optional[GeoDataObject]:
     """
     Creates a single GeoDataObject for a FeatureCollection of a specific geometry type.
@@ -420,10 +421,10 @@ def create_collection_geodata_object(
     }
 
     # Generate a unique ID and filename for the collection
-    # Make amenity_key_display and location_name_display safe for filenames
     safe_amenity_name = amenity_key_display.lower().replace(" ", "_").replace("=", "_").replace(":", "_")
-    safe_location_name = location_name_display.lower().replace(" ", "_").replace(",", "").replace("'", "")
-    file_name = f"overpass_{safe_amenity_name}_{collection_type_name.lower()}_{safe_location_name}.json"
+    # Use location_name_for_filename for a cleaner file path
+    safe_location_for_file = location_name_for_filename.lower().replace(" ", "_").replace(",", "").replace("'", "")
+    file_name = f"overpass_{safe_amenity_name}_{collection_type_name.lower()}_{safe_location_for_file}.json"
     
     data_url, unique_id = store_file(file_name, json.dumps(feature_collection).encode())
 
@@ -475,7 +476,7 @@ def create_collection_geodata_object(
     collection_properties = {
         "feature_count": len(features),
         "query_amenity_key": amenity_key_display,
-        "query_location": location_name_display,
+        "query_location": location_name_display, # Keep descriptive location here
         "query_osm_tag": osm_tag_kv_filter,
         "geometry_type_collected": collection_type_name
     }
@@ -694,7 +695,10 @@ def geocode_using_overpass_to_geostate(
 
     if point_features:
         collection_obj = create_collection_geodata_object(
-            point_features, "Points", query, amenity_key_display, resolved_location_display_name, osm_tag_kv
+            point_features, "Points", query, amenity_key_display, 
+            resolved_location_display_name, # For display
+            osm_tag_kv,
+            location_name # Original location_name for filename
         )
         if collection_obj:
             created_collections.append(collection_obj)
@@ -702,7 +706,10 @@ def geocode_using_overpass_to_geostate(
     
     if polygon_features:
         collection_obj = create_collection_geodata_object(
-            polygon_features, "Areas", query, amenity_key_display, resolved_location_display_name, osm_tag_kv
+            polygon_features, "Areas", query, amenity_key_display, 
+            resolved_location_display_name, # For display
+            osm_tag_kv,
+            location_name # Original location_name for filename
         )
         if collection_obj:
             created_collections.append(collection_obj)
@@ -710,7 +717,10 @@ def geocode_using_overpass_to_geostate(
 
     if linestring_features:
         collection_obj = create_collection_geodata_object(
-            linestring_features, "Lines", query, amenity_key_display, resolved_location_display_name, osm_tag_kv
+            linestring_features, "Lines", query, amenity_key_display, 
+            resolved_location_display_name, # For display
+            osm_tag_kv,
+            location_name # Original location_name for filename
         )
         if collection_obj:
             created_collections.append(collection_obj)
