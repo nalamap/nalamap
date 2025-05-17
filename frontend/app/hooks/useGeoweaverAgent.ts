@@ -36,22 +36,7 @@ export function useGeoweaverAgent(apiUrl: string) {
     try {
       let response = null;
       let fullQuery = input
-      if (endpoint === "search") {
-        const url = new URL(`${apiUrl}/search`);
-        if (options?.bboxWkt)
-        {
-          fullQuery += ` with given ${options.bboxWkt}`;
-        }
-        url.searchParams.set("query", fullQuery);
-        
-        //if (options?.portal) url.searchParams.set("portals", options.portal);
-        response = await fetch(url.toString(), {
-          method: "GET",
-        });
-      }
-      else if (endpoint === "geocode") {
-        response = await fetch(`${apiUrl}/${endpoint}?query=${encodeURIComponent(input)}`);
-      } else if (endpoint === "geoprocess" || endpoint === "chat") {
+      if (endpoint === "geoprocess" || endpoint === "chat" || endpoint === "geocode" || endpoint === "search") {
         const selectedLayers = useLayerStore.getState().layers.filter((l) => l.selected);
         const payload: GeoweaverRequest = {
           messages: messages.map(m => ({
@@ -61,7 +46,7 @@ export function useGeoweaverAgent(apiUrl: string) {
           query: input,
           geodata_last_results: geoDataList,
           geodata_layers: layerStore.layers,
-          global_geodata: geoDataList,
+          global_geodata: layerStore.globalGeodata,
           options: settingsMap
         }
         console.log(payload)
@@ -90,7 +75,10 @@ export function useGeoweaverAgent(apiUrl: string) {
 
       setGeoDataList(data.geodata_results);
       setMessages(data.messages);
-      // TODO: Sync Layers & global geodata
+      if (data.geodata_layers)
+        layerStore.synchronizeLayersFromBackend(data.geodata_layers);
+      if (data.global_geodata)
+        layerStore.synchronizeGlobalGeodataFromBackend(data.global_geodata);
     } catch (e: any) {
       setError(e.message || "Something went wrong");
     } finally {
