@@ -4,7 +4,7 @@ from langgraph.prebuilt import create_react_agent
 from langgraph.graph.graph import CompiledGraph
 from services.tools.librarian_tools import query_librarian_postgis
 from services.tools.geoprocess_tools import geoprocess_tool
-from services.tools.geocoding import geocode_using_nominatim_to_geostate
+from services.tools.geocoding import geocode_using_nominatim_to_geostate, geocode_using_geonames
 from services.tools.geostate_management import describe_geodata_object, list_global_geodata, set_result_list
 from models.states import GeoDataAgentState, get_medium_debug_state, get_minimal_debug_state
 from services.ai.llm_config import get_llm
