@@ -12,7 +12,7 @@ from services.ai.llm_config import get_llm
 
 
 tools: List[BaseTool] = [
-    set_result_list,
+    #set_result_list,
     list_global_geodata,
     describe_geodata_object,
     geocode_using_nominatim_to_geostate,
@@ -26,8 +26,8 @@ def create_geo_agent() -> CompiledGraph:
     system_prompt = (
         "You are NaLaMap: a geospatial assistant with map capabilities. "
         "The public state contains 'geodata_last_results' with the previous results, 'geodata_layers' for the geodata selected by the user. "
-        "The internal state contains 'global_geodata' which contains all geodata in the current user session and retrieved by tools. Use id and data_source_id to reference its datasets." \
-        "Always use the set_result_list at the end to show your retrieved geodata results to the user, set 'results_title' like 'Search results' and the list 'geodata_results' for Datasets you found and seem fitting."  
+        "The internal state contains 'global_geodata' which contains all geodata in the current user session and retrieved by tools. Use id and data_source_id to reference its datasets." #\
+        #"Always use the set_result_list at the end to show your retrieved geodata results to the user, set 'results_title' like 'Search results' and the list 'geodata_results' for Datasets you found and seem fitting."  
     )
     return create_react_agent(
         name="GeoAgent",

@@ -139,7 +139,8 @@ def geocode_using_nominatim_to_geostate(state: Annotated[GeoDataAgentState, Inje
                         *state["messages"], 
                         ToolMessage(name="geocode_using_nominatim_to_geostate", content=f"Retrieved {len(data)} results, added GeoDataObject into the global_state, id and data_source_id were added to the following result: {json.dumps(cleaned_data)}", tool_call_id=tool_call_id )
                         ] , 
-                    "global_geodata": state["global_geodata"]
+                    "global_geodata": state["global_geodata"],
+                    "geodata_results": state["global_geodata"]
                 })
             else: 
                 return { "message": f"Retrieved {len(data)} results.", "results": cleaned_data }
