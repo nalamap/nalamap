@@ -71,12 +71,12 @@ def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857"):
     # Reproject to chosen metric CRS for buffering
     gdf = gdf.to_crs(buffer_crs)
     # Buffer in meter units
-    gdf['geometry'] = gdf.geometry.buffer(radius)
+    gdf = gdf.buffer(radius)
     # Reproject back to geographic coords
     gdf = gdf.to_crs("EPSG:4326")
     # Export to GeoJSON Feature list
     fc = json.loads(gdf.to_json())
-    return fc['features']
+    return [fc]
 
 
 
