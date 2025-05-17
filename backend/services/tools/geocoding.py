@@ -729,7 +729,7 @@ def geocode_using_overpass_to_geostate(
         # Should not happen due to checks above, but as a safeguard:
         return Command(update={"messages": [*state["messages"], ToolMessage(name="geocode_using_overpass_to_geostate", content="Failed to establish a location filter for Overpass query.", tool_call_id=tool_call_id)]})
         
-    overpass_query = f\"\"\"
+    overpass_query = f"""
     [out:json][timeout:{timeout}];
     (
       node["{osm_query_key}"="{osm_query_value}"]{overpass_location_filter};
@@ -737,7 +737,7 @@ def geocode_using_overpass_to_geostate(
       relation["{osm_query_key}"="{osm_query_value}"]{overpass_location_filter};
     );
     out geom {max_results}; 
-    \"\"\"
+    """
 
     # 4. Execute Overpass API query
     overpass_api_url = "https://overpass-api.de/api/interpreter"
