@@ -4,6 +4,7 @@ import { GeoDataObject } from "../models/geodatamodel";
 
 type LayerStore = {
   layers: GeoDataObject[];
+  globalGeodata: GeoDataObject[];
   zoomTo: string | number | null;
   setZoomTo: (id: string | number | null) => void;
   addLayer: (layer: GeoDataObject) => void;
@@ -13,10 +14,14 @@ type LayerStore = {
   resetLayers: () => void;
   selectLayerForSearch: (resource_id: string | number) => void;
   reorderLayers: (from: number, to: number) => void;
+  // Backend State Sync method
+  synchronizeLayersFromBackend: (backend_layers: GeoDataObject[]) => void;
+  synchronizeGlobalGeodataFromBackend: (backend_global_geodata: GeoDataObject[]) => void;
 };
 
 export const useLayerStore = create<LayerStore>((set) => ({
   layers: [],
+  globalGeodata: [],
   zoomTo: null,
   setZoomTo: (id) => set({ zoomTo: id }), // now id can be null
   addLayer: (layer) =>
@@ -56,8 +61,8 @@ export const useLayerStore = create<LayerStore>((set) => ({
         selected: l.id === resource_id,
       })),
     })),
-   // --- Modified Function ---
-   toggleLayerSelection: (resource_id) =>
+  // --- Modified Function ---
+  toggleLayerSelection: (resource_id) =>
     set((state) => ({
       layers: state.layers.map((l) =>
         l.id === resource_id
@@ -72,5 +77,18 @@ export const useLayerStore = create<LayerStore>((set) => ({
       const [removed] = layers.splice(from, 1);
       layers.splice(to, 0, removed);
       return { layers };
+    }),
+  // Backend State Sync
+  synchronizeLayersFromBackend: (backend_layers) =>
+    set((state) => {
+      const layers = backend_layers;
+      //TODO: Maybe merge/improve later on?
+      return { layers };
+    }),
+  synchronizeGlobalGeodataFromBackend: (backend_global_geodata) =>
+    set((state) => {
+      const globalGeodata = backend_global_geodata;
+      //TODO: Maybe merge/improve later on?
+      return { globalGeodata };
     }),
 }));

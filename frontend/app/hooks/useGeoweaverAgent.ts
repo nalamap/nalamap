@@ -14,6 +14,23 @@ export function useGeoweaverAgent(apiUrl: string) {
   const [error, setError] = useState("");
   const layerStore = useLayerStore();
 
+
+  const appendHumanMessage = (query: string) => {
+    /* // Don't normalize for now to keep all arguments
+    const normalized: ChatMessage[] = messages.map(m => ({
+      content: m.content,
+      type: m.type,
+    }));*/
+
+    const humanMsg: ChatMessage = {
+      content: query,
+      type: "human",
+    };
+
+    setMessages([...messages, humanMsg]);
+  };
+
+
   async function queryGeoweaverAgent(
     endpoint: "chat" | "search" | "geocode" | "geoprocess",
     layerUrls: string[] = [],
@@ -36,34 +53,18 @@ export function useGeoweaverAgent(apiUrl: string) {
     try {
       let response = null;
       let fullQuery = input
-      if (endpoint === "search") {
-        const url = new URL(`${apiUrl}/search`);
-        if (options?.bboxWkt)
-        {
-          fullQuery += ` with given ${options.bboxWkt}`;
-        }
-        url.searchParams.set("query", fullQuery);
-        
-        //if (options?.portal) url.searchParams.set("portals", options.portal);
-        response = await fetch(url.toString(), {
-          method: "GET",
-        });
-      }
-      else if (endpoint === "geocode") {
-        response = await fetch(`${apiUrl}/${endpoint}?query=${encodeURIComponent(input)}`);
-      } else if (endpoint === "geoprocess" || endpoint === "chat") {
+      if (endpoint === "geoprocess" || endpoint === "chat" || endpoint === "geocode" || endpoint === "search") {
         const selectedLayers = useLayerStore.getState().layers.filter((l) => l.selected);
+        appendHumanMessage(input);
         const payload: GeoweaverRequest = {
-          messages: messages.map(m => ({
-            content: m.content,
-            type: m.type
-          })),
+          messages: messages,
           query: input,
           geodata_last_results: geoDataList,
           geodata_layers: layerStore.layers,
-          global_geodata: geoDataList,
+          global_geodata: layerStore.globalGeodata,
           options: settingsMap
         }
+        setInput("");
         console.log(payload)
         response = await fetch(`${apiUrl}/${endpoint}`, {
           method: 'POST',
@@ -90,7 +91,10 @@ export function useGeoweaverAgent(apiUrl: string) {
 
       setGeoDataList(data.geodata_results);
       setMessages(data.messages);
-      // TODO: Sync Layers & global geodata
+      if (data.geodata_layers)
+        layerStore.synchronizeLayersFromBackend(data.geodata_layers);
+      if (data.global_geodata)
+        layerStore.synchronizeGlobalGeodataFromBackend(data.global_geodata);
     } catch (e: any) {
       setError(e.message || "Something went wrong");
     } finally {

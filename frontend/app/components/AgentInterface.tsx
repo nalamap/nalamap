@@ -3,9 +3,10 @@
 import { useState, useEffect, useRef } from "react";
 import wellknown from "wellknown";
 import { useGeoweaverAgent } from "../hooks/useGeoweaverAgent";
-import { ArrowUp, X } from "lucide-react";
+import { ArrowUp, X, Loader2 } from "lucide-react";
 import { useLayerStore } from "../stores/layerStore";
 import { GeoDataObject } from "../models/geodatamodel";
+import { hashString } from "../utils/hashUtil";
 
 // helper to get a WKT string from whatever format the store has
 function toWkt(bbox: GeoDataObject["bounding_box"]): string | undefined {
@@ -99,9 +100,9 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
         portal: portal,
         bboxWkt: wkt
       };
-  
-      await queryGeoweaverAgent("search", undefined , apiOptions);
-  
+
+      await queryGeoweaverAgent("search", undefined, apiOptions);
+
       setConversation((c) => [
         ...c,
         { role: "agent", content: "Search complete." },
@@ -152,8 +153,6 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
         },
       ]);*/
     }
-
-    setInput("");
   };
 
   const handleLayerSelect = (layer: any) => {
@@ -176,6 +175,8 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
       <div ref={containerRef} className="overflow-auto flex-1 scroll-smooth pb-2">
         <div className="flex flex-col space-y-3">
           {conversation.map((msg, idx) => {
+            const msgKey = msg.id?.trim() || hashString(`${idx}:${msg.type}:${msg.content}`);
+
             // 1) Handle an AI message that kicked off a tool call
             if (msg.type === 'ai' && msg.additional_kwargs?.tool_calls?.length) {
 
@@ -187,7 +188,7 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
 
               return (
                 <div
-                  key={msg.id}
+                  key={msgKey}
                   className="flex justify-start"
                 >
                   <div className="max-w px-4 py-2 rounded-lg bg-gray-50 rounded-tl-none border">
@@ -227,7 +228,7 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
             const isHuman = msg.type === 'human'
             return (
               <div
-                key={msg.id}
+                key={msgKey}
                 className={`flex ${isHuman ? 'justify-end' : 'justify-start'}`}
               >
                 <div
@@ -248,9 +249,19 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
               </div>
             )
           })}
+
+          {(loading &&
+            <div className="flex justify-start mb-2">
+              <div className="flex items-center space-x-2 max-w-[80%] px-4 py-2 rounded-lg bg-gray-50 rounded-tl-none border">
+                {/* spinning loader */}
+                <Loader2 size={16} className="animate-spin text-gray-500" />
+                <span className="text-sm text-gray-500">NaLaMap Agent is typing...</span>
+              </div>
+            </div>
+          )}
         </div>
 
-        {(activeTool === "search" || activeTool === "geocode" || activeTool === "chat" || activeTool === "geoprocess") && geoDataList.length > 0 && (
+        {(activeTool === "search" || activeTool === "geocode" || activeTool === "chat" || activeTool === "geoprocess") && geoDataList.length > 0 && !loading && (
           <div className="max-h-100 overflow-y-auto mt-6 mb-2 px-2 bg-gray-50 rounded border">
             <div className="font-semibold p-1">Search Results:</div>
             {resultsToShow.map((result) => (
@@ -272,10 +283,10 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
         )}
       </div>
 
-      <hr className="my-4" />
+      < hr className="my-4" />
 
       {/* Tool selector and input */}
-      <div className="mb-4">
+      < div className="mb-4" >
         <div className="flex flex-wrap gap-2 justify-center sm:flex-row flex-col">
           <button
             onClick={() => setActiveTool("chat")}
@@ -332,23 +343,25 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
             <ArrowUp size={20} />
           </button>
         </form>
-      </div>
+      </div >
       {/* Overlay details panel */}
-      {overlayData && (
-        <div className="fixed right-4 top-16 w-1/3 max-h-[70vh] overflow-y-auto bg-white shadow-lg rounded p-4 z-50">
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="text-lg font-bold">{overlayData.title}</h3>
-            <button onClick={() => setOverlayData(null)}><X /></button>
+      {
+        overlayData && (
+          <div className="fixed right-4 top-16 w-1/3 max-h-[70vh] overflow-y-auto bg-white shadow-lg rounded p-4 z-50">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-lg font-bold">{overlayData.title}</h3>
+              <button onClick={() => setOverlayData(null)}><X /></button>
+            </div>
+            <p className="text-sm text-gray-700 mb-2">{overlayData.llm_description}</p>
+            <div className="text-[10px] text-gray-500 mb-1">Source: {overlayData.data_source}</div>
+            <div className="text-[10px] text-gray-500 mb-1">Layer Type: {overlayData.layer_type}</div>
+            <div className="text-[10px] text-gray-500">Score: {overlayData.score}</div>
+            {overlayData.bounding_box && (
+              <pre className="text-[10px] text-gray-500 mt-2 whitespace-pre-wrap break-all">BBox: {overlayData.bounding_box}</pre>
+            )}
           </div>
-          <p className="text-sm text-gray-700 mb-2">{overlayData.llm_description}</p>
-          <div className="text-[10px] text-gray-500 mb-1">Source: {overlayData.data_source}</div>
-          <div className="text-[10px] text-gray-500 mb-1">Layer Type: {overlayData.layer_type}</div>
-          <div className="text-[10px] text-gray-500">Score: {overlayData.score}</div>
-          {overlayData.bounding_box && (
-            <pre className="text-[10px] text-gray-500 mt-2 whitespace-pre-wrap break-all">BBox: {overlayData.bounding_box}</pre>
-          )}
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 }

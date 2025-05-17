@@ -33,8 +33,8 @@ def create_geo_agent() -> CompiledGraph:
         name="GeoAgent",
         state_schema=GeoDataAgentState,
         tools=tools,
-        model=llm,
-        prompt=system_prompt #,
+        model=llm.bind_tools(tools, parallel_tool_calls=False),
+        prompt=system_prompt
         #debug=True,
         # config_schema=GeoData,
         #response_format=GeoData

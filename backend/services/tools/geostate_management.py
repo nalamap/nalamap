@@ -43,7 +43,7 @@ def set_result_list(state: Annotated[GeoDataAgentState, InjectedState], tool_cal
     return Command(update={
                     "messages": [
                         *state["messages"], 
-                        ToolMessage(message, tool_call_id=tool_call_id )
+                        ToolMessage(name="set_result_list", content=message, tool_call_id=tool_call_id )
                         ],
                     "geodata_results": result_list
                 })

@@ -330,7 +330,7 @@ def geoprocess_tool(
     return Command(
         update={
             "messages": [
-                ToolMessage("Tools used: " + ", ".join(tools_used) + f". Added GeoDataObjects into the global_state, use id and data_source_id for reference: {json.dumps([ {"id": result.id, "data_source_id": result.data_source_id, "title": result.title} for result in new_geodata])}", tool_call_id=tool_call_id)
+                ToolMessage(name="geoprocess_tool", content="Tools used: " + ", ".join(tools_used) + f". Added GeoDataObjects into the global_state, use id and data_source_id for reference: {json.dumps([ {"id": result.id, "data_source_id": result.data_source_id, "title": result.title} for result in new_geodata])}", tool_call_id=tool_call_id)
             ],
             "global_geodata": new_geodata
         }
