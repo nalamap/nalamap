@@ -443,19 +443,19 @@ body {
 
 /* Add custom styling for markdown chat content */
 .chat-markdown {
-  @apply prose-sm prose-headings:mt-2 prose-headings:mb-1 prose-p:mt-1 prose-p:mb-1;
+  @apply text-sm;
 }
 
 .chat-markdown h1 {
-  @apply text-lg font-bold;
+  @apply text-lg font-bold mt-2 mb-1;
 }
 
 .chat-markdown h2 {
-  @apply text-base font-bold;
+  @apply text-base font-bold mt-2 mb-1;
 }
 
 .chat-markdown h3 {
-  @apply text-sm font-bold;
+  @apply text-sm font-bold mt-2 mb-1;
 }
 
 .chat-markdown ul {
@@ -492,6 +492,10 @@ body {
 
 .chat-markdown em {
   @apply italic;
+}
+
+.chat-markdown p {
+  @apply mt-1 mb-1;
 }
 
 /* End of custom markdown styling */
