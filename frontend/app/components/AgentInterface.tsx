@@ -11,19 +11,23 @@ import { GeoDataObject, StyleOptions } from "../models/geodatamodel";
 function parseStyleString(desc: string): Partial<StyleOptions> {
   const opts: Partial<StyleOptions> = {};
   const lower = desc.toLowerCase();
-  // stroke/outline color (named or hex) and optional fill color
-  const strokeMatch = desc.match(/(?:stroke color|color)\s+(?:to\s+)?(#(?:[0-9a-f]{3,6})|[a-z]+(?:-[a-z]+)*)/i);
-  if (strokeMatch) {
-    opts.strokeColor = strokeMatch[1];
+  const strokeMatches = Array.from(desc.matchAll(/(?:stroke color|color)\s+to\s+(#[0-9a-f]{3,6}|[a-z]+(?:-[a-z]+)*)/gi));
+  if (strokeMatches.length > 0) {
+    const lastMatch = strokeMatches[strokeMatches.length - 1];
+    const color = lastMatch[1];
+    opts.strokeColor = color;
     // default fillColor to same if not explicitly set later
-    opts.fillColor = strokeMatch[1];
+    opts.fillColor = color;
   }
-  // generic 'to <color>' if no explicit color directive
+  // generic 'to <color>' or 'to color <color>' fallback if no explicit directive
   if (!opts.strokeColor) {
-    const genericMatch = desc.match(/to\s+(#(?:[0-9a-f]{3,6})|[a-z]+(?:-[a-z]+)*)/i);
-    if (genericMatch) {
-      opts.strokeColor = genericMatch[1];
-      opts.fillColor = genericMatch[1];
+    const genericMatches = Array.from(
+      desc.matchAll(/to\s+(?:color\s+)?(#[0-9a-fA-F]{3,6}|[a-z]+(?:-[a-z]+)*)/gi)
+    );
+    if (genericMatches.length > 0) {
+      const lastColor = genericMatches[genericMatches.length - 1][1];
+      opts.strokeColor = lastColor;
+      opts.fillColor = lastColor;
     }
   }
   const fillMatch = desc.match(/(?:fill color)\s+(?:to\s+)?(#(?:[0-9a-f]{3,6})|[a-z]+(?:-[a-z]+)*)/i);
@@ -146,16 +150,19 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
     const styleOpts = parseStyleString(input);
     if (Object.keys(styleOpts).length > 0) {
       const layers = useLayerStore.getState().layers;
-      // Determine if user mentioned a specific layer by name
       const inputLower = input.toLowerCase();
-      const explicitNames = layers.map(l => l.name.toLowerCase()).filter(name => inputLower.includes(name));
-      if (explicitNames.length > 0) {
+      // Find explicitly named layers (match name or name.geojson or title)
+      const explicitLayers = layers.filter(l => {
+        const name = l.name.toLowerCase();
+        const nameWithExt = name.endsWith('.geojson') ? name : `${name}.geojson`;
+        const title = (l.title || '').toLowerCase();
+        return inputLower.includes(name) || inputLower.includes(nameWithExt) || (title && inputLower.includes(title));
+      });
+      if (explicitLayers.length > 0) {
         // apply to each mentioned layer
-        explicitNames.forEach(name => {
-          const layer = layers.find(l => l.name.toLowerCase() === name);
-          if (layer) useLayerStore.getState().updateLayerStyle(layer.id, styleOpts);
-        });
-        setConversation(prev => [...prev, { role: 'agent', content: `Updated layer(s): ${explicitNames.join(', ')}.` }]);
+        explicitLayers.forEach(layer => useLayerStore.getState().updateLayerStyle(layer.id, styleOpts));
+        const updatedNames = explicitLayers.map(l => l.name).join(', ');
+        setConversation(prev => [...prev, { role: 'agent', content: `Updated layer(s): ${updatedNames}.` }]);
       } else {
         // generic: apply to all layers
         layers.forEach(layer => useLayerStore.getState().updateLayerStyle(layer.id, styleOpts));
@@ -272,9 +279,9 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
 
               return (
                 <div
-                  key={msg.id}
-                  className="flex justify-start"
-                >
+                  key={idx}
+                   className="flex justify-start"
+                 >
                   <div className="max-w px-4 py-2 rounded-lg bg-gray-50 rounded-tl-none border">
                     {/* “Using tool…” header */}
                     <div className="text-sm font-medium">
@@ -293,9 +300,9 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
 
                     {/* if expanded, show the next message’s content (must be type "tool") */}
                     {isOpen &&
-                      conversation[idx + 1]?.type === 'tool' && (
+                      allMessages[idx + 1]?.type === 'tool' && (
                         <div className="mt-2 text-sm break-words whitespace-pre-wrap">
-                          {conversation[idx + 1].content}
+                          {allMessages[idx + 1].content}
                         </div>
                       )}
                   </div>
