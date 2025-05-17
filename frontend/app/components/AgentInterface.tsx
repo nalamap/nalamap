@@ -5,7 +5,65 @@ import wellknown from "wellknown";
 import { useGeoweaverAgent } from "../hooks/useGeoweaverAgent";
 import { ArrowUp, X } from "lucide-react";
 import { useLayerStore } from "../stores/layerStore";
-import { GeoDataObject } from "../models/geodatamodel";
+import { GeoDataObject, StyleOptions } from "../models/geodatamodel";
+
+// Utility to parse style descriptions into StyleOptions
+function parseStyleString(desc: string): Partial<StyleOptions> {
+  const opts: Partial<StyleOptions> = {};
+  const lower = desc.toLowerCase();
+  // stroke/outline color (named or hex) and optional fill color
+  const strokeMatch = desc.match(/(?:stroke color|color)\s+(?:to\s+)?(#(?:[0-9a-f]{3,6})|[a-z]+(?:-[a-z]+)*)/i);
+  if (strokeMatch) {
+    opts.strokeColor = strokeMatch[1];
+    // default fillColor to same if not explicitly set later
+    opts.fillColor = strokeMatch[1];
+  }
+  // generic 'to <color>' if no explicit color directive
+  if (!opts.strokeColor) {
+    const genericMatch = desc.match(/to\s+(#(?:[0-9a-f]{3,6})|[a-z]+(?:-[a-z]+)*)/i);
+    if (genericMatch) {
+      opts.strokeColor = genericMatch[1];
+      opts.fillColor = genericMatch[1];
+    }
+  }
+  const fillMatch = desc.match(/(?:fill color)\s+(?:to\s+)?(#(?:[0-9a-f]{3,6})|[a-z]+(?:-[a-z]+)*)/i);
+  if (fillMatch) {
+    opts.fillColor = fillMatch[1];
+  }
+  // opacity
+  const opacityMatch = lower.match(/opacity ([0-9]*\.?[0-9]+)%?/);
+  if (opacityMatch) {
+    const val = parseFloat(opacityMatch[1]);
+    opts.opacity = val > 1 ? val / 100 : val;
+  }
+  // fill opacity
+  const fillOpacityMatch = lower.match(/(?:fill opacity|capacity) ([0-9]*\.?[0-9]+)%?/);
+  if (fillOpacityMatch) {
+    const val = parseFloat(fillOpacityMatch[1]);
+    opts.fillOpacity = val > 1 ? val / 100 : val;
+  }
+  // weight
+  const weightMatch = lower.match(/weight (\d*\.?\d+)/);
+  if (weightMatch) {
+    opts.weight = parseFloat(weightMatch[1]);
+  }
+  // dash array
+  const dashArrayMatch = lower.match(/dash array ([0-9, ]+)/);
+  if (dashArrayMatch) {
+    opts.dashArray = dashArrayMatch[1].trim();
+  }
+  // dash offset
+  const dashOffsetMatch = lower.match(/dash offset ([0-9, ]+)/);
+  if (dashOffsetMatch) {
+    opts.dashOffset = dashOffsetMatch[1].trim();
+  }
+  // radius for circle markers
+  const radiusMatch = lower.match(/radius (\d*\.?\d+)/);
+  if (radiusMatch) {
+    opts.radius = parseFloat(radiusMatch[1]);
+  }
+  return opts;
+}
 
 // helper to get a WKT string from whatever format the store has
 function toWkt(bbox: GeoDataObject["bounding_box"]): string | undefined {
@@ -49,7 +107,7 @@ interface Props {
 export default function AgentInterface({ onLayerSelect, conversation: conversation_old, setConversation }: Props) {
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
   const [activeTool, setActiveTool] = useState<"search" | "chat" | "geocode" | "geoprocess" | null>("chat");
-  const { input, setInput, messages: conversation, geoDataList, loading, error, queryGeoweaverAgent } = useGeoweaverAgent(API_BASE_URL);
+  const { input, setInput, messages: agentMessages, geoDataList, loading, error, queryGeoweaverAgent } = useGeoweaverAgent(API_BASE_URL);
   const containerRef = useRef<HTMLDivElement>(null);
   const addLayer = useLayerStore((s) => s.addLayer);
   const getLayers = useLayerStore.getState;
@@ -71,14 +129,41 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
   useEffect(() => {
     const el = containerRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [conversation]);
+  }, [conversation_old, agentMessages]);
+
+  // combine style chat messages (prop) and agent conversations (hook)
+  const styleChat = conversation_old.map((msg) => ({ type: msg.role === 'user' ? 'human' : 'ai', content: msg.content }));
+  const allMessages = [...styleChat, ...agentMessages];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
 
-    // Add user message
-    setConversation((c) => [...c, { role: "user", content: input }]);
+    // Record user message in chat
+    setConversation(prev => [...prev, { role: 'user', content: input }]);
+    
+    // Auto-detect any style keywords and apply
+    const styleOpts = parseStyleString(input);
+    if (Object.keys(styleOpts).length > 0) {
+      const layers = useLayerStore.getState().layers;
+      // Determine if user mentioned a specific layer by name
+      const inputLower = input.toLowerCase();
+      const explicitNames = layers.map(l => l.name.toLowerCase()).filter(name => inputLower.includes(name));
+      if (explicitNames.length > 0) {
+        // apply to each mentioned layer
+        explicitNames.forEach(name => {
+          const layer = layers.find(l => l.name.toLowerCase() === name);
+          if (layer) useLayerStore.getState().updateLayerStyle(layer.id, styleOpts);
+        });
+        setConversation(prev => [...prev, { role: 'agent', content: `Updated layer(s): ${explicitNames.join(', ')}.` }]);
+      } else {
+        // generic: apply to all layers
+        layers.forEach(layer => useLayerStore.getState().updateLayerStyle(layer.id, styleOpts));
+        setConversation(prev => [...prev, { role: 'agent', content: `Updated all layers with your style settings.` }]);
+      }
+      setInput('');
+      return;
+    }
 
     if (activeTool === "search") {
       let wkt: string | undefined = undefined;
@@ -175,14 +260,14 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
       {/* Chat content area */}
       <div ref={containerRef} className="overflow-auto flex-1 scroll-smooth pb-2">
         <div className="flex flex-col space-y-3">
-          {conversation.map((msg, idx) => {
+          {allMessages.map((msg, idx) => {
             // 1) Handle an AI message that kicked off a tool call
-            if (msg.type === 'ai' && msg.additional_kwargs?.tool_calls?.length) {
+            if (msg.type === 'ai' && (msg as any).additional_kwargs?.tool_calls?.length) {
 
               if (!showToolMessages)
                 return; // 
 
-              const call = msg.additional_kwargs.tool_calls[0]
+              const call = (msg as any).additional_kwargs.tool_calls[0]
               const isOpen = !!expandedToolMessage[idx]
 
               return (
@@ -227,7 +312,7 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
             const isHuman = msg.type === 'human'
             return (
               <div
-                key={msg.id}
+                key={idx}
                 className={`flex ${isHuman ? 'justify-end' : 'justify-start'}`}
               >
                 <div
@@ -238,11 +323,7 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
                 >
                   <div className="text-sm break-words">{msg.content}</div>
                   <div className="text-xs text-gray-500 mt-1">
-                    {isHuman
-                      ? 'You'
-                      : msg.type === 'ai'
-                        ? 'Agent'
-                        : 'Unknown'}
+                    {isHuman ? 'You' : 'Agent'}
                   </div>
                 </div>
               </div>

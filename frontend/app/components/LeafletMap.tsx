@@ -8,13 +8,14 @@ import L from "leaflet";
 import "leaflet-fullscreen/dist/leaflet.fullscreen.css";
 import "leaflet-fullscreen";
 
-import { useMapStore } from "../stores/mapStore"; // Adjust path accordingly
+import { useMapStore } from "../stores/mapStore";
 import { useLayerStore } from "../stores/layerStore";
-import { ZoomToSelected } from "./ZoomToLayer"; // adjust path
+import { ZoomToSelected } from "./ZoomToLayer";
 
 // Fix leaflet's default icon path issue
 import "leaflet/dist/leaflet.css";
 import { GeoDataObject } from "../models/geodatamodel";
+import { StyleOptions } from "../models/geodatamodel";
 
 const defaultIcon = new L.Icon({
   iconUrl: "/marker-icon.png", // Make sure this is in /public folder
@@ -122,9 +123,14 @@ function parseWMSUrl(access_url: string) {
 }
 
 
-function LeafletGeoJSONLayer({ url }: { url: string }) {
+// GeoJSON layer component with dynamic styling
+function LeafletGeoJSONLayer({ url, style }: { url: string; style?: StyleOptions }) {
   const [data, setData] = useState<any>(null);
   const map = useMap();
+  // ref to GeoJSON layer for style updates
+  const geojsonRef = useRef<L.GeoJSON | null>(null);
+  // Keep a ref of the latest style options so event handlers always see updates
+  const styleRef = useRef<StyleOptions | undefined>(style);
 
   useEffect(() => {
     fetch(url)
@@ -132,6 +138,16 @@ function LeafletGeoJSONLayer({ url }: { url: string }) {
       .then((json) => setData(json))
       .catch((err) => console.error("Error fetching GeoJSON:", err));
   }, [url]);
+
+  useEffect(() => { styleRef.current = style; }, [style]);
+
+  // When style prop changes, update existing layer styles
+  useEffect(() => {
+    if (geojsonRef.current) {
+      // Apply the new style to all features immediately
+      geojsonRef.current.setStyle(styleCallback);
+    }
+  }, [style]);
 
   const onEachFeature = (feature: any, layer: L.Layer) => {
     const props = feature.properties;
@@ -172,11 +188,11 @@ function LeafletGeoJSONLayer({ url }: { url: string }) {
       tooltip?.bindTooltip(`${firstValue}`, { sticky: true });
     });
 
-    // Highlight on hover, only for non-marker layers
+    // Highlight on hover, then restore to stored initial style on mouseout
     layer.on({
       mouseover: (e) => {
         if ("setStyle" in e.target) {
-          e.target.setStyle({
+          (e.target as L.Path).setStyle({
             weight: 3,
             color: "#666",
             fillOpacity: 0.7,
@@ -184,36 +200,64 @@ function LeafletGeoJSONLayer({ url }: { url: string }) {
         }
       },
       mouseout: (e) => {
-        if ("setStyle" in e.target && geojsonRef) {
-          geojsonRef.resetStyle(e.target);
+        if ("setStyle" in e.target) {
+          // Compute fresh style from latest styleRef
+          const curr = styleRef.current || {};
+          (e.target as L.Path).setStyle({
+            color: curr.strokeColor || "#3388ff",
+            weight: curr.weight || 2,
+            opacity: curr.opacity || 1,
+            dashArray: curr.dashArray,
+            dashOffset: curr.dashOffset,
+            fillColor: curr.fillColor ?? curr.strokeColor || "#3388ff",
+            fillOpacity: curr.fillOpacity,
+          });
         }
       },
     });
   };
 
-  let geojsonRef: L.GeoJSON | null = null;
-
+  // handle ref assignment from GeoJSON component
   const handleGeoJsonRef = (layer: L.GeoJSON) => {
     if (!layer) return;
-    geojsonRef = layer;
+    geojsonRef.current = layer;
     map.fitBounds(layer.getBounds());
   };
 
+  // pointToLayer: always use circle markers with defaults
   const pointToLayer = (feature: any, latlng: L.LatLng) => {
-    return L.marker(latlng, { icon: defaultIcon });
+    const curr = styleRef.current;
+    const opts: L.CircleMarkerOptions = {
+      radius: curr?.radius ?? 8,
+      color: curr?.strokeColor || "#3388ff",
+      weight: curr?.weight || 2,
+      opacity: curr?.opacity || 1,
+      dashArray: curr?.dashArray,
+      dashOffset: curr?.dashOffset,
+      fillColor: curr?.fillColor ?? curr?.strokeColor || "#3388ff",
+      fillOpacity: curr?.fillOpacity,
+    };
+    return L.circleMarker(latlng, opts);
   };
 
+  // style callback for GeoJSON and manual restoration
+  const styleCallback = () => ({
+    color: styleRef.current?.strokeColor || "#3388ff",
+    weight: styleRef.current?.weight || 2,
+    opacity: styleRef.current?.opacity || 1,
+    dashArray: styleRef.current?.dashArray,
+    dashOffset: styleRef.current?.dashOffset,
+    // ensure fillColor matches strokeColor if not explicitly set
+    fillColor: styleRef.current?.fillColor ?? styleRef.current?.strokeColor || "#3388ff",
+    fillOpacity: styleRef.current?.fillOpacity,
+  });
   return data ? (
     <GeoJSON
       data={data}
       onEachFeature={onEachFeature}
       pointToLayer={pointToLayer}
       ref={handleGeoJsonRef}
-      style={() => ({
-        color: "#3388ff",
-        weight: 2,
-        fillOpacity: 0.3,
-      })}
+      style={styleCallback}
     />
   ) : null;
 }
@@ -360,7 +404,13 @@ export default function LeafletMapComponent() {
                 layer.layer_type?.toUpperCase() === "WFS" || layer.layer_type?.toUpperCase() === "UPLOADED" ||
                 layer.data_link.toLowerCase().includes("json")
               ) {
-                return <LeafletGeoJSONLayer key={layer.id} url={layer.data_link} />;
+                return (
+                  <LeafletGeoJSONLayer
+                    key={layer.id}
+                    url={layer.data_link}
+                    style={layer.style}
+                  />
+                );
               }
               return null;
             })}

@@ -5,6 +5,18 @@ export interface ChatMessage {
     additional_kwargs?: Record<string, any>
 }
 
+// New interface for styling GeoJSON layers
+export interface StyleOptions {
+  strokeColor?: string;
+  weight?: number;
+  opacity?: number;
+  dashArray?: string;
+  dashOffset?: string;
+  fillColor?: string;
+  fillOpacity?: number;
+  radius?: number;
+}
+
 export interface GeoDataObject {
     id: string
     data_source_id: string
@@ -22,6 +34,7 @@ export interface GeoDataObject {
     properties?: Record<string, string>
     visible?: boolean
     selected?: boolean;     // <— new flag
+    style?: StyleOptions;   // optional styling options
 }
 
 export interface GeoweaverRequest {
