@@ -6,6 +6,7 @@ import { useGeoweaverAgent } from "../hooks/useGeoweaverAgent";
 import { ArrowUp, X } from "lucide-react";
 import { useLayerStore } from "../stores/layerStore";
 import { GeoDataObject } from "../models/geodatamodel";
+import { hashString } from "../utils/hashUtil";
 
 // helper to get a WKT string from whatever format the store has
 function toWkt(bbox: GeoDataObject["bounding_box"]): string | undefined {
@@ -99,9 +100,9 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
         portal: portal,
         bboxWkt: wkt
       };
-  
-      await queryGeoweaverAgent("search", undefined , apiOptions);
-  
+
+      await queryGeoweaverAgent("search", undefined, apiOptions);
+
       setConversation((c) => [
         ...c,
         { role: "agent", content: "Search complete." },
@@ -176,6 +177,8 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
       <div ref={containerRef} className="overflow-auto flex-1 scroll-smooth pb-2">
         <div className="flex flex-col space-y-3">
           {conversation.map((msg, idx) => {
+            const msgKey = msg.id?.trim() || hashString(`${msg.type}:${msg.content}`);
+
             // 1) Handle an AI message that kicked off a tool call
             if (msg.type === 'ai' && msg.additional_kwargs?.tool_calls?.length) {
 
@@ -187,7 +190,7 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
 
               return (
                 <div
-                  key={msg.id}
+                  key={msgKey}
                   className="flex justify-start"
                 >
                   <div className="max-w px-4 py-2 rounded-lg bg-gray-50 rounded-tl-none border">
@@ -227,7 +230,7 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
             const isHuman = msg.type === 'human'
             return (
               <div
-                key={msg.id}
+                key={msgKey}
                 className={`flex ${isHuman ? 'justify-end' : 'justify-start'}`}
               >
                 <div
