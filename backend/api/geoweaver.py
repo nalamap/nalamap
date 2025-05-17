@@ -8,6 +8,7 @@ from models.messages.chat_messages import GeoweaverRequest, GeoweaverResponse
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage, FunctionMessage
 from services.multi_agent_orch import multi_agent_executor
 import json
+import openai # Import openai for error handling
 
 def normalize_messages(raw: List[BaseMessage]) -> List[BaseMessage]:
     normalized: List[BaseMessage] = []
@@ -148,22 +149,59 @@ async def ask_geoweaver(request: GeoweaverRequest):
 
     state: GeoDataAgentState = GeoDataAgentState(messages=messages, geodata_last_results=request.geodata_last_results, geodata_layers=request.geodata_layers, global_geodata=request.global_geodata, results_title="", geodata_results=[])
 
-    executor_result: GeoDataAgentState = single_agent.invoke(state, debug=True)
-    #executor_result=state
-    #print(executor_result)
-    #print(executor_result['geodata'])
-    #print(getattr(executor_result, "geodata", state["geodata"]))
-    result_messages: List[BaseMessage] = executor_result['messages']
-    result_response: str = result_messages[-1].content
-    results_title: Optional[str] = getattr(executor_result, "results_title", "")
-    if "results_title" in executor_result:
-        results_title = executor_result["results_title"]
-    else:
-        results_title = ""
-    geodata_results: List[GeoDataObject] = executor_result['geodata_results']
-    geodata_layers: List[GeoDataObject] = executor_result['geodata_layers']
-    global_geodata: List[GeoDataObject] = executor_result['global_geodata']
+    try:
+        executor_result: GeoDataAgentState = single_agent.invoke(state, debug=True)
+        
+        result_messages: List[BaseMessage] = executor_result.get('messages', [])
+        results_title: Optional[str] = executor_result.get("results_title", "")
+        geodata_results: List[GeoDataObject] = executor_result.get('geodata_results', [])
+        geodata_layers: List[GeoDataObject] = executor_result.get('geodata_layers', [])
+        global_geodata: List[GeoDataObject] = executor_result.get('global_geodata', [])
+
+        if not result_messages: # Should always have messages, but safeguard
+            result_messages = [AIMessage(content="Agent processed the request but returned no explicit messages.")]
+
+    except openai.InternalServerError as e:
+        print(f"OpenAI Internal Server Error: {e}")
+        error_message = f"I encountered an issue with the AI model while processing your request (Internal Server Error: {e.response.status_code if e.response else 'N/A'}). This might be a temporary problem. Please try again in a few moments. If the problem persists, simplifying your query might help."
+        result_messages = [*messages, AIMessage(content=error_message)] # Include history
+        results_title = "Model Error"
+        geodata_results = []
+        geodata_layers = state.get('geodata_layers', []) # Preserve existing layers
+        global_geodata = state.get('global_geodata', []) 
+
+    except openai.APIError as e:
+        print(f"OpenAI API Error: {e}")
+        error_message = f"I encountered an API error while trying to process your request (Status: {e.response.status_code if e.response else 'N/A'}). Please check your query or try again later. Details: {str(e)}"
+        result_messages = [*messages, AIMessage(content=error_message)]
+        results_title = "API Error"
+        geodata_results = []
+        geodata_layers = state.get('geodata_layers', [])
+        global_geodata = state.get('global_geodata', [])
+        
+    except Exception as e: # Catch any other unexpected errors during agent execution
+        print(f"Unexpected error during agent execution: {e}")
+        error_message = f"An unexpected error occurred while processing your request: {str(e)}. Please try again."
+        result_messages = [*messages, AIMessage(content=error_message)]
+        results_title = "Unexpected Error"
+        geodata_results = []
+        geodata_layers = state.get('geodata_layers', [])
+        global_geodata = state.get('global_geodata', [])
+
+    # Ensure results_title is set if geodata_results exist but title is empty
     if (results_title is None or results_title == "") and geodata_results and isinstance(geodata_results, List) and len(geodata_results) != 0:
         results_title = "Agent results:"
-    response: GeoweaverResponse = GeoweaverResponse(messages=result_messages, results_title=results_title, geodata_results=geodata_results, geodata_layers=geodata_layers, global_geodata=global_geodata)
+    
+    # Ensure result_messages always has at least one message for response construction
+    if not result_messages:
+        # This case should ideally be handled by the agent or error blocks, but as a final fallback:
+        result_messages = [AIMessage(content="No response content generated.")]
+
+    response: GeoweaverResponse = GeoweaverResponse(
+        messages=result_messages, 
+        results_title=results_title, 
+        geodata_results=geodata_results, 
+        geodata_layers=geodata_layers, 
+        global_geodata=global_geodata
+    )
     return response
