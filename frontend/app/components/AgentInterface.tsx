@@ -177,7 +177,7 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
       <div ref={containerRef} className="overflow-auto flex-1 scroll-smooth pb-2">
         <div className="flex flex-col space-y-3">
           {conversation.map((msg, idx) => {
-            const msgKey = msg.id?.trim() || hashString(`${msg.type}:${msg.content}`);
+            const msgKey = msg.id?.trim() || hashString(`${idx}:${msg.type}:${msg.content}`);
 
             // 1) Handle an AI message that kicked off a tool call
             if (msg.type === 'ai' && msg.additional_kwargs?.tool_calls?.length) {
