@@ -35,19 +35,24 @@ export function useGeoweaverAgent(apiUrl: string) {
 
     try {
       let response = null;
-      /*
+      let fullQuery = input
       if (endpoint === "search") {
         const url = new URL(`${apiUrl}/search`);
-        url.searchParams.set("query", input);
-        if (options?.portal) url.searchParams.set("portals", options.portal);
+        if (options?.bboxWkt)
+        {
+          fullQuery += ` with given ${options.bboxWkt}`;
+        }
+        url.searchParams.set("query", fullQuery);
+        
+        //if (options?.portal) url.searchParams.set("portals", options.portal);
         response = await fetch(url.toString(), {
           method: "GET",
         });
       }
       else if (endpoint === "geocode") {
         response = await fetch(`${apiUrl}/${endpoint}?query=${encodeURIComponent(input)}`);
-      } else */
-      if (endpoint === "geoprocess" || endpoint === "chat" || endpoint === "geocode" || endpoint === "search") {
+      } else if (endpoint === "geoprocess" || endpoint === "chat") {
+        const selectedLayers = useLayerStore.getState().layers.filter((l) => l.selected);
         const payload: GeoweaverRequest = {
           messages: messages.map(m => ({
             content: m.content,

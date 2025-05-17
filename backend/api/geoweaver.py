@@ -93,7 +93,7 @@ async def ask_geoweaver(request: GeoweaverRequest):
 
     state: GeoDataAgentState = GeoDataAgentState(messages=messages, geodata_last_results=request.geodata_last_results, geodata_layers=request.geodata_layers, global_geodata=request.global_geodata, results_title="", geodata_results=[])
 
-    executor_result: GeoDataAgentState = single_agent.invoke(state)
+    executor_result: GeoDataAgentState = single_agent.invoke(state, debug=True)
 
     #print(executor_result)
     #print(executor_result['geodata'])

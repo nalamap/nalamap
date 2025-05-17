@@ -1,14 +1,25 @@
 # services/agents/geoprocessing_agent.py
 import geopandas as gpd
-from typing import Dict, List, Any
+from models.geodata import DataOrigin, DataType, GeoDataObject
+from typing_extensions import Annotated
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from langchain_core.tools import tool
+from langgraph.prebuilt import InjectedState
+from langgraph.types import Command
+from langchain_core.tools.base import InjectedToolCallId
+from models.states import GeoDataAgentState, get_medium_debug_state
+from models.geodata import GeoDataIdentifier, GeoDataObject
+from langchain_core.messages import ToolMessage
+from pydantic import BaseModel, Field
 from shapely.geometry import shape, mapping
 from shapely.ops import unary_union
+import os
+import uuid
+from core.config import BASE_URL, LOCAL_UPLOAD_DIR
 import json
-
 # LLM import
 from services.ai.llm_config import get_llm
 
-# ========== Tool Implementations ==========
 
 def _flatten_features(layers):
     """
@@ -141,8 +152,7 @@ TOOL_REGISTRY = {
 }
 
 # ========== Geoprocess Executor ==========
-
-async def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
+def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
     """
     Uses an LLM to plan a sequence of geoprocessing operations based on a natural-language query
     and executes them in order against the input GeoJSON layers.
@@ -192,7 +202,7 @@ async def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
     from langchain.schema import SystemMessage, HumanMessage
     messages = [SystemMessage(content=system_msg), HumanMessage(content=user_msg)]
     # agenerate expects a list of message lists for batching
-    response = await llm.agenerate([messages])  
+    response = llm.generate([messages])  
     # extract text from first generation
     content = response.generations[0][0].text
 
@@ -218,3 +228,110 @@ async def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
         "tool_sequence": executed_ops,
         "result_layers": result
     }
+
+@tool
+def geoprocess_tool(
+    state:  Annotated[GeoDataAgentState, InjectedState],
+    tool_call_id: Annotated[str, InjectedToolCallId],
+) -> Union[Dict[str, Any], Command]:
+    """
+    Tool to geoprocess geospatial layers and datasets (geodata_layers) for a given query and
+    """
+    # Safely pull out the list (defaults to [] if key missing or None)
+    layers = state.get("geodata_layers") or []
+    messages = state.get("messages") or []
+    if not layers:
+        raise ValueError("No geodata_layers found in state!")
+    layer_urls = [
+        gd.data_link
+        for gd in layers
+        if gd.data_type in (DataType.GEOJSON, DataType.UPLOADED)
+    ]
+    # name derived from input layers
+    result_name = "and".join(
+        gd.name for gd in layers
+        if gd.data_type in (DataType.GEOJSON, DataType.UPLOADED)
+    )
+
+    # Load all the GeoJSON feature collections
+    input_layers: List[Dict[str, Any]] = []
+    for url in layer_urls:
+        filename = os.path.basename(url)
+        path = os.path.join(LOCAL_UPLOAD_DIR, filename)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                gj = json.load(f)
+        except Exception as exc:
+            raise ValueError(f"Failed to read {path}: {exc}")
+
+        # Normalize to FeatureCollection
+        if isinstance(gj, list):
+            gj = gj[0]
+        if gj.get("type") == "FeatureCollection":
+            input_layers.append(gj)
+        elif gj.get("type") == "Feature":
+            input_layers.append({
+                "type": "FeatureCollection",
+                "features": [gj],
+            })
+    query=messages[-2].content
+    # 2) Build the state for the geoprocess executor
+    processing_state = {
+        "query": messages[-2].content,
+        "input_layers": input_layers,
+        "available_operations_and_params": [
+            "operation: buffer params: radius=1000, buffer_crs=EPSG:3857",
+            "operation: intersection params:",
+            "operation: union params:",
+            "operation: clip params:",
+            "operation: difference params:",
+            "operation: simplify params: tolerance=0.01"
+        ],
+        "tool_sequence": [],  # will be filled by the executor
+    }
+
+    # 3) Run the (formerly async) executor synchronously
+    final_state = geoprocess_executor(processing_state)
+
+    # 4) Collect results
+    result_layers = final_state.get("result_layers", [])
+    tools_used   = final_state.get("tool_sequence", [])
+
+    # Build new GeoDataObjects
+    new_geodata: List[GeoDataObject] = []
+    out_urls: List[str] = []
+    for layer in result_layers:
+        out_uuid = uuid.uuid4().hex
+        filename = f"{out_uuid}_geoprocess.geojson"
+        path = os.path.join(LOCAL_UPLOAD_DIR, filename)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(layer, f)
+
+        url = f"{BASE_URL}/uploads/{filename}"
+        out_urls.append(url)
+        new_geodata.append(GeoDataObject(
+            id=out_uuid,
+            data_source_id="geoprocess",
+            data_type=DataType.GEOJSON,
+            data_origin=DataOrigin.TOOL,
+            data_source="GeoweaverGeoprocess",
+            data_link=url,
+            name=result_name,
+            title=result_name,
+            description=result_name,
+            llm_description=result_name,
+            score=0.2,
+            bounding_box=None,
+            layer_type="GeoJSON",
+            properties=None
+        ))
+
+    # 5) Return the update command
+    return Command(
+        update={
+            "messages": [
+                ToolMessage("Tools used: " + ", ".join(tools_used) + f". Added GeoDataObjects into the global_state, use id and data_source_id for reference: {json.dumps([ {"id": result.id, "data_source_id": result.data_source_id, "title": result.title} for result in new_geodata])}", tool_call_id=tool_call_id)
+            ],
+            "global_geodata": new_geodata
+        }
+    )

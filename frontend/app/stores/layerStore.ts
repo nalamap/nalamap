@@ -9,6 +9,7 @@ type LayerStore = {
   addLayer: (layer: GeoDataObject) => void;
   removeLayer: (resource_id: string | number) => void;
   toggleLayerVisibility: (resource_id: string | number) => void;
+  toggleLayerSelection: (resource_id: string | number) => void;
   resetLayers: () => void;
   selectLayerForSearch: (resource_id: string | number) => void;
   reorderLayers: (from: number, to: number) => void;
@@ -55,6 +56,16 @@ export const useLayerStore = create<LayerStore>((set) => ({
         selected: l.id === resource_id,
       })),
     })),
+   // --- Modified Function ---
+   toggleLayerSelection: (resource_id) =>
+    set((state) => ({
+      layers: state.layers.map((l) =>
+        l.id === resource_id
+          ? { ...l, selected: !l.selected } // Toggle the selected status
+          : l // Keep others as they are
+      ),
+    })),
+  // --- End Modified Function ---
   reorderLayers: (from, to) =>
     set((state) => {
       const layers = [...state.layers];

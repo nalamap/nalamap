@@ -12,6 +12,8 @@ export default function LayerManagement() {
   const setBasemap = useMapStore((state) => state.setBasemap);
   const layers = useLayerStore((state) => state.layers);
   const addLayer = useLayerStore((state) => state.addLayer);
+  const selectForSearch = useLayerStore((s) => s.selectLayerForSearch);
+  const toggleSelection = useLayerStore((s) => s.toggleLayerSelection);
   const toggleLayerVisibility = useLayerStore((state) => state.toggleLayerVisibility);
   const removeLayer = useLayerStore((state) => state.removeLayer);
   const reorderLayers = useLayerStore((state) => state.reorderLayers);

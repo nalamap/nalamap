@@ -172,8 +172,8 @@ async def geoprocess(req: GeoweaverRequest):
     then saves the resulting FeatureCollection and returns its URL.
     """
     # Get layer urls from request:
-    layer_urls = [gd.data_link for gd in req.geodata_last_results if gd.data_type == DataType.GEOJSON
-]
+    layer_urls = [gd.data_link for gd in req.geodata if gd.data_type == DataType.GEOJSON or gd.data_type == DataType.UPLOADED]
+    result_name = 'and'.join(gd.name for gd in req.geodata if gd.data_type == DataType.GEOJSON or gd.data_type == DataType.UPLOADED)
     # 0) Load GeoJSON features from provided URLs
     input_layers: List[Dict[str, Any]] = []
     for url in layer_urls:
@@ -187,18 +187,23 @@ async def geoprocess(req: GeoweaverRequest):
         if isinstance(gj, List): # GeoJSON list? TODO: Verify GeoCoding
             gj = gj[0]
         if gj.get("type") == "FeatureCollection":
-            input_layers.extend(gj.get("features", []))
-        elif gj.get("type") == "Feature":
+            #input_layers.extend(gj.get("features", []))
             input_layers.append(gj)
+        elif gj.get("type") == "Feature":
+            fc = {
+                "type": "FeatureCollection",
+                "features": [gj]
+            }
+            input_layers.append(fc)
 
     state = {
         "query": req.query,
         "input_layers": input_layers,
         "available_operations_and_params": [
             # backend-supported operations
-            "operation: buffer params: radius", "operation: intersection params:", 
+            "operation: buffer params: radius=1000, buffer_crs=EPSG:3857", "operation: intersection params:", 
             "operation: union params:", "operation: clip params:", "operation: difference params:", 
-            "operation: simplify params: tolerance"
+            "operation: simplify params: tolerance=0.01"
         ],
         "tool_sequence": [],  # to be filled by the agent
     }
@@ -217,7 +222,9 @@ async def geoprocess(req: GeoweaverRequest):
     #     tool = TOOL_REGISTRY[step["operation"]]
     #     result = tool(step["layers"], **step.get("params", {}))
     #     result_layers = [result]
-
+    if tools_used:
+        tools_name='and'.join(tool for tool in tools_used)
+        result_name=result_name+tools_name
     new_geodata: List[GeoDataObject] = []
     # 4) Write output as a new GeoJSON file in uploads
     out_urls=[]
@@ -236,10 +243,10 @@ async def geoprocess(req: GeoweaverRequest):
             data_origin=DataOrigin.TOOL,
             data_source="GeoweaverGeoprocess",
             data_link=out_url,
-            name="Geoprocess Result",
-            title="Geoprocess Result",
-            description="Geoprocess Result",
-            llm_description="Geoprocess Result",
+            name=result_name,
+            title=result_name,
+            description=result_name,
+            llm_description=result_name,
             score=0.2,
             bounding_box=None,
             layer_type="GeoJSON",

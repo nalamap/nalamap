@@ -9,10 +9,11 @@ from pydantic import BaseModel
 class DataType(str, Enum):
     GEOJSON = "GeoJson"
     LAYER = "Layer"
+    UPLOADED = "uploaded"
 
 
-class DataOrigin(str, Enum):
-    UPLOAD = "upload"
+class DataOrigin(Enum):
+    UPLOAD = "uploaded"
     TOOL = "tool"
     GEPROCESSING = "geprocessing"
 
