@@ -869,7 +869,7 @@ def geocode_using_overpass_to_geostate(
         tool_message_content = f"Found {amenity_key_display} near '{resolved_location_display_name}', but could not form any distinct geometry layers."
     else:
         tool_message_content = f"Found {total_features_found} '{amenity_key_display}' feature(s) near '{resolved_location_display_name}'. Created {len(created_collections)} collection layer(s). "
-        tool_message_content += f"Details for agent: {json.dumps(actionable_layers_info)}. You can now use 'set_result_list' to make these layers available on the map."
+        tool_message_content += f"Details for agent: {json.dumps(actionable_layers_info)}. You can now use 'set_result_list' to make these layers available on the map. When displaying these layers to the user, please use their 'name' or 'title' attributes, not their internal 'data_link'."
         # Example actionable_layers_info: 
         # [{"name": "Hospitals (Points) near Bonn", "type": "Points", "count": 10, "id": "uuid1", "data_source_id": "geocodeOverpassCollection"}, ...]
 
