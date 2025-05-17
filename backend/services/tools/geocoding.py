@@ -70,9 +70,9 @@ def create_geodata_object_from_geojson(nominatim_response: Dict[str, Any]) -> Op
     url, unique_id = store_file(f"{place_id}_{name}.json", json.dumps(geojson).encode())
     # Copy selected properties
     properties: Dict[str, Any] = dict()
-    for property in ["place_id", "licence", "osm_type", "osm_id", "lat", "lon",  "class", "type", "place_rank", "addresstype", "address"]:
-        if property in nominatim_response:
-            properties[property] = nominatim_response[property]
+    for prop in ["place_id", "licence", "osm_type", "osm_id", "lat", "lon",  "class", "type", "place_rank", "addresstype", "address"]:
+        if prop in nominatim_response:
+            properties[prop] = nominatim_response[prop]
     
     bbox: Optional[List[str]] = nominatim_response["boundingbox"]
     bounding_box: Optional[str]

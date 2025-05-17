@@ -67,10 +67,11 @@ def query_librarian_postgis(state: Annotated[GeoDataAgentState, InjectedState], 
 
         new_global_geodata: List[GeoDataObject]
 
-        if "global_geodata" not in state or state["global_geodata"] is None or not isinstance(state["global_geodata"], List):
+        if "global_geodata" not in state or state["global_geodata"] is None or not isinstance(state["global_geodata"], List) or len(state["global_geodata"] == 0):
             new_global_geodata = results
         else:
-            new_global_geodata = state["global_geodata"].extend(results)
+            state["global_geodata"].extend(results)
+            new_global_geodata = state["global_geodata"]
 
         return Command(update={
                     "messages": [
