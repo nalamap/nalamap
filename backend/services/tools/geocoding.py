@@ -131,13 +131,13 @@ def geocode_using_nominatim_to_geostate(state: Annotated[GeoDataAgentState, Inje
                             state["global_geodata"] = [geocoded_object]
                         else:
                             state["global_geodata"].append(geocoded_object)
-                cleaned_data.append(elem)
+                cleaned_data.append(dict(elem))
             if geojson:
                 #return { "message": f"Retrieved {len(data)} results, added GeoDataObject into the global_state, id and data_source_id were added to the result.", "results": cleaned_data }
                 return Command(update={
                     "messages": [
                         *state["messages"], 
-                        ToolMessage(f"Retrieved {len(data)} results, added GeoDataObject into the global_state, id and data_source_id were added to the following result: {json.dumps(cleaned_data)}", tool_call_id=tool_call_id )
+                        ToolMessage(name="geocode_using_nominatim_to_geostate", content=f"Retrieved {len(data)} results, added GeoDataObject into the global_state, id and data_source_id were added to the following result: {json.dumps(cleaned_data)}", tool_call_id=tool_call_id )
                         ] , 
                     "global_geodata": state["global_geodata"]
                 })
@@ -168,7 +168,6 @@ if __name__ == "__main__":
     initial_state: GeoDataAgentState = get_minimal_debug_state(True)
     #print(geocode_using_nominatim.invoke({"query": "Frankfurt", "geojson": True}))
     #print(geocode_using_geonames.invoke({"query": "Frankfurt"}))
-    print(initial_state)
+    #print(initial_state)
     # print(geocode_using_nominatim_to_geostate.invoke({"state": initial_state, "query": "New York", "geojson": True}))
     print(geocode_using_nominatim_to_geostate.invoke({'args': {"state": initial_state,  'tool_call_id': 'testcallid1234', "query": "New York", "geojson": True}, 'name': 'geocode_nominatim', 'type': 'tool_call', 'id': 'id2',  'tool_call_id': 'testcallid1234'}))
-    print(initial_state)

@@ -3,6 +3,7 @@ export interface ChatMessage {
     type: 'human' | 'ai' | 'system' | 'tool' | 'function'
     content: string
     additional_kwargs?: Record<string, any>
+    tool_calls?: any
 }
 
 export interface GeoDataObject {
