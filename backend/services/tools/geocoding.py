@@ -459,7 +459,7 @@ def geocode_using_overpass_to_geostate(
     location_name: str, # e.g. "Paris", "London", "near the Colosseum"
     radius_meters: int = 10000, # Default search radius around a point, e.g. 10km
     max_results: int = 20, # Max results from Overpass
-    timeout: int = 30  # Default timeout in seconds
+    timeout: int = 300  # Default timeout in seconds - Increased to 5 minutes
 ) -> Union[Dict[str, Any], Command]:
     """
     Search for specific amenities (e.g., restaurants, parks, schools) near a given location using OpenStreetMap's Overpass API.
@@ -481,7 +481,7 @@ def geocode_using_overpass_to_geostate(
     * location_name: The name of the location to search within or near (e.g., "Paris", "Colosseum"). This will be geocoded.
     * radius_meters: The search radius in meters around the geocoded location point. Default is 10000 meters (10 km).
     * max_results: Maximum number of results to request from Overpass API (default: 20).
-    * timeout: Query timeout in seconds for Overpass API (default: 30).
+    * timeout: Query timeout in seconds for Overpass API (default: 300).
     
     Limitations:
     * Accuracy depends on the geocoding of 'location_name' and OSM data quality.
