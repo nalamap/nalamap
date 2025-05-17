@@ -740,9 +740,15 @@ def geocode_using_overpass_to_geostate(
         tool_message_content = f"Found {amenity_key_display} near '{resolved_location_display_name}', but could not form any distinct geometry layers."
     else:
         tool_message_content = f"Found {total_features_found} '{amenity_key_display}' feature(s) near '{resolved_location_display_name}'. Created {len(created_collections)} collection layer(s). "
-        tool_message_content += f"Details for agent: {json.dumps(actionable_layers_info)}. You can now use 'set_result_list' to make these layers available on the map. When displaying these layers to the user, please use their 'name' or 'title' attributes, not their internal 'data_link'."
-        # Example actionable_layers_info: 
-        # [{"name": "Hospitals (Points) near Bonn", "type": "Points", "count": 10, "id": "uuid1", "data_source_id": "geocodeOverpassCollection"}, ...]
+        # Provide structured info for the agent and clear instructions on how to respond to the user.
+        layer_details_for_agent = json.dumps(actionable_layers_info)
+        user_response_guidance = (
+            f"Call 'set_result_list' to make these layers available. "
+            f"In your response to the user, list the layers by their 'name' (e.g., \"{actionable_layers_info[0]['name'] if actionable_layers_info else 'Layer Name'}\") "
+            f"and state that they are available to be added to the map from the layer list. "
+            f"Do NOT include direct file paths, sandbox links, or any other internal storage paths in your textual response or as Markdown links."
+        )
+        tool_message_content += f"Actionable layer details: {layer_details_for_agent}. User response guidance: {user_response_guidance}"
 
     return Command(update={
         "messages": [*state["messages"], ToolMessage(name="geocode_using_overpass_to_geostate", content=tool_message_content, tool_call_id=tool_call_id)],
