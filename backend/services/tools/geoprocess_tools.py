@@ -70,8 +70,8 @@ def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857"):
     gdf.set_crs("EPSG:4326", inplace=True)
     # Reproject to chosen metric CRS for buffering
     gdf = gdf.to_crs(buffer_crs)
-    # Buffer in meter units
-    gdf = gdf.buffer(radius)
+    # Buffer in meter units only operate on geometry column to keep property info of layer
+    gdf['geometry'] = gdf.geometry.buffer(radius)
     # Reproject back to geographic coords
     gdf = gdf.to_crs("EPSG:4326")
     # Export to GeoJSON Feature list
@@ -235,7 +235,7 @@ def geoprocess_tool(
     tool_call_id: Annotated[str, InjectedToolCallId],
 ) -> Union[Dict[str, Any], Command]:
     """
-    Tool to geoprocess geospatial layers and datasets (geodata_layers) for a given query and
+    Tool to geoprocess geospatial layers and datasets (geodata_layers) based on the user request and available operations (buffer, intersection, union, difference, clip).
     """
     # Safely pull out the list (defaults to [] if key missing or None)
     layers = state.get("geodata_layers") or []
@@ -296,7 +296,9 @@ def geoprocess_tool(
     # 4) Collect results
     result_layers = final_state.get("result_layers", [])
     tools_used   = final_state.get("tool_sequence", [])
-
+    if tools_used:
+        tools_name='and'.join(tool for tool in tools_used)
+        result_name=result_name+tools_name
     # Build new GeoDataObjects
     new_geodata: List[GeoDataObject] = []
     out_urls: List[str] = []
