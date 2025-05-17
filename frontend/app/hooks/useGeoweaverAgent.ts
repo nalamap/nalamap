@@ -14,6 +14,23 @@ export function useGeoweaverAgent(apiUrl: string) {
   const [error, setError] = useState("");
   const layerStore = useLayerStore();
 
+
+  const appendHumanMessage = (query: string) => {
+    /* // Don't normalize for now to keep all arguments
+    const normalized: ChatMessage[] = messages.map(m => ({
+      content: m.content,
+      type: m.type,
+    }));*/
+
+    const humanMsg: ChatMessage = {
+      content: query,
+      type: "human",
+    };
+
+    setMessages([...messages, humanMsg]);
+  };
+
+
   async function queryGeoweaverAgent(
     endpoint: "chat" | "search" | "geocode" | "geoprocess",
     layerUrls: string[] = [],
@@ -38,17 +55,16 @@ export function useGeoweaverAgent(apiUrl: string) {
       let fullQuery = input
       if (endpoint === "geoprocess" || endpoint === "chat" || endpoint === "geocode" || endpoint === "search") {
         const selectedLayers = useLayerStore.getState().layers.filter((l) => l.selected);
+        appendHumanMessage(input);
         const payload: GeoweaverRequest = {
-          messages: messages.map(m => ({
-            content: m.content,
-            type: m.type
-          })),
+          messages: messages,
           query: input,
           geodata_last_results: geoDataList,
           geodata_layers: layerStore.layers,
           global_geodata: layerStore.globalGeodata,
           options: settingsMap
         }
+        setInput("");
         console.log(payload)
         response = await fetch(`${apiUrl}/${endpoint}`, {
           method: 'POST',

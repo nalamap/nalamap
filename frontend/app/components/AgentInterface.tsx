@@ -153,8 +153,6 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
         },
       ]);*/
     }
-
-    setInput("");
   };
 
   const handleLayerSelect = (layer: any) => {
