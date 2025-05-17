@@ -161,16 +161,26 @@ def geocode_using_nominatim_to_geostate(state: Annotated[GeoDataAgentState, Inje
                             state["global_geodata"].append(geocoded_object)
                 cleaned_data.append(dict(elem))
             if geojson:
-                #return { "message": f"Retrieved {len(data)} results, added GeoDataObject into the global_state, id and data_source_id were added to the result.", "results": cleaned_data }
+                # Simplified message for LLM
+                num_objects_created = sum(1 for elem in cleaned_data if "id" in elem and "data_source_id" in elem)
+                tool_message_content = f"Successfully geocoded '{query}'. Found {len(cleaned_data)} potential result(s). {num_objects_created} GeoData object(s) with full geometry created and stored in global_geodata."
+                if num_objects_created > 0:
+                    brief_results = [{"name": elem.get("name", elem.get("display_name", "Unknown")), "osm_id": elem.get("osm_id", "N/A"), "class": elem.get("class", "N/A"), "type": elem.get("type", "N/A"), "stored_id": elem.get("id")} for elem in cleaned_data if "id" in elem and "data_source_id" in elem][:3] # Show a few examples
+                    tool_message_content += f" First few results (name, osm_id, class, type, stored_id): {json.dumps(brief_results)}"
+
                 return Command(update={
                     "messages": [
                         *state["messages"], 
-                        ToolMessage(name="geocode_using_nominatim_to_geostate", content=f"Retrieved {len(data)} results, added GeoDataObject into the global_state, id and data_source_id were added to the following result: {json.dumps(cleaned_data)}", tool_call_id=tool_call_id )
+                        ToolMessage(name="geocode_using_nominatim_to_geostate", content=tool_message_content, tool_call_id=tool_call_id )
                         ] , 
                     "global_geodata": state["global_geodata"]
                 })
             else: 
-                return { "message": f"Retrieved {len(data)} results.", "results": cleaned_data }
+                # Simplified message if no GeoJSON was stored
+                tool_message_content = f"Successfully geocoded '{query}'. Found {len(cleaned_data)} potential result(s). No GeoJSON objects were stored as per request."
+                brief_results = [{"name": elem.get("name", elem.get("display_name", "Unknown")), "osm_id": elem.get("osm_id", "N/A"), "class": elem.get("class", "N/A"), "type": elem.get("type", "N/A")} for elem in cleaned_data][:3]
+                tool_message_content += f" First few results (name, osm_id, class, type): {json.dumps(brief_results)}"
+                return { "message": tool_message_content, "results_summary": brief_results } # Return summary directly if not updating state
         else:
             return { "message": "No results found." }
     else:
@@ -646,14 +656,18 @@ def geocode_using_overpass_to_geostate(
     current_geodata.extend(created_geo_objects)
 
     # 6. Return success message
-    summary_results = [{"name": obj.name, "osm_id": obj.properties.get("id", f"{obj.properties.get('type')}/{obj.properties.get('id')}") if obj.properties else "N/A", "id": obj.id} for obj in created_geo_objects]
+    # Simplified message for LLM
+    tool_message_content = f"Found {len(created_geo_objects)} '{amenity_key}' near '{resolved_location_display_name}' (within {radius_meters}m). {len(created_geo_objects)} GeoData object(s) created and stored in global_geodata."
+    if created_geo_objects:
+        summary_results_for_llm = [{"name": obj.name, "osm_id": obj.properties.get("id", f"{obj.properties.get('type')}/{obj.properties.get('id')}") if obj.properties else "N/A", "stored_id": obj.id} for obj in created_geo_objects][:3] # Show a few examples
+        tool_message_content += f" First few results (name, osm_id, stored_id): {json.dumps(summary_results_for_llm)}"
 
     return Command(update={
         "messages": [
             *state["messages"],
             ToolMessage(
                 name="geocode_using_overpass_to_geostate", 
-                content=f"Found {len(created_geo_objects)} '{amenity_key}' near '{resolved_location_display_name}'. Added to map. Results: {json.dumps(summary_results)}",
+                content=tool_message_content,
                 tool_call_id=tool_call_id
             )
         ],
