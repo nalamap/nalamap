@@ -7,6 +7,7 @@ import { ArrowUp, X, Loader2 } from "lucide-react";
 import { useLayerStore } from "../stores/layerStore";
 import { GeoDataObject } from "../models/geodatamodel";
 import { hashString } from "../utils/hashUtil";
+import ReactMarkdown from "react-markdown";
 
 // helper to get a WKT string from whatever format the store has
 function toWkt(bbox: GeoDataObject["bounding_box"]): string | undefined {
@@ -59,7 +60,7 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
   // state for description modal
   const [modalData, setModalData] = useState<GeoDataObject | null>(null);
   const [overlayData, setOverlayData] = useState<GeoDataObject | null>(null);
-  // which one we’ll use for the bbox filter
+  // which one we'll use for the bbox filter
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
   // portal filter string
   const [portalFilter, setPortalFilter] = useState<string>("");
@@ -192,9 +193,9 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
                   className="flex justify-start"
                 >
                   <div className="max-w px-4 py-2 rounded-lg bg-gray-50 rounded-tl-none border">
-                    {/* “Using tool…” header */}
+                    {/* "Using tool…" header */}
                     <div className="text-sm font-medium">
-                      Using tool ‘{call.function.name}’ with arguments ‘{call.function.arguments}’
+                      Using tool ' {call.function.name} ' with arguments ' {call.function.arguments} '
                     </div>
 
                     {/* toggle button */}
@@ -207,7 +208,7 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
                       {isOpen ? 'Hide result' : 'Show result'}
                     </button>
 
-                    {/* if expanded, show the next message’s content (must be type "tool") */}
+                    {/* if expanded, show the next message's content (must be type "tool") */}
                     {isOpen &&
                       conversation[idx + 1]?.type === 'tool' && (
                         <div className="mt-2 text-sm break-words whitespace-pre-wrap">
@@ -219,7 +220,7 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
               )
             }
 
-            // 2) Don’t render standalone tool messages (they’ll live under their AI caller)
+            // 2) Don't render standalone tool messages (they'll live under their AI caller)
             if (msg.type === 'tool') {
               return null
             }
@@ -237,7 +238,13 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
                     : 'bg-gray-50 rounded-tl-none border'
                     }`}
                 >
-                  <div className="text-sm break-words">{msg.content}</div>
+                  {isHuman ? (
+                    <div className="text-sm break-words">{msg.content}</div>
+                  ) : (
+                    <div className="text-sm break-words chat-markdown">
+                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    </div>
+                  )}
                   <div className="text-xs text-gray-500 mt-1">
                     {isHuman
                       ? 'You'
