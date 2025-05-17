@@ -38,7 +38,7 @@ def set_result_list(state: Annotated[GeoDataAgentState, InjectedState], tool_cal
     if len(data_to_look_up) == 0:
         message = f"Successfully added {len(result_tuples)} to the result list!"
     else:
-        message = f"Added {len(result_tuples)-len(data_to_look_up)} geoobjects to the result list, but the following were not found in global_geodata: {json.dumps(data_to_look_up)} "
+        message = f"Added {len(result_tuples)-len(data_to_look_up)} geoobjects to the result list, but the following were not found in global_geodata: {json.dumps(list(data_to_look_up))} "
 
     return Command(update={
                     "messages": [
