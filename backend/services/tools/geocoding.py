@@ -70,9 +70,9 @@ def create_geodata_object_from_geojson(nominatim_response: Dict[str, Any]) -> Op
     url, unique_id = store_file(f"{place_id}_{name}.json", json.dumps(geojson).encode())
     # Copy selected properties
     properties: Dict[str, Any] = dict()
-    for property in ["place_id", "licence", "osm_type", "osm_id", "lat", "lon",  "class", "type", "place_rank", "addresstype", "address"]:
-        if property in nominatim_response:
-            properties[property] = nominatim_response[property]
+    for prop in ["place_id", "licence", "osm_type", "osm_id", "lat", "lon",  "class", "type", "place_rank", "addresstype", "address"]:
+        if prop in nominatim_response:
+            properties[prop] = nominatim_response[prop]
     
     bbox: Optional[List[str]] = nominatim_response["boundingbox"]
     bounding_box: Optional[str]
@@ -131,13 +131,13 @@ def geocode_using_nominatim_to_geostate(state: Annotated[GeoDataAgentState, Inje
                             state["global_geodata"] = [geocoded_object]
                         else:
                             state["global_geodata"].append(geocoded_object)
-                cleaned_data.append(elem)
+                cleaned_data.append(dict(elem))
             if geojson:
                 #return { "message": f"Retrieved {len(data)} results, added GeoDataObject into the global_state, id and data_source_id were added to the result.", "results": cleaned_data }
                 return Command(update={
                     "messages": [
                         *state["messages"], 
-                        ToolMessage(f"Retrieved {len(data)} results, added GeoDataObject into the global_state, id and data_source_id were added to the following result: {json.dumps(cleaned_data)}", tool_call_id=tool_call_id )
+                        ToolMessage(name="geocode_using_nominatim_to_geostate", content=f"Retrieved {len(data)} results, added GeoDataObject into the global_state, id and data_source_id were added to the following result: {json.dumps(cleaned_data)}", tool_call_id=tool_call_id )
                         ] , 
                     "global_geodata": state["global_geodata"]
                 })
@@ -168,7 +168,6 @@ if __name__ == "__main__":
     initial_state: GeoDataAgentState = get_minimal_debug_state(True)
     #print(geocode_using_nominatim.invoke({"query": "Frankfurt", "geojson": True}))
     #print(geocode_using_geonames.invoke({"query": "Frankfurt"}))
-    print(initial_state)
+    #print(initial_state)
     # print(geocode_using_nominatim_to_geostate.invoke({"state": initial_state, "query": "New York", "geojson": True}))
     print(geocode_using_nominatim_to_geostate.invoke({'args': {"state": initial_state,  'tool_call_id': 'testcallid1234', "query": "New York", "geojson": True}, 'name': 'geocode_nominatim', 'type': 'tool_call', 'id': 'id2',  'tool_call_id': 'testcallid1234'}))
-    print(initial_state)

@@ -1,8 +1,9 @@
 export interface ChatMessage {
     id?: string
-    type: 'human' | 'ai' | 'system' | 'tool'
+    type: 'human' | 'ai' | 'system' | 'tool' | 'function'
     content: string
     additional_kwargs?: Record<string, any>
+    tool_calls?: any
 }
 
 export interface GeoDataObject {
