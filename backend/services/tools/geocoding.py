@@ -184,7 +184,7 @@ def geocode_using_nominatim_to_geostate(state: Annotated[GeoDataAgentState, Inje
                     user_response_guidance = (
                         f"Call 'set_result_list' to make these layer(s) available. Pass the 'actionable_layers_info' (as 'result_tuples' where each tuple is [id, data_source_id]). "
                         f"For example, for the first layer: id='{actionable_layers_info[0]['id']}', data_source_id='{actionable_layers_info[0]['data_source_id']}'. "
-                        f"In your response to the user, list the layer(s) by name (e.g., \\"{actionable_layers_info[0]['name']}\\") "
+                        f'In your response to the user, list the layer(s) by name (e.g., "{actionable_layers_info[0]['name']}") '
                         f"and state that they are available to be added to the map from the layer list. "
                         f"Do NOT include direct file paths, sandbox links, or any other internal storage paths in your textual response or as Markdown links."
                     )
