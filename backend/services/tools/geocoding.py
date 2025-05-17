@@ -163,10 +163,32 @@ def geocode_using_nominatim_to_geostate(state: Annotated[GeoDataAgentState, Inje
             if geojson:
                 # Simplified message for LLM
                 num_objects_created = sum(1 for elem in cleaned_data if "id" in elem and "data_source_id" in elem)
-                tool_message_content = f"Successfully geocoded '{query}'. Found {len(cleaned_data)} potential result(s). {num_objects_created} GeoData object(s) with full geometry created and stored in global_geodata."
+                
+                actionable_layers_info = []
                 if num_objects_created > 0:
-                    brief_results = [{"name": elem.get("name", elem.get("display_name", "Unknown")), "osm_id": elem.get("osm_id", "N/A"), "class": elem.get("class", "N/A"), "type": elem.get("type", "N/A"), "stored_id": elem.get("id")} for elem in cleaned_data if "id" in elem and "data_source_id" in elem][:3] # Show a few examples
-                    tool_message_content += f" First few results (name, osm_id, class, type, stored_id): {json.dumps(brief_results)}"
+                    for elem in cleaned_data:
+                        if "id" in elem and "data_source_id" in elem:
+                            actionable_layers_info.append({
+                                "name": elem.get("name", elem.get("display_name", "Unknown Location")),
+                                "id": elem["id"],
+                                "data_source_id": elem["data_source_id"] # Should be "geocodeNominatim"
+                            })
+
+                if not actionable_layers_info:
+                    tool_message_content = f"Successfully geocoded '{query}'. Found {len(cleaned_data)} potential result(s), but no GeoData objects with full geometry were created or stored."
+                else:
+                    tool_message_content = f"Successfully geocoded '{query}'. Found {len(cleaned_data)} potential result(s). {len(actionable_layers_info)} GeoData object(s) with full geometry created and stored in global_geodata. "
+                    
+                    # Provide structured info for the agent and clear instructions
+                    layer_details_for_agent = json.dumps(actionable_layers_info)
+                    user_response_guidance = (
+                        f"Call 'set_result_list' to make these layer(s) available. Pass the 'actionable_layers_info' (as 'result_tuples' where each tuple is [id, data_source_id]). "
+                        f"For example, for the first layer: id='{actionable_layers_info[0]['id']}', data_source_id='{actionable_layers_info[0]['data_source_id']}'. "
+                        f"In your response to the user, list the layer(s) by name (e.g., \\"{actionable_layers_info[0]['name']}\\") "
+                        f"and state that they are available to be added to the map from the layer list. "
+                        f"Do NOT include direct file paths, sandbox links, or any other internal storage paths in your textual response or as Markdown links."
+                    )
+                    tool_message_content += f"Actionable layer details: {layer_details_for_agent}. User response guidance: {user_response_guidance}"
 
                 return Command(update={
                     "messages": [
