@@ -665,41 +665,79 @@ def geocode_using_overpass_to_geostate(
     # Use a more display-friendly amenity name (e.g. "Restaurant" from "restaurant")
     amenity_key_display = amenity_key_cleaned.replace("_", " ").title()
 
-    # 2. Geocode location_name to get coordinates
-    nominatim_url = f"https://nominatim.openstreetmap.org/search?q={location_name}&format=json&limit=1"
+    # 2. Geocode location_name to get coordinates OR bounding box
+    # Try to get a bounding box first for broader area searches.
+    nominatim_url = f"https://nominatim.openstreetmap.org/search?q={location_name}&format=json&limit=1&addressdetails=0&polygon_geojson=0" # polygon_geojson=0 as we only need bbox
+    
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    bbox_coords: Optional[List[float]] = None # Expected: [south, west, north, east]
+    resolved_location_display_name: str = location_name
+
     try:
-        nominatim_response = requests.get(nominatim_url, headers=headers_geoweaver, timeout=20) # Increased Nominatim timeout slightly
+        nominatim_response = requests.get(nominatim_url, headers=headers_geoweaver, timeout=20)
         nominatim_response.raise_for_status()
-        location_data = nominatim_response.json()
-        if not location_data:
+        location_data_list = nominatim_response.json()
+        
+        if not location_data_list:
             return Command(update={"messages": [*state["messages"], ToolMessage(name="geocode_using_overpass_to_geostate", content=f"Could not find location: {location_name}", tool_call_id=tool_call_id)]})
         
-        lat = float(location_data[0]["lat"])
-        lon = float(location_data[0]["lon"])
-        resolved_location_display_name = location_data[0].get("display_name", location_name)
+        location_data = location_data_list[0] # Take the first result
+        resolved_location_display_name = location_data.get("display_name", location_name)
+        
+        if "boundingbox" in location_data:
+            # Nominatim returns bbox as [south_lat, north_lat, west_lon, east_lon] - strings
+            raw_bbox = location_data["boundingbox"]
+            if len(raw_bbox) == 4:
+                try:
+                    # Convert to float: south, north, west, east
+                    # And reorder for Overpass: south, west, north, east
+                    bbox_coords = [float(raw_bbox[0]), float(raw_bbox[2]), float(raw_bbox[1]), float(raw_bbox[3])]
+                except ValueError:
+                    # If conversion fails, fall back to lat/lon
+                    pass 
+        
+        # If bbox not found or failed to parse, try to get lat/lon as fallback
+        if bbox_coords is None:
+            if "lat" in location_data and "lon" in location_data:
+                lat = float(location_data["lat"])
+                lon = float(location_data["lon"])
+            else:
+                # No bbox and no lat/lon, cannot proceed
+                return Command(update={"messages": [*state["messages"], ToolMessage(name="geocode_using_overpass_to_geostate", content=f"Could not determine coordinates or bounding box for: {location_name}", tool_call_id=tool_call_id)]})
+
     except requests.exceptions.RequestException as e:
         return Command(update={"messages": [*state["messages"], ToolMessage(name="geocode_using_overpass_to_geostate", content=f"Error geocoding '{location_name}': {str(e)}", tool_call_id=tool_call_id)]})
-    except (KeyError, IndexError, ValueError):
-        return Command(update={"messages": [*state["messages"], ToolMessage(name="geocode_using_overpass_to_geostate", content=f"Could not parse geocoding result for: {location_name}", tool_call_id=tool_call_id)]})
+    except (KeyError, IndexError, ValueError) as e:
+        return Command(update={"messages": [*state["messages"], ToolMessage(name="geocode_using_overpass_to_geostate", content=f"Could not parse geocoding result for '{location_name}': {str(e)}", tool_call_id=tool_call_id)]})
 
     # 3. Construct Overpass API query
     osm_query_key, osm_query_value = osm_tag_kv.split('=', 1)
     
-    # Using "out geom;" for ways and relations. Simpler queries might use "out center;" for relations.
-    # Max_results is applied by Overpass.
-    overpass_query = f"""
+    # Determine filter: bounding box or around point
+    overpass_location_filter: str
+    if bbox_coords:
+        # Use bounding box: south, west, north, east
+        s, w, n, e = bbox_coords
+        overpass_location_filter = f"({s},{w},{n},{e})"
+        resolved_location_display_name += " (using area bounds)"
+    elif lat is not None and lon is not None:
+        # Fallback to around filter
+        overpass_location_filter = f"(around:{radius_meters},{lat},{lon})"
+        resolved_location_display_name += f" (within {radius_meters}m of center)"
+    else:
+        # Should not happen due to checks above, but as a safeguard:
+        return Command(update={"messages": [*state["messages"], ToolMessage(name="geocode_using_overpass_to_geostate", content="Failed to establish a location filter for Overpass query.", tool_call_id=tool_call_id)]})
+        
+    overpass_query = f\"\"\"
     [out:json][timeout:{timeout}];
     (
-      node["{osm_query_key}"="{osm_query_value}"](around:{radius_meters},{lat},{lon});
-      way["{osm_query_key}"="{osm_query_value}"](around:{radius_meters},{lat},{lon});
-      relation["{osm_query_key}"="{osm_query_value}"](around:{radius_meters},{lat},{lon});
+      node["{osm_query_key}"="{osm_query_value}"]{overpass_location_filter};
+      way["{osm_query_key}"="{osm_query_value}"]{overpass_location_filter};
+      relation["{osm_query_key}"="{osm_query_value}"]{overpass_location_filter};
     );
     out geom {max_results}; 
-    """ 
-    # Note: Using 'out geom;' can be heavy. For ways, it returns geometry. For relations, it's complex.
-    # 'out center;' is a lighter alternative for relations if only a point marker is needed.
-    # For production, consider 'out body; >; out skel qt;' then reconstruct GeoJSON, or simplify queries.
-    # The current 'out geom' will fetch geometries for nodes and ways, and attempt for relations.
+    \"\"\"
 
     # 4. Execute Overpass API query
     overpass_api_url = "https://overpass-api.de/api/interpreter"
