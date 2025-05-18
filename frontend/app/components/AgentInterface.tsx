@@ -10,20 +10,15 @@ import { hashString } from "../utils/hashUtil";
 
 // Helper function to determine score color and appropriate text color
 const getScoreStyle = (score?: number): { backgroundColor: string; color: string } => {
-  if (typeof score !== 'number' || score < 0 || score > 1) {
+  if (typeof score !== 'number' || score < 0 || score > 100) {
     return { backgroundColor: '#9ca3af', color: '#ffffff' }; // Default gray bg, white text (Tailwind gray-400)
   }
-  // Hue: 0 (red) -> 60 (yellow) -> 120 (green)
-  const hue = score * 120;
-  const saturation = 60; // Reduced saturation for softer colors
-  const lightness = 55;  // Adjusted lightness
-
+  // Map 0-100 to 0-120 hue (red to green)
+  const hue = (score / 100) * 120;
+  const saturation = 60;
+  const lightness = 55;
   const backgroundColor = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-  
-  // For HSL(s=60, l=55), white text generally offers good contrast.
-  // If specific hues (e.g. very bright yellow) were an issue, a dynamic text color based on luminance would be added here.
-  const textColor = '#ffffff'; 
-
+  const textColor = '#ffffff';
   return { backgroundColor, color: textColor };
 };
 
@@ -287,111 +282,23 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
         {(activeTool === "search" || activeTool === "geocode" || activeTool === "chat" || activeTool === "geoprocess") && geoDataList.length > 0 && !loading && (
           <div className="mt-6 mb-2 px-2 bg-gray-50 rounded border">
             <div className="font-semibold p-1">Search Results:</div>
-            {resultsToShow.map((result) => {
-              const scoreStyle = getScoreStyle(result.score);
-              return (
-                <div key={result.id} className="p-2 border-b last:border-none hover:bg-gray-100">
-                  {/* Part 1: Clickable Title/Description */}
-                  <div onClick={() => handleLayerSelect(result)} className="cursor-pointer mb-1">
-                    <div className="font-bold text-sm">{result.title}</div>
-                    <div className="text-xs text-gray-600 truncate" title={result.llm_description}>{result.llm_description}</div>
-                  </div>
-
-                  {/* Part 2: Buttons - stacked vertically */}
-                  {/* Score Button with Tooltip Wrapper */}
-                  <div style={{ position: 'relative' }} className="mb-1">
-                    <button
-                      className="px-2 py-1 text-xs rounded" 
-                      style={{
-                        backgroundColor: scoreStyle.backgroundColor,
-                        color: scoreStyle.color,
-                        border: 'none',
-                        lineHeight: '1rem', 
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveScoreInfoId(activeScoreInfoId === result.id ? null : result.id);
-                        setActiveDetailsId(null); // Close details if score is clicked
-                      }}
-                    >
-                      Score: {typeof result.score === 'number' ? result.score.toFixed(2) : 'N/A'}
-                    </button>
-                    {activeScoreInfoId === result.id && (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          bottom: '100%',
-                          left: '50%',
-                          transform: 'translateX(-50%)',
-                          marginBottom: '5px',
-                          backgroundColor: 'white',
-                          color: '#333',
-                          border: '1px solid #ddd',
-                          padding: '8px',
-                          borderRadius: '4px',
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                          zIndex: 50,
-                          fontSize: '12px',
-                          width: '230px',
-                          textAlign: 'center',
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        This is a similarity score to your search prompt. A value near 1 indicates high similarity, while 0 indicates low similarity.
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Details and Add to Map Buttons */}
-                  <div style={{ position: 'relative' }}> {/* Wrapper for Details pop-up positioning */}
-                    <button
-                      onClick={(e) => { 
-                        e.stopPropagation(); 
-                        setActiveDetailsId(activeDetailsId === result.id ? null : result.id);
-                        setActiveScoreInfoId(null); // Close score if details is clicked
-                      }}
-                      className="px-2 py-1 bg-blue-500 text-white rounded text-xs"
-                    >
-                      Details
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleLayerSelect(result); }}
-                      className="ml-2 px-2 py-1 bg-blue-500 text-white rounded text-xs"
-                    >
-                      Add to Map
-                    </button>
-
-                    {activeDetailsId === result.id && (
-                        <div 
-                            style={{
-                                position: 'absolute',
-                                bottom: '100%', // Position above the button row
-                                left: '0', // Align with the start of the button row
-                                marginBottom: '5px',
-                                backgroundColor: 'white',
-                                color: '#333',
-                                border: '1px solid #ddd',
-                                padding: '10px',
-                                borderRadius: '4px',
-                                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                                zIndex: 50,
-                                fontSize: '12px',
-                                width: '280px', // Adjust width as needed
-                                textAlign: 'left',
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <h4 className="font-bold text-sm mb-1">{result.title || 'Details'}</h4>
-                            <p className="text-xs mb-1"><strong>Description:</strong> {result.llm_description || result.description || 'N/A'}</p>
-                            <p className="text-xs mb-1"><strong>Data Source:</strong> {result.data_source || 'N/A'}</p>
-                            <p className="text-xs mb-1"><strong>Layer Type:</strong> {result.layer_type || 'N/A'}</p>
-                            {result.bounding_box && <p className="text-xs whitespace-pre-wrap break-all"><strong>BBox:</strong> {typeof result.bounding_box === 'string' ? result.bounding_box : JSON.stringify(result.bounding_box)}</p>}
-                        </div>
-                    )}
-                  </div>
+            {resultsToShow.map((result) => (
+              <div key={result.id} className="p-2 border-b last:border-none hover:bg-gray-100">
+                <div onClick={() => handleLayerSelect(result)} className="cursor-pointer">
+                  <div className="font-bold text-sm">{result.title}</div>
+                  <div className="text-xs text-gray-600 truncate" title={result.llm_description}>{result.llm_description}</div>
+                  {/* Score Button with color scaling */}
+                  <button
+                    className="px-2 py-1 text-xs rounded mt-1"
+                    style={getScoreStyle(result.score != null ? Math.round(result.score * 100) : undefined)}
+                    onClick={e => e.stopPropagation()}
+                  >
+                    Score: {result.score != null ? Math.round(result.score * 100) : 'N/A'}
+                  </button>
+                  <div className="text-[10px] text-gray-500 mt-1">{result.data_origin}</div>
                 </div>
-              );
-            })}
+              </div>
+            ))}
             {geoDataList.length > 5 && (
               <button onClick={() => setShowAllResults((s) => !s)} className="w-full py-2 text-center text-blue-600 hover:underline">
                 {showAllResults ? "Show Less" : `Show More (${geoDataList.length - 5} more)`}
@@ -462,6 +369,28 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
           </button>
         </form>
       </div >
+      {/* Overlay details panel */}
+      {
+        overlayData && (
+          <div className="fixed right-4 top-16 w-1/3 max-h-[70vh] overflow-y-auto bg-white shadow-lg rounded p-4 z-50">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-lg font-bold">{overlayData.title}</h3>
+              <button onClick={() => setOverlayData(null)}><X /></button>
+            </div>
+            <p className="text-sm text-gray-700 mb-2">{overlayData.llm_description}</p>
+            <div className="text-[10px] text-gray-500 mb-1">Source: {overlayData.data_source}</div>
+            <div className="text-[10px] text-gray-500 mb-1">Layer Type: {overlayData.layer_type}</div>
+            <div className="text-[10px] text-gray-500 mb-1">
+              <span style={getScoreStyle(overlayData.score != null ? Math.round(overlayData.score * 100) : undefined)}>
+                Score: {overlayData.score != null ? Math.round(overlayData.score * 100) : 'N/A'}
+              </span>
+            </div>
+            {overlayData.bounding_box && (
+              <pre className="text-[10px] text-gray-500 mt-2 whitespace-pre-wrap break-all">BBox: {overlayData.bounding_box}</pre>
+            )}
+          </div>
+        )
+      }
     </div >
   );
 }
