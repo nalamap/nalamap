@@ -272,6 +272,7 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
                   <div className="text-[10px] text-gray-500">{result.data_origin} | Score: {result.score}</div>
                 </div>
                 <button onClick={() => setOverlayData(result)} className="ml-2 px-2 py-1 bg-blue-500 text-white rounded text-xs">Details</button>
+                <button onClick={() => handleLayerSelect(result)} className="ml-2 px-2 py-1 bg-blue-500 text-white rounded text-xs">Add to Map</button>
               </div>
             ))}
             {geoDataList.length > 5 && (
