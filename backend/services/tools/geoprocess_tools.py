@@ -67,6 +67,7 @@ def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857"):
       3) Applies buffer with `radius` in meters
       4) Reprojects result back to EPSG:4326
     If `buffer_crs` is provided by user, uses that CRS instead of EPSG:3857.
+    If user asks for a buffer in kilometers or miles, convert to meters before proceeding. 
     """
     feats = _flatten_features(layers)
     if not feats:

@@ -16,10 +16,24 @@ from models.geodata import DataOrigin, DataType, GeoDataObject
 @tool
 def query_librarian_postgis(state: Annotated[GeoDataAgentState, InjectedState], tool_call_id: Annotated[str, InjectedToolCallId],  query: str, maxRows: int = 10, portal_filter: Optional[str] = None, bbox_wkt: Optional[str] = None) -> Union[Dict[str, Any], Command]:
     """
-    Tool to find geospatial layers and datasets for a given query.
+    Tool to find geospatial layers and datasets for a given thematic query.
+    Use for: 
+    * Finding datasets and layers that match a specific thematic query.
+    * Finding datasets and layers that match a specific location given user data. 
+    * Finding datasets that cannot be found using geocoding tools. 
+    Strengths: 
+    * Provides a wide range of geospatial data sources, including maps, satellite imagery, and vector data.
+    * Allows for flexible queries using natural language, allowing users to search for data by theme, location, or other criteria.
+    Limitations:
+    * The results are limited to the datasets, layers and regions available in the database.
+    * The search is based on similarity, so the results may not always be exact matches to the query.
     query: the search string to send to the database for a similarity search, like "Rivers Namibia"
+    maxRows: the maximum number of results to return, default is 10
     portal_filter: portal name (string) or null
     bbox_wkt: WKT polygon string or null like POLYGON((...)) to limit results to an area
+    Inform the user that the results are limited to the datasets and layers available in the linked database.
+    Inform the user about the total number of results for the query. 
+    Always use the bounding box to limit the results to a specific area. 
     """
     async def _inner():
         async for cur in get_db():
