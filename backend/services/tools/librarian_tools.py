@@ -72,7 +72,7 @@ def query_librarian_postgis(state: Annotated[GeoDataAgentState, InjectedState], 
                 title=row[3],
                 description=row[4],
                 llm_description=row[7],
-                score=row[9],
+                score=1-row[9],
                 bounding_box=row[8],
                 layer_type=row[1],
             )
