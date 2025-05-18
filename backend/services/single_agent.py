@@ -51,10 +51,10 @@ def create_geo_agent() -> CompiledGraph:
         "- Help users discover and use external data sources through WFS and WMS protocols.\n"
         "- Assist users in uploading and processing their own geospatial data.\n"
         "- Connect with open data portals to help users find relevant datasets.\n\n"
-        "# RESPONSE FORMAT\n"
-        "- Always use the set_result_list tool at the end of your processing to show retrieved geodata results to the user.\n"
-        "- Set 'results_title' appropriately (e.g., \"Search Results\", \"Matching Locations\") and populate the 'geodata_results' list with datasets that are relevant to the user's request.\n"
-        "- When providing results, briefly explain what each result represents and how it relates to the user's request.\n\n"
+        #"# RESPONSE FORMAT\n"
+        #"- Always use the set_result_list tool at the end of your processing to show retrieved geodata results to the user.\n"
+        #"- Set 'results_title' appropriately (e.g., \"Search Results\", \"Matching Locations\") and populate the 'geodata_results' list with datasets that are relevant to the user's request.\n"
+        #"- When providing results, briefly explain what each result represents and how it relates to the user's request.\n\n"
         "Remember, your goal is to empower users without GIS expertise to create meaningful maps and gain insights from spatial data through natural conversation."
     )
     return create_react_agent(

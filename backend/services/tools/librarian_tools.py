@@ -41,7 +41,7 @@ def query_librarian_postgis(state: Annotated[GeoDataAgentState, InjectedState], 
                 """
                 SELECT
                 resource_id, source_type, name, title, description,
-                access_url, format, llm_description,
+                access_url, portal, llm_description,
                 ST_AsText(bounding_box) AS bbox_wkt, score
                 FROM dataset_resources_search(
                 %s,     -- searchquery
@@ -65,7 +65,7 @@ def query_librarian_postgis(state: Annotated[GeoDataAgentState, InjectedState], 
                 id=str(row[0]),
                 data_source_id="geoweaver.postgis",
                 data_type=DataType.GEOJSON if row[1]=="geojson" else DataType.LAYER,
-                data_origin=DataOrigin.TOOL,
+                data_origin=row[6],
                 data_source=row[1],
                 data_link=row[5],
                 name=row[2],
