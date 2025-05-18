@@ -4,7 +4,7 @@ from langgraph.prebuilt import create_react_agent
 from langgraph.graph.graph import CompiledGraph
 from services.tools.librarian_tools import query_librarian_postgis
 from services.tools.geoprocess_tools import geoprocess_tool
-from services.tools.geocoding import geocode_using_nominatim_to_geostate, geocode_using_geonames
+from services.tools.geocoding import geocode_using_nominatim_to_geostate, geocode_using_geonames, geocode_using_overpass_to_geostate
 from services.tools.geostate_management import describe_geodata_object, list_global_geodata, set_result_list
 from models.states import GeoDataAgentState, get_medium_debug_state, get_minimal_debug_state
 from services.ai.llm_config import get_llm
@@ -16,6 +16,7 @@ tools: List[BaseTool] = [
     describe_geodata_object,
     geocode_using_geonames,
     geocode_using_nominatim_to_geostate,
+    geocode_using_overpass_to_geostate,
     query_librarian_postgis,
     geoprocess_tool
 ]
@@ -28,6 +29,7 @@ def create_geo_agent() -> CompiledGraph:
         "# ROLE AND CAPABILITIES\n"
         "- Your primary purpose is to interpret natural language requests about geographic information and translate them into appropriate map visualizations and spatial analyses.\n"
         "- You have access to tools for geocoding, querying geographic databases, processing geospatial data, and managing map layers.\n"
+        "- You can search for specific amenities (e.g., restaurants, parks, hospitals) near a location using the Overpass API.\n"
         "- You're designed to be proactive, guiding users through the map creation process and suggesting potential next steps.\n\n"
         "# STATE INFORMATION\n"
         "- The public state contains 'geodata_last_results' (previous results) and 'geodata_layers' (geodata selected by the user).\n"
@@ -37,6 +39,12 @@ def create_geo_agent() -> CompiledGraph:
         "- Always clarify ambiguous requests by asking specific questions.\n"
         "- Proactively guide users through their mapping journey, suggesting potential next steps.\n"
         "- When users ask to highlight or visualize a location, use geocoding and layer styling tools.\n"
+        "- When a user asks to find amenities (e.g., 'restaurants in Paris', 'hospitals near the Colosseum'), use the 'geocode_using_overpass_to_geostate' tool. \n"
+        "  - For this tool, you must extract the amenity type (e.g., 'restaurant', 'hospital') and the location name (e.g., 'Paris', 'Colosseum').\n"
+        "  - Pass the original user query as the 'query' parameter.\n"
+        "  - Pass the extracted amenity type as the 'amenity_key' parameter (e.g., 'restaurant', 'park', 'hospital'). Refer to the tool's internal mapping for supported keys.\n"
+        "  - Pass the extracted location name as the 'location_name' parameter (e.g., 'Paris', 'Colosseum', 'Brandenburg Gate').\n"
+        "  - You can optionally specify 'radius_meters' (default 10000m), 'max_results' (default 20), and 'timeout' (default 30s) for the search.\n"
         "- Explain spatial concepts in simple, non-technical language.\n"
         "- When showing data to users, always provide context about what they're seeing.\n\n"
         "# DATA HANDLING\n"
