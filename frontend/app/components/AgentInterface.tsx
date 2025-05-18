@@ -269,7 +269,7 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
                 <div onClick={() => handleLayerSelect(result)} className="cursor-pointer">
                   <div className="font-bold text-sm">{result.title}</div>
                   <div className="text-xs text-gray-600 truncate" title={result.llm_description}>{result.llm_description}</div>
-                  <div className="text-[10px] text-gray-500">{result.data_origin} | Score: {result.score}</div>
+                  <div className="text-[10px] text-gray-500">{result.data_origin} | Score: {100 * (result?.score ?? 0)}%</div>
                 </div>
                 <button onClick={() => setOverlayData(result)} className="ml-2 px-2 py-1 bg-blue-500 text-white rounded text-xs">Details</button>
               </div>
@@ -355,7 +355,7 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
             <p className="text-sm text-gray-700 mb-2">{overlayData.llm_description}</p>
             <div className="text-[10px] text-gray-500 mb-1">Source: {overlayData.data_source}</div>
             <div className="text-[10px] text-gray-500 mb-1">Layer Type: {overlayData.layer_type}</div>
-            <div className="text-[10px] text-gray-500">Score: {overlayData.score}</div>
+            <div className="text-[10px] text-gray-500">Score: {100 * (overlayData?.score ?? 0)}%</div>
             {overlayData.bounding_box && (
               <pre className="text-[10px] text-gray-500 mt-2 whitespace-pre-wrap break-all">BBox: {overlayData.bounding_box}</pre>
             )}
