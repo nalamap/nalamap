@@ -287,14 +287,73 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
                 <div onClick={() => handleLayerSelect(result)} className="cursor-pointer">
                   <div className="font-bold text-sm">{result.title}</div>
                   <div className="text-xs text-gray-600 truncate" title={result.llm_description}>{result.llm_description}</div>
-                  {/* Score Button with color scaling */}
-                  <button
-                    className="px-2 py-1 text-xs rounded mt-1"
-                    style={getScoreStyle(result.score != null ? Math.round(result.score * 100) : undefined)}
-                    onClick={e => e.stopPropagation()}
-                  >
-                    Score: {result.score != null ? Math.round(result.score * 100) : 'N/A'}
-                  </button>
+                  <div className="flex items-center mt-1" style={{ position: 'relative' }}>
+                    {/* Score Button with color scaling */}
+                    <button
+                      className="px-2 py-1 text-xs rounded"
+                      style={getScoreStyle(result.score != null ? Math.round(result.score * 100) : undefined)}
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        // If score button were to have its own pop-up via activeScoreInfoId:
+                        // setActiveScoreInfoId(activeScoreInfoId === result.id ? null : result.id);
+                        setActiveDetailsId(null); // Close details if score is clicked
+                      }}
+                    >
+                      Score: {result.score != null ? Math.round(result.score * 100) : 'N/A'}
+                    </button>
+
+                    {/* Details Button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveDetailsId(activeDetailsId === result.id ? null : result.id);
+                        setActiveScoreInfoId(null); // Close score tooltip if details is clicked
+                      }}
+                      className="ml-2 px-2 py-1 bg-gray-300 text-black rounded text-xs hover:bg-gray-400"
+                    >
+                      Details
+                    </button>
+
+                    {/* Add to Map Button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleLayerSelect(result);
+                      }}
+                      className="ml-2 px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+                    >
+                      Add to Map
+                    </button>
+
+                    {/* Details Pop-up */}
+                    {activeDetailsId === result.id && (
+                        <div 
+                            style={{
+                                position: 'absolute',
+                                bottom: '100%', // Position above the button row
+                                left: '0',
+                                marginBottom: '5px',
+                                backgroundColor: 'white',
+                                color: '#333',
+                                border: '1px solid #ddd',
+                                padding: '10px',
+                                borderRadius: '4px',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                                zIndex: 50,
+                                fontSize: '12px',
+                                width: '280px',
+                                textAlign: 'left',
+                            }}
+                            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside pop-up
+                        >
+                            <h4 className="font-bold text-sm mb-1">{result.title || 'Details'}</h4>
+                            <p className="text-xs mb-1"><strong>Description:</strong> {result.llm_description || result.description || 'N/A'}</p>
+                            <p className="text-xs mb-1"><strong>Data Source:</strong> {result.data_source || 'N/A'}</p>
+                            <p className="text-xs mb-1"><strong>Layer Type:</strong> {result.layer_type || 'N/A'}</p>
+                            {result.bounding_box && <p className="text-xs whitespace-pre-wrap break-all"><strong>BBox:</strong> {typeof result.bounding_box === 'string' ? result.bounding_box : JSON.stringify(result.bounding_box)}</p>}
+                        </div>
+                    )}
+                  </div>
                   <div className="text-[10px] text-gray-500 mt-1">{result.data_origin}</div>
                 </div>
               </div>
