@@ -529,13 +529,18 @@ def geocode_using_overpass_to_geostate(
     amenity_key: str, # e.g. "restaurant", "park", "hospital" - to be mapped to OSM tags
     location_name: str, # e.g. "Paris", "London", "near the Colosseum"
     radius_meters: int = 10000, # Default search radius around a point, e.g. 10km
-    max_results: int = 250, # Max results from Overpass (applied by Overpass, not strictly by this post-processing) - Increased default
+    max_results: int = 5000, # Max results from Overpass. Default is 5000. User can specify a different limit.
     timeout: int = 300  # Default timeout in seconds
 ) -> Union[Dict[str, Any], Command]:
     """
-    Search for specific amenities (e.g., restaurants, parks, schools) near a given location using OpenStreetMap's Overpass API.
-    This tool geocodes the 'location_name', then queries Overpass. 
+    Search for specific amenities (e.g., restaurants, parks, schools) near a given location using OpenStreetMap\'s Overpass API.
+    This tool geocodes the \'location_name\', then queries Overpass. 
     Results are grouped by geometry type (Points, Polygons, Lines) into separate GeoJSON FeatureCollection layers.
+
+    If the number of results reaches \'max_results\' (default 5000), inform the user that the limit was hit
+    and that they can request a different limit if more features are desired. 
+    Also, warn the user that requesting a very high number of features can significantly
+    decrease map performance and might lead to browser slowdowns or crashes.
     """
     
     # 1. Map amenity_key to OSM tag
@@ -762,6 +767,16 @@ def geocode_using_overpass_to_geostate(
         tool_message_content = f"Found {amenity_key_display} near '{resolved_location_display_name}', but could not form any distinct geometry layers."
     else:
         tool_message_content = f"Found {total_features_found} '{amenity_key_display}' feature(s) near '{resolved_location_display_name}'. Created {len(created_collections)} collection layer(s). "
+        
+        # Check if the max_results limit was hit
+        if total_features_found == max_results:
+            limit_hit_message = (
+                f"The query returned the maximum allowed number of features ({max_results}). "
+                f"If you need more results, you can ask me to increase this limit. "
+                f"However, please be aware that a very large number of features can significantly degrade map performance."
+            )
+            tool_message_content += f"LIMIT_INFO: {limit_hit_message}. "
+
         # Provide structured info for the agent and clear instructions on how to respond to the user.
         layer_details_for_agent = json.dumps(actionable_layers_info)
         user_response_guidance = (
