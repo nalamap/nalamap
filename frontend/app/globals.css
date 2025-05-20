@@ -437,6 +437,6 @@
 
 body {
   color: var(--primary-700);
-  background: var(--secondary-700);
+  background: var(--primary-100);
   font-family: Arial, Helvetica, sans-serif;
 }
