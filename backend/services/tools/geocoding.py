@@ -14,6 +14,7 @@ from langgraph.prebuilt import InjectedState
 from services.storage.file_management import store_file
 from models.states import GeoDataAgentState, get_medium_debug_state, get_minimal_debug_state
 from models.geodata import DataOrigin, DataType, GeoDataObject
+from .constants import AMENITY_MAPPING
 
 
 
@@ -181,11 +182,17 @@ def geocode_using_nominatim_to_geostate(state: Annotated[GeoDataAgentState, Inje
                     
                     # Provide structured info for the agent and clear instructions
                     layer_details_for_agent = json.dumps(actionable_layers_info)
+                    
+                    # Safely get an example name for the guidance
+                    first_layer_example_name = actionable_layers_info[0].get('name', 'Unknown Location') if actionable_layers_info else 'Unknown Location'
+
                     user_response_guidance = (
-                        f"Call 'set_result_list' to make these layers available. " +
-                        f"THIS IS A SIMPLIFIED TEST STRING " + # This is the simplified line
-                        f"and state that they are available to be added to the map from the layer list. " +
-                        f"Do NOT include direct file paths, sandbox links, or any other internal storage paths in your textual response or as Markdown links."
+                        "Call 'set_result_list' to make these layer(s) available for the user to select. " +
+                        f"In your textual response to the user, confirm the geocoding success and mention the type of locations found (e.g., based on the query or results like '{first_layer_example_name}'). " +
+                        "State that the found layers are now listed (e.g., in a list or panel) and can be selected by the user to be added to the map. " +
+                        "Ensure your response clearly indicates the user needs to take an action to add them to the map. " +
+                        "Do NOT state or imply that the layers have already been added to the map. " +
+                        "Do NOT include direct file paths, sandbox links, or any other internal storage paths in your textual response or as Markdown links."
                     )
                     tool_message_content += f"Actionable layer details: {layer_details_for_agent}. User response guidance: {user_response_guidance}"
 
@@ -208,129 +215,6 @@ def geocode_using_nominatim_to_geostate(state: Annotated[GeoDataAgentState, Inje
         print(response.json())
         return { "message": "Error querying the Nominatim API." }
 
-
-# Amenity mapping for Overpass API
-AMENITY_MAPPING = {
-    "restaurant": "amenity=restaurant",
-    "restaurants": "amenity=restaurant",
-    "park": "leisure=park",
-    "parks": "leisure=park",
-    "school": "amenity=school",
-    "schools": "amenity=school",
-    "hospital": "amenity=hospital",
-    "hospitals": "amenity=hospital",
-    "cafe": "amenity=cafe",
-    "cafes": "amenity=cafe",
-    "bar": "amenity=bar",
-    "bars": "amenity=bar",
-    "pub": "amenity=pub",
-    "pubs": "amenity=pub",
-    "hotel": "tourism=hotel",
-    "hotels": "tourism=hotel",
-    "bank": "amenity=bank",
-    "banks": "amenity=bank",
-    "supermarket": "shop=supermarket",
-    "supermarkets": "shop=supermarket",
-    "pharmacy": "amenity=pharmacy",
-    "pharmacies": "amenity=pharmacy",
-    "cinema": "amenity=cinema",
-    "cinemas": "amenity=cinema",
-    "library": "amenity=library",
-    "libraries": "amenity=library",
-    "police": "amenity=police",
-    "fire_station": "amenity=fire_station",
-    "post_office": "amenity=post_office",
-    "place_of_worship": "amenity=place_of_worship",
-    "bus_stop": "highway=bus_stop",
-    "train_station": "railway=station",
-    "airport": "aeroway=aerodrome",
-    "fuel": "amenity=fuel", # Gas station
-    "parking": "amenity=parking",
-    "atm": "amenity=atm",
-    "fast_food": "amenity=fast_food",
-    "doctors": "amenity=doctors",
-    "dentist": "amenity=dentist",
-    "veterinary": "amenity=veterinary",
-    "theatre": "amenity=theatre",
-    "nightclub": "amenity=nightclub",
-    "community_centre": "amenity=community_centre",
-    "social_facility": "amenity=social_facility",
-    "marketplace": "amenity=marketplace",
-    "public_building": "amenity=public_building",
-    "recycling": "amenity=recycling",
-    "toilets": "amenity=toilets",
-    "bench": "amenity=bench",
-    "drinking_water": "amenity=drinking_water",
-    "fountain": "amenity=fountain",
-    "shelter": "amenity=shelter",
-    "telephone": "amenity=telephone",
-    "waste_basket": "amenity=waste_basket",
-    "waste_disposal": "amenity=waste_disposal",
-    # Leisure tags
-    "playground": "leisure=playground",
-    "sports_centre": "leisure=sports_centre",
-    "stadium": "leisure=stadium",
-    "pitch": "leisure=pitch", # Sports pitch
-    "track": "leisure=track", # Sports track
-    "swimming_pool": "leisure=swimming_pool",
-    "golf_course": "leisure=golf_course",
-    "ice_rink": "leisure=ice_rink",
-    "fitness_centre": "leisure=fitness_centre",
-    "garden": "leisure=garden",
-    "dog_park": "leisure=dog_park",
-    "nature_reserve": "leisure=nature_reserve",
-    "picnic_site": "leisure=picnic_site",
-    "beach_resort": "leisure=beach_resort",
-    "marina": "leisure=marina",
-    "water_park": "leisure=water_park",
-    "fishing": "leisure=fishing",
-    "common": "leisure=common", # Village green
-    # Shop tags
-    "bakery": "shop=bakery",
-    "butcher": "shop=butcher",
-    "clothes": "shop=clothes",
-    "convenience": "shop=convenience",
-    "department_store": "shop=department_store",
-    "electronics": "shop=electronics",
-    "florist": "shop=florist",
-    "furniture": "shop=furniture",
-    "gift": "shop=gift",
-    "hairdresser": "shop=hairdresser",
-    "hardware": "shop=hardware",
-    "jewelry": "shop=jewelry",
-    "kiosk": "shop=kiosk",
-    "laundry": "shop=laundry",
-    "mall": "shop=mall", # Shopping mall
-    "optician": "shop=optician",
-    "pet": "shop=pet", # Pet store
-    "shoes": "shop=shoes",
-    "sports": "shop=sports", # Sports shop
-    "stationery": "shop=stationery",
-    "travel_agency": "shop=travel_agency",
-    "book": "shop=books",
-    "books": "shop=books",
-    "music": "shop=music",
-    "toys": "shop=toys",
-    "car_repair": "shop=car_repair",
-    "car_parts": "shop=car_parts",
-    "bicycle": "shop=bicycle", # Bicycle shop
-    # Tourism tags
-    "museum": "tourism=museum",
-    "gallery": "tourism=gallery",
-    "zoo": "tourism=zoo",
-    "theme_park": "tourism=theme_park",
-    "attraction": "tourism=attraction",
-    "viewpoint": "tourism=viewpoint",
-    "information": "tourism=information", # Tourist information
-    "artwork": "tourism=artwork",
-    "guest_house": "tourism=guest_house",
-    "motel": "tourism=motel",
-    "hostel": "tourism=hostel",
-    "chalet": "tourism=chalet",
-    "camp_site": "tourism=camp_site",
-    "caravan_site": "tourism=caravan_site",
-    "picnic_table": "tourism=picnic_site" # Though picnic_site is leisure, a table itself could be tourism
-}
 
 # Helper function to convert a single Overpass API element to a GeoJSON Feature dictionary
 def convert_osm_element_to_geojson_feature(element: Dict[str, Any], osm_tag_value_filter: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -768,11 +652,18 @@ def geocode_using_overpass_to_geostate(
             tool_message_content += f"LIMIT_INFO: {limit_hit_message}. "
 
         layer_details_for_agent = json.dumps(actionable_layers_info)
+        
+        # Safely get an example name for the guidance
+        example_layer_name = actionable_layers_info[0].get('name', 'Unknown Layer') if actionable_layers_info else 'Unknown Layer'
+
         user_response_guidance = (
-            f"Call 'set_result_list' to make these layers available. " +
-            f"THIS IS A SIMPLIFIED TEST STRING " + # This is the simplified line
-            f"and state that they are available to be added to the map from the layer list. " +
-            f"Do NOT include direct file paths, sandbox links, or any other internal storage paths in your textual response or as Markdown links."
+            "Call 'set_result_list' to make these layers available for the user to select. " +
+            f"In your textual response to the user, mention the type of amenities and location searched (e.g., '{amenity_key_display}' near '{resolved_location_display_name}'). " +
+            f"You can cite an example layer name like '{example_layer_name}'. " +
+            "State that the found layers are now listed (e.g., in a list or panel) and can be selected by the user to be added to the map. " +
+            "Ensure your response clearly indicates the user needs to take an action to add them to the map. " +
+            "Do NOT state or imply that the layers have already been added to the map. " +
+            "Do NOT include direct file paths, sandbox links, or any other internal storage paths in your textual response or as Markdown links."
         )
         tool_message_content += f"Actionable layer details: {layer_details_for_agent}. User response guidance: {user_response_guidance}"
 
