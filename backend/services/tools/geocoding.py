@@ -187,7 +187,7 @@ def geocode_using_nominatim_to_geostate(state: Annotated[GeoDataAgentState, Inje
                         f"and state that they are available to be added to the map from the layer list. " +
                         f"Do NOT include direct file paths, sandbox links, or any other internal storage paths in your textual response or as Markdown links."
                     )
-                    tool_message_content += f"Actionable layer details: {layer_details_for_agent}. User response guidance: {user_response_guidance}"
+                    tool_message_content = f"Actionable layer details: {layer_details_for_agent}. User response guidance: {user_response_guidance}"
 
                 return Command(update={
                     "messages": [
