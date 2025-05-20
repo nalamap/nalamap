@@ -771,7 +771,7 @@ def geocode_using_overpass_to_geostate(
         layer_details_for_agent = json.dumps(actionable_layers_info)
         user_response_guidance = (
             f"Call 'set_result_list' to make these layers available. "
-            f"In your response to the user, list the layers by their 'name' (e.g., \\"{actionable_layers_info[0]['name'] if actionable_layers_info else 'Layer Name'}\\") "
+            f"In your response to the user, list the layers by their 'name' (e.g., "{actionable_layers_info[0]['name'] if actionable_layers_info else 'Layer Name'}") "
             f"and state that they are available to be added to the map from the layer list. "
             f"Do NOT include direct file paths, sandbox links, or any other internal storage paths in your textual response or as Markdown links."
         )
