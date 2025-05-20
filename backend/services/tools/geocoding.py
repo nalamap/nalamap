@@ -529,7 +529,7 @@ def geocode_using_overpass_to_geostate(
     amenity_key: str, # e.g. "restaurant", "park", "hospital" - to be mapped to OSM tags
     location_name: str, # e.g. "Paris", "London", "near the Colosseum"
     radius_meters: int = 10000, # Default search radius around a point, e.g. 10km
-    max_results: int = 5000, # Max results from Overpass. Default is 5000. User can specify a different limit.
+    max_results: int = 2500, # Max results from Overpass. Default is 2500. User can specify a different limit.
     timeout: int = 300  # Default timeout in seconds
 ) -> Union[Dict[str, Any], Command]:
     """
@@ -537,7 +537,7 @@ def geocode_using_overpass_to_geostate(
     This tool geocodes the \'location_name\', then queries Overpass. 
     Results are grouped by geometry type (Points, Polygons, Lines) into separate GeoJSON FeatureCollection layers.
 
-    If the number of results reaches \'max_results\' (default 5000), inform the user that the limit was hit
+    If the number of results reaches \'max_results\' (default 2500), inform the user that the limit was hit
     and that they can request a different limit if more features are desired. 
     Also, warn the user that requesting a very high number of features can significantly
     decrease map performance and might lead to browser slowdowns or crashes.
