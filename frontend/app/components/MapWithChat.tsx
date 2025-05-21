@@ -3,6 +3,7 @@
 import { useState } from "react";
 import MapSwitcher from "./MapSwitcher";
 import { useGeoweaverAgent } from "../hooks/useGeoweaverAgent";
+import ReactMarkdown from "react-markdown";
 
 type Message = { role: "user" | "agent"; content: string };
 
@@ -123,7 +124,13 @@ export default function MapWithChat() {
           {conversation.map((msg, idx) => (
             <div key={idx} className="mb-2 text-sm">
               <strong>{msg.role === "user" ? "User:" : "Agent:"}</strong>{" "}
-              {msg.content}
+              {msg.role === "user" ? (
+                <span>{msg.content}</span>
+              ) : (
+                <div className="chat-markdown">
+                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+                </div>
+              )}
             </div>
           ))}
         </div>

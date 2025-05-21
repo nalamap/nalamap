@@ -7,6 +7,7 @@ import { ArrowUp, X, Loader2 } from "lucide-react";
 import { useLayerStore } from "../stores/layerStore";
 import { GeoDataObject } from "../models/geodatamodel";
 import { hashString } from "../utils/hashUtil";
+import ReactMarkdown from "react-markdown";
 
 // Helper function to determine score color and appropriate text color
 const getScoreStyle = (score?: number): { backgroundColor: string; color: string } => {
@@ -255,7 +256,13 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
                     : 'bg-gray-50 rounded-tl-none border'
                     }`}
                 >
-                  <div className="text-sm break-words">{msg.content}</div>
+                  {isHuman ? (
+                    <div className="text-sm break-words">{msg.content}</div>
+                  ) : (
+                    <div className="text-sm break-words chat-markdown">
+                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    </div>
+                  )}
                   <div className="text-xs text-gray-500 mt-1">
                     {isHuman
                       ? 'You'

@@ -440,3 +440,62 @@ body {
   background: var(--primary-100);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Add custom styling for markdown chat content */
+.chat-markdown {
+  @apply text-sm;
+}
+
+.chat-markdown h1 {
+  @apply text-lg font-bold mt-2 mb-1;
+}
+
+.chat-markdown h2 {
+  @apply text-base font-bold mt-2 mb-1;
+}
+
+.chat-markdown h3 {
+  @apply text-sm font-bold mt-2 mb-1;
+}
+
+.chat-markdown ul {
+  @apply list-disc pl-4 my-1;
+}
+
+.chat-markdown ol {
+  @apply list-decimal pl-4 my-1;
+}
+
+.chat-markdown li {
+  @apply my-0.5;
+}
+
+.chat-markdown code {
+  @apply bg-gray-100 rounded px-1;
+}
+
+.chat-markdown pre {
+  @apply bg-gray-100 p-2 rounded my-1 text-xs overflow-auto;
+}
+
+.chat-markdown a {
+  @apply text-blue-600 hover:underline;
+}
+
+.chat-markdown blockquote {
+  @apply border-l-4 border-gray-300 pl-2 italic my-1;
+}
+
+.chat-markdown strong {
+  @apply font-bold;
+}
+
+.chat-markdown em {
+  @apply italic;
+}
+
+.chat-markdown p {
+  @apply mt-1 mb-1;
+}
+
+/* End of custom markdown styling */
