@@ -18,8 +18,14 @@ import uuid
 from core.config import BASE_URL, LOCAL_UPLOAD_DIR
 import json
 # LLM import
+from langchain_core.messages import HumanMessage
 from services.ai.llm_config import get_llm
 
+def get_last_human_content(messages):
+    for msg in reversed(messages):
+        if isinstance(msg, HumanMessage):
+            return msg.content
+    raise ValueError("No human message found in context")
 
 def _flatten_features(layers):
     """
@@ -61,6 +67,7 @@ def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857"):
       3) Applies buffer with `radius` in meters
       4) Reprojects result back to EPSG:4326
     If `buffer_crs` is provided by user, uses that CRS instead of EPSG:3857.
+    If user asks for a buffer in kilometers or miles, convert to meters before proceeding. 
     """
     feats = _flatten_features(layers)
     if not feats:
@@ -70,13 +77,13 @@ def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857"):
     gdf.set_crs("EPSG:4326", inplace=True)
     # Reproject to chosen metric CRS for buffering
     gdf = gdf.to_crs(buffer_crs)
-    # Buffer in meter units
+    # Buffer in meter units only operate on geometry column to keep property info of layer
     gdf['geometry'] = gdf.geometry.buffer(radius)
     # Reproject back to geographic coords
     gdf = gdf.to_crs("EPSG:4326")
     # Export to GeoJSON Feature list
     fc = json.loads(gdf.to_json())
-    return fc['features']
+    return [fc]
 
 
 
@@ -188,8 +195,23 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
         "You are a geospatial processing assistant. "
         "You have the following input layers with metadata (id, name, geometry_type, bbox). "
         "Based on the user request and available operations, choose the best sequence of operations. "
-        "Return a JSON with 'steps' array, each having 'operation with params' (one of: "
+        "Return a JSON object with a top-level key steps whose value is an array of objects. Each object must have exactly two keys:"
         + ", ".join(available_ops) + "). Dont define at any operation params with layer or layers as all functions are called as func(layers: result, **params)"
+        "Example Output:"
+        """
+        {
+        "steps": [
+            {
+            "operation": "buffer",
+            "params": { "radius": 3000 }
+            },
+            {
+            "operation": "clip",
+            "params": {}
+            }
+        ]
+        }
+        """
     )
     user_payload = {
         "query": query,
@@ -235,7 +257,7 @@ def geoprocess_tool(
     tool_call_id: Annotated[str, InjectedToolCallId],
 ) -> Union[Dict[str, Any], Command]:
     """
-    Tool to geoprocess geospatial layers and datasets (geodata_layers) for a given query and
+    Tool to geoprocess geospatial layers and datasets (geodata_layers) based on the user request and available operations (buffer, intersection, union, difference, clip).
     """
     # Safely pull out the list (defaults to [] if key missing or None)
     layers = state.get("geodata_layers") or []
@@ -274,10 +296,11 @@ def geoprocess_tool(
                 "type": "FeatureCollection",
                 "features": [gj],
             })
-    query=messages[-2].content
+    
+    query=get_last_human_content(messages)
     # 2) Build the state for the geoprocess executor
     processing_state = {
-        "query": messages[-2].content,
+        "query": query,
         "input_layers": input_layers,
         "available_operations_and_params": [
             "operation: buffer params: radius=1000, buffer_crs=EPSG:3857",
@@ -296,7 +319,9 @@ def geoprocess_tool(
     # 4) Collect results
     result_layers = final_state.get("result_layers", [])
     tools_used   = final_state.get("tool_sequence", [])
-
+    if tools_used:
+        tools_name='and'.join(tool for tool in tools_used)
+        result_name=result_name+tools_name
     # Build new GeoDataObjects
     new_geodata: List[GeoDataObject] = []
     out_urls: List[str] = []
@@ -330,8 +355,9 @@ def geoprocess_tool(
     return Command(
         update={
             "messages": [
-                ToolMessage("Tools used: " + ", ".join(tools_used) + f". Added GeoDataObjects into the global_state, use id and data_source_id for reference: {json.dumps([ {"id": result.id, "data_source_id": result.data_source_id, "title": result.title} for result in new_geodata])}", tool_call_id=tool_call_id)
+                ToolMessage(name="geoprocess_tool", content="Tools used: " + ", ".join(tools_used) + f". Added GeoDataObjects into the global_state, use id and data_source_id for reference: {json.dumps([ {"id": result.id, "data_source_id": result.data_source_id, "title": result.title} for result in new_geodata])}", tool_call_id=tool_call_id)
             ],
-            "global_geodata": new_geodata
+            "global_geodata": new_geodata,
+            "geodata_results": new_geodata
         }
     )

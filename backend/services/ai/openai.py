@@ -1,7 +1,7 @@
 from langchain_openai import ChatOpenAI
 from os import getenv
 
-def get_llm(max_tokens: int = 5000):
+def get_llm(max_tokens: int = 6000):
     return ChatOpenAI(
         model="gpt-4.1-nano",
         temperature=0,

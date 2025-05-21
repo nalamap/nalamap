@@ -2,7 +2,7 @@
 from langchain_openai import AzureChatOpenAI
 from os import getenv
 
-def get_llm(max_tokens: int = 5000):
+def get_llm(max_tokens: int = 6000):
     return AzureChatOpenAI(
         azure_deployment=getenv("AZURE_OPENAI_DEPLOYMENT"),
         api_version=getenv("AZURE_OPENAI_API_VERSION"),

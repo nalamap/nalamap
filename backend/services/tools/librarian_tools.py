@@ -16,10 +16,24 @@ from models.geodata import DataOrigin, DataType, GeoDataObject
 @tool
 def query_librarian_postgis(state: Annotated[GeoDataAgentState, InjectedState], tool_call_id: Annotated[str, InjectedToolCallId],  query: str, maxRows: int = 10, portal_filter: Optional[str] = None, bbox_wkt: Optional[str] = None) -> Union[Dict[str, Any], Command]:
     """
-    Tool to find geospatial layers and datasets for a given query.
+    Tool to find geospatial layers and datasets for a given thematic query.
+    Use for: 
+    * Finding datasets and layers that match a specific thematic query.
+    * Finding datasets and layers that match a specific location given user data. 
+    * Finding datasets that cannot be found using geocoding tools. 
+    Strengths: 
+    * Provides a wide range of geospatial data sources, including maps, satellite imagery, and vector data.
+    * Allows for flexible queries using natural language, allowing users to search for data by theme, location, or other criteria.
+    Limitations:
+    * The results are limited to the datasets, layers and regions available in the database.
+    * The search is based on similarity, so the results may not always be exact matches to the query.
     query: the search string to send to the database for a similarity search, like "Rivers Namibia"
+    maxRows: the maximum number of results to return, default is 10
     portal_filter: portal name (string) or null
     bbox_wkt: WKT polygon string or null like POLYGON((...)) to limit results to an area
+    Inform the user that the results are limited to the datasets and layers available in the linked database.
+    Inform the user about the total number of results for the query. 
+    Always use the bounding box to limit the results to a specific area. 
     """
     async def _inner():
         async for cur in get_db():
@@ -27,7 +41,7 @@ def query_librarian_postgis(state: Annotated[GeoDataAgentState, InjectedState], 
                 """
                 SELECT
                 resource_id, source_type, name, title, description,
-                access_url, format, llm_description,
+                access_url, portal, llm_description,
                 ST_AsText(bounding_box) AS bbox_wkt, score
                 FROM dataset_resources_search(
                 %s,     -- searchquery
@@ -51,14 +65,14 @@ def query_librarian_postgis(state: Annotated[GeoDataAgentState, InjectedState], 
                 id=str(row[0]),
                 data_source_id="geoweaver.postgis",
                 data_type=DataType.GEOJSON if row[1]=="geojson" else DataType.LAYER,
-                data_origin=DataOrigin.TOOL,
+                data_origin=row[6],
                 data_source=row[1],
                 data_link=row[5],
                 name=row[2],
                 title=row[3],
                 description=row[4],
                 llm_description=row[7],
-                score=row[9],
+                score=1-row[9],
                 bounding_box=row[8],
                 layer_type=row[1],
             )
@@ -67,17 +81,20 @@ def query_librarian_postgis(state: Annotated[GeoDataAgentState, InjectedState], 
 
         new_global_geodata: List[GeoDataObject]
 
-        if "global_geodata" not in state or state["global_geodata"] is None or not isinstance(state["global_geodata"], List):
+        if "global_geodata" not in state or state["global_geodata"] is None or not isinstance(state["global_geodata"], List) or len(state["global_geodata"]) == 0:
             new_global_geodata = results
         else:
-            new_global_geodata = state["global_geodata"].extend(results)
+            new_global_geodata = []
+            new_global_geodata.extend(state["global_geodata"])
+            new_global_geodata.extend(results)
 
         return Command(update={
                     "messages": [
                         *state["messages"], 
-                        ToolMessage(f"Retrieved {len(results)} results, added GeoDataObjects into the global_state, use id and data_source_id for reference: {json.dumps([ {"id": result.id, "data_source_id": result.data_source_id, "title": result.title} for result in results])}", tool_call_id=tool_call_id )
+                        ToolMessage(name="query_librarian_postgis", content=f"Retrieved {len(results)} results, added GeoDataObjects into the global_state, use id and data_source_id for reference: {json.dumps([ {"id": result.id, "data_source_id": result.data_source_id, "title": result.title} for result in results])}", tool_call_id=tool_call_id )
                         ], 
-                    "global_geodata": new_global_geodata
+                    "global_geodata": new_global_geodata,
+                    "geodata_results": new_global_geodata
         })
     
     try:

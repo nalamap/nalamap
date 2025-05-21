@@ -1,8 +1,9 @@
 export interface ChatMessage {
     id?: string
-    type: 'human' | 'ai' | 'system' | 'tool'
+    type: 'human' | 'ai' | 'system' | 'tool' | 'function'
     content: string
     additional_kwargs?: Record<string, any>
+    tool_calls?: any
 }
 
 // New interface for styling GeoJSON layers
@@ -22,9 +23,11 @@ export interface GeoDataObject {
     data_source_id: string
     data_type: string
     data_origin: string
+
     data_source: string
     data_link: string
     name: string
+
     title?: string
     description?: string
     llm_description?: string
@@ -32,6 +35,7 @@ export interface GeoDataObject {
     bounding_box?: string | number[] // Can be WKT POLYGON string or array [minX, minY, maxX, maxY]
     layer_type?: string
     properties?: Record<string, string>
+    
     visible?: boolean
     selected?: boolean;     // <— new flag
     style?: StyleOptions;   // optional styling options

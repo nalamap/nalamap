@@ -28,7 +28,7 @@ class GeoDataObject(BaseModel):
     id: str
     data_source_id: str   # e.g. database name
     data_type: DataType
-    data_origin: DataOrigin
+    data_origin: str
 
     # Required metadata
     data_source: str      # e.g. portal name
@@ -43,6 +43,9 @@ class GeoDataObject(BaseModel):
     bounding_box: Optional[str] = None
     layer_type: Optional[str] = None
     properties: Optional[Dict[str, Any]] = {}
+
+    visible: Optional[bool] = False
+    selected: Optional[bool] = False
 
     class Config:
         # Allow Enum values to be output as raw values

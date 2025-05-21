@@ -132,6 +132,9 @@ function LeafletGeoJSONLayer({ url, style }: { url: string; style?: StyleOptions
   // Keep a ref of the latest style options so event handlers always see updates
   const styleRef = useRef<StyleOptions | undefined>(style);
 
+  // Create a canvas renderer instance
+  const canvasRenderer = L.canvas();
+
   useEffect(() => {
     fetch(url)
       .then((res) => res.json())
@@ -375,7 +378,13 @@ export default function LeafletMapComponent() {
   return (
     <div className="relative w-full h-full">
       <div className="absolute inset-0 z-0">
-        <MapContainer center={[0, 0]} zoom={2} style={{ height: "100%", width: "100%" }} fullscreenControl={true}>
+        <MapContainer 
+          center={[0, 0]} 
+          zoom={2} 
+          style={{ height: "100%", width: "100%" }} 
+          fullscreenControl={true}
+          preferCanvas={true}
+        >
           {/* Add the fullscreen control */}
           <FullscreenControl />
           <ZoomToSelected />

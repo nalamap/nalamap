@@ -3,7 +3,7 @@ import os
 
 # Load environment variables from .env file
 load_dotenv()
-llm_provider = os.getenv("LLM_PROVIDER", "azure").lower()
+llm_provider = os.getenv("LLM_PROVIDER", "openai").lower()
 
 
 if llm_provider == "openai":
