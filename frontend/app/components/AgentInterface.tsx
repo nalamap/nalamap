@@ -5,70 +5,6 @@ import wellknown from "wellknown";
 import { useGeoweaverAgent } from "../hooks/useGeoweaverAgent";
 import { ArrowUp, X, Loader2 } from "lucide-react";
 import { useLayerStore } from "../stores/layerStore";
-import { GeoDataObject, StyleOptions } from "../models/geodatamodel";
-
-// Utility to parse style descriptions into StyleOptions
-function parseStyleString(desc: string): Partial<StyleOptions> {
-  const opts: Partial<StyleOptions> = {};
-  const lower = desc.toLowerCase();
-  const strokeMatches = Array.from(desc.matchAll(/(?:stroke color|color)\s+to\s+(#[0-9a-f]{3,6}|[a-z]+(?:-[a-z]+)*)/gi));
-  if (strokeMatches.length > 0) {
-    const lastMatch = strokeMatches[strokeMatches.length - 1];
-    const color = lastMatch[1];
-    opts.strokeColor = color;
-    // default fillColor to same if not explicitly set later
-    opts.fillColor = color;
-  }
-  // generic 'to <color>' or 'to color <color>' fallback if no explicit directive
-  if (!opts.strokeColor) {
-    const genericMatches = Array.from(
-      desc.matchAll(/to\s+(?:color\s+)?(#[0-9a-fA-F]{3,6}|[a-z]+(?:-[a-z]+)*)/gi)
-    );
-    if (genericMatches.length > 0) {
-      const lastColor = genericMatches[genericMatches.length - 1][1];
-      opts.strokeColor = lastColor;
-      opts.fillColor = lastColor;
-    }
-  }
-  const fillMatch = desc.match(/(?:fill color)\s+(?:to\s+)?(#(?:[0-9a-f]{3,6})|[a-z]+(?:-[a-z]+)*)/i);
-  if (fillMatch) {
-    opts.fillColor = fillMatch[1];
-  }
-  // opacity
-  const opacityMatch = lower.match(/opacity ([0-9]*\.?[0-9]+)%?/);
-  if (opacityMatch) {
-    const val = parseFloat(opacityMatch[1]);
-    opts.opacity = val > 1 ? val / 100 : val;
-  }
-  // fill opacity
-  const fillOpacityMatch = lower.match(/(?:fill opacity|capacity) ([0-9]*\.?[0-9]+)%?/);
-  if (fillOpacityMatch) {
-    const val = parseFloat(fillOpacityMatch[1]);
-    opts.fillOpacity = val > 1 ? val / 100 : val;
-  }
-  // weight
-  const weightMatch = lower.match(/weight (\d*\.?\d+)/);
-  if (weightMatch) {
-    opts.weight = parseFloat(weightMatch[1]);
-  }
-  // dash array
-  const dashArrayMatch = lower.match(/dash array ([0-9, ]+)/);
-  if (dashArrayMatch) {
-    opts.dashArray = dashArrayMatch[1].trim();
-  }
-  // dash offset
-  const dashOffsetMatch = lower.match(/dash offset ([0-9, ]+)/);
-  if (dashOffsetMatch) {
-    opts.dashOffset = dashOffsetMatch[1].trim();
-  }
-  // radius for circle markers
-  const radiusMatch = lower.match(/radius (\d*\.?\d+)/);
-  if (radiusMatch) {
-    opts.radius = parseFloat(radiusMatch[1]);
-  }
-  return opts;
-}
-=======
 import { GeoDataObject } from "../models/geodatamodel";
 import { hashString } from "../utils/hashUtil";
 import ReactMarkdown from "react-markdown";
@@ -122,8 +58,8 @@ function toWkt(bbox: GeoDataObject["bounding_box"]): string | undefined {
 
 interface Props {
   onLayerSelect: (layers: any[]) => void;
-  conversation: { role: "user" | "agent"; content: string }[];
-  setConversation: React.Dispatch<React.SetStateAction<{ role: "user" | "agent"; content: string }[]>>;
+  conversation: { role: "user" | "agent"; content: string; id?: string }[];
+  setConversation: React.Dispatch<React.SetStateAction<{ role: "user" | "agent"; content: string; id?: string }[]>>;
 }
 
 export default function AgentInterface({ onLayerSelect, conversation: conversation_old, setConversation }: Props) {
@@ -158,8 +94,8 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
   }, [conversation_old, agentMessages]);
 
   // combine style chat messages (prop) and agent conversations (hook)
-  const styleChat = conversation_old.map((msg) => ({ type: msg.role === 'user' ? 'human' : 'ai', content: msg.content }));
-  const conversation = [...styleChat, ...agentMessages];
+  const styleChat = conversation_old.map((msg) => ({ type: msg.role === 'user' ? 'human' : 'ai', content: msg.content, id: msg.id }));
+  const conversation: ({type: string, content: string, id?:string | undefined} | any)[] = [...styleChat, ...agentMessages];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -169,30 +105,30 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
     setConversation(prev => [...prev, { role: 'user', content: input }]);
     
     // Auto-detect any style keywords and apply
-    const styleOpts = parseStyleString(input);
-    if (Object.keys(styleOpts).length > 0) {
-      const layers = useLayerStore.getState().layers;
-      const inputLower = input.toLowerCase();
-      // Find explicitly named layers (match name or name.geojson or title)
-      const explicitLayers = layers.filter(l => {
-        const name = l.name.toLowerCase();
-        const nameWithExt = name.endsWith('.geojson') ? name : `${name}.geojson`;
-        const title = (l.title || '').toLowerCase();
-        return inputLower.includes(name) || inputLower.includes(nameWithExt) || (title && inputLower.includes(title));
-      });
-      if (explicitLayers.length > 0) {
-        // apply to each mentioned layer
-        explicitLayers.forEach(layer => useLayerStore.getState().updateLayerStyle(layer.id, styleOpts));
-        const updatedNames = explicitLayers.map(l => l.name).join(', ');
-        setConversation(prev => [...prev, { role: 'agent', content: `Updated layer(s): ${updatedNames}.` }]);
-      } else {
-        // generic: apply to all layers
-        layers.forEach(layer => useLayerStore.getState().updateLayerStyle(layer.id, styleOpts));
-        setConversation(prev => [...prev, { role: 'agent', content: `Updated all layers with your style settings.` }]);
-      }
-      setInput('');
-      return;
-    }
+    // const styleOpts = parseStyleString(input);
+    // if (Object.keys(styleOpts).length > 0) {
+    //   const layers = useLayerStore.getState().layers;
+    //   const inputLower = input.toLowerCase();
+    //   // Find explicitly named layers (match name or name.geojson or title)
+    //   const explicitLayers = layers.filter(l => {
+    //     const name = l.name.toLowerCase();
+    //     const nameWithExt = name.endsWith('.geojson') ? name : `${name}.geojson`;
+    //     const title = (l.title || '').toLowerCase();
+    //     return inputLower.includes(name) || inputLower.includes(nameWithExt) || (title && inputLower.includes(title));
+    //   });
+    //   if (explicitLayers.length > 0) {
+    //     // apply to each mentioned layer
+    //     explicitLayers.forEach(layer => useLayerStore.getState().updateLayerStyle(layer.id, styleOpts));
+    //     const updatedNames = explicitLayers.map(l => l.name).join(', ');
+    //     setConversation(prev => [...prev, { role: 'agent', content: `Updated layer(s): ${updatedNames}.` }]);
+    //   } else {
+    //     // generic: apply to all layers
+    //     layers.forEach(layer => useLayerStore.getState().updateLayerStyle(layer.id, styleOpts));
+    //     setConversation(prev => [...prev, { role: 'agent', content: `Updated all layers with your style settings.` }]);
+    //   }
+    //   setInput('');
+    //   return;
+    // }
 
     if (activeTool === "search") {
       let wkt: string | undefined = undefined;
@@ -288,7 +224,7 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
       <div ref={containerRef} className="overflow-auto flex-1 scroll-smooth pb-2">
         <div className="flex flex-col space-y-3">
           {conversation.map((msg, idx) => {
-            const msgKey = msg.id?.trim() || hashString(`${idx}:${msg.type}:${msg.content}`);
+            const msgKey = msg.id?.trim() || hashString(`${idx}:${(msg as any).type}:${msg.content}`);
 
             // 1) Handle an AI message that kicked off a tool call
             if (msg.type === 'ai' && (msg as any).additional_kwargs?.tool_calls?.length) {
@@ -301,12 +237,9 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
 
               return (
                 <div
-                  key={idx}
+                  key={msgKey}
                    className="flex justify-start"
                  >
-                  key={msgKey}
-                  className="flex justify-start"
-                >
                   <div className="max-w px-4 py-2 rounded-lg bg-gray-50 rounded-tl-none border">
                     {/* "Using tool…" header */}
                     <div className="text-sm font-medium">
@@ -344,7 +277,6 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
             const isHuman = msg.type === 'human'
             return (
               <div
-                key={idx}
                 key={msgKey}
                 className={`flex ${isHuman ? 'justify-end' : 'justify-start'}`}
               >
