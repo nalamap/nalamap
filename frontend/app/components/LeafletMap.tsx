@@ -126,6 +126,9 @@ function LeafletGeoJSONLayer({ url }: { url: string }) {
   const [data, setData] = useState<any>(null);
   const map = useMap();
 
+  // Create a canvas renderer instance
+  const canvasRenderer = L.canvas();
+
   useEffect(() => {
     fetch(url)
       .then((res) => res.json())
@@ -331,7 +334,13 @@ export default function LeafletMapComponent() {
   return (
     <div className="relative w-full h-full">
       <div className="absolute inset-0 z-0">
-        <MapContainer center={[0, 0]} zoom={2} style={{ height: "100%", width: "100%" }} fullscreenControl={true}>
+        <MapContainer 
+          center={[0, 0]} 
+          zoom={2} 
+          style={{ height: "100%", width: "100%" }} 
+          fullscreenControl={true}
+          preferCanvas={true}
+        >
           {/* Add the fullscreen control */}
           <FullscreenControl />
           <ZoomToSelected />
