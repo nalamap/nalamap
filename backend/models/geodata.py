@@ -28,7 +28,7 @@ class GeoDataObject(BaseModel):
     id: str
     data_source_id: str   # e.g. database name
     data_type: DataType
-    data_origin: DataOrigin
+    data_origin: str
 
     # Required metadata
     data_source: str      # e.g. portal name

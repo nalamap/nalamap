@@ -195,7 +195,8 @@ def geocode_using_nominatim_to_geostate(state: Annotated[GeoDataAgentState, Inje
                         *state["messages"], 
                         ToolMessage(name="geocode_using_nominatim_to_geostate", content=tool_message_content, tool_call_id=tool_call_id )
                         ] , 
-                    "global_geodata": state["global_geodata"]
+                    "global_geodata": state["global_geodata"],
+                    "geodata_results": state["global_geodata"]
                 })
             else: 
                 # Simplified message if no GeoJSON was stored
@@ -774,7 +775,8 @@ def geocode_using_overpass_to_geostate(
 
     return Command(update={
         "messages": [*state["messages"], ToolMessage(name="geocode_using_overpass_to_geostate", content=tool_message_content, tool_call_id=tool_call_id)],
-        "global_geodata": current_geodata
+        "global_geodata": current_geodata,
+        "geodata_results": current_geodata
     })
 
 

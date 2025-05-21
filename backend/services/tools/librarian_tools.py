@@ -64,15 +64,15 @@ def query_librarian_postgis(state: Annotated[GeoDataAgentState, InjectedState], 
             GeoDataObject(
                 id=str(row[0]),
                 data_source_id="geoweaver.postgis",
-                data_type=DataType.GEOJSON if row[1].lower()=="geojson" else DataType.LAYER,
-                data_origin=DataOrigin.TOOL,
-                data_source=row[6] if row[6] else row[1],
+                data_type=DataType.GEOJSON if row[1]=="geojson" else DataType.LAYER,
+                data_origin=row[6],
+                data_source=row[1],
                 data_link=row[5],
                 name=row[2],
                 title=row[3],
                 description=row[4],
                 llm_description=row[7],
-                score=row[9],
+                score=1-row[9],
                 bounding_box=row[8],
                 layer_type=row[1],
             )
@@ -93,7 +93,8 @@ def query_librarian_postgis(state: Annotated[GeoDataAgentState, InjectedState], 
                         *state["messages"], 
                         ToolMessage(name="query_librarian_postgis", content=f"Retrieved {len(results)} results, added GeoDataObjects into the global_state, use id and data_source_id for reference: {json.dumps([ {"id": result.id, "data_source_id": result.data_source_id, "title": result.title} for result in results])}", tool_call_id=tool_call_id )
                         ], 
-                    "global_geodata": new_global_geodata
+                    "global_geodata": new_global_geodata,
+                    "geodata_results": new_global_geodata
         })
     
     try:

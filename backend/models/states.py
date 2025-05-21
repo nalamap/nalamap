@@ -15,7 +15,7 @@ class GeoDataAgentState(AgentState):
     # TODO: maybe use references? 
     results_title: Optional[str] = Field(default="", description="Title for the geodata response in 'geodata_results'" )
     geodata_last_results: Optional[List[GeoDataObject]] = Field(default_factory=list, exclude=False, validate_default=False)
-    geodata_results: Optional[List[GeoDataObject]] = Field(default_factory=list, exclude=False, validate_default=False)
+    geodata_results: Optional[List[GeoDataObject]] = Field(default_factory=list, exclude=True, validate_default=False)
     geodata_layers: Optional[List[GeoDataObject]] = Field(default_factory=list, exclude=False, validate_default=False)
     
     # --- Internal-only fields (excluded from LLM prompt) ---
