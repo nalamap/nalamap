@@ -1,5 +1,5 @@
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException
 
 from services.single_agent import single_agent
 from models.geodata import GeoDataObject, mock_geodata_objects
@@ -8,9 +8,6 @@ from models.messages.chat_messages import GeoweaverRequest, GeoweaverResponse
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage, FunctionMessage
 from services.multi_agent_orch import multi_agent_executor
 import json
-import re
-from pydantic import BaseModel
-from services.ai.llm_config import get_llm
 import openai # Import openai for error handling
 
 def normalize_messages(raw: List[BaseMessage]) -> List[BaseMessage]:
@@ -194,36 +191,6 @@ async def ask_geoweaver(request: GeoweaverRequest):
     # Ensure results_title is set if geodata_results exist but title is empty
     if (results_title is None or results_title == "") and geodata_results and isinstance(geodata_results, List) and len(geodata_results) != 0:
         results_title = "Agent results:"
-    response: GeoweaverResponse = GeoweaverResponse(messages=result_messages, results_title=results_title, geodata_results=geodata_results, geodata_layers=geodata_layers, global_geodata=global_geodata)
-    return response
-
-
-# Request and response models for color suggestion
-class ColorSuggestionRequest(BaseModel):
-    name: str
-    metadata: dict | None = None
-
-class ColorSuggestionResponse(BaseModel):
-    color: str
-
-@router.post("/api/suggest_color", response_model=ColorSuggestionResponse)
-async def suggest_color(request: ColorSuggestionRequest = Body(...)):
-    """
-    Suggest a styling color (hex) for a GeoJSON layer based on its name and metadata via LLM.
-    """
-    llm = get_llm()
-    prompt = f"Suggest a primary styling color in hexadecimal format for a GeoJSON layer named '{request.name}'"
-    if request.metadata:
-        prompt += f" with the following metadata: {request.metadata}."
-    else:
-        prompt += "."
-    # Invoke the LLM
-    response = llm([HumanMessage(content=prompt)])
-    text = response.content.strip()
-    # Extract a hex color code
-    match = re.search(r"#(?:[0-9a-fA-F]{6})", text)
-    color = match.group(0) if match else text
-    return ColorSuggestionResponse(color=color)
     
     # Ensure result_messages always has at least one message for response construction
     if not result_messages:
