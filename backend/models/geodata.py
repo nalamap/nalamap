@@ -44,6 +44,9 @@ class GeoDataObject(BaseModel):
     layer_type: Optional[str] = None
     properties: Optional[Dict[str, Any]] = {}
 
+    visible: Optional[bool] = False
+    selected: Optional[bool] = False
+
     class Config:
         # Allow Enum values to be output as raw values
         use_enum_values = True

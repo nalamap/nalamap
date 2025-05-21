@@ -11,9 +11,11 @@ export interface GeoDataObject {
     data_source_id: string
     data_type: string
     data_origin: string
+
     data_source: string
     data_link: string
     name: string
+
     title?: string
     description?: string
     llm_description?: string
@@ -21,6 +23,7 @@ export interface GeoDataObject {
     bounding_box?: string | number[] // Can be WKT POLYGON string or array [minX, minY, maxX, maxY]
     layer_type?: string
     properties?: Record<string, string>
+    
     visible?: boolean
     selected?: boolean;     // <— new flag
 }
