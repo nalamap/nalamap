@@ -489,12 +489,22 @@ function Legend({
   
   const baseClasses = "bg-white p-2 rounded shadow";
   const positionClasses = standalone ? "absolute bottom-2 right-2 z-[9999]" : "";
+  // Fixed width of 15% of screen width
+  const sizeClasses = "w-[15vw] min-w-[200px]";
   
   return (
-    <div className={`${baseClasses} ${positionClasses}`.trim()}>
+    <div className={`${baseClasses} ${positionClasses} ${sizeClasses}`.trim()}>
       {/* Header with title and toggle button */}
       <div className="flex items-center justify-between mb-2">
-        {title && <h4 className="font-bold text-sm flex-1 mr-2">{title}</h4>}
+        {title && (
+          <h4 className={`font-bold text-sm flex-1 mr-2 ${
+            isCollapsed 
+              ? 'truncate' // Truncate with ellipsis when collapsed
+              : 'break-words' // Allow line breaks when expanded
+          }`}>
+            {title}
+          </h4>
+        )}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100 transition-colors"
@@ -523,7 +533,7 @@ function Legend({
           <img 
             src={legendUrl} 
             alt="Layer Legend" 
-            className="max-h-32"
+            className="max-h-32 w-full object-contain"
             style={{ display: isLoading ? 'none' : 'block' }}
             onLoad={() => {
               setIsLoading(false);
