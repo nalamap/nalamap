@@ -450,6 +450,7 @@ function Legend({
   const [hasFallbackAttempted, setHasFallbackAttempted] = useState<boolean>(false);
   const [lastUniqueId, setLastUniqueId] = useState<string>("");
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
+  const [isImageMaximized, setIsImageMaximized] = useState<boolean>(false);
   
   useEffect(() => {
     // Only reset states if this is actually a different layer
@@ -530,35 +531,45 @@ function Legend({
               Loading legend...
             </div>
           )}
-          <img 
-            src={legendUrl} 
-            alt="Layer Legend" 
-            className="max-h-32 w-full object-contain"
-            style={{ display: isLoading ? 'none' : 'block' }}
-            onLoad={() => {
-              setIsLoading(false);
-              console.log('Legend loaded successfully:', legendUrl);
-            }}
-            onError={(e) => {
-              console.warn('Legend image failed to load:', legendUrl);
-              
-              // If this was a WMTS legend that failed and we haven't tried fallback yet
-              if (wmtsLayer && 
-                  legendUrl === wmtsLayer.wmtsLegendUrl && 
-                  wmtsLayer.wmsLegendUrl && 
-                  !hasFallbackAttempted) {
-                console.log('Trying WMS fallback for WMTS legend');
-                setHasFallbackAttempted(true);
-                setLegendUrl(wmtsLayer.wmsLegendUrl);
-                setIsLoading(true); // Reset loading state for fallback attempt
-              } else {
-                // Final failure - hide the legend
-                console.log('Legend loading failed permanently');
-                setHasError(true);
+          <div className="relative group cursor-pointer">
+            <img 
+              src={legendUrl} 
+              alt="Layer Legend" 
+              className={`w-full object-contain transition-all duration-300 ease-in-out ${
+                isImageMaximized ? 'max-h-none' : 'max-h-50'
+              }`}
+              style={{ display: isLoading ? 'none' : 'block' }}
+              onClick={() => setIsImageMaximized(!isImageMaximized)}
+              title={isImageMaximized ? "Click to minimize" : "Click to maximize"}
+              onLoad={() => {
                 setIsLoading(false);
-              }
-            }}
-          />
+                console.log('Legend loaded successfully:', legendUrl);
+              }}
+              onError={(e) => {
+                console.warn('Legend image failed to load:', legendUrl);
+                
+                // If this was a WMTS legend that failed and we haven't tried fallback yet
+                if (wmtsLayer && 
+                    legendUrl === wmtsLayer.wmtsLegendUrl && 
+                    wmtsLayer.wmsLegendUrl && 
+                    !hasFallbackAttempted) {
+                  console.log('Trying WMS fallback for WMTS legend');
+                  setHasFallbackAttempted(true);
+                  setLegendUrl(wmtsLayer.wmsLegendUrl);
+                  setIsLoading(true); // Reset loading state for fallback attempt
+                } else {
+                  // Final failure - hide the legend
+                  console.log('Legend loading failed permanently');
+                  setHasError(true);
+                  setIsLoading(false);
+                }
+              }}
+            />
+            {/* Hover indicator */}
+            <div className="absolute bottom-1 right-1 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+              {isImageMaximized ? 'Click to minimize' : 'Click to maximize'}
+            </div>
+          </div>
         </>
       )}
     </div>
