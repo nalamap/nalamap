@@ -435,48 +435,35 @@ function Legend({
   standalone?: boolean;
 }) {
   const [legendUrl, setLegendUrl] = useState<string>("");
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [hasError, setHasError] = useState<boolean>(false);
+  const [hasFallbackAttempted, setHasFallbackAttempted] = useState<boolean>(false);
   
   useEffect(() => {
-    let initialUrl = "";
+    // Reset states when layer changes
+    setIsLoading(true);
+    setHasError(false);
+    setHasFallbackAttempted(false);
     
     if (wmsLayer) {
       // Original WMS legend URL
-      initialUrl = `${wmsLayer.baseUrl}?service=WMS&request=GetLegendGraphic&layer=${wmsLayer.layers}&format=image/png`;
-      setLegendUrl(initialUrl);
-      setHasError(false);
+      const wmsLegendUrl = `${wmsLayer.baseUrl}?service=WMS&request=GetLegendGraphic&layer=${wmsLayer.layers}&format=image/png`;
+      setLegendUrl(wmsLegendUrl);
     } else if (wmtsLayer) {
-      // For WMTS, try the WMTS GetLegendGraphic first (for non-standard providers like FAO)
+      // For WMTS, start with WMTS GetLegendGraphic (for non-standard providers like FAO)
       if (wmtsLayer.wmtsLegendUrl) {
-        setIsLoading(true);
-        setHasError(false);
         setLegendUrl(wmtsLayer.wmtsLegendUrl);
-        
-        // Test if WMTS legend URL works by creating a test image
-        const testImg = new Image();
-        testImg.onload = () => {
-          setIsLoading(false);
-          console.log('WMTS legend loaded successfully:', wmtsLayer.wmtsLegendUrl);
-        };
-        testImg.onerror = () => {
-          console.warn('WMTS legend failed, falling back to WMS:', wmtsLayer.wmtsLegendUrl);
-          // Fallback to WMS GetLegendGraphic
-          if (wmtsLayer.wmsLegendUrl) {
-            setLegendUrl(wmtsLayer.wmsLegendUrl);
-          } else {
-            setHasError(true);
-          }
-          setIsLoading(false);
-        };
-        testImg.src = wmtsLayer.wmtsLegendUrl;
       } else if (wmtsLayer.wmsLegendUrl) {
         // Direct WMS fallback if no WMTS URL available
         setLegendUrl(wmtsLayer.wmsLegendUrl);
-        setHasError(false);
+        setHasFallbackAttempted(true); // Mark as already using fallback
       } else {
         setHasError(true);
+        setIsLoading(false);
       }
+    } else {
+      setHasError(true);
+      setIsLoading(false);
     }
   }, [wmsLayer, wmtsLayer]);
   
@@ -501,17 +488,27 @@ function Legend({
         alt="Layer Legend" 
         className="max-h-32"
         style={{ display: isLoading ? 'none' : 'block' }}
-        onLoad={() => setIsLoading(false)}
+        onLoad={() => {
+          setIsLoading(false);
+          console.log('Legend loaded successfully:', legendUrl);
+        }}
         onError={(e) => {
           console.warn('Legend image failed to load:', legendUrl);
           
-          // If this was a WMTS legend that failed, try WMS fallback
-          if (wmtsLayer && legendUrl === wmtsLayer.wmtsLegendUrl && wmtsLayer.wmsLegendUrl) {
+          // If this was a WMTS legend that failed and we haven't tried fallback yet
+          if (wmtsLayer && 
+              legendUrl === wmtsLayer.wmtsLegendUrl && 
+              wmtsLayer.wmsLegendUrl && 
+              !hasFallbackAttempted) {
             console.log('Trying WMS fallback for WMTS legend');
+            setHasFallbackAttempted(true);
             setLegendUrl(wmtsLayer.wmsLegendUrl);
+            setIsLoading(true); // Reset loading state for fallback attempt
           } else {
             // Final failure - hide the legend
+            console.log('Legend loading failed permanently');
             setHasError(true);
+            setIsLoading(false);
           }
         }}
       />
