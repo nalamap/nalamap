@@ -1,7 +1,7 @@
 "use client";
 
 import { MapContainer, LayersControl, TileLayer, WMSTileLayer, GeoJSON, useMap } from "react-leaflet";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import "leaflet/dist/leaflet.css";
 //import { LayerData } from "./MapLibreMap"; // Assuming the same type definition
 import L from "leaflet";
@@ -121,6 +121,125 @@ function parseWMSUrl(access_url: string) {
   }
 }
 
+// Function to parse WMTS URLs and extract layer information for legend generation
+function parseWMTSUrl(access_url: string) {
+  try {
+    const urlObj = new URL(access_url);
+    const baseUrl = `${urlObj.origin}${urlObj.pathname}`;
+    
+    // Extract all parameters from the original WMTS URL
+    const originalParams = urlObj.searchParams;
+    
+    // Get layer name from parameters
+    let layerName = originalParams.get("layer") || originalParams.get("LAYER");
+    
+    // If no layer parameter, try to extract from REST-style path
+    if (!layerName) {
+      const pathParts = urlObj.pathname.split('/');
+      const restIndex = pathParts.indexOf('rest');
+      if (restIndex !== -1 && restIndex + 1 < pathParts.length) {
+        layerName = pathParts[restIndex + 1];
+      }
+    }
+    
+    if (!layerName) {
+      console.warn('Could not extract layer name from WMTS URL:', access_url);
+      return { 
+        wmtsLegendUrl: "", 
+        wmsLegendUrl: "", 
+        layerName: "", 
+        originalUrl: access_url 
+      };
+    }
+    
+    // Extract workspace and final layer name if in format "workspace:layer"
+    let workspace = "";
+    let finalLayerName = layerName;
+    if (layerName.includes(':')) {
+      [workspace, finalLayerName] = layerName.split(':');
+    }
+    
+    // Method 1: Try WMTS GetLegendGraphic (for providers like FAO that support this non-standard extension)
+    const wmtsLegendParams = new URLSearchParams();
+    
+    // Set basic WMTS GetLegendGraphic parameters
+    wmtsLegendParams.set('service', 'WMTS');
+    wmtsLegendParams.set('version', '1.1.0'); // Use 1.1.0 as in FAO examples
+    wmtsLegendParams.set('request', 'GetLegendGraphic');
+    wmtsLegendParams.set('format', 'image/png'); // Let URLSearchParams handle the encoding
+    wmtsLegendParams.set('transparent', 'True');
+    wmtsLegendParams.set('layer', layerName); // Let URLSearchParams handle the encoding
+    
+    // Preserve dimension parameters and other custom parameters from original request
+    originalParams.forEach((value, key) => {
+      const lowerKey = key.toLowerCase();
+      // Keep dimension parameters (dim_*) and other relevant parameters
+      if (lowerKey.startsWith('dim_') || 
+          lowerKey === 'time' || 
+          lowerKey === 'elevation' ||
+          lowerKey === 'style') {
+        wmtsLegendParams.set(key, value);
+      }
+    });
+    
+    const wmtsLegendUrl = `${baseUrl}?${wmtsLegendParams.toString()}`;
+    
+    // Method 2: Fallback WMS GetLegendGraphic (standard approach for GeoServer)
+    let wmsBaseUrl = baseUrl;
+    
+    // Convert WMTS endpoint to WMS endpoint
+    if (baseUrl.includes('/gwc/service/wmts')) {
+      wmsBaseUrl = baseUrl.replace('/gwc/service/wmts', '/wms');
+    } else if (baseUrl.includes('/wmts')) {
+      wmsBaseUrl = baseUrl.replace('/wmts', '/wms');
+    } else if (workspace && baseUrl.includes(`/${workspace}/wmts`)) {
+      wmsBaseUrl = baseUrl.replace(`/${workspace}/wmts`, `/${workspace}/wms`);
+    }
+    
+    const wmsLegendParams = new URLSearchParams();
+    wmsLegendParams.set('service', 'WMS');
+    wmsLegendParams.set('version', '1.1.0');
+    wmsLegendParams.set('request', 'GetLegendGraphic');
+    wmsLegendParams.set('format', 'image/png');
+    wmsLegendParams.set('layer', layerName); // Don't URL encode for WMS
+    
+    // Preserve dimension parameters for WMS as well
+    originalParams.forEach((value, key) => {
+      const lowerKey = key.toLowerCase();
+      if (lowerKey.startsWith('dim_') || 
+          lowerKey === 'time' || 
+          lowerKey === 'elevation') {
+        wmsLegendParams.set(key, value);
+      }
+    });
+    
+    const wmsLegendUrl = `${wmsBaseUrl}?${wmsLegendParams.toString()}`;
+    
+    const result = {
+      wmtsLegendUrl,
+      wmsLegendUrl,
+      layerName: finalLayerName,
+      workspace,
+      fullLayerName: workspace ? `${workspace}:${finalLayerName}` : finalLayerName,
+      originalUrl: access_url
+    };
+    
+    console.log('WMTS URL parsing result:', {
+      originalUrl: access_url,
+      parsed: result
+    });
+    
+    return result;
+  } catch (err) {
+    console.error("Error parsing WMTS URL:", err);
+    return { 
+      wmtsLegendUrl: "", 
+      wmsLegendUrl: "", 
+      layerName: "", 
+      originalUrl: access_url 
+    };
+  }
+}
 
 function LeafletGeoJSONLayer({ url }: { url: string }) {
   const [data, setData] = useState<any>(null);
@@ -306,16 +425,153 @@ function GetFeatureInfo({ wmsLayer }: { wmsLayer: { baseUrl: string; layers: str
 // Legend component that displays a title above the legend image.
 function Legend({
   wmsLayer,
+  wmtsLayer,
   title,
+  standalone = false,
 }: {
-  wmsLayer: { baseUrl: string; layers: string; format: string; transparent: boolean };
+  wmsLayer?: { baseUrl: string; layers: string; format: string; transparent: boolean };
+  wmtsLayer?: { wmtsLegendUrl: string; wmsLegendUrl: string; layerName: string; originalUrl: string };
   title?: string;
+  standalone?: boolean;
 }) {
-  const legendUrl = `${wmsLayer.baseUrl}?service=WMS&request=GetLegendGraphic&layer=${wmsLayer.layers}&format=image/png`;
+  // Create a stable unique identifier for this legend
+  const uniqueId = useMemo(() => {
+    if (wmsLayer) {
+      return `wms-${wmsLayer.baseUrl}-${wmsLayer.layers}`;
+    } else if (wmtsLayer) {
+      return `wmts-${wmtsLayer.originalUrl}`;
+    }
+    return 'unknown';
+  }, [wmsLayer?.baseUrl, wmsLayer?.layers, wmtsLayer?.originalUrl]);
+  
+  const [legendUrl, setLegendUrl] = useState<string>("");
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [hasError, setHasError] = useState<boolean>(false);
+  const [hasFallbackAttempted, setHasFallbackAttempted] = useState<boolean>(false);
+  const [lastUniqueId, setLastUniqueId] = useState<string>("");
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
+  const [isImageMaximized, setIsImageMaximized] = useState<boolean>(false);
+  
+  useEffect(() => {
+    // Only reset states if this is actually a different layer
+    if (lastUniqueId !== uniqueId) {
+      setIsLoading(true);
+      setHasError(false);
+      setHasFallbackAttempted(false);
+      setLastUniqueId(uniqueId);
+      
+      if (wmsLayer) {
+        // Original WMS legend URL
+        const wmsLegendUrl = `${wmsLayer.baseUrl}?service=WMS&request=GetLegendGraphic&layer=${wmsLayer.layers}&format=image/png`;
+        setLegendUrl(wmsLegendUrl);
+      } else if (wmtsLayer) {
+        // For WMTS, start with WMTS GetLegendGraphic (for non-standard providers like FAO)
+        if (wmtsLayer.wmtsLegendUrl) {
+          setLegendUrl(wmtsLayer.wmtsLegendUrl);
+        } else if (wmtsLayer.wmsLegendUrl) {
+          // Direct WMS fallback if no WMTS URL available
+          setLegendUrl(wmtsLayer.wmsLegendUrl);
+          setHasFallbackAttempted(true); // Mark as already using fallback
+        } else {
+          setHasError(true);
+          setIsLoading(false);
+        }
+      } else {
+        setHasError(true);
+        setIsLoading(false);
+      }
+    }
+  }, [uniqueId, wmsLayer, wmtsLayer, lastUniqueId]);
+  
+  // Don't render if no valid legend URL or has error
+  if (!legendUrl || hasError) {
+    return null;
+  }
+  
+  const baseClasses = "bg-white p-2 rounded shadow";
+  const positionClasses = standalone ? "absolute bottom-2 right-2 z-[9999]" : "";
+  // Fixed width of 15% of screen width
+  const sizeClasses = "w-[15vw] min-w-[200px]";
+  
   return (
-    <div className="absolute bottom-2 right-2 z-[9999] bg-white p-2 rounded shadow">
-      {title && <h4 className="font-bold mb-2">{title}</h4>}
-      <img src={legendUrl} alt="Layer Legend" className="max-h-32" />
+    <div className={`${baseClasses} ${positionClasses} ${sizeClasses}`.trim()}>
+      {/* Header with title and toggle button */}
+      <div className="flex items-center justify-between mb-2">
+        {title && (
+          <h4 className={`font-bold text-sm flex-1 mr-2 ${
+            isCollapsed 
+              ? 'truncate' // Truncate with ellipsis when collapsed
+              : 'break-words' // Allow line breaks when expanded
+          }`}>
+            {title}
+          </h4>
+        )}
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100 transition-colors"
+          title={isCollapsed ? "Expand legend" : "Collapse legend"}
+          aria-label={isCollapsed ? "Expand legend" : "Collapse legend"}
+        >
+          <svg 
+            className={`w-4 h-4 transition-transform ${isCollapsed ? 'rotate-0' : 'rotate-180'}`} 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+      </div>
+      
+      {/* Legend content - only show when not collapsed */}
+      {!isCollapsed && (
+        <>
+          {isLoading && (
+            <div className="flex items-center justify-center h-16 text-xs text-gray-500">
+              Loading legend...
+            </div>
+          )}
+          <div className="relative group cursor-pointer">
+            <img 
+              src={legendUrl} 
+              alt="Layer Legend" 
+              className={`w-full object-contain transition-all duration-300 ease-in-out ${
+                isImageMaximized ? 'max-h-none' : 'max-h-50'
+              }`}
+              style={{ display: isLoading ? 'none' : 'block' }}
+              onClick={() => setIsImageMaximized(!isImageMaximized)}
+              title={isImageMaximized ? "Click to minimize" : "Click to maximize"}
+              onLoad={() => {
+                setIsLoading(false);
+                console.log('Legend loaded successfully:', legendUrl);
+              }}
+              onError={(e) => {
+                console.warn('Legend image failed to load:', legendUrl);
+                
+                // If this was a WMTS legend that failed and we haven't tried fallback yet
+                if (wmtsLayer && 
+                    legendUrl === wmtsLayer.wmtsLegendUrl && 
+                    wmtsLayer.wmsLegendUrl && 
+                    !hasFallbackAttempted) {
+                  console.log('Trying WMS fallback for WMTS legend');
+                  setHasFallbackAttempted(true);
+                  setLegendUrl(wmtsLayer.wmsLegendUrl);
+                  setIsLoading(true); // Reset loading state for fallback attempt
+                } else {
+                  // Final failure - hide the legend
+                  console.log('Legend loading failed permanently');
+                  setHasError(true);
+                  setIsLoading(false);
+                }
+              }}
+            />
+            {/* Hover indicator */}
+            <div className="absolute bottom-1 right-1 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+              {isImageMaximized ? 'Click to minimize' : 'Click to maximize'}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -328,9 +584,44 @@ export default function LeafletMapComponent() {
 
   // Get the first WMS layer from the layers array (if any) for GetFeatureInfo.
   const wmsLayerData = layers.find(
-    (layer) => layer.layer_type?.toUpperCase() === "WMS"
+    (layer) => layer.layer_type?.toUpperCase() === "WMS" && layer.visible
   );
   const wmsLayer = wmsLayerData ? parseWMSUrl(wmsLayerData.data_link) : null;
+  
+  // Get all visible layers that can show legends (WMS and WMTS)
+  const visibleLayersWithLegends = layers.filter(
+    (layer) => layer.visible && (
+      layer.layer_type?.toUpperCase() === "WMS" || 
+      layer.layer_type?.toUpperCase() === "WMTS"
+    )
+  );
+  
+  // Memoize legend components to prevent unnecessary re-renders
+  const legendComponents = useMemo(() => {
+    return visibleLayersWithLegends.map((layer) => {
+      if (layer.layer_type?.toUpperCase() === "WMS") {
+        const wmsLayerParsed = parseWMSUrl(layer.data_link);
+        return (
+          <Legend 
+            key={`wms-${layer.id}`}
+            wmsLayer={wmsLayerParsed} 
+            title={layer.title || layer.name} 
+          />
+        );
+      } else if (layer.layer_type?.toUpperCase() === "WMTS") {
+        const wmtsLayerParsed = parseWMTSUrl(layer.data_link);
+        return (
+          <Legend 
+            key={`wmts-${layer.id}`}
+            wmtsLayer={wmtsLayerParsed} 
+            title={layer.title || layer.name} 
+          />
+        );
+      }
+      return null;
+    }).filter(Boolean);
+  }, [visibleLayersWithLegends.map(l => `${l.id}-${l.data_link}`).join(',')]);
+  
   return (
     <div className="relative w-full h-full">
       <div className="absolute inset-0 z-0">
@@ -371,6 +662,7 @@ export default function LeafletMapComponent() {
               ) {
                 return (
                   <TileLayer
+                    key={layer.id}
                     url={layer.data_link}
                     attribution={layer.title}
                   />
@@ -385,9 +677,11 @@ export default function LeafletMapComponent() {
               return null;
             })}
           </div>
-          {/* Render legend if a WMS layer exists */}
-          {wmsLayer && wmsLayerData && (
-            <Legend wmsLayer={wmsLayer} title={wmsLayerData.title || wmsLayerData.name} />
+          {/* Render legends for all visible WMS and WMTS layers */}
+          {legendComponents.length > 0 && (
+            <div className="absolute bottom-2 right-2 z-[9999] space-y-2">
+              {legendComponents}
+            </div>
           )}
         </MapContainer>
       </div>
