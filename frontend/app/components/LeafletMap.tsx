@@ -121,69 +121,107 @@ function parseWMSUrl(access_url: string) {
   }
 }
 
-// Function to parse WMTS URLs and extract layer and service information for legend generation
+// Function to parse WMTS URLs and extract layer information for legend generation
 function parseWMTSUrl(access_url: string) {
   try {
     const urlObj = new URL(access_url);
     const baseUrl = `${urlObj.origin}${urlObj.pathname}`;
     
-    // Extract parameters from URL
-    const params = urlObj.searchParams;
+    // Extract all parameters from the original WMTS URL
+    const originalParams = urlObj.searchParams;
     
-    // For WMTS, we need to extract the layer name
-    // WMTS URLs typically have a LAYER parameter or the layer is in the path
-    let layerName = params.get("layer") || params.get("LAYER");
+    // Get layer name from parameters
+    let layerName = originalParams.get("layer") || originalParams.get("LAYER");
     
-    // If no layer parameter, try to extract from the path
-    // WMTS URLs often follow patterns like: 
-    // /geoserver/gwc/service/wmts/rest/{workspace}:{layer}/{style}/{tileMatrixSet}/{z}/{x}/{y}.{format}
-    // /geoserver/{workspace}/wmts?layer={workspace}:{layer}&...
+    // If no layer parameter, try to extract from REST-style path
     if (!layerName) {
       const pathParts = urlObj.pathname.split('/');
       const restIndex = pathParts.indexOf('rest');
       if (restIndex !== -1 && restIndex + 1 < pathParts.length) {
         layerName = pathParts[restIndex + 1];
-      } else {
-        // Try to find workspace in path for other patterns
-        const geoserverIndex = pathParts.indexOf('geoserver');
-        if (geoserverIndex !== -1 && geoserverIndex + 1 < pathParts.length) {
-          const workspaceName = pathParts[geoserverIndex + 1];
-          if (workspaceName !== 'gwc' && workspaceName !== 'wmts') {
-            // This might be a workspace-specific WMTS endpoint
-            // Check if layer parameter exists in query
-            const layerParam = params.get("layer") || params.get("LAYER");
-            if (layerParam) {
-              layerName = layerParam;
-            }
-          }
-        }
       }
     }
     
-    // Extract workspace and layer name if in format "workspace:layer"
+    if (!layerName) {
+      console.warn('Could not extract layer name from WMTS URL:', access_url);
+      return { 
+        wmtsLegendUrl: "", 
+        wmsLegendUrl: "", 
+        layerName: "", 
+        originalUrl: access_url 
+      };
+    }
+    
+    // Extract workspace and final layer name if in format "workspace:layer"
     let workspace = "";
-    let finalLayerName = layerName || "";
-    if (layerName && layerName.includes(':')) {
+    let finalLayerName = layerName;
+    if (layerName.includes(':')) {
       [workspace, finalLayerName] = layerName.split(':');
     }
     
-    // Construct WMS endpoint for legend from WMTS URL
-    // Assuming GeoServer structure: replace /gwc/service/wmts with /wms
+    // Method 1: Try WMTS GetLegendGraphic (for providers like FAO that support this non-standard extension)
+    const wmtsLegendParams = new URLSearchParams();
+    
+    // Set basic WMTS GetLegendGraphic parameters
+    wmtsLegendParams.set('service', 'WMTS');
+    wmtsLegendParams.set('version', '1.1.0'); // Use 1.1.0 as in FAO examples
+    wmtsLegendParams.set('request', 'GetLegendGraphic');
+    wmtsLegendParams.set('format', 'image%2Fpng'); // URL encoded as in FAO examples
+    wmtsLegendParams.set('transparent', 'True');
+    wmtsLegendParams.set('layer', encodeURIComponent(layerName)); // URL encode layer name
+    
+    // Preserve dimension parameters and other custom parameters from original request
+    originalParams.forEach((value, key) => {
+      const lowerKey = key.toLowerCase();
+      // Keep dimension parameters (dim_*) and other relevant parameters
+      if (lowerKey.startsWith('dim_') || 
+          lowerKey === 'time' || 
+          lowerKey === 'elevation' ||
+          lowerKey === 'style') {
+        wmtsLegendParams.set(key, value);
+      }
+    });
+    
+    const wmtsLegendUrl = `${baseUrl}?${wmtsLegendParams.toString()}`;
+    
+    // Method 2: Fallback WMS GetLegendGraphic (standard approach for GeoServer)
     let wmsBaseUrl = baseUrl;
+    
+    // Convert WMTS endpoint to WMS endpoint
     if (baseUrl.includes('/gwc/service/wmts')) {
       wmsBaseUrl = baseUrl.replace('/gwc/service/wmts', '/wms');
     } else if (baseUrl.includes('/wmts')) {
       wmsBaseUrl = baseUrl.replace('/wmts', '/wms');
     } else if (workspace && baseUrl.includes(`/${workspace}/wmts`)) {
-      // Handle workspace-specific WMTS endpoints
       wmsBaseUrl = baseUrl.replace(`/${workspace}/wmts`, `/${workspace}/wms`);
     }
     
+    const wmsLegendParams = new URLSearchParams();
+    wmsLegendParams.set('service', 'WMS');
+    wmsLegendParams.set('version', '1.1.0');
+    wmsLegendParams.set('request', 'GetLegendGraphic');
+    wmsLegendParams.set('format', 'image/png');
+    wmsLegendParams.set('layer', layerName); // Don't URL encode for WMS
+    
+    // Preserve dimension parameters for WMS as well
+    originalParams.forEach((value, key) => {
+      const lowerKey = key.toLowerCase();
+      if (lowerKey.startsWith('dim_') || 
+          lowerKey === 'time' || 
+          lowerKey === 'elevation') {
+        wmsLegendParams.set(key, value);
+      }
+    });
+    
+    const wmsLegendUrl = `${wmsBaseUrl}?${wmsLegendParams.toString()}`;
+    
     const result = {
-      baseUrl: wmsBaseUrl,
+      wmtsLegendUrl,
+      wmsLegendUrl,
       layerName: finalLayerName,
       workspace,
-      fullLayerName: workspace ? `${workspace}:${finalLayerName}` : finalLayerName
+      fullLayerName: workspace ? `${workspace}:${finalLayerName}` : finalLayerName,
+      originalUrl: access_url
     };
     
     console.log('WMTS URL parsing result:', {
@@ -194,7 +232,12 @@ function parseWMTSUrl(access_url: string) {
     return result;
   } catch (err) {
     console.error("Error parsing WMTS URL:", err);
-    return { baseUrl: access_url, layerName: "", workspace: "", fullLayerName: "" };
+    return { 
+      wmtsLegendUrl: "", 
+      wmsLegendUrl: "", 
+      layerName: "", 
+      originalUrl: access_url 
+    };
   }
 }
 
@@ -387,22 +430,58 @@ function Legend({
   standalone = false,
 }: {
   wmsLayer?: { baseUrl: string; layers: string; format: string; transparent: boolean };
-  wmtsLayer?: { baseUrl: string; layerName: string; workspace: string; fullLayerName: string };
+  wmtsLayer?: { wmtsLegendUrl: string; wmsLegendUrl: string; layerName: string; originalUrl: string };
   title?: string;
   standalone?: boolean;
 }) {
-  let legendUrl = "";
+  const [legendUrl, setLegendUrl] = useState<string>("");
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [hasError, setHasError] = useState<boolean>(false);
   
-  if (wmsLayer) {
-    // Original WMS legend URL
-    legendUrl = `${wmsLayer.baseUrl}?service=WMS&request=GetLegendGraphic&layer=${wmsLayer.layers}&format=image/png`;
-  } else if (wmtsLayer && wmtsLayer.fullLayerName) {
-    // WMTS legend URL using WMS GetLegendGraphic with the layer name from WMTS
-    legendUrl = `${wmtsLayer.baseUrl}?service=WMS&request=GetLegendGraphic&layer=${wmtsLayer.fullLayerName}&format=image/png`;
-  }
+  useEffect(() => {
+    let initialUrl = "";
+    
+    if (wmsLayer) {
+      // Original WMS legend URL
+      initialUrl = `${wmsLayer.baseUrl}?service=WMS&request=GetLegendGraphic&layer=${wmsLayer.layers}&format=image/png`;
+      setLegendUrl(initialUrl);
+      setHasError(false);
+    } else if (wmtsLayer) {
+      // For WMTS, try the WMTS GetLegendGraphic first (for non-standard providers like FAO)
+      if (wmtsLayer.wmtsLegendUrl) {
+        setIsLoading(true);
+        setHasError(false);
+        setLegendUrl(wmtsLayer.wmtsLegendUrl);
+        
+        // Test if WMTS legend URL works by creating a test image
+        const testImg = new Image();
+        testImg.onload = () => {
+          setIsLoading(false);
+          console.log('WMTS legend loaded successfully:', wmtsLayer.wmtsLegendUrl);
+        };
+        testImg.onerror = () => {
+          console.warn('WMTS legend failed, falling back to WMS:', wmtsLayer.wmtsLegendUrl);
+          // Fallback to WMS GetLegendGraphic
+          if (wmtsLayer.wmsLegendUrl) {
+            setLegendUrl(wmtsLayer.wmsLegendUrl);
+          } else {
+            setHasError(true);
+          }
+          setIsLoading(false);
+        };
+        testImg.src = wmtsLayer.wmtsLegendUrl;
+      } else if (wmtsLayer.wmsLegendUrl) {
+        // Direct WMS fallback if no WMTS URL available
+        setLegendUrl(wmtsLayer.wmsLegendUrl);
+        setHasError(false);
+      } else {
+        setHasError(true);
+      }
+    }
+  }, [wmsLayer, wmtsLayer]);
   
-  // Don't render if no valid legend URL
-  if (!legendUrl) {
+  // Don't render if no valid legend URL or has error
+  if (!legendUrl || hasError) {
     return null;
   }
   
@@ -412,14 +491,28 @@ function Legend({
   return (
     <div className={`${baseClasses} ${positionClasses}`.trim()}>
       {title && <h4 className="font-bold mb-2 text-sm">{title}</h4>}
+      {isLoading && (
+        <div className="flex items-center justify-center h-16 text-xs text-gray-500">
+          Loading legend...
+        </div>
+      )}
       <img 
         src={legendUrl} 
         alt="Layer Legend" 
         className="max-h-32"
+        style={{ display: isLoading ? 'none' : 'block' }}
+        onLoad={() => setIsLoading(false)}
         onError={(e) => {
-          // Hide the legend if the image fails to load
-          (e.target as HTMLImageElement).style.display = 'none';
           console.warn('Legend image failed to load:', legendUrl);
+          
+          // If this was a WMTS legend that failed, try WMS fallback
+          if (wmtsLayer && legendUrl === wmtsLayer.wmtsLegendUrl && wmtsLayer.wmsLegendUrl) {
+            console.log('Trying WMS fallback for WMTS legend');
+            setLegendUrl(wmtsLayer.wmsLegendUrl);
+          } else {
+            // Final failure - hide the legend
+            setHasError(true);
+          }
         }}
       />
     </div>
