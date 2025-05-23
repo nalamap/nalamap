@@ -365,7 +365,18 @@ export default function LeafletMapComponent() {
                     zIndex={10}
                   />
                 );
-              } else if (
+              } 
+              else if (
+                layer.layer_type?.toUpperCase() === "WMTS" 
+              ) {
+                return (
+                  <TileLayer
+                    url={layer.data_link}
+                    attribution={layer.title}
+                  />
+                );
+              }
+              else if (
                 layer.layer_type?.toUpperCase() === "WFS" || layer.layer_type?.toUpperCase() === "UPLOADED" ||
                 layer.data_link.toLowerCase().includes("json")
               ) {
