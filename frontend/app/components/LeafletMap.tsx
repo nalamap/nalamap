@@ -121,6 +121,82 @@ function parseWMSUrl(access_url: string) {
   }
 }
 
+// Function to parse WMTS URLs and extract layer and service information for legend generation
+function parseWMTSUrl(access_url: string) {
+  try {
+    const urlObj = new URL(access_url);
+    const baseUrl = `${urlObj.origin}${urlObj.pathname}`;
+    
+    // Extract parameters from URL
+    const params = urlObj.searchParams;
+    
+    // For WMTS, we need to extract the layer name
+    // WMTS URLs typically have a LAYER parameter or the layer is in the path
+    let layerName = params.get("layer") || params.get("LAYER");
+    
+    // If no layer parameter, try to extract from the path
+    // WMTS URLs often follow patterns like: 
+    // /geoserver/gwc/service/wmts/rest/{workspace}:{layer}/{style}/{tileMatrixSet}/{z}/{x}/{y}.{format}
+    // /geoserver/{workspace}/wmts?layer={workspace}:{layer}&...
+    if (!layerName) {
+      const pathParts = urlObj.pathname.split('/');
+      const restIndex = pathParts.indexOf('rest');
+      if (restIndex !== -1 && restIndex + 1 < pathParts.length) {
+        layerName = pathParts[restIndex + 1];
+      } else {
+        // Try to find workspace in path for other patterns
+        const geoserverIndex = pathParts.indexOf('geoserver');
+        if (geoserverIndex !== -1 && geoserverIndex + 1 < pathParts.length) {
+          const workspaceName = pathParts[geoserverIndex + 1];
+          if (workspaceName !== 'gwc' && workspaceName !== 'wmts') {
+            // This might be a workspace-specific WMTS endpoint
+            // Check if layer parameter exists in query
+            const layerParam = params.get("layer") || params.get("LAYER");
+            if (layerParam) {
+              layerName = layerParam;
+            }
+          }
+        }
+      }
+    }
+    
+    // Extract workspace and layer name if in format "workspace:layer"
+    let workspace = "";
+    let finalLayerName = layerName || "";
+    if (layerName && layerName.includes(':')) {
+      [workspace, finalLayerName] = layerName.split(':');
+    }
+    
+    // Construct WMS endpoint for legend from WMTS URL
+    // Assuming GeoServer structure: replace /gwc/service/wmts with /wms
+    let wmsBaseUrl = baseUrl;
+    if (baseUrl.includes('/gwc/service/wmts')) {
+      wmsBaseUrl = baseUrl.replace('/gwc/service/wmts', '/wms');
+    } else if (baseUrl.includes('/wmts')) {
+      wmsBaseUrl = baseUrl.replace('/wmts', '/wms');
+    } else if (workspace && baseUrl.includes(`/${workspace}/wmts`)) {
+      // Handle workspace-specific WMTS endpoints
+      wmsBaseUrl = baseUrl.replace(`/${workspace}/wmts`, `/${workspace}/wms`);
+    }
+    
+    const result = {
+      baseUrl: wmsBaseUrl,
+      layerName: finalLayerName,
+      workspace,
+      fullLayerName: workspace ? `${workspace}:${finalLayerName}` : finalLayerName
+    };
+    
+    console.log('WMTS URL parsing result:', {
+      originalUrl: access_url,
+      parsed: result
+    });
+    
+    return result;
+  } catch (err) {
+    console.error("Error parsing WMTS URL:", err);
+    return { baseUrl: access_url, layerName: "", workspace: "", fullLayerName: "" };
+  }
+}
 
 function LeafletGeoJSONLayer({ url }: { url: string }) {
   const [data, setData] = useState<any>(null);
@@ -306,16 +382,46 @@ function GetFeatureInfo({ wmsLayer }: { wmsLayer: { baseUrl: string; layers: str
 // Legend component that displays a title above the legend image.
 function Legend({
   wmsLayer,
+  wmtsLayer,
   title,
+  standalone = false,
 }: {
-  wmsLayer: { baseUrl: string; layers: string; format: string; transparent: boolean };
+  wmsLayer?: { baseUrl: string; layers: string; format: string; transparent: boolean };
+  wmtsLayer?: { baseUrl: string; layerName: string; workspace: string; fullLayerName: string };
   title?: string;
+  standalone?: boolean;
 }) {
-  const legendUrl = `${wmsLayer.baseUrl}?service=WMS&request=GetLegendGraphic&layer=${wmsLayer.layers}&format=image/png`;
+  let legendUrl = "";
+  
+  if (wmsLayer) {
+    // Original WMS legend URL
+    legendUrl = `${wmsLayer.baseUrl}?service=WMS&request=GetLegendGraphic&layer=${wmsLayer.layers}&format=image/png`;
+  } else if (wmtsLayer && wmtsLayer.fullLayerName) {
+    // WMTS legend URL using WMS GetLegendGraphic with the layer name from WMTS
+    legendUrl = `${wmtsLayer.baseUrl}?service=WMS&request=GetLegendGraphic&layer=${wmtsLayer.fullLayerName}&format=image/png`;
+  }
+  
+  // Don't render if no valid legend URL
+  if (!legendUrl) {
+    return null;
+  }
+  
+  const baseClasses = "bg-white p-2 rounded shadow";
+  const positionClasses = standalone ? "absolute bottom-2 right-2 z-[9999]" : "";
+  
   return (
-    <div className="absolute bottom-2 right-2 z-[9999] bg-white p-2 rounded shadow">
-      {title && <h4 className="font-bold mb-2">{title}</h4>}
-      <img src={legendUrl} alt="Layer Legend" className="max-h-32" />
+    <div className={`${baseClasses} ${positionClasses}`.trim()}>
+      {title && <h4 className="font-bold mb-2 text-sm">{title}</h4>}
+      <img 
+        src={legendUrl} 
+        alt="Layer Legend" 
+        className="max-h-32"
+        onError={(e) => {
+          // Hide the legend if the image fails to load
+          (e.target as HTMLImageElement).style.display = 'none';
+          console.warn('Legend image failed to load:', legendUrl);
+        }}
+      />
     </div>
   );
 }
@@ -328,9 +434,18 @@ export default function LeafletMapComponent() {
 
   // Get the first WMS layer from the layers array (if any) for GetFeatureInfo.
   const wmsLayerData = layers.find(
-    (layer) => layer.layer_type?.toUpperCase() === "WMS"
+    (layer) => layer.layer_type?.toUpperCase() === "WMS" && layer.visible
   );
   const wmsLayer = wmsLayerData ? parseWMSUrl(wmsLayerData.data_link) : null;
+  
+  // Get all visible layers that can show legends (WMS and WMTS)
+  const visibleLayersWithLegends = layers.filter(
+    (layer) => layer.visible && (
+      layer.layer_type?.toUpperCase() === "WMS" || 
+      layer.layer_type?.toUpperCase() === "WMTS"
+    )
+  );
+  
   return (
     <div className="relative w-full h-full">
       <div className="absolute inset-0 z-0">
@@ -371,6 +486,7 @@ export default function LeafletMapComponent() {
               ) {
                 return (
                   <TileLayer
+                    key={layer.id}
                     url={layer.data_link}
                     attribution={layer.title}
                   />
@@ -385,9 +501,32 @@ export default function LeafletMapComponent() {
               return null;
             })}
           </div>
-          {/* Render legend if a WMS layer exists */}
-          {wmsLayer && wmsLayerData && (
-            <Legend wmsLayer={wmsLayer} title={wmsLayerData.title || wmsLayerData.name} />
+          {/* Render legends for all visible WMS and WMTS layers */}
+          {visibleLayersWithLegends.length > 0 && (
+            <div className="absolute bottom-2 right-2 z-[9999] space-y-2">
+              {visibleLayersWithLegends.map((layer, index) => {
+                if (layer.layer_type?.toUpperCase() === "WMS") {
+                  const wmsLayerParsed = parseWMSUrl(layer.data_link);
+                  return (
+                    <Legend 
+                      key={`wms-${layer.id}`}
+                      wmsLayer={wmsLayerParsed} 
+                      title={layer.title || layer.name} 
+                    />
+                  );
+                } else if (layer.layer_type?.toUpperCase() === "WMTS") {
+                  const wmtsLayerParsed = parseWMTSUrl(layer.data_link);
+                  return (
+                    <Legend 
+                      key={`wmts-${layer.id}`}
+                      wmtsLayer={wmtsLayerParsed} 
+                      title={layer.title || layer.name} 
+                    />
+                  );
+                }
+                return null;
+              })}
+            </div>
           )}
         </MapContainer>
       </div>

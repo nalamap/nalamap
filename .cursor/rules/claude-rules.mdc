@@ -1,0 +1,206 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# GeoWeaver Cursor Rules
+# Disciplined Programming Rules for Geospatial AI Platform
+
+## PROJECT CONTEXT
+You are working on GeoWeaver - an open-source geospatial data platform with AI capabilities and natural language interface.
+
+**Architecture**: Multi-agent AI system using LangGraph for geospatial analysis
+**Backend**: Python FastAPI, LangChain, LangGraph, PostgreSQL  
+**Frontend**: Next.js 15, React 19, TypeScript, Tailwind CSS, Leaflet
+**Infrastructure**: Docker, Nginx
+
+## CORE PRINCIPLES
+
+### 1. TYPE SAFETY FIRST
+- Always use TypeScript strict mode for frontend code
+- Use Pydantic models for all Python data validation
+- Define proper interfaces for LangGraph states (GeoDataAgentState, DataState)
+- Never use `any` type - prefer `unknown` and type guards
+- Validate all external data inputs (file uploads, API responses, LLM outputs)
+
+### 2. ERROR HANDLING STRATEGY
+- Wrap all LLM provider calls in try-catch blocks
+- Handle OpenAI API exceptions specifically (rate limits, token limits)
+- Use FastAPI HTTPException with proper status codes
+- Implement graceful degradation for agent failures
+
+### 3. FUNCTIONAL PROGRAMMING PATTERNS
+- Use pure functions for data transformations
+- Implement immutable state updates in React components
+- Prefer functional composition in Python services
+- Use Zustand for predictable state management
+- Avoid side effects in utility functions
+
+## BACKEND (PYTHON/FASTAPI)
+
+### Code Structure
+- Follow FastAPI project structure: routers, dependencies, models, services
+- Use dependency injection for database connections and LLM providers
+- Implement service layer pattern for business logic
+- Keep route handlers thin - delegate to services
+
+### LangGraph & AI Integration
+- Use typed state classes inheriting from BaseModel
+- Implement proper tool schemas with Pydantic
+- Handle agent timeouts and retries gracefully
+- Use environment variables for LLM provider selection
+- Implement fallback strategies for model failures
+
+### Database Patterns
+- Use UUID primary keys with timestamp fields
+- Implement proper migrations with Alembic
+- Use async database operations consistently
+- Apply connection pooling for performance
+
+### Example Patterns
+```python
+# Proper LangGraph state definition
+class GeoDataAgentState(BaseModel):
+    messages: List[BaseMessage]
+    geospatial_data: Optional[Dict[str, Any]] = None
+    error_count: int = 0
+
+# Error handling for LLM calls
+try:
+    response = await llm_provider.generate(prompt)
+except OpenAIError as e:
+    logger.error(f"LLM generation failed: {e}")
+    raise HTTPException(status_code=503, detail="AI service unavailable")
+```
+
+## FRONTEND (NEXT.JS/REACT/TYPESCRIPT)
+
+### Component Architecture
+- Use React Server Components by default
+- Mark client components explicitly with 'use client'
+- Implement proper loading and error boundaries
+- Use Suspense for data fetching
+
+### State Management
+- Use Zustand for global state (map state, user preferences)
+- Keep component state local when possible
+- Implement proper state persistence for map views
+- Use React Query/SWR for server state caching
+
+### Geospatial Patterns
+- Initialize maps with proper error handling
+- Handle geospatial data transformations safely
+- Implement proper coordinate system conversions
+
+### Performance Optimization
+- Implement proper code splitting
+- Use dynamic imports for heavy geospatial libraries
+- Optimize bundle size for mapping components
+
+### Example Patterns
+```typescript
+// Proper geospatial data typing
+interface GeoFeature {
+  type: 'Feature';
+  geometry: GeoJSON.Geometry;
+  properties: Record<string, unknown>;
+}
+
+// Error boundary for map components
+const MapErrorBoundary: React.FC<{children: React.ReactNode}> = ({children}) => {
+  return (
+    <ErrorBoundary fallback={<MapErrorFallback />}>
+      <Suspense fallback={<MapLoadingSpinner />}>
+        {children}
+      </Suspense>
+    </ErrorBoundary>
+  );
+};
+```
+
+## CODE QUALITY STANDARDS
+
+### Documentation
+- Document all public APIs with docstrings/JSDoc
+- Include usage examples for complex functions
+- Document LangGraph agent workflows and state transitions
+- Maintain README files for each major module
+
+### Testing Strategy
+- Write unit tests for pure functions and utilities
+- Integration tests for API endpoints
+- Component testing for React components
+- Mock external services (LLM providers, geospatial APIs)
+- Test error scenarios and edge cases
+
+### Code Organization
+- Use consistent naming conventions (snake_case Python, camelCase TypeScript)
+- Group related functionality in modules
+- Keep file sizes reasonable (<500 lines)
+- Use barrel exports for clean imports
+
+## SECURITY & PERFORMANCE
+
+### Security
+- Use environment variables for sensitive configuration
+- Implement proper CORS policies
+
+### Performance
+- Use async/await consistently
+- Cache expensive geospatial computations
+- Use CDN for static assets
+- Monitor memory usage in long-running agents
+
+## DEBUGGING & MAINTENANCE
+
+### Logging
+- Use structured logging with proper levels
+- Include request IDs for tracing
+- Log agent state transitions
+
+## SPECIFIC CONVENTIONS
+
+### File Structure
+- Backend: `/app` contains main application code
+- Frontend: `/frontend` with Next.js App Router structure
+- Docker: Separate containers for backend, frontend, database
+- Environment: Use `.env` files for configuration
+
+### Import Organization
+```python
+# Python import order
+import os
+import sys
+from typing import Optional, List
+
+import fastapi
+import pydantic
+from langchain import ...
+
+from app.models import ...
+from app.services import ...
+```
+
+```typescript
+// TypeScript import order
+import React from 'react';
+import { NextPage } from 'next';
+
+import { Button } from '@/components/ui/button';
+import { useMapStore } from '@/stores/map-store';
+import { GeoFeature } from '@/types/geospatial';
+```
+
+### Commit Messages
+- Use conventional commits: `feat:`, `fix:`, `docs:`, `refactor:`
+- Include scope when relevant: `feat(frontend):`, `fix(backend):`
+- Reference issues: `fixes #123`
+
+## EMERGENCY PROTOCOLS
+
+### When Things Break
+2. Verify environment variables are loaded
+3. Check database connectivity
+4. Test LLM provider endpoints
+
+Remember: This is a complex geospatial AI system. Always consider the implications of changes on both the user experience and the underlying data processing workflows. 
