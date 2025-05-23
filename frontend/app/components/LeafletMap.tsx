@@ -166,9 +166,9 @@ function parseWMTSUrl(access_url: string) {
     wmtsLegendParams.set('service', 'WMTS');
     wmtsLegendParams.set('version', '1.1.0'); // Use 1.1.0 as in FAO examples
     wmtsLegendParams.set('request', 'GetLegendGraphic');
-    wmtsLegendParams.set('format', 'image%2Fpng'); // URL encoded as in FAO examples
+    wmtsLegendParams.set('format', 'image/png'); // Let URLSearchParams handle the encoding
     wmtsLegendParams.set('transparent', 'True');
-    wmtsLegendParams.set('layer', encodeURIComponent(layerName)); // URL encode layer name
+    wmtsLegendParams.set('layer', layerName); // Let URLSearchParams handle the encoding
     
     // Preserve dimension parameters and other custom parameters from original request
     originalParams.forEach((value, key) => {
