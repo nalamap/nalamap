@@ -449,6 +449,7 @@ function Legend({
   const [hasError, setHasError] = useState<boolean>(false);
   const [hasFallbackAttempted, setHasFallbackAttempted] = useState<boolean>(false);
   const [lastUniqueId, setLastUniqueId] = useState<string>("");
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
   
   useEffect(() => {
     // Only reset states if this is actually a different layer
@@ -491,41 +492,65 @@ function Legend({
   
   return (
     <div className={`${baseClasses} ${positionClasses}`.trim()}>
-      {title && <h4 className="font-bold mb-2 text-sm">{title}</h4>}
-      {isLoading && (
-        <div className="flex items-center justify-center h-16 text-xs text-gray-500">
-          Loading legend...
-        </div>
+      {/* Header with title and toggle button */}
+      <div className="flex items-center justify-between mb-2">
+        {title && <h4 className="font-bold text-sm flex-1 mr-2">{title}</h4>}
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100 transition-colors"
+          title={isCollapsed ? "Expand legend" : "Collapse legend"}
+          aria-label={isCollapsed ? "Expand legend" : "Collapse legend"}
+        >
+          <svg 
+            className={`w-4 h-4 transition-transform ${isCollapsed ? 'rotate-0' : 'rotate-180'}`} 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+      </div>
+      
+      {/* Legend content - only show when not collapsed */}
+      {!isCollapsed && (
+        <>
+          {isLoading && (
+            <div className="flex items-center justify-center h-16 text-xs text-gray-500">
+              Loading legend...
+            </div>
+          )}
+          <img 
+            src={legendUrl} 
+            alt="Layer Legend" 
+            className="max-h-32"
+            style={{ display: isLoading ? 'none' : 'block' }}
+            onLoad={() => {
+              setIsLoading(false);
+              console.log('Legend loaded successfully:', legendUrl);
+            }}
+            onError={(e) => {
+              console.warn('Legend image failed to load:', legendUrl);
+              
+              // If this was a WMTS legend that failed and we haven't tried fallback yet
+              if (wmtsLayer && 
+                  legendUrl === wmtsLayer.wmtsLegendUrl && 
+                  wmtsLayer.wmsLegendUrl && 
+                  !hasFallbackAttempted) {
+                console.log('Trying WMS fallback for WMTS legend');
+                setHasFallbackAttempted(true);
+                setLegendUrl(wmtsLayer.wmsLegendUrl);
+                setIsLoading(true); // Reset loading state for fallback attempt
+              } else {
+                // Final failure - hide the legend
+                console.log('Legend loading failed permanently');
+                setHasError(true);
+                setIsLoading(false);
+              }
+            }}
+          />
+        </>
       )}
-      <img 
-        src={legendUrl} 
-        alt="Layer Legend" 
-        className="max-h-32"
-        style={{ display: isLoading ? 'none' : 'block' }}
-        onLoad={() => {
-          setIsLoading(false);
-          console.log('Legend loaded successfully:', legendUrl);
-        }}
-        onError={(e) => {
-          console.warn('Legend image failed to load:', legendUrl);
-          
-          // If this was a WMTS legend that failed and we haven't tried fallback yet
-          if (wmtsLayer && 
-              legendUrl === wmtsLayer.wmtsLegendUrl && 
-              wmtsLayer.wmsLegendUrl && 
-              !hasFallbackAttempted) {
-            console.log('Trying WMS fallback for WMTS legend');
-            setHasFallbackAttempted(true);
-            setLegendUrl(wmtsLayer.wmsLegendUrl);
-            setIsLoading(true); // Reset loading state for fallback attempt
-          } else {
-            // Final failure - hide the legend
-            console.log('Legend loading failed permanently');
-            setHasError(true);
-            setIsLoading(false);
-          }
-        }}
-      />
     </div>
   );
 }
