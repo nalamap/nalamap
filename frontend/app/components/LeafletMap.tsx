@@ -1,7 +1,7 @@
 "use client";
 
 import { MapContainer, LayersControl, TileLayer, WMSTileLayer, GeoJSON, useMap } from "react-leaflet";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import "leaflet/dist/leaflet.css";
 //import { LayerData } from "./MapLibreMap"; // Assuming the same type definition
 import L from "leaflet";
@@ -434,38 +434,52 @@ function Legend({
   title?: string;
   standalone?: boolean;
 }) {
+  // Create a stable unique identifier for this legend
+  const uniqueId = useMemo(() => {
+    if (wmsLayer) {
+      return `wms-${wmsLayer.baseUrl}-${wmsLayer.layers}`;
+    } else if (wmtsLayer) {
+      return `wmts-${wmtsLayer.originalUrl}`;
+    }
+    return 'unknown';
+  }, [wmsLayer?.baseUrl, wmsLayer?.layers, wmtsLayer?.originalUrl]);
+  
   const [legendUrl, setLegendUrl] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [hasError, setHasError] = useState<boolean>(false);
   const [hasFallbackAttempted, setHasFallbackAttempted] = useState<boolean>(false);
+  const [lastUniqueId, setLastUniqueId] = useState<string>("");
   
   useEffect(() => {
-    // Reset states when layer changes
-    setIsLoading(true);
-    setHasError(false);
-    setHasFallbackAttempted(false);
-    
-    if (wmsLayer) {
-      // Original WMS legend URL
-      const wmsLegendUrl = `${wmsLayer.baseUrl}?service=WMS&request=GetLegendGraphic&layer=${wmsLayer.layers}&format=image/png`;
-      setLegendUrl(wmsLegendUrl);
-    } else if (wmtsLayer) {
-      // For WMTS, start with WMTS GetLegendGraphic (for non-standard providers like FAO)
-      if (wmtsLayer.wmtsLegendUrl) {
-        setLegendUrl(wmtsLayer.wmtsLegendUrl);
-      } else if (wmtsLayer.wmsLegendUrl) {
-        // Direct WMS fallback if no WMTS URL available
-        setLegendUrl(wmtsLayer.wmsLegendUrl);
-        setHasFallbackAttempted(true); // Mark as already using fallback
+    // Only reset states if this is actually a different layer
+    if (lastUniqueId !== uniqueId) {
+      setIsLoading(true);
+      setHasError(false);
+      setHasFallbackAttempted(false);
+      setLastUniqueId(uniqueId);
+      
+      if (wmsLayer) {
+        // Original WMS legend URL
+        const wmsLegendUrl = `${wmsLayer.baseUrl}?service=WMS&request=GetLegendGraphic&layer=${wmsLayer.layers}&format=image/png`;
+        setLegendUrl(wmsLegendUrl);
+      } else if (wmtsLayer) {
+        // For WMTS, start with WMTS GetLegendGraphic (for non-standard providers like FAO)
+        if (wmtsLayer.wmtsLegendUrl) {
+          setLegendUrl(wmtsLayer.wmtsLegendUrl);
+        } else if (wmtsLayer.wmsLegendUrl) {
+          // Direct WMS fallback if no WMTS URL available
+          setLegendUrl(wmtsLayer.wmsLegendUrl);
+          setHasFallbackAttempted(true); // Mark as already using fallback
+        } else {
+          setHasError(true);
+          setIsLoading(false);
+        }
       } else {
         setHasError(true);
         setIsLoading(false);
       }
-    } else {
-      setHasError(true);
-      setIsLoading(false);
     }
-  }, [wmsLayer, wmtsLayer]);
+  }, [uniqueId, wmsLayer, wmtsLayer, lastUniqueId]);
   
   // Don't render if no valid legend URL or has error
   if (!legendUrl || hasError) {
@@ -536,6 +550,32 @@ export default function LeafletMapComponent() {
     )
   );
   
+  // Memoize legend components to prevent unnecessary re-renders
+  const legendComponents = useMemo(() => {
+    return visibleLayersWithLegends.map((layer) => {
+      if (layer.layer_type?.toUpperCase() === "WMS") {
+        const wmsLayerParsed = parseWMSUrl(layer.data_link);
+        return (
+          <Legend 
+            key={`wms-${layer.id}`}
+            wmsLayer={wmsLayerParsed} 
+            title={layer.title || layer.name} 
+          />
+        );
+      } else if (layer.layer_type?.toUpperCase() === "WMTS") {
+        const wmtsLayerParsed = parseWMTSUrl(layer.data_link);
+        return (
+          <Legend 
+            key={`wmts-${layer.id}`}
+            wmtsLayer={wmtsLayerParsed} 
+            title={layer.title || layer.name} 
+          />
+        );
+      }
+      return null;
+    }).filter(Boolean);
+  }, [visibleLayersWithLegends.map(l => `${l.id}-${l.data_link}`).join(',')]);
+  
   return (
     <div className="relative w-full h-full">
       <div className="absolute inset-0 z-0">
@@ -592,30 +632,9 @@ export default function LeafletMapComponent() {
             })}
           </div>
           {/* Render legends for all visible WMS and WMTS layers */}
-          {visibleLayersWithLegends.length > 0 && (
+          {legendComponents.length > 0 && (
             <div className="absolute bottom-2 right-2 z-[9999] space-y-2">
-              {visibleLayersWithLegends.map((layer, index) => {
-                if (layer.layer_type?.toUpperCase() === "WMS") {
-                  const wmsLayerParsed = parseWMSUrl(layer.data_link);
-                  return (
-                    <Legend 
-                      key={`wms-${layer.id}`}
-                      wmsLayer={wmsLayerParsed} 
-                      title={layer.title || layer.name} 
-                    />
-                  );
-                } else if (layer.layer_type?.toUpperCase() === "WMTS") {
-                  const wmtsLayerParsed = parseWMTSUrl(layer.data_link);
-                  return (
-                    <Legend 
-                      key={`wmts-${layer.id}`}
-                      wmtsLayer={wmtsLayerParsed} 
-                      title={layer.title || layer.name} 
-                    />
-                  );
-                }
-                return null;
-              })}
+              {legendComponents}
             </div>
           )}
         </MapContainer>
