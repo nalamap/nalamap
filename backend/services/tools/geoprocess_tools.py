@@ -58,32 +58,82 @@ def _get_layer_geoms(layers):
     return geoms
 
 
-def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857"):
+def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857", radius_unit="meters"):
     """
-    Buffers each feature by a given radius in meters.
+    Buffers features of a single input layer item individually.
+    If multiple layers are provided, this function will raise a ValueError.
     Input geometries are assumed in EPSG:4326. This function:
-      1) Loads features, sets CRS to EPSG:4326
-      2) Reprojects to buffer_crs (default EPSG:3857, meters)
-      3) Applies buffer with `radius` in meters
-      4) Reprojects result back to EPSG:4326
-    If `buffer_crs` is provided by user, uses that CRS instead of EPSG:3857.
-    If user asks for a buffer in kilometers or miles, convert to meters before proceeding. 
+      1) Expects `layers` to be a list containing a single layer item (FeatureCollection or Feature).
+      2) Converts radius to meters based on radius_unit (default is "meters").
+      3) Extracts features from the single layer item.
+      4) Creates a GeoDataFrame from these features.
+      5) Reprojects the GeoDataFrame to buffer_crs (default EPSG:3857, which uses meters).
+      6) Applies buffer to each feature geometry with the meter-based radius.
+      7) Reprojects the GeoDataFrame (with buffered features) back to EPSG:4326.
+      8) Returns a list containing one FeatureCollection with the individually buffered features.
+    Supported radius_unit: "meters", "kilometers", "miles".
     """
-    feats = _flatten_features(layers)
-    if not feats:
+    if not layers:
+        return [] # No input layer, return empty list
+    
+    if len(layers) > 1:
+        # Extract layer names/titles if available for better error information
+        layer_info = []
+        for i, layer in enumerate(layers):
+            name = None
+            if isinstance(layer, dict):
+                props = layer.get("properties", {})
+                if props:
+                    name = props.get("name") or props.get("title")
+                # Also try to get name from features if it's a FeatureCollection
+                if not name and layer.get("type") == "FeatureCollection" and layer.get("features"):
+                    first_feat = layer["features"][0] if layer["features"] else None
+                    if first_feat and isinstance(first_feat, dict):
+                        props = first_feat.get("properties", {})
+                        if props:
+                            name = props.get("name") or props.get("title")
+            layer_info.append(f"Layer {i+1}" + (f": {name}" if name else ""))
+        
+        layer_desc = ", ".join(layer_info)
+        raise ValueError(f"Buffer operation error: Only one layer can be buffered at a time. Received {len(layers)} layers: {layer_desc}. Please specify a single target layer.")
+    
+    layer_item = layers[0] # Process the single layer provided
+
+    actual_radius_meters = float(radius)
+    if radius_unit.lower() == "kilometers":
+        actual_radius_meters *= 1000
+    elif radius_unit.lower() == "miles":
+        actual_radius_meters *= 1609.34
+    elif radius_unit.lower() != "meters":
+        print(f"Warning: Unknown radius_unit '{radius_unit}'. Assuming meters.")
+
+    current_features = []
+    if isinstance(layer_item, dict):
+        if layer_item.get("type") == "FeatureCollection":
+            current_features = layer_item.get("features", [])
+        elif layer_item.get("type") == "Feature":
+            current_features = [layer_item]
+    
+    if not current_features:
+        # This case might occur if the single layer_item was an empty FeatureCollection or invalid
+        print(f"Warning: The provided layer item is empty or not a recognizable Feature/FeatureCollection: {type(layer_item)}")
         return []
-    # Load into GeoDataFrame and set source CRS
-    gdf = gpd.GeoDataFrame.from_features(feats)
+
+    gdf = gpd.GeoDataFrame.from_features(current_features)
+    if gdf.empty:
+        return [] # GeoDataFrame is empty, nothing to buffer
+    
     gdf.set_crs("EPSG:4326", inplace=True)
-    # Reproject to chosen metric CRS for buffering
-    gdf = gdf.to_crs(buffer_crs)
-    # Buffer in meter units only operate on geometry column to keep property info of layer
-    gdf['geometry'] = gdf.geometry.buffer(radius)
-    # Reproject back to geographic coords
-    gdf = gdf.to_crs("EPSG:4326")
-    # Export to GeoJSON Feature list
-    fc = json.loads(gdf.to_json())
-    return [fc]
+    
+    gdf_reprojected = gdf.to_crs(buffer_crs)
+    gdf_reprojected['geometry'] = gdf_reprojected.geometry.buffer(actual_radius_meters)
+    gdf_buffered_individual = gdf_reprojected.to_crs("EPSG:4326")
+    
+    if gdf_buffered_individual.empty:
+        return [] # Resulting GeoDataFrame is empty
+        
+    fc = json.loads(gdf_buffered_individual.to_json())
+    return [fc] # Return a list containing the single FeatureCollection
 
 
 
@@ -125,16 +175,86 @@ def op_difference(layers, **kwargs):
 
 
 def op_clip(layers, **kwargs):
-    """Clips the first FeatureCollection by the second."""
+    """Clips the first FeatureCollection by the second.
+    If fewer than two layers are provided, the original layers are returned unchanged.
+    """
     if len(layers) < 2:
-        return _flatten_features(layers)
-    subj_feats = layers[0].get("features", []) if layers[0].get("type") == "FeatureCollection" else [layers[0]]
-    mask_feats = layers[1].get("features", []) if layers[1].get("type") == "FeatureCollection" else [layers[1]]
+        # Not enough layers to perform a clip, return the input layers as is.
+        # The geoprocess_executor expects a list of layer-like objects (e.g., FeatureCollections).
+        return layers
+    
+    # Proceed with clipping logic if 2 or more layers are present
+    # (Assuming the first layer is subject, second is mask for this basic example)
+    subj_layer = layers[0]
+    mask_layer = layers[1]
+
+    subj_feats = []
+    if subj_layer and isinstance(subj_layer, dict) and subj_layer.get("type") == "FeatureCollection":
+        subj_feats = subj_layer.get("features", [])
+    elif subj_layer and isinstance(subj_layer, dict) and subj_layer.get("type") == "Feature":
+        subj_feats = [subj_layer]
+    
+    mask_feats = []
+    if mask_layer and isinstance(mask_layer, dict) and mask_layer.get("type") == "FeatureCollection":
+        mask_feats = mask_layer.get("features", [])
+    elif mask_layer and isinstance(mask_layer, dict) and mask_layer.get("type") == "Feature":
+        mask_feats = [mask_layer]
+
+    if not subj_feats or not mask_feats:
+        # If subject or mask is effectively empty, return original subject layer(s) or all layers
+        # to avoid errors and indicate no clip occurred or was possible.
+        # Depending on desired strictness, could also return empty list or raise error.
+        print("Warning: op_clip called with insufficient features in subject or mask layer(s). Returning original layers.")
+        return layers 
+
     subj_gdf = gpd.GeoDataFrame.from_features(subj_feats)
-    mask_geom = unary_union(gpd.GeoDataFrame.from_features(mask_feats).geometry)
-    subj_gdf['geometry'] = subj_gdf.geometry.intersection(mask_geom)
-    fc = json.loads(subj_gdf.to_json())
-    return [fc]
+    if subj_gdf.empty:
+        return [{"type": "FeatureCollection", "features": []}] # Return empty FC if subject is empty
+    subj_gdf.set_crs("EPSG:4326", inplace=True) # Assume input is 4326
+
+    mask_gdf = gpd.GeoDataFrame.from_features(mask_feats)
+    if mask_gdf.empty:
+        # No mask to clip with, return original subject features as a FeatureCollection
+        print("Warning: op_clip called with an empty mask layer. Returning original subject layer.")
+        # Ensure subject_gdf is converted back to the expected list-of-FCs format
+        fc = json.loads(subj_gdf.to_json())
+        return [fc]
+    mask_gdf.set_crs("EPSG:4326", inplace=True) # Assume input is 4326
+
+    # Ensure CRSs match before spatial operations if they might differ; for now, assume they are aligned or handled by user.
+    # Reprojecting to a common projected CRS might be needed for accurate geometric operations if inputs are geographic.
+    # However, if inputs are already EPSG:4326, intersection works but on degrees.
+    # For simplicity here, proceeding with whatever CRS they have (assumed EPSG:4326).
+
+    mask_geom = mask_gdf.geometry.unary_union
+    if mask_geom.is_empty:
+        print("Warning: op_clip mask geometry is empty. Returning original subject layer.")
+        fc = json.loads(subj_gdf.to_json())
+        return [fc]
+
+    # Perform the clip (intersection)
+    # Note: geopandas.clip is more robust, but uses intersection on GeoDataFrames
+    try:
+        # Ensure subj_gdf has a valid CRS before to_crs, if it might be lost
+        if subj_gdf.crs is None:
+             subj_gdf.set_crs("EPSG:4326", inplace=True)
+        # It's often better to clip in a projected CRS if inputs are geographic
+        # For this example, let's assume we work in the input CRS (e.g. EPSG:4326)
+        # or that reprojection is handled by the LLM plan if needed.
+        
+        clipped_gdf = subj_gdf.clip(mask_geom) # gpd.clip requires mask to be a geometry or GeoDataFrame/Series
+    
+    except Exception as e:
+        print(f"Error during geopandas clip operation: {e}. Returning original subject layer.")
+        # Fallback: return original subject layer as a FeatureCollection list
+        fc = json.loads(subj_gdf.to_json())
+        return [fc]
+
+    if clipped_gdf.empty:
+        return [{"type": "FeatureCollection", "features": []}]
+
+    fc = json.loads(clipped_gdf.to_json())
+    return [fc] # Return a list containing the single clipped FeatureCollection
 
 
 def op_simplify(layers, tolerance=0.01):
@@ -192,26 +312,27 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
         # 1) Invoke LLM planner with metadata only
     llm = get_llm()
     system_msg = (
-        "You are a geospatial processing assistant. "
-        "You have the following input layers with metadata (id, name, geometry_type, bbox). "
-        "Based on the user request and available operations, choose the best sequence of operations. "
-        "Return a JSON object with a top-level key steps whose value is an array of objects. Each object must have exactly two keys:"
-        + ", ".join(available_ops) + "). Dont define at any operation params with layer or layers as all functions are called as func(layers: result, **params)"
-        "Example Output:"
-        """
-        {
-        "steps": [
-            {
-            "operation": "buffer",
-            "params": { "radius": 3000 }
-            },
-            {
-            "operation": "clip",
-            "params": {}
-            }
-        ]
-        }
-        """
+        "You are a geospatial task execution assistant. Your sole job is to translate the user's most recent request into a single geoprocessing operation and its parameters."
+        "1. Examine the user's query closely: {query_json_string}."
+        "2. Identify the single most appropriate geoprocessing operation from the available list: {available_operations_list_json_string}."
+        "3. CRITICAL FOR BUFFER OPERATION: If the chosen operation is 'buffer', you MUST extract 'radius' (a number) and 'radius_unit' (e.g., 'meters', 'kilometers', 'miles') directly and precisely from the user's query. For example, if the user says 'buffer by 100 km', your parameters MUST be `{{\"radius\": 100, \"radius_unit\": \"kilometers\"}}`. If they say 'buffer by 50000 meters', params MUST be `{{\"radius\": 50000, \"radius_unit\": \"meters\"}}`. DO NOT use default values if the user specifies values; use exactly what the user provided."
+        "4. For other operations, extract necessary parameters as defined in their descriptions from the user's query."
+        "5. Return a JSON object structured EXACTLY as follows: `{{\"steps\": [{{\"operation\": \"chosen_operation_name\", \"params\": {{extracted_parameters}}}}]}}`. The 'steps' array MUST contain exactly one operation object."
+        "The execution framework handles which layer(s) are passed to the operation; you do not control this with parameters."
+        "Example for a user query 'buffer the_roads by 5 kilometers':"
+        "```json\n"
+        "{{\n"
+        "  \"steps\": [\n"
+        "    {{\n"
+        "      \"operation\": \"buffer\",\n"
+        "      \"params\": {{ \"radius\": 5, \"radius_unit\": \"kilometers\" }}\n"
+        "    }}\n"
+        "  ]\n"
+        "}}\n"
+        "```"
+    ).format(
+        query_json_string=json.dumps(query),
+        available_operations_list_json_string=json.dumps(available_ops) 
     )
     user_payload = {
         "query": query,
@@ -303,7 +424,7 @@ def geoprocess_tool(
         "query": query,
         "input_layers": input_layers,
         "available_operations_and_params": [
-            "operation: buffer params: radius=1000, buffer_crs=EPSG:3857",
+            "operation: buffer params: radius=1000, radius_unit='meters', buffer_crs=EPSG:3857",
             "operation: intersection params:",
             "operation: union params:",
             "operation: clip params:",
