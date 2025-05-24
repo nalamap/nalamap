@@ -296,20 +296,19 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
     system_msg = (
         "You are a geospatial processing assistant. "
         "You have the following input layers with metadata (id, name, geometry_type, bbox). "
-        "Based on the user request and available operations, choose the best sequence of operations. "
-        "Return a JSON object with a top-level key steps whose value is an array of objects. Each object must have exactly two keys:"
-        + ", ".join(available_ops) + "). Dont define at any operation params with layer or layers as all functions are called as func(layers: result, **params)"
-        "Example Output:"
+        "Based on the user request and available operations, choose the single best geoprocessing operation. "
+        "Return a JSON object with a top-level key \"steps\". The value of \"steps\" must be an array containing exactly one object. "
+        "This object must have two keys: \"operation\" (the name of the chosen operation) and \"params\" (a dictionary of parameters for that operation). "
+        "Ensure that parameters like 'radius' and 'radius_unit' are correctly extracted from the user query if a buffer operation is chosen. "
+        "The available operations and their typical parameters are: " + ", ".join(available_ops) + ". "
+        "Do not define any operation parameters named 'layer' or 'layers', as the function execution framework handles this by passing the result of the previous state. "
+        "Example Output for a user query like 'buffer the data by 5 kilometers':"
         """
         {
         "steps": [
             {
             "operation": "buffer",
-            "params": { "radius": 3000, "radius_unit": "meters" }
-            },
-            {
-            "operation": "clip",
-            "params": {}
+            "params": { "radius": 5, "radius_unit": "kilometers" }
             }
         ]
         }
