@@ -77,7 +77,25 @@ def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857", radius_unit="meters"
         return [] # No input layer, return empty list
     
     if len(layers) > 1:
-        raise ValueError("Buffer operation error: Only one layer can be buffered at a time. Please specify a single target layer.")
+        # Extract layer names/titles if available for better error information
+        layer_info = []
+        for i, layer in enumerate(layers):
+            name = None
+            if isinstance(layer, dict):
+                props = layer.get("properties", {})
+                if props:
+                    name = props.get("name") or props.get("title")
+                # Also try to get name from features if it's a FeatureCollection
+                if not name and layer.get("type") == "FeatureCollection" and layer.get("features"):
+                    first_feat = layer["features"][0] if layer["features"] else None
+                    if first_feat and isinstance(first_feat, dict):
+                        props = first_feat.get("properties", {})
+                        if props:
+                            name = props.get("name") or props.get("title")
+            layer_info.append(f"Layer {i+1}" + (f": {name}" if name else ""))
+        
+        layer_desc = ", ".join(layer_info)
+        raise ValueError(f"Buffer operation error: Only one layer can be buffered at a time. Received {len(layers)} layers: {layer_desc}. Please specify a single target layer.")
     
     layer_item = layers[0] # Process the single layer provided
 
@@ -294,25 +312,27 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
         # 1) Invoke LLM planner with metadata only
     llm = get_llm()
     system_msg = (
-        "You are a geospatial processing assistant. "
-        "You have the following input layers with metadata (id, name, geometry_type, bbox). "
-        "Based on the user request and available operations, choose the single best geoprocessing operation. "
-        "Return a JSON object with a top-level key \"steps\". The value of \"steps\" must be an array containing exactly one object. "
-        "This object must have two keys: \"operation\" (the name of the chosen operation) and \"params\" (a dictionary of parameters for that operation). "
-        "Ensure that parameters like 'radius' and 'radius_unit' are correctly extracted from the user query if a buffer operation is chosen. "
-        "The available operations and their typical parameters are: " + ", ".join(available_ops) + ". "
-        "Do not define any operation parameters named 'layer' or 'layers', as the function execution framework handles this by passing the result of the previous state. "
-        "Example Output for a user query like 'buffer the data by 5 kilometers':"
-        """
-        {
-        "steps": [
-            {
-            "operation": "buffer",
-            "params": { "radius": 5, "radius_unit": "kilometers" }
-            }
-        ]
-        }
-        """
+        "You are a geospatial task execution assistant. Your sole job is to translate the user's most recent request into a single geoprocessing operation and its parameters."
+        "1. Examine the user's query closely: {query_json_string}."
+        "2. Identify the single most appropriate geoprocessing operation from the available list: {available_operations_list_json_string}."
+        "3. CRITICAL FOR BUFFER OPERATION: If the chosen operation is 'buffer', you MUST extract 'radius' (a number) and 'radius_unit' (e.g., 'meters', 'kilometers', 'miles') directly and precisely from the user's query. For example, if the user says 'buffer by 100 km', your parameters MUST be `{{\"radius\": 100, \"radius_unit\": \"kilometers\"}}`. If they say 'buffer by 50000 meters', params MUST be `{{\"radius\": 50000, \"radius_unit\": \"meters\"}}`. DO NOT use default values if the user specifies values; use exactly what the user provided."
+        "4. For other operations, extract necessary parameters as defined in their descriptions from the user's query."
+        "5. Return a JSON object structured EXACTLY as follows: `{{\"steps\": [{{\"operation\": \"chosen_operation_name\", \"params\": {{extracted_parameters}}}}]}}`. The 'steps' array MUST contain exactly one operation object."
+        "The execution framework handles which layer(s) are passed to the operation; you do not control this with parameters."
+        "Example for a user query 'buffer the_roads by 5 kilometers':"
+        "```json\n"
+        "{{\n"
+        "  \"steps\": [\n"
+        "    {{\n"
+        "      \"operation\": \"buffer\",\n"
+        "      \"params\": {{ \"radius\": 5, \"radius_unit\": \"kilometers\" }}\n"
+        "    }}\n"
+        "  ]\n"
+        "}}\n"
+        "```"
+    ).format(
+        query_json_string=json.dumps(query),
+        available_operations_list_json_string=json.dumps(available_ops) 
     )
     user_payload = {
         "query": query,
