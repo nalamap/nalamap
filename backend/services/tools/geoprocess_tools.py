@@ -396,29 +396,75 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
 
 @tool
 def geoprocess_tool(
-    state:  Annotated[GeoDataAgentState, InjectedState],
+    state: Annotated[GeoDataAgentState, InjectedState],
     tool_call_id: Annotated[str, InjectedToolCallId],
+    target_layer_id: Optional[str] = None,
+    operation: Optional[str] = None
 ) -> Union[Dict[str, Any], Command]:
     """
-    Tool to geoprocess geospatial layers and datasets (geodata_layers) based on the user request and available operations (buffer, intersection, union, difference, clip).
+    Tool to geoprocess a specific geospatial layer from the state.
+    
+    Args:
+        state: The agent state containing geodata_layers
+        tool_call_id: ID for this tool call
+        target_layer_id: ID of the specific layer to process. If not provided, will attempt to determine from context.
+        operation: Optional operation hint (buffer, intersection, etc.)
+    
+    The tool will apply operations like buffer, intersection, union, difference, or clip to the specified layer.
     """
     # Safely pull out the list (defaults to [] if key missing or None)
     layers = state.get("geodata_layers") or []
     messages = state.get("messages") or []
+    
     if not layers:
-        raise ValueError("No geodata_layers found in state!")
+        return Command(
+            update={
+                "messages": [
+                    ToolMessage(
+                        name="geoprocess_tool", 
+                        content="Error: No geodata layers found in state. Please add or select layers first.", 
+                        tool_call_id=tool_call_id,
+                        status="error"
+                    )
+                ]
+            }
+        )
+    
+    # If target_layer_id is provided, filter to just that layer
+    selected_layers = []
+    if target_layer_id:
+        selected_layers = [layer for layer in layers if layer.id == target_layer_id]
+        if not selected_layers:
+            # Provide a helpful error with available layer IDs
+            available_layers = [{"id": layer.id, "title": layer.title} for layer in layers]
+            return Command(
+                update={
+                    "messages": [
+                        ToolMessage(
+                            name="geoprocess_tool", 
+                            content=f"Error: Layer with ID '{target_layer_id}' not found. Available layers: {json.dumps(available_layers)}", 
+                            tool_call_id=tool_call_id,
+                            status="error"
+                        )
+                    ]
+                }
+            )
+    else:
+        # If no specific layer ID was provided, use only the first layer
+        # This prevents the multiple-layer error
+        selected_layers = [layers[0]]
+    
+    # Get URLs for the selected layers only
     layer_urls = [
-        gd.data_link
-        for gd in layers
-        if gd.data_type in (DataType.GEOJSON, DataType.UPLOADED)
+        layer.data_link
+        for layer in selected_layers
+        if layer.data_type in (DataType.GEOJSON, DataType.UPLOADED)
     ]
-    # name derived from input layers
-    result_name = "and".join(
-        gd.name for gd in layers
-        if gd.data_type in (DataType.GEOJSON, DataType.UPLOADED)
-    )
+    
+    # Name derived from input layer
+    result_name = selected_layers[0].name if selected_layers else ""
 
-    # Load all the GeoJSON feature collections
+    # Load the selected GeoJSON feature collections
     input_layers: List[Dict[str, Any]] = []
     for url in layer_urls:
         filename = os.path.basename(url)
@@ -427,7 +473,18 @@ def geoprocess_tool(
             with open(path, "r", encoding="utf-8") as f:
                 gj = json.load(f)
         except Exception as exc:
-            raise ValueError(f"Failed to read {path}: {exc}")
+            return Command(
+                update={
+                    "messages": [
+                        ToolMessage(
+                            name="geoprocess_tool", 
+                            content=f"Error: Failed to read {path}: {exc}", 
+                            tool_call_id=tool_call_id,
+                            status="error"
+                        )
+                    ]
+                }
+            )
 
         # Normalize to FeatureCollection
         if isinstance(gj, list):
@@ -440,8 +497,12 @@ def geoprocess_tool(
                 "features": [gj],
             })
     
-    query=get_last_human_content(messages)
-    # 2) Build the state for the geoprocess executor
+    query = get_last_human_content(messages)
+    # If operation was specified, add it to the query for better context
+    if operation:
+        query = f"{operation} {query}"
+        
+    # Build the state for the geoprocess executor
     processing_state = {
         "query": query,
         "input_layers": input_layers,
@@ -456,15 +517,30 @@ def geoprocess_tool(
         "tool_sequence": [],  # will be filled by the executor
     }
 
-    # 3) Run the (formerly async) executor synchronously
-    final_state = geoprocess_executor(processing_state)
+    try:
+        # Run the executor
+        final_state = geoprocess_executor(processing_state)
+    except ValueError as e:
+        return Command(
+            update={
+                "messages": [
+                    ToolMessage(
+                        name="geoprocess_tool", 
+                        content=f"Error: {str(e)}\n Please fix your mistakes.", 
+                        tool_call_id=tool_call_id,
+                        status="error"
+                    )
+                ]
+            }
+        )
 
-    # 4) Collect results
+    # Collect results
     result_layers = final_state.get("result_layers", [])
-    tools_used   = final_state.get("tool_sequence", [])
+    tools_used = final_state.get("tool_sequence", [])
     if tools_used:
-        tools_name='and'.join(tool for tool in tools_used)
-        result_name=result_name+tools_name
+        tools_name = ''.join(tool for tool in tools_used)
+        result_name = result_name + tools_name
+        
     # Build new GeoDataObjects
     new_geodata: List[GeoDataObject] = []
     out_urls: List[str] = []
@@ -494,11 +570,15 @@ def geoprocess_tool(
             properties=None
         ))
 
-    # 5) Return the update command
+    # Return the update command
     return Command(
         update={
             "messages": [
-                ToolMessage(name="geoprocess_tool", content="Tools used: " + ", ".join(tools_used) + f". Added GeoDataObjects into the global_state, use id and data_source_id for reference: {json.dumps([ {"id": result.id, "data_source_id": result.data_source_id, "title": result.title} for result in new_geodata])}", tool_call_id=tool_call_id)
+                ToolMessage(
+                    name="geoprocess_tool", 
+                    content="Tools used: " + ", ".join(tools_used) + f". Added GeoDataObjects into the global_state, use id and data_source_id for reference: {json.dumps([{'id': result.id, 'data_source_id': result.data_source_id, 'title': result.title} for result in new_geodata])}", 
+                    tool_call_id=tool_call_id
+                )
             ],
             "global_geodata": new_geodata,
             "geodata_results": new_geodata
