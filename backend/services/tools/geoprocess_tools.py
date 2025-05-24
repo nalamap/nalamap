@@ -58,17 +58,31 @@ def _get_layer_geoms(layers):
     return geoms
 
 
-def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857"):
+def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857", radius_unit="meters"):
     """
-    Buffers each feature by a given radius in meters.
+    Buffers each feature by a given radius.
     Input geometries are assumed in EPSG:4326. This function:
       1) Loads features, sets CRS to EPSG:4326
-      2) Reprojects to buffer_crs (default EPSG:3857, meters)
-      3) Applies buffer with `radius` in meters
-      4) Reprojects result back to EPSG:4326
+      2) Converts radius to meters based on radius_unit (default is "meters")
+      3) Reprojects to buffer_crs (default EPSG:3857, which uses meters)
+      4) Applies buffer with the meter-based radius
+      5) Reprojects result back to EPSG:4326
     If `buffer_crs` is provided by user, uses that CRS instead of EPSG:3857.
-    If user asks for a buffer in kilometers or miles, convert to meters before proceeding. 
+    Supported radius_unit: "meters", "kilometers", "miles".
     """
+    # Convert radius to meters based on the unit
+    actual_radius_meters = float(radius) # Ensure radius is a number
+    if radius_unit.lower() == "kilometers":
+        actual_radius_meters *= 1000
+    elif radius_unit.lower() == "miles":
+        actual_radius_meters *= 1609.34 # 1 mile = 1609.34 meters
+    elif radius_unit.lower() != "meters":
+        # Potentially raise an error or log a warning for unsupported units
+        # For now, assume meters if unit is unknown or misspelled
+        print(f"Warning: Unknown radius_unit '{radius_unit}'. Assuming meters.")
+        pass
+
+
     feats = _flatten_features(layers)
     if not feats:
         return []
@@ -78,7 +92,7 @@ def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857"):
     # Reproject to chosen metric CRS for buffering
     gdf = gdf.to_crs(buffer_crs)
     # Buffer in meter units only operate on geometry column to keep property info of layer
-    gdf['geometry'] = gdf.geometry.buffer(radius)
+    gdf['geometry'] = gdf.geometry.buffer(actual_radius_meters)
     # Reproject back to geographic coords
     gdf = gdf.to_crs("EPSG:4326")
     # Export to GeoJSON Feature list
