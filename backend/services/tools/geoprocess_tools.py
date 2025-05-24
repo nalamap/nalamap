@@ -157,16 +157,86 @@ def op_difference(layers, **kwargs):
 
 
 def op_clip(layers, **kwargs):
-    """Clips the first FeatureCollection by the second."""
+    """Clips the first FeatureCollection by the second.
+    If fewer than two layers are provided, the original layers are returned unchanged.
+    """
     if len(layers) < 2:
-        return _flatten_features(layers)
-    subj_feats = layers[0].get("features", []) if layers[0].get("type") == "FeatureCollection" else [layers[0]]
-    mask_feats = layers[1].get("features", []) if layers[1].get("type") == "FeatureCollection" else [layers[1]]
+        # Not enough layers to perform a clip, return the input layers as is.
+        # The geoprocess_executor expects a list of layer-like objects (e.g., FeatureCollections).
+        return layers
+    
+    # Proceed with clipping logic if 2 or more layers are present
+    # (Assuming the first layer is subject, second is mask for this basic example)
+    subj_layer = layers[0]
+    mask_layer = layers[1]
+
+    subj_feats = []
+    if subj_layer and isinstance(subj_layer, dict) and subj_layer.get("type") == "FeatureCollection":
+        subj_feats = subj_layer.get("features", [])
+    elif subj_layer and isinstance(subj_layer, dict) and subj_layer.get("type") == "Feature":
+        subj_feats = [subj_layer]
+    
+    mask_feats = []
+    if mask_layer and isinstance(mask_layer, dict) and mask_layer.get("type") == "FeatureCollection":
+        mask_feats = mask_layer.get("features", [])
+    elif mask_layer and isinstance(mask_layer, dict) and mask_layer.get("type") == "Feature":
+        mask_feats = [mask_layer]
+
+    if not subj_feats or not mask_feats:
+        # If subject or mask is effectively empty, return original subject layer(s) or all layers
+        # to avoid errors and indicate no clip occurred or was possible.
+        # Depending on desired strictness, could also return empty list or raise error.
+        print("Warning: op_clip called with insufficient features in subject or mask layer(s). Returning original layers.")
+        return layers 
+
     subj_gdf = gpd.GeoDataFrame.from_features(subj_feats)
-    mask_geom = unary_union(gpd.GeoDataFrame.from_features(mask_feats).geometry)
-    subj_gdf['geometry'] = subj_gdf.geometry.intersection(mask_geom)
-    fc = json.loads(subj_gdf.to_json())
-    return [fc]
+    if subj_gdf.empty:
+        return [{"type": "FeatureCollection", "features": []}] # Return empty FC if subject is empty
+    subj_gdf.set_crs("EPSG:4326", inplace=True) # Assume input is 4326
+
+    mask_gdf = gpd.GeoDataFrame.from_features(mask_feats)
+    if mask_gdf.empty:
+        # No mask to clip with, return original subject features as a FeatureCollection
+        print("Warning: op_clip called with an empty mask layer. Returning original subject layer.")
+        # Ensure subject_gdf is converted back to the expected list-of-FCs format
+        fc = json.loads(subj_gdf.to_json())
+        return [fc]
+    mask_gdf.set_crs("EPSG:4326", inplace=True) # Assume input is 4326
+
+    # Ensure CRSs match before spatial operations if they might differ; for now, assume they are aligned or handled by user.
+    # Reprojecting to a common projected CRS might be needed for accurate geometric operations if inputs are geographic.
+    # However, if inputs are already EPSG:4326, intersection works but on degrees.
+    # For simplicity here, proceeding with whatever CRS they have (assumed EPSG:4326).
+
+    mask_geom = mask_gdf.geometry.unary_union
+    if mask_geom.is_empty:
+        print("Warning: op_clip mask geometry is empty. Returning original subject layer.")
+        fc = json.loads(subj_gdf.to_json())
+        return [fc]
+
+    # Perform the clip (intersection)
+    # Note: geopandas.clip is more robust, but uses intersection on GeoDataFrames
+    try:
+        # Ensure subj_gdf has a valid CRS before to_crs, if it might be lost
+        if subj_gdf.crs is None:
+             subj_gdf.set_crs("EPSG:4326", inplace=True)
+        # It's often better to clip in a projected CRS if inputs are geographic
+        # For this example, let's assume we work in the input CRS (e.g. EPSG:4326)
+        # or that reprojection is handled by the LLM plan if needed.
+        
+        clipped_gdf = subj_gdf.clip(mask_geom) # gpd.clip requires mask to be a geometry or GeoDataFrame/Series
+    
+    except Exception as e:
+        print(f"Error during geopandas clip operation: {e}. Returning original subject layer.")
+        # Fallback: return original subject layer as a FeatureCollection list
+        fc = json.loads(subj_gdf.to_json())
+        return [fc]
+
+    if clipped_gdf.empty:
+        return [{"type": "FeatureCollection", "features": []}]
+
+    fc = json.loads(clipped_gdf.to_json())
+    return [fc] # Return a list containing the single clipped FeatureCollection
 
 
 def op_simplify(layers, tolerance=0.01):
