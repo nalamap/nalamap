@@ -60,44 +60,58 @@ def _get_layer_geoms(layers):
 
 def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857", radius_unit="meters"):
     """
-    Buffers each feature by a given radius.
-    Input geometries are assumed in EPSG:4326. This function:
-      1) Loads features, sets CRS to EPSG:4326
-      2) Converts radius to meters based on radius_unit (default is "meters")
-      3) Reprojects to buffer_crs (default EPSG:3857, which uses meters)
-      4) Applies buffer with the meter-based radius
-      5) Reprojects result back to EPSG:4326
-    If `buffer_crs` is provided by user, uses that CRS instead of EPSG:3857.
+    For each input layer item, buffers its features individually.
+    Input geometries are assumed in EPSG:4326. This function, for each layer item:
+      1) Converts radius to meters based on radius_unit (default is "meters").
+      2) Extracts features from the layer item.
+      3) Creates a GeoDataFrame from these features.
+      4) Reprojects the GeoDataFrame to buffer_crs (default EPSG:3857, which uses meters).
+      5) Applies buffer to each feature geometry with the meter-based radius.
+      6) Reprojects the GeoDataFrame (with buffered features) back to EPSG:4326.
+      7) Returns a list of FeatureCollections, one for each processed input layer item, 
+         containing the individually buffered features.
     Supported radius_unit: "meters", "kilometers", "miles".
     """
-    # Convert radius to meters based on the unit
-    actual_radius_meters = float(radius) # Ensure radius is a number
+    actual_radius_meters = float(radius)
     if radius_unit.lower() == "kilometers":
         actual_radius_meters *= 1000
     elif radius_unit.lower() == "miles":
-        actual_radius_meters *= 1609.34 # 1 mile = 1609.34 meters
+        actual_radius_meters *= 1609.34
     elif radius_unit.lower() != "meters":
-        # Potentially raise an error or log a warning for unsupported units
-        # For now, assume meters if unit is unknown or misspelled
         print(f"Warning: Unknown radius_unit '{radius_unit}'. Assuming meters.")
-        pass
 
+    output_fcs = []
 
-    feats = _flatten_features(layers)
-    if not feats:
-        return []
-    # Load into GeoDataFrame and set source CRS
-    gdf = gpd.GeoDataFrame.from_features(feats)
-    gdf.set_crs("EPSG:4326", inplace=True)
-    # Reproject to chosen metric CRS for buffering
-    gdf = gdf.to_crs(buffer_crs)
-    # Buffer in meter units only operate on geometry column to keep property info of layer
-    gdf['geometry'] = gdf.geometry.buffer(actual_radius_meters)
-    # Reproject back to geographic coords
-    gdf = gdf.to_crs("EPSG:4326")
-    # Export to GeoJSON Feature list
-    fc = json.loads(gdf.to_json())
-    return [fc]
+    for layer_item in layers:
+        current_features = []
+        if isinstance(layer_item, dict):
+            if layer_item.get("type") == "FeatureCollection":
+                current_features = layer_item.get("features", [])
+            elif layer_item.get("type") == "Feature":
+                current_features = [layer_item]
+        
+        if not current_features:
+            print(f"Skipping an item in 'layers' as it's not a recognizable Feature/FeatureCollection or is empty: {type(layer_item)}")
+            continue
+
+        gdf = gpd.GeoDataFrame.from_features(current_features)
+        if gdf.empty:
+            continue
+        
+        gdf.set_crs("EPSG:4326", inplace=True)
+        
+        gdf_reprojected = gdf.to_crs(buffer_crs)
+        gdf_reprojected['geometry'] = gdf_reprojected.geometry.buffer(actual_radius_meters)
+        gdf_buffered_individual = gdf_reprojected.to_crs("EPSG:4326")
+        
+        # Ensure the output GeoDataFrame is not empty before converting to JSON
+        if gdf_buffered_individual.empty:
+            continue
+            
+        fc = json.loads(gdf_buffered_individual.to_json())
+        output_fcs.append(fc)
+
+    return output_fcs
 
 
 
