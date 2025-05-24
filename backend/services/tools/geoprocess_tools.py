@@ -350,7 +350,29 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
     content = response.generations[0][0].text
 
     try:
-        plan = json.loads(content)
+        # Strip markdown code blocks if present
+        cleaned_content = content
+        # Check for markdown code block format: ```json ... ```
+        if cleaned_content.strip().startswith("```") and "```" in cleaned_content.strip()[3:]:
+            # Extract content between first ``` and last ```
+            first_delimiter = cleaned_content.find("```")
+            last_delimiter = cleaned_content.rfind("```")
+            if first_delimiter != last_delimiter:
+                # Extract content after first ``` line and before last ```
+                lines = cleaned_content.split("\n")
+                start_line = 0
+                for i, line in enumerate(lines):
+                    if "```" in line:
+                        start_line = i
+                        break
+                # Get content starting from the line after the first ``` line
+                cleaned_content = "\n".join(lines[start_line+1:])
+                # Remove the last ``` and anything after it
+                if "```" in cleaned_content:
+                    cleaned_content = cleaned_content.split("```")[0]
+        
+        # Try to parse the cleaned content
+        plan = json.loads(cleaned_content)
     except json.JSONDecodeError:
         raise ValueError(f"Failed to parse LLM response as JSON: {content}")
     
