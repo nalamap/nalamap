@@ -231,7 +231,7 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
         "steps": [
             {
             "operation": "buffer",
-            "params": { "radius": 3000 }
+            "params": { "radius": 3000, "radius_unit": "meters" }
             },
             {
             "operation": "clip",
@@ -331,7 +331,7 @@ def geoprocess_tool(
         "query": query,
         "input_layers": input_layers,
         "available_operations_and_params": [
-            "operation: buffer params: radius=1000, buffer_crs=EPSG:3857",
+            "operation: buffer params: radius=1000, radius_unit='meters', buffer_crs=EPSG:3857",
             "operation: intersection params:",
             "operation: union params:",
             "operation: clip params:",
