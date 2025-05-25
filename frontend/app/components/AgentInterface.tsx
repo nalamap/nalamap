@@ -86,7 +86,8 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
   const [activeDetailsId, setActiveDetailsId] = useState<string | null>(null);
   let apiOptions: { portal?: string; bboxWkt?: string } | undefined = undefined;
 
-  const showToolMessages = true;
+  const showToolMessages = false; // TODO: Move to settings
+
   //automate scroll to bottom with new entry
   useEffect(() => {
     const el = containerRef.current;
