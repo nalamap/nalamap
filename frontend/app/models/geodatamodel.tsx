@@ -33,7 +33,7 @@ export interface GeoweaverRequest {
     query?: string
     geodata_last_results?: GeoDataObject[]
     geodata_layers?: GeoDataObject[]
-    global_geodata?: GeoDataObject[]
+    //global_geodata?: GeoDataObject[]
     options?: Map<string, Set<string>>
 }
 
@@ -42,5 +42,5 @@ export interface GeoweaverResponse {
     results_title?: string
     geodata_results?: GeoDataObject[]
     geodata_layers?: GeoDataObject[]
-    global_geodata?: GeoDataObject[]
+    //global_geodata?: GeoDataObject[]
 }
