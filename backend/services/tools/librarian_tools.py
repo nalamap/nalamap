@@ -81,11 +81,11 @@ def query_librarian_postgis(state: Annotated[GeoDataAgentState, InjectedState], 
 
         new_global_geodata: List[GeoDataObject]
 
-        if "global_geodata" not in state or state["global_geodata"] is None or not isinstance(state["global_geodata"], List) or len(state["global_geodata"]) == 0:
+        if "geodata_results" not in state or state["geodata_results"] is None or not isinstance(state["geodata_results"], List) or len(state["geodata_results"]) == 0:
             new_global_geodata = results
         else:
             new_global_geodata = []
-            new_global_geodata.extend(state["global_geodata"])
+            #new_global_geodata.extend(state["global_geodata"])
             new_global_geodata.extend(results)
 
         return Command(update={
@@ -93,7 +93,7 @@ def query_librarian_postgis(state: Annotated[GeoDataAgentState, InjectedState], 
                         *state["messages"], 
                         ToolMessage(name="query_librarian_postgis", content=f"Retrieved {len(results)} results, added GeoDataObjects into the global_state, use id and data_source_id for reference: {json.dumps([ {"id": result.id, "data_source_id": result.data_source_id, "title": result.title} for result in results])}", tool_call_id=tool_call_id )
                         ], 
-                    "global_geodata": new_global_geodata,
+                    #"global_geodata": new_global_geodata,
                     "geodata_results": new_global_geodata
         })
     

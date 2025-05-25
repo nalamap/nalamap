@@ -444,7 +444,11 @@ def geoprocess_tool(
         tools_name='and'.join(tool for tool in tools_used)
         result_name=result_name+tools_name
     # Build new GeoDataObjects
-    new_geodata: List[GeoDataObject] = []
+    new_geodata: List[GeoDataObject]
+    if "geodata_results" not in state or state["geodata_results"] is None or not isinstance(state["geodata_results"], List):
+        new_geodata = []
+    else:
+        new_geodata = state["geodata_results"]
     out_urls: List[str] = []
     for layer in result_layers:
         out_uuid = uuid.uuid4().hex
@@ -478,7 +482,7 @@ def geoprocess_tool(
             "messages": [
                 ToolMessage(name="geoprocess_tool", content="Tools used: " + ", ".join(tools_used) + f". Added GeoDataObjects into the global_state, use id and data_source_id for reference: {json.dumps([ {"id": result.id, "data_source_id": result.data_source_id, "title": result.title} for result in new_geodata])}", tool_call_id=tool_call_id)
             ],
-            "global_geodata": new_geodata,
+            #"global_geodata": new_geodata,
             "geodata_results": new_geodata
         }
     )

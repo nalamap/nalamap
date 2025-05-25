@@ -12,9 +12,9 @@ from services.ai.llm_config import get_llm
 
 tools: List[BaseTool] = [
     #set_result_list,
-    list_global_geodata,
-    describe_geodata_object,
-    geocode_using_geonames,
+    #list_global_geodata,
+    #describe_geodata_object,
+    #geocode_using_geonames, # its very simple and does not create a geojson
     geocode_using_nominatim_to_geostate,
     geocode_using_overpass_to_geostate,
     query_librarian_postgis,
@@ -33,7 +33,8 @@ def create_geo_agent() -> CompiledGraph:
         "- You're designed to be proactive, guiding users through the map creation process and suggesting potential next steps.\n\n"
         "# STATE INFORMATION\n"
         "- The public state contains 'geodata_last_results' (previous results) and 'geodata_layers' (geodata selected by the user).\n"
-        "- The internal state contains 'global_geodata' which stores all geodata in the current user session. Always use id and data_source_id to reference these datasets.\n\n"
+        "- The list 'geodata_results' in the state collects tool results, which are presented to the user in a result list"
+        #"- The internal state contains 'global_geodata' which stores all geodata in the current user session. Always use id and data_source_id to reference these datasets.\n\n"
         "# INTERACTION GUIDELINES\n"
         "- Be conversational and accessible to users without GIS expertise.\n"
         "- Always clarify ambiguous requests by asking specific questions.\n"
@@ -84,7 +85,7 @@ if __name__ == "__main__":
         for message in response["messages"]:
             print(message.type, ":", message.content)
         print(64*"-")
-        print(response["global_geodata"])
+        print(response["geodata_results"])
         #print("-"*64)
         #print(response["messages"])
     else:

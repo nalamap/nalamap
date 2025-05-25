@@ -61,7 +61,7 @@ export function useGeoweaverAgent(apiUrl: string) {
           query: input,
           geodata_last_results: geoDataList,
           geodata_layers: layerStore.layers,
-          global_geodata: layerStore.globalGeodata,
+          // global_geodata: layerStore.globalGeodata,
           options: settingsMap
         }
         setInput("");
@@ -93,8 +93,8 @@ export function useGeoweaverAgent(apiUrl: string) {
       setMessages(data.messages);
       if (data.geodata_layers)
         layerStore.synchronizeLayersFromBackend(data.geodata_layers);
-      if (data.global_geodata)
-        layerStore.synchronizeGlobalGeodataFromBackend(data.global_geodata);
+      //if (data.global_geodata)
+      //  layerStore.synchronizeGlobalGeodataFromBackend(data.global_geodata);
     } catch (e: any) {
       setError(e.message || "Something went wrong");
     } finally {
