@@ -156,10 +156,10 @@ def geocode_using_nominatim_to_geostate(state: Annotated[GeoDataAgentState, Inje
                     if geocoded_object:
                         elem["id"] = geocoded_object.id
                         elem["data_source_id"] = geocoded_object.data_source_id
-                        if "global_geodata" not in state or state["global_geodata"] is None or not isinstance(state["global_geodata"], List):
-                            state["global_geodata"] = [geocoded_object]
+                        if "geodata_results" not in state or state["geodata_results"] is None or not isinstance(state["geodata_results"], List):
+                            state["geodata_results"] = [geocoded_object]
                         else:
-                            state["global_geodata"].append(geocoded_object)
+                            state["geodata_results"].append(geocoded_object)
                 cleaned_data.append(dict(elem))
             if geojson:
                 # Simplified message for LLM
@@ -178,7 +178,7 @@ def geocode_using_nominatim_to_geostate(state: Annotated[GeoDataAgentState, Inje
                 if not actionable_layers_info:
                     tool_message_content = f"Successfully geocoded '{query}'. Found {len(cleaned_data)} potential result(s), but no GeoData objects with full geometry were created or stored."
                 else:
-                    tool_message_content = f"Successfully geocoded '{query}'. Found {len(cleaned_data)} potential result(s). {len(actionable_layers_info)} GeoData object(s) with full geometry created and stored in global_geodata. "
+                    tool_message_content = f"Successfully geocoded '{query}'. Found {len(cleaned_data)} potential result(s). {len(actionable_layers_info)} GeoData object(s) with full geometry created and stored in geodata_results. "
                     
                     # Provide structured info for the agent and clear instructions
                     layer_details_for_agent = json.dumps(actionable_layers_info)
@@ -201,8 +201,8 @@ def geocode_using_nominatim_to_geostate(state: Annotated[GeoDataAgentState, Inje
                         *state["messages"], 
                         ToolMessage(name="geocode_using_nominatim_to_geostate", content=tool_message_content, tool_call_id=tool_call_id )
                         ] , 
-                    "global_geodata": state["global_geodata"],
-                    "geodata_results": state["global_geodata"]
+                    # "global_geodata": state["global_geodata"],
+                    "geodata_results": state["geodata_results"]
                 })
             else: 
                 # Simplified message if no GeoJSON was stored
@@ -633,7 +633,7 @@ def geocode_using_overpass_to_geostate(
     if not created_collections:
          return Command(update={"messages": [*state["messages"], ToolMessage(name="geocode_using_overpass_to_geostate", content=f"No '{amenity_key_display}' found with parsable geometry {search_mode_description}.", tool_call_id=tool_call_id)]})
 
-    current_geodata = state.get("global_geodata", [])
+    current_geodata = state.get("geodata_results", [])
     if not isinstance(current_geodata, list): current_geodata = []
     current_geodata.extend(created_collections)
 
@@ -670,7 +670,7 @@ def geocode_using_overpass_to_geostate(
 
     return Command(update={
         "messages": [*state["messages"], ToolMessage(name="geocode_using_overpass_to_geostate", content=tool_message_content, tool_call_id=tool_call_id)],
-        "global_geodata": current_geodata,
+        # "global_geodata": current_geodata,
         "geodata_results": current_geodata
     })
 

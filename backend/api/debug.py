@@ -38,14 +38,13 @@ async def search(req: GeoweaverRequest):
         ai_msg    = AIMessage("Here are relevant layers:")
 
 
-    global_geodata=req.global_geodata
-    global_geodata.extend(results)
+    # global_geodata=req.global_geodata
+    # global_geodata.extend(results)
 
     return GeoweaverResponse(messages=[*req.messages, human_msg, ai_msg],
                             results_title="Search Results",
                             geodata_results=results,
-                            geodata_layers=req.geodata_layers,
-                            global_geodata=global_geodata)
+                            geodata_layers=req.geodata_layers) #, global_geodata=global_geodata)
     
 @router.post("/api/geocode", tags=["debug"], response_model=GeoweaverResponse)
 async def geocode(req: GeoweaverRequest) -> Dict[str, Any]:
@@ -143,9 +142,9 @@ async def geocode(req: GeoweaverRequest) -> Dict[str, Any]:
         ))
     geocodeResponse.geodata_results=geodata
 
-    global_geodata=req.global_geodata
-    global_geodata.extend(geodata)
-    geocodeResponse.global_geodata=global_geodata
+    # global_geodata=req.global_geodata
+    # global_geodata.extend(geodata)
+    # geocodeResponse.global_geodata=global_geodata
 
     return geocodeResponse
 
@@ -272,12 +271,13 @@ async def geoprocess(req: GeoweaverRequest):
     #    tools_used=tools_used
     #)
 
-    global_geodata=req.global_geodata
-    global_geodata.extend(new_geodata)
+    # global_geodata=req.global_geodata
+    # global_geodata.extend(new_geodata)
 
     # Convert to common Geodatamodel
     response_str: str = f"Here are the processing results, used Tools: {", ".join(tools_used)}:"
-    geodataResponse: GeoweaverResponse = GeoweaverResponse(global_geodata=global_geodata, geodata_layers=req.geodata_layers)
+    geodataResponse: GeoweaverResponse = GeoweaverResponse(geodata_layers=req.geodata_layers)
     geodataResponse.geodata_results = new_geodata
+    # geodataResponse.global_geodata=global_geodata
     geodataResponse.messages = [*req.messages, AIMessage(response_str)]
     return geodataResponse

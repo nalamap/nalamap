@@ -147,7 +147,8 @@ async def ask_geoweaver(request: GeoweaverRequest):
     messages.append(HumanMessage(request.query)) # TODO: maybe remove query once message is correctly added in frontend
     print("debug messages:", messages)
 
-    state: GeoDataAgentState = GeoDataAgentState(messages=messages, geodata_last_results=request.geodata_last_results, geodata_layers=request.geodata_layers, global_geodata=request.global_geodata, results_title="", geodata_results=[])
+    state: GeoDataAgentState = GeoDataAgentState(messages=messages, geodata_last_results=request.geodata_last_results, geodata_layers=request.geodata_layers, results_title="", geodata_results=[])
+    # state.global_geodata=request.global_geodata,
 
     try:
         executor_result: GeoDataAgentState = single_agent.invoke(state, debug=True)
@@ -156,7 +157,7 @@ async def ask_geoweaver(request: GeoweaverRequest):
         results_title: Optional[str] = executor_result.get("results_title", "")
         geodata_results: List[GeoDataObject] = executor_result.get('geodata_results', [])
         geodata_layers: List[GeoDataObject] = executor_result.get('geodata_layers', [])
-        global_geodata: List[GeoDataObject] = executor_result.get('global_geodata', [])
+        #global_geodata: List[GeoDataObject] = executor_result.get('global_geodata', [])
 
         if not result_messages: # Should always have messages, but safeguard
             result_messages = [AIMessage(content="Agent processed the request but returned no explicit messages.")]
@@ -168,7 +169,7 @@ async def ask_geoweaver(request: GeoweaverRequest):
         results_title = "Model Error"
         geodata_results = []
         geodata_layers = state.get('geodata_layers', []) # Preserve existing layers
-        global_geodata = state.get('global_geodata', []) 
+        # global_geodata = state.get('global_geodata', []) 
 
     except openai.APIError as e:
         print(f"OpenAI API Error: {e}")
@@ -177,7 +178,7 @@ async def ask_geoweaver(request: GeoweaverRequest):
         results_title = "API Error"
         geodata_results = []
         geodata_layers = state.get('geodata_layers', [])
-        global_geodata = state.get('global_geodata', [])
+        # global_geodata = state.get('global_geodata', [])
         
     except Exception as e: # Catch any other unexpected errors during agent execution
         print(f"Unexpected error during agent execution: {e}")
@@ -186,7 +187,7 @@ async def ask_geoweaver(request: GeoweaverRequest):
         results_title = "Unexpected Error"
         geodata_results = []
         geodata_layers = state.get('geodata_layers', [])
-        global_geodata = state.get('global_geodata', [])
+        # global_geodata = state.get('global_geodata', [])
 
     # Ensure results_title is set if geodata_results exist but title is empty
     if (results_title is None or results_title == "") and geodata_results and isinstance(geodata_results, List) and len(geodata_results) != 0:
@@ -202,6 +203,6 @@ async def ask_geoweaver(request: GeoweaverRequest):
         results_title=results_title, 
         geodata_results=geodata_results, 
         geodata_layers=geodata_layers, 
-        global_geodata=global_geodata
+        #global_geodata=global_geodata
     )
     return response
