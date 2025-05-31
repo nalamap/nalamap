@@ -5,7 +5,7 @@ from langgraph.graph.graph import CompiledGraph
 from services.tools.librarian_tools import query_librarian_postgis
 from services.tools.geoprocess_tools import geoprocess_tool
 from services.tools.geocoding import geocode_using_nominatim_to_geostate, geocode_using_geonames, geocode_using_overpass_to_geostate
-from services.tools.geostate_management import describe_geodata_object, list_global_geodata, set_result_list
+from services.tools.geostate_management import describe_geodata_object, list_global_geodata, set_result_list, metadata_search
 from models.states import GeoDataAgentState, get_medium_debug_state, get_minimal_debug_state
 from services.ai.llm_config import get_llm
 
@@ -18,7 +18,8 @@ tools: List[BaseTool] = [
     geocode_using_nominatim_to_geostate,
     geocode_using_overpass_to_geostate,
     query_librarian_postgis,
-    geoprocess_tool
+    geoprocess_tool,
+    metadata_search
 ]
 
 
@@ -33,8 +34,9 @@ def create_geo_agent() -> CompiledGraph:
         "- You're designed to be proactive, guiding users through the map creation process and suggesting potential next steps.\n\n"
         "# STATE INFORMATION\n"
         "- The public state contains 'geodata_last_results' (previous results) and 'geodata_layers' (geodata selected by the user).\n"
-        "- The list 'geodata_results' in the state collects tool results, which are presented to the user in a result list"
-        #"- The internal state contains 'global_geodata' which stores all geodata in the current user session. Always use id and data_source_id to reference these datasets.\n\n"
+        "- The list 'geodata_results' in the state collects tool results, which are presented to the user in a result list\n"
+        "- IMPORTANT: When a user asks about a specific dataset, ALWAYS check if that dataset exists in 'geodata_last_results' or 'geodata_layers'.\n"
+        "- When responding to questions about a dataset, first check if it's available in the state, and use its 'title', 'description', 'llm_description', 'data_source', 'layer_type', 'bounding_box' and other properties to provide specific, detailed information.\n"
         "# INTERACTION GUIDELINES\n"
         "- Be conversational and accessible to users without GIS expertise.\n"
         "- Always clarify ambiguous requests by asking specific questions.\n"
@@ -47,7 +49,8 @@ def create_geo_agent() -> CompiledGraph:
         "  - Pass the extracted location name as the 'location_name' parameter (e.g., 'Paris', 'Colosseum', 'Brandenburg Gate').\n"
         "  - You can optionally specify 'radius_meters' (default 10000m), 'max_results' (default 20), and 'timeout' (default 30s) for the search.\n"
         "- Explain spatial concepts in simple, non-technical language.\n"
-        "- When showing data to users, always provide context about what they're seeing.\n\n"
+        "- When showing data to users, always provide context about what they're seeing.\n"
+        "- When users ask about specific datasets like 'Tell me more about the Rivers of Africa dataset' or 'What does this dataset contain?', use the 'metadata_search' tool with the name of the dataset as the query parameter.\n\n"
         "# DATA HANDLING\n"
         "- Help users discover and use external data sources through WFS and WMS protocols.\n"
         "- Assist users in uploading and processing their own geospatial data.\n"

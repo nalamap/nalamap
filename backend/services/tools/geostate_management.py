@@ -65,6 +65,143 @@ def describe_geodata_object(state: Annotated[GeoDataAgentState, InjectedState], 
     return found_object
 
 
+@tool
+def metadata_search(
+    state: Annotated[GeoDataAgentState, InjectedState], 
+    tool_call_id: Annotated[str, InjectedToolCallId],
+    query: str,
+    prioritize_layers: bool = True
+) -> Union[Dict[str, Any], Command]:
+    """
+    Search for a dataset by name/title in the geodata state and return its metadata.
+    This tool is useful when a user asks for information about a specific dataset they've added to the map.
+    
+    Args:
+        state: The agent state containing geodata_layers and geodata_last_results
+        tool_call_id: ID for this tool call
+        query: Search string to match against dataset titles or names
+        prioritize_layers: If True, prioritize searching in geodata_layers (datasets added to map)
+    
+    Returns detailed metadata about matching datasets including description, source, type, etc.
+    """
+    # Get the datasets from state
+    layers = state.get("geodata_layers") or []
+    last_results = state.get("geodata_last_results") or []
+    
+    # Normalize query for better matching
+    query_terms = query.lower().split()
+    
+    # Search function that assigns a relevance score to each dataset
+    def get_relevance_score(dataset):
+        score = 0
+        title = (dataset.title or "").lower()
+        name = (dataset.name or "").lower()
+        
+        # Exact match gets highest score
+        if query.lower() in [title, name]:
+            return 100
+        
+        # Partial matches
+        for term in query_terms:
+            if term in title:
+                score += 10
+            if term in name:
+                score += 8
+            if dataset.description and term in dataset.description.lower():
+                score += 3
+            if dataset.llm_description and term in dataset.llm_description.lower():
+                score += 3
+            if dataset.data_source and term in dataset.data_source.lower():
+                score += 2
+        
+        return score
+    
+    # Search based on priority
+    search_results = []
+    
+    if prioritize_layers:
+        # First search in layers (datasets added to map)
+        for dataset in layers:
+            score = get_relevance_score(dataset)
+            if score > 0:
+                search_results.append((dataset, score, "layer"))
+        
+        # Then search in last results if needed
+        if len(search_results) < 2:  # Only look in last_results if we don't have good matches yet
+            for dataset in last_results:
+                score = get_relevance_score(dataset)
+                if score > 0:
+                    search_results.append((dataset, score, "result"))
+    else:
+        # Search in both collections without prioritization
+        for dataset in layers:
+            score = get_relevance_score(dataset)
+            if score > 0:
+                search_results.append((dataset, score, "layer"))
+                
+        for dataset in last_results:
+            score = get_relevance_score(dataset)
+            if score > 0:
+                search_results.append((dataset, score, "result"))
+    
+    # Sort by relevance
+    search_results.sort(key=lambda x: x[1], reverse=True)
+    
+    # Format results for return
+    if not search_results:
+        return Command(
+            update={
+                "messages": [
+                    *state["messages"],
+                    ToolMessage(
+                        name="metadata_search",
+                        content=f"No datasets found matching '{query}'.",
+                        tool_call_id=tool_call_id
+                    )
+                ]
+            }
+        )
+    
+    # Format the best match(es)
+    best_matches = search_results[:2]  # Get top 2 matches
+    response_parts = []
+    
+    for dataset, score, source in best_matches:
+        # Build a structured response with all available metadata
+        metadata = {
+            "title": dataset.title or dataset.name,
+            "name": dataset.name,
+            "description": dataset.description or "No description available",
+            "llm_description": dataset.llm_description,
+            "data_source": dataset.data_source,
+            "data_origin": dataset.data_origin,
+            "layer_type": dataset.layer_type,
+            "data_type": dataset.data_type,
+            "bounding_box": dataset.bounding_box,
+            "added_to_map": source == "layer"
+        }
+        
+        # Filter out None values
+        metadata = {k: v for k, v in metadata.items() if v is not None}
+        response_parts.append(metadata)
+    
+    response_message = f"Found {len(best_matches)} dataset(s) matching '{query}':\n\n"
+    response_message += json.dumps(response_parts, indent=2)
+    
+    return Command(
+        update={
+            "messages": [
+                *state["messages"],
+                ToolMessage(
+                    name="metadata_search",
+                    content=response_message,
+                    tool_call_id=tool_call_id
+                )
+            ]
+        }
+    )
+
+
 # TODO: More tools, e.g. show/hide/change color etc. tools to manipulate existing geodataobjects
 
 
