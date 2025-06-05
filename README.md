@@ -146,6 +146,12 @@ docker-compose -f dev.docker-compose.yml up --build
 - **Docker**: Container platform
 - **Nginx**: Web server and reverse proxy
 
+## Contributing
+
+We welcome contributions from the community! If you're interested in helping improve GeoWeaver, please check out our [Contributing Guide](CONTRIBUTING.md) for information on how to get started.
+
+Please also review our [Code of Conduct](CODE_OF_CONDUCT.md) to ensure a positive and inclusive environment for all contributors.
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
