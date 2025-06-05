@@ -1,5 +1,6 @@
 # services/agents/geoprocessing_agent.py
 import geopandas as gpd
+import requests
 from models.geodata import DataOrigin, DataType, GeoDataObject
 from typing_extensions import Annotated
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
@@ -13,13 +14,19 @@ from langchain_core.messages import ToolMessage
 from pydantic import BaseModel, Field
 from shapely.geometry import shape, mapping
 from shapely.ops import unary_union
+import itertools
 import os
 import uuid
 from core.config import BASE_URL, LOCAL_UPLOAD_DIR
 import json
+import logging
 # LLM import
 from langchain_core.messages import HumanMessage
 from services.ai.llm_config import get_llm
+
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 def get_last_human_content(messages):
     for msg in reversed(messages):
@@ -38,23 +45,36 @@ def _flatten_features(layers):
         elif layer.get("type") == "Feature":
             feats.append(layer)
         else:
-            # skip invalid entries
-            continue
+             # skip anything that is not a Feature or FeatureCollection
+            logger.debug(f"Skipping invalid GeoJSON layer: {layer}")
     return feats
 
 
 def _get_layer_geoms(layers):
     """
-    Given a list of Feature or FeatureCollection dicts, return a list of shapely geometries,
-    each being the unary_union of one layer's features.
+    Given a list of GeoJSON Feature or FeatureCollection dicts, return a
+    list of Shapely geometries, each being the unary_union of one layer's features.
     """
-    geoms = []
+    geoms: List[Any] = []
     for layer in layers:
-        feats = layer.get("features") if layer.get("type") == "FeatureCollection" else ([layer] if layer.get("type") == "Feature" else [])
+        layer_type = layer.get("type")
+        if layer_type == "FeatureCollection":
+            feats = layer.get("features", [])
+        elif layer_type == "Feature":
+            feats = [layer]
+        else:
+            logger.debug(f"Skipping layer with missing or invalid type: {layer_type}")
+            continue
+
         if not feats:
             continue
-        gdf = gpd.GeoDataFrame.from_features(feats)
-        geoms.append(gdf.unary_union)
+
+        try:
+            gdf = gpd.GeoDataFrame.from_features(feats)
+            gdf.set_crs("EPSG:4326", inplace=True)
+            geoms.append(gdf.unary_union)
+        except Exception:
+            logger.exception("Failed to convert features to GeoDataFrame")
     return geoms
 
 
@@ -74,6 +94,7 @@ def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857", radius_unit="meters"
     Supported radius_unit: "meters", "kilometers", "miles".
     """
     if not layers:
+        logger.warning("op_buffer called with no layers")
         return [] # No input layer, return empty list
     
     if len(layers) > 1:
@@ -98,15 +119,14 @@ def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857", radius_unit="meters"
         raise ValueError(f"Buffer operation error: Only one layer can be buffered at a time. Received {len(layers)} layers: {layer_desc}. Please specify a single target layer.")
     
     layer_item = layers[0] # Process the single layer provided
+    unit = radius_unit.lower()
+    factor = {"meters": 1.0, "kilometers": 1000.0, "miles": 1609.34}.get(unit)
+    if factor is None:
+        logger.warning(f"Unknown radius_unit '{radius_unit}', assuming meters")
+        factor = 1.0
 
-    actual_radius_meters = float(radius)
-    if radius_unit.lower() == "kilometers":
-        actual_radius_meters *= 1000
-    elif radius_unit.lower() == "miles":
-        actual_radius_meters *= 1609.34
-    elif radius_unit.lower() != "meters":
-        print(f"Warning: Unknown radius_unit '{radius_unit}'. Assuming meters.")
-
+    actual_radius_meters = float(radius) * factor
+    
     current_features = []
     if isinstance(layer_item, dict):
         if layer_item.get("type") == "FeatureCollection":
@@ -119,163 +139,211 @@ def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857", radius_unit="meters"
         print(f"Warning: The provided layer item is empty or not a recognizable Feature/FeatureCollection: {type(layer_item)}")
         return []
 
-    gdf = gpd.GeoDataFrame.from_features(current_features)
-    if gdf.empty:
-        return [] # GeoDataFrame is empty, nothing to buffer
-    
-    gdf.set_crs("EPSG:4326", inplace=True)
-    
-    gdf_reprojected = gdf.to_crs(buffer_crs)
-    gdf_reprojected['geometry'] = gdf_reprojected.geometry.buffer(actual_radius_meters)
-    gdf_buffered_individual = gdf_reprojected.to_crs("EPSG:4326")
-    
-    if gdf_buffered_individual.empty:
-        return [] # Resulting GeoDataFrame is empty
-        
-    fc = json.loads(gdf_buffered_individual.to_json())
-    return [fc] # Return a list containing the single FeatureCollection
-
-
-
-def op_intersection(layers, **kwargs):
-    """Intersects one FeatureCollection with another (works for N layers)."""
-    geoms = _get_layer_geoms(layers)
-    if not geoms:
-        return []
-    inter = geoms[0]
-    for geom in geoms[1:]:
-        inter = inter.intersection(geom)
-    series = gpd.GeoSeries([inter])
-    fc = json.loads(series.to_json())
-    return [fc]
-
-
-def op_union(layers, **kwargs):
-    """Unions all input FeatureCollections into one or more geometries."""
-    geoms = _get_layer_geoms(layers)
-    if not geoms:
-        return []
-    union_geom = unary_union(geoms)
-    series = gpd.GeoSeries([union_geom])
-    fc = json.loads(series.to_json())
-    return [fc]
-
-
-def op_difference(layers, **kwargs):
-    """Subtracts the second FeatureCollection from the first."""
-    geoms = _get_layer_geoms(layers)
-    if not geoms:
-        return []
-    base = geoms[0]
-    sub = geoms[1] if len(geoms) > 1 else None
-    diff = base.difference(sub) if sub else base
-    series = gpd.GeoSeries([diff])
-    fc = json.loads(series.to_json())
-    return [fc]
-
-
-def op_clip(layers, **kwargs):
-    """Clips the first FeatureCollection by the second.
-    If fewer than two layers are provided, the original layers are returned unchanged.
-    """
-    if len(layers) < 2:
-        # Not enough layers to perform a clip, return the input layers as is.
-        # The geoprocess_executor expects a list of layer-like objects (e.g., FeatureCollections).
-        return layers
-    
-    # Proceed with clipping logic if 2 or more layers are present
-    # (Assuming the first layer is subject, second is mask for this basic example)
-    subj_layer = layers[0]
-    mask_layer = layers[1]
-
-    subj_feats = []
-    if subj_layer and isinstance(subj_layer, dict) and subj_layer.get("type") == "FeatureCollection":
-        subj_feats = subj_layer.get("features", [])
-    elif subj_layer and isinstance(subj_layer, dict) and subj_layer.get("type") == "Feature":
-        subj_feats = [subj_layer]
-    
-    mask_feats = []
-    if mask_layer and isinstance(mask_layer, dict) and mask_layer.get("type") == "FeatureCollection":
-        mask_feats = mask_layer.get("features", [])
-    elif mask_layer and isinstance(mask_layer, dict) and mask_layer.get("type") == "Feature":
-        mask_feats = [mask_layer]
-
-    if not subj_feats or not mask_feats:
-        # If subject or mask is effectively empty, return original subject layer(s) or all layers
-        # to avoid errors and indicate no clip occurred or was possible.
-        # Depending on desired strictness, could also return empty list or raise error.
-        print("Warning: op_clip called with insufficient features in subject or mask layer(s). Returning original layers.")
-        return layers 
-
-    subj_gdf = gpd.GeoDataFrame.from_features(subj_feats)
-    if subj_gdf.empty:
-        return [{"type": "FeatureCollection", "features": []}] # Return empty FC if subject is empty
-    subj_gdf.set_crs("EPSG:4326", inplace=True) # Assume input is 4326
-
-    mask_gdf = gpd.GeoDataFrame.from_features(mask_feats)
-    if mask_gdf.empty:
-        # No mask to clip with, return original subject features as a FeatureCollection
-        print("Warning: op_clip called with an empty mask layer. Returning original subject layer.")
-        # Ensure subject_gdf is converted back to the expected list-of-FCs format
-        fc = json.loads(subj_gdf.to_json())
-        return [fc]
-    mask_gdf.set_crs("EPSG:4326", inplace=True) # Assume input is 4326
-
-    # Ensure CRSs match before spatial operations if they might differ; for now, assume they are aligned or handled by user.
-    # Reprojecting to a common projected CRS might be needed for accurate geometric operations if inputs are geographic.
-    # However, if inputs are already EPSG:4326, intersection works but on degrees.
-    # For simplicity here, proceeding with whatever CRS they have (assumed EPSG:4326).
-
-    mask_geom = mask_gdf.geometry.unary_union
-    if mask_geom.is_empty:
-        print("Warning: op_clip mask geometry is empty. Returning original subject layer.")
-        fc = json.loads(subj_gdf.to_json())
-        return [fc]
-
-    # Perform the clip (intersection)
-    # Note: geopandas.clip is more robust, but uses intersection on GeoDataFrames
     try:
-        # Ensure subj_gdf has a valid CRS before to_crs, if it might be lost
-        if subj_gdf.crs is None:
-             subj_gdf.set_crs("EPSG:4326", inplace=True)
-        # It's often better to clip in a projected CRS if inputs are geographic
-        # For this example, let's assume we work in the input CRS (e.g. EPSG:4326)
-        # or that reprojection is handled by the LLM plan if needed.
-        
-        clipped_gdf = subj_gdf.clip(mask_geom) # gpd.clip requires mask to be a geometry or GeoDataFrame/Series
-    
+        gdf = gpd.GeoDataFrame.from_features(current_features)
+        gdf.set_crs("EPSG:4326", inplace=True)
+
+        gdf_reprojected = gdf.to_crs(buffer_crs)
+        gdf_reprojected['geometry'] = gdf_reprojected.geometry.buffer(actual_radius_meters)
+        gdf_buffered_individual = gdf_reprojected.to_crs("EPSG:4326")
+
+        if gdf_buffered_individual.empty:
+            return [] # Resulting GeoDataFrame is empty
+
+        fc = json.loads(gdf_buffered_individual.to_json())
+        return [fc] # Return a list containing the single FeatureCollection
     except Exception as e:
-        print(f"Error during geopandas clip operation: {e}. Returning original subject layer.")
-        # Fallback: return original subject layer as a FeatureCollection list
-        fc = json.loads(subj_gdf.to_json())
+        logger.exception(f"Error in op_buffer: {e}")
+
+
+def op_centroid(layers: List[Dict[str, Any]], **kwargs) -> List[Dict[str, Any]]:
+    """
+    Compute the centroid of each feature in the first FeatureCollection and
+    return a new FeatureCollection of Point features.
+    """
+    if not layers:
+        return []
+    layer = layers[0]
+    feats = layer.get("features", [])
+    if not feats:
+        return []
+
+    try:
+        gdf = gpd.GeoDataFrame.from_features(feats)
+        gdf.set_crs("EPSG:4326", inplace=True)
+        centroids = gdf
+        centroids['geometry'] = gdf.geometry.centroid
+        fc = json.loads(centroids.to_json())
         return [fc]
-
-    if clipped_gdf.empty:
-        return [{"type": "FeatureCollection", "features": []}]
-
-    fc = json.loads(clipped_gdf.to_json())
-    return [fc] # Return a list containing the single clipped FeatureCollection
+    except Exception as e:
+        logger.exception(f"Error in op_centroid: {e}")
+        return []
 
 
-def op_simplify(layers, tolerance=0.01):
-    """Simplifies each feature geometry with the given tolerance."""
+def op_simplify(
+    layers: List[Dict[str, Any]],
+    tolerance: float = 0.01,
+    preserve_topology: bool = True
+) -> List[Dict[str, Any]]:
+    """
+    Simplify each feature in the first FeatureCollection with the given tolerance.
+    - tolerance: distance parameter for simplification (in the layer's CRS units, usually degrees).
+    - preserve_topology: whether to preserve topology during simplification.
+    """
     feats = _flatten_features(layers)
     if not feats:
         return []
-    gdf = gpd.GeoDataFrame.from_features(feats)
-    gdf['geometry'] = gdf.geometry.simplify(tolerance)
-    fc = json.loads(gdf.to_json())
+    try:
+        gdf = gpd.GeoDataFrame.from_features(feats)
+        gdf["geometry"] = gdf.geometry.simplify(tolerance, preserve_topology=preserve_topology)
+        fc = json.loads(gdf.to_json())
+        return [fc]
+    except Exception as e:
+        logger.exception(f"Error in op_simplify: {e}")
+        return []
+    
+def op_overlay(
+    layers: List[Dict[str, Any]],
+    how: str = "intersection"
+) -> List[Dict[str, Any]]:
+    """
+    Perform a set-based overlay across N layers. Supports 'intersection', 'union',
+    'difference', 'symmetric_difference', and 'identity'. For N > 2, applies the operation iteratively:
+      result = overlay(layer1, layer2, how)
+      result = overlay(result, layer3, how)
+      ...
+    Returns a single FeatureCollection (in a list) of the final result.
+    """
+    if len(layers) < 2:
+        # Not enough layers to overlay; return original layers unchanged
+        return layers
+
+    # Convert first layer to GeoDataFrame
+    try:
+        base_feats = _flatten_features([layers[0]])
+        base_gdf = gpd.GeoDataFrame.from_features(base_feats)
+        base_gdf.set_crs("EPSG:4326", inplace=True)
+    except Exception as e:
+        logger.exception(f"Error preparing base layer for overlay: {e}")
+        return []
+
+    result_gdf = base_gdf
+
+    for layer in layers[1:]:
+        try:
+            next_feats = _flatten_features([layer])
+            next_gdf = gpd.GeoDataFrame.from_features(next_feats)
+            next_gdf.set_crs("EPSG:4326", inplace=True)
+            result_gdf = gpd.overlay(result_gdf, next_gdf, how=how)
+            if result_gdf.empty:
+                # If intermediate result is empty, no need to continue
+                return [{"type": "FeatureCollection", "features": []}]
+        except Exception as e:
+            logger.exception(f"Error during overlay with layer: {e}")
+            return []
+
+    if result_gdf.empty:
+        return [{"type": "FeatureCollection", "features": []}]
+
+    fc = json.loads(result_gdf.to_json())
     return [fc]
 
+def op_merge(
+    layers: List[Dict[str, Any]],
+    on: Optional[List[str]] = None,
+    how: str = "inner"
+) -> List[Dict[str, Any]]:
+    """
+    Perform an attribute-based merge (join) between two layers.
+    - layers: expects exactly two FeatureCollections.
+    - on: list of column names to join on; if None, GeoPandas uses common columns.
+    - how: one of 'inner', 'left', 'right', 'outer'.
+    """
+    if len(layers) < 2:
+        return layers
+    try:
+        gdf1 = gpd.GeoDataFrame.from_features(layers[0].get("features", []))
+        gdf2 = gpd.GeoDataFrame.from_features(layers[1].get("features", []))
+        gdf1.set_crs("EPSG:4326", inplace=True)
+        gdf2.set_crs("EPSG:4326", inplace=True)
+
+        merged = gdf1.merge(gdf2.drop(columns="geometry"), on=on, how=how)
+        # Retain geometry from gdf1
+        merged.set_geometry(gdf1.geometry.name, inplace=True)
+        return [json.loads(merged.to_json())]
+    except Exception as e:
+        logger.exception(f"Error in op_merge: {e}")
+        return []
+
+
+def op_sjoin(
+    layers: List[Dict[str, Any]],
+    how: str = "inner",
+    predicate: str = "intersects"
+) -> List[Dict[str, Any]]:
+    """
+    Perform a spatial join between two layers.
+    - layers: expects exactly two FeatureCollections (left, right).
+    - how: 'left', 'right', or 'inner'.
+    - predicate: spatial predicate, e.g. 'intersects', 'contains', 'within'.
+    """
+    if len(layers) < 2:
+        return layers
+    try:
+        left_gdf = gpd.GeoDataFrame.from_features(layers[0].get("features", []))
+        right_gdf = gpd.GeoDataFrame.from_features(layers[1].get("features", []))
+        left_gdf.set_crs("EPSG:4326", inplace=True)
+        right_gdf.set_crs("EPSG:4326", inplace=True)
+
+        joined = gpd.sjoin(left_gdf, right_gdf, how=how, predicate=predicate)
+        return [json.loads(joined.to_json())]
+    except Exception as e:
+        logger.exception(f"Error in op_sjoin: {e}")
+        return []
+
+
+def op_sjoin_nearest(
+    layers: List[Dict[str, Any]],
+    how: str = "inner",
+    max_distance: Optional[float] = None,
+    distance_col: Optional[str] = None
+) -> List[Dict[str, Any]]:
+    """
+    Perform a nearest-neighbor spatial join between two layers.
+    - layers: expects exactly two FeatureCollections (left, right).
+    - how: 'left', 'right', or 'inner'.
+    - max_distance: maximum search radius (in layer CRS units).
+    - distance_col: name of the output column to store distance.
+    """
+    if len(layers) < 2:
+        return layers
+    try:
+        left_gdf = gpd.GeoDataFrame.from_features(layers[0].get("features", []))
+        right_gdf = gpd.GeoDataFrame.from_features(layers[1].get("features", []))
+        left_gdf.set_crs("EPSG:4326", inplace=True)
+        right_gdf.set_crs("EPSG:4326", inplace=True)
+
+        joined = gpd.sjoin_nearest(
+            left_gdf,
+            right_gdf,
+            how=how,
+            max_distance=max_distance,
+            distance_col=distance_col
+        )
+        return [json.loads(joined.to_json())]
+    except Exception as e:
+        logger.exception(f"Error in op_sjoin_nearest: {e}")
+        return []
 
 # Registry of available tools
 TOOL_REGISTRY = {
     "buffer": op_buffer,
-    "intersection": op_intersection,
-    "union": op_union,
-    "difference": op_difference,
-    "clip": op_clip,
-    "simplify": op_simplify
+    "centroid": op_centroid,
+    "simplify": op_simplify,
+    "overlay": op_overlay,
+    "merge": op_merge,
+    "sjoin": op_sjoin,
+    "sjoin_nearest": op_sjoin_nearest
 }
 
 # ========== Geoprocess Executor ==========
@@ -299,7 +367,6 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
         geom = feat.get("geometry", {})
         # get geometry type and bbox if present
         gtype = geom.get("type")
-        coords = geom.get("coordinates")
         # simplistic bbox extraction: assume Feature has 'bbox' prop
         bbox = feat.get("bbox") or props.get("bbox")
         layer_meta.append({
@@ -464,27 +531,111 @@ def geoprocess_tool(
     # Name derived from input layer
     result_name = selected_layers[0].name if selected_layers else ""
 
-    # Load the selected GeoJSON feature collections
+    # Load GeoJSONs from either local disk or remote URL
     input_layers: List[Dict[str, Any]] = []
-    for url in layer_urls:
-        filename = os.path.basename(url)
-        path = os.path.join(LOCAL_UPLOAD_DIR, filename)
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                gj = json.load(f)
-        except Exception as exc:
-            return Command(
-                update={
-                    "messages": [
-                        ToolMessage(
-                            name="geoprocess_tool", 
-                            content=f"Error: Failed to read {path}: {exc}", 
-                            tool_call_id=tool_call_id,
-                            status="error"
-                        )
-                    ]
+    for layer in selected_layers:
+        if layer.data_type not in (DataType.GEOJSON, DataType.UPLOADED):
+            continue
+
+        url = layer.data_link
+        gj: Optional[Dict[str, Any]] = None
+
+        # 1) If the URL matches BASE_URL/uploads/, load from LOCAL_UPLOAD_DIR
+        if url.startswith(f"{BASE_URL}/uploads/"):
+            filename = os.path.basename(url)
+            local_path = os.path.join(LOCAL_UPLOAD_DIR, filename)
+            try:
+                with open(local_path, "r", encoding="utf-8") as f:
+                    gj = json.load(f)
+            except Exception as exc:
+                return {
+                    "update": {
+                        "messages": [
+                            ToolMessage(
+                                name="geoprocess_tool",
+                                content=f"Error: Failed to read local file '{local_path}': {exc}",
+                                tool_call_id=tool_call_id,
+                                status="error"
+                            )
+                        ]
+                    }
                 }
-            )
+
+        # 2) Else if url is a local filesystem path
+        elif os.path.isfile(url):
+            try:
+                with open(url, "r", encoding="utf-8") as f:
+                    gj = json.load(f)
+            except Exception as exc:
+                return {
+                    "update": {
+                        "messages": [
+                            ToolMessage(
+                                name="geoprocess_tool",
+                                content=f"Error: Failed to read local file '{url}': {exc}",
+                                tool_call_id=tool_call_id,
+                                status="error"
+                            )
+                        ]
+                    }
+                }
+
+        # 3) Else if url is under LOCAL_UPLOAD_DIR by filename
+        else:
+            filename = os.path.basename(url)
+            local_path = os.path.join(LOCAL_UPLOAD_DIR, filename)
+            if os.path.isfile(local_path):
+                try:
+                    with open(local_path, "r", encoding="utf-8") as f:
+                        gj = json.load(f)
+                except Exception as exc:
+                    return {
+                        "update": {
+                            "messages": [
+                                ToolMessage(
+                                    name="geoprocess_tool",
+                                    content=f"Error: Failed to read local file '{local_path}': {exc}",
+                                    tool_call_id=tool_call_id,
+                                    status="error"
+                                )
+                            ]
+                        }
+                    }
+
+        # 4) Else if it looks like a remote URL, fetch via requests
+        if gj is None:
+            if url.startswith("http://") or url.startswith("https://"):
+                try:
+                    resp = requests.get(url, timeout=20)
+                    if resp.status_code != 200:
+                        raise IOError(f"HTTP {resp.status_code} when fetching {url}")
+                    gj = resp.json()
+                except Exception as exc:
+                    return {
+                        "update": {
+                            "messages": [
+                                ToolMessage(
+                                    name="geoprocess_tool",
+                                    content=f"Error: Failed to fetch GeoJSON from '{url}': {exc}",
+                                    tool_call_id=tool_call_id,
+                                    status="error"
+                                )
+                            ]
+                        }
+                    }
+            else:
+                return {
+                    "update": {
+                        "messages": [
+                            ToolMessage(
+                                name="geoprocess_tool",
+                                content=f"Error: GeoJSON path '{url}' is neither a local file nor a valid HTTP URL.",
+                                tool_call_id=tool_call_id,
+                                status="error"
+                            )
+                        ]
+                    }
+                }
 
         # Normalize to FeatureCollection
         if isinstance(gj, list):
@@ -507,12 +658,13 @@ def geoprocess_tool(
         "query": query,
         "input_layers": input_layers,
         "available_operations_and_params": [
-            "operation: buffer params: radius=1000, radius_unit='meters', buffer_crs=EPSG:3857",
-            "operation: intersection params:",
-            "operation: union params:",
-            "operation: clip params:",
-            "operation: difference params:",
-            "operation: simplify params: tolerance=0.01"
+            "operation: buffer params: radius=<number>, radius_unit=<meters|kilometers|miles>, buffer_crs=<string>",
+            "operation: centroid params:",
+            "operation: simplify params: tolerance=<number>, preserve_topology=<bool>",
+            "operation: overlay params: how=<intersection|union|difference|symmetric_difference|identity>",
+            "operation: merge params: on=<list_of_strings>|null, how=<inner|left|right|outer>",
+            "operation: sjoin params: how=<inner|left|right>, predicate=<string>",
+            "operation: sjoin_nearest params: how=<inner|left|right>, max_distance=<number>|null, distance_col=<string>|null"
         ],
         "tool_sequence": [],  # will be filled by the executor
     }
