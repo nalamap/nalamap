@@ -52,6 +52,49 @@ def parse_color(color_name: str) -> str:
     }
     return color_map.get(color_name.lower(), color_name)
 
+def extract_layer_names_from_text(text: str, available_layers: List[GeoDataObject]) -> List[str]:
+    """Extract layer names mentioned in the user's request"""
+    text_lower = text.lower()
+    mentioned_layers = []
+    
+    print(f"Extracting layer names from text: '{text}'")
+    print(f"Available layers: {[layer.name for layer in available_layers]}")
+    
+    # Create a mapping of possible layer identifiers to actual layer names
+    layer_identifiers = {}
+    for layer in available_layers:
+        # Add the actual name (exact match)
+        layer_identifiers[layer.name.lower()] = layer.name
+        
+        # Add the title if it exists
+        if layer.title:
+            layer_identifiers[layer.title.lower()] = layer.name
+            
+        # Add simple words from the name (e.g., "rivers" from "AQUAMAPS:rivers_africa")
+        # Split on common separators and take meaningful words
+        separators = [":", "_", "-", ".", " "]
+        name_words = layer.name.lower()
+        for sep in separators:
+            name_words = name_words.replace(sep, " ")
+        
+        words = name_words.split()
+        for word in words:
+            if len(word) > 3:  # Only consider words longer than 3 characters
+                layer_identifiers[word] = layer.name
+                print(f"  Mapped keyword '{word}' -> '{layer.name}'")
+    
+    print(f"Layer identifiers: {layer_identifiers}")
+    
+    # Look for layer mentions in the text
+    # First try exact matches, then partial matches
+    for identifier, actual_name in sorted(layer_identifiers.items(), key=lambda x: len(x[0]), reverse=True):
+        if identifier in text_lower and actual_name not in mentioned_layers:
+            mentioned_layers.append(actual_name)
+            print(f"  Found match: '{identifier}' -> '{actual_name}'")
+    
+    print(f"Final mentioned layers: {mentioned_layers}")
+    return mentioned_layers
+
 def extract_style_from_ai_response(ai_response: str) -> Dict[str, Any]:
     """Extract styling parameters from AI response"""
     style = {}
@@ -158,7 +201,13 @@ async def ai_style(request: AIChatRequest):
         
         system_prompt = """You are a geospatial styling assistant. Your job is to interpret user requests for map layer styling and provide natural, conversational responses.
 
-When a user asks to style layers, respond naturally and conversationally. Explain what you're doing in a friendly way, but don't use a rigid template.
+IMPORTANT INSTRUCTIONS:
+1. If the user mentions a specific layer name or keyword (like "rivers", "basins", "africa"), style ONLY that layer
+2. If the user doesn't specify a layer AND there are multiple layers available, you MUST ask for clarification - do NOT apply any styling
+3. If there's only one layer available, style that layer
+4. Always respond naturally and conversationally
+
+You can identify layers by their name, title, or keywords within the name (e.g., "rivers", "africa", "basins").
 
 Available style properties:
 - Colors: stroke_color, fill_color (hex codes like #ff0000 for red)
@@ -167,12 +216,12 @@ Available style properties:
 - Points: radius (pixels)
 - Line styles: line_cap (round, square, butt), line_join (round, bevel, miter)
 
-Examples of natural responses:
-- "I'll make that red for you! Changing both the stroke and fill to a bright red color."
-- "Making it blue now - I'm setting the stroke and fill colors to blue."
-- "I'll make the lines thicker and add a dashed pattern for better visibility."
+Examples of responses:
+- "I'll make the rivers red for you!" (when user says "make the rivers red")
+- "Making the Africa basins blue now!" (when user says "make basins blue")
+- "I see you have multiple layers. Which one would you like me to style?" (when user says "make it blue" with multiple layers)
 
-Current layers to style:
+Current layers available:
 """
         
         layer_info = []
@@ -189,28 +238,92 @@ Current layers to style:
         ai_response = await llm.ainvoke(messages)
         ai_response_text = ai_response.content
         
+        # Check if AI is asking for clarification (contains question marks or clarification keywords)
+        is_clarification = any(keyword in ai_response_text.lower() for keyword in [
+            "which", "what", "?", "clarify", "specify", "multiple layers", "available"
+        ])
+        
+        if is_clarification and len(request.geodata_layers) > 1:
+            # AI is asking for clarification, don't apply any styling
+            response_messages = [
+                *request.messages,
+                ChatMessage(type="human", content=request.query),
+                ChatMessage(type="ai", content=ai_response_text)
+            ]
+            
+            return AIChatResponse(
+                response=ai_response_text,
+                updated_layers=request.geodata_layers,  # Return original layers unchanged
+                messages=response_messages
+            )
+        
         # Extract styling parameters from the AI response and user query
         combined_text = request.query + " " + ai_response_text
         print(f"Extracting style from: {combined_text}")
         style_params = extract_style_from_ai_response(combined_text)
         print(f"Extracted style params: {style_params}")
         
-        # Apply styling to all layers
+        # Extract mentioned layer names from the user query and AI response
+        mentioned_layers = extract_layer_names_from_text(combined_text, request.geodata_layers)
+        print(f"Mentioned layers: {mentioned_layers}")
+        
+        # Determine which layers to style
+        layers_to_style_ids = []
+        
+        if mentioned_layers:
+            # Style only the mentioned layers
+            print(f"User mentioned specific layers: {mentioned_layers}")
+            for layer in request.geodata_layers:
+                if layer.name in mentioned_layers:
+                    layers_to_style_ids.append(layer.id)
+                    print(f"Will style layer: {layer.name} (ID: {layer.id})")
+        elif len(request.geodata_layers) == 1:
+            # If only one layer, style it
+            layers_to_style_ids = [request.geodata_layers[0].id]
+            print(f"Single layer, will style: {request.geodata_layers[0].name}")
+        else:
+            # Multiple layers but none specified - ask for clarification
+            layer_names = [layer.name for layer in request.geodata_layers]
+            clarification_message = f"I see you have multiple layers available: {', '.join(layer_names)}. Which layer would you like me to style?"
+            print(f"Multiple layers without specification, asking for clarification")
+            
+            response_messages = [
+                *request.messages,
+                ChatMessage(type="human", content=request.query),
+                ChatMessage(type="ai", content=clarification_message)
+            ]
+            
+            return AIChatResponse(
+                response=clarification_message,
+                updated_layers=request.geodata_layers,  # Return original layers unchanged
+                messages=response_messages
+            )
+        
+        print(f"Final layers to style (IDs): {layers_to_style_ids}")
+        
+        # Apply styling to selected layers
         updated_layers = []
         for layer in request.geodata_layers:
-            # Create a copy of the layer with updated styling
-            layer_dict = layer.model_dump()
-            
-            # Initialize style if it doesn't exist
-            if not layer_dict.get("style"):
-                layer_dict["style"] = {}
-            
-            # Apply the extracted style parameters
-            layer_dict["style"].update(style_params)
-            
-            # Create new GeoDataObject with updated style
-            updated_layer = GeoDataObject(**layer_dict)
-            updated_layers.append(updated_layer)
+            if layer.id in layers_to_style_ids:
+                print(f"Applying styling to layer: {layer.name} (ID: {layer.id})")
+                # Create a copy of the layer with updated styling
+                layer_dict = layer.model_dump()
+                
+                # Initialize style if it doesn't exist
+                if not layer_dict.get("style"):
+                    layer_dict["style"] = {}
+                
+                # Apply the extracted style parameters
+                layer_dict["style"].update(style_params)
+                print(f"Applied style: {style_params}")
+                
+                # Create new GeoDataObject with updated style
+                updated_layer = GeoDataObject(**layer_dict)
+                updated_layers.append(updated_layer)
+            else:
+                print(f"Keeping layer unchanged: {layer.name} (ID: {layer.id})")
+                # Keep the layer unchanged
+                updated_layers.append(layer)
         
         # Create response messages
         response_messages = [
