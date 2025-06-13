@@ -64,7 +64,7 @@ interface Props {
 
 export default function AgentInterface({ onLayerSelect, conversation: conversation_old, setConversation }: Props) {
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
-  const [activeTool, setActiveTool] = useState<"search" | "chat" | "geocode" | "geoprocess" | null>("chat");
+  const [activeTool, setActiveTool] = useState<"search" | "chat" | "geocode" | "geoprocess" | "ai-style" | null>("chat");
   const { input, setInput, messages: conversation, geoDataList, loading, error, queryGeoweaverAgent } = useGeoweaverAgent(API_BASE_URL);
   const containerRef = useRef<HTMLDivElement>(null);
   const addLayer = useLayerStore((s) => s.addLayer);
@@ -128,9 +128,8 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
         { role: "agent", content: "Search complete." },
       ]);
     }
-
-
-    if (activeTool === "geocode") {
+    
+    else if (activeTool === "geocode") {
       await queryGeoweaverAgent(activeTool);
       setConversation((c) => [...c, { role: "agent", content: "Done." }]);
     } else if (activeTool === "geoprocess") {
@@ -144,6 +143,12 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
       setConversation((prev) => [
         ...prev,
         { role: "agent", content: `Processing request: ${input}` },
+      ]);
+    } else if (activeTool === "ai-style") {
+      await queryGeoweaverAgent(activeTool);
+      setConversation((prev) => [
+        ...prev,
+        { role: "agent", content: `Applying styling: ${input}` },
       ]);
 
       /* TODO: Move to Backend
@@ -428,6 +433,15 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
           >
             Geocode
           </button>
+          <button
+            onClick={() => setActiveTool("ai-style")}
+            className={`px-2 py-1 rounded text-white`}
+            style={{
+              backgroundColor: activeTool === "ai-style" ? 'rgb(102, 102, 102)' : 'rgb(64, 64, 64)'
+            }}
+          >
+            AI Style
+          </button>
         </div>
 
 
@@ -446,7 +460,7 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
                 handleSubmit(e);
               }
             }}
-            placeholder={`Type a ${activeTool} command...`}
+            placeholder={activeTool === "ai-style" ? "Describe how to style your layers (e.g., 'make it red', 'thick blue borders', 'transparent fill')..." : `Type a ${activeTool} command...`}
             className="w-full border border-gray-300 bg-gray-100 rounded px-4 py-3 pr-10 focus:outline-none focus:ring focus:ring-secondary-300 resize-none overflow-hidden"
             style={{ minHeight: '45px', maxHeight: '200px' }}
             rows={1}

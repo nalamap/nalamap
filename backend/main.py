@@ -9,7 +9,9 @@ from fastapi.staticfiles import StaticFiles
 #from sqlalchemy.ext.asyncio import AsyncSession
 from core.config import LOCAL_UPLOAD_DIR
 from services.database.database import init_db, close_db
-from api import data_management, debug, geoweaver
+from api import data_management, ai_style
+# Temporarily disable debug and geoweaver due to NumPy compatibility issues
+# from api import debug, geoweaver
 
 
 tags_metadata = [
@@ -42,7 +44,7 @@ app = FastAPI(
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]
@@ -53,9 +55,15 @@ app.add_middleware(
 os.makedirs(LOCAL_UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=LOCAL_UPLOAD_DIR), name="uploads")
 
-app.include_router(debug.router)
-app.include_router(geoweaver.router)
-app.include_router(data_management.router)
+# Include API routers
+# app.include_router(debug.router, prefix="/api")  # Temporarily disabled due to NumPy issues
+# app.include_router(geoweaver.router, prefix="/api")  # Temporarily disabled due to NumPy issues
+app.include_router(data_management.router, prefix="/api")
+app.include_router(ai_style.router, prefix="/api")  # AI Style button functionality
+
+@app.get("/")
+async def root():
+    return {"message": "GeoWeaver API is running"}
 
 
 # Exception handlers

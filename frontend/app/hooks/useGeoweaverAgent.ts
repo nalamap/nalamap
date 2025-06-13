@@ -32,7 +32,7 @@ export function useGeoweaverAgent(apiUrl: string) {
 
 
   async function queryGeoweaverAgent(
-    endpoint: "chat" | "search" | "geocode" | "geoprocess",
+    endpoint: "chat" | "search" | "geocode" | "geoprocess" | "ai-style",
     layerUrls: string[] = [],
     options?: { portal?: string; bboxWkt?: string }
   ) {
@@ -73,6 +73,24 @@ export function useGeoweaverAgent(apiUrl: string) {
           },
           body: JSON.stringify(payload),
         });
+      } else if (endpoint === "ai-style") {
+        // Handle AI styling endpoint
+        appendHumanMessage(input);
+        const payload = {
+          query: input,
+          messages: messages,
+          geodata_layers: layerStore.layers,
+          geodata_last_results: geoDataList,
+        }
+        setInput("");
+        console.log("AI Style payload:", payload);
+        response = await fetch(`${apiUrl}/${endpoint}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
       } else {
         throw new Error("Unknown Tool");
       }
@@ -80,6 +98,29 @@ export function useGeoweaverAgent(apiUrl: string) {
         console.log(response)
         throw new Error("Network response was not ok");
       }
+      
+      if (endpoint === "ai-style") {
+        // Handle AI styling response differently
+        const data = await response.json();
+        console.log("AI Style response:", data);
+        console.log("Current layers before update:", layerStore.layers);
+        
+        // Update layers with styling changes
+        if (data.updated_layers) {
+          console.log("Updating layers with:", data.updated_layers);
+          layerStore.updateLayersFromBackend(data.updated_layers);
+          console.log("Current layers after update:", layerStore.layers);
+        }
+        
+        // Add AI message to conversation
+        if (data.response) {
+          setMessages([...messages, { type: "ai", content: data.response }]);
+        }
+        
+        // Don't update geoDataList for styling operations
+        return;
+      }
+      
       const data: GeoweaverResponse = await response.json();
       console.log(data)
       if (!data.geodata_results) {

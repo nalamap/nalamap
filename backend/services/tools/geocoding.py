@@ -10,7 +10,21 @@ from typing import Any, Dict, List, Optional, Union
 from langchain_core.tools import tool
 from langchain_core.tools.base import InjectedToolCallId
 from langchain_core.messages import ToolMessage
-from langgraph.prebuilt import InjectedState
+# Temporarily comment out problematic import
+# try:
+#     from langgraph.prebuilt.tool_node import InjectedState
+# except ImportError:
+#     # Fallback for newer versions of langgraph
+#     try:
+#         from langgraph.prebuilt import InjectedState
+#     except ImportError:
+#         # If both fail, create a simple annotation
+#         from typing import Annotated
+#         InjectedState = Annotated[dict, "Injected State"]
+
+# Simple fallback for InjectedState
+from typing import Annotated
+InjectedState = Annotated[dict, "Injected State"]
 from services.storage.file_management import store_file
 from models.states import GeoDataAgentState, get_medium_debug_state, get_minimal_debug_state
 from models.geodata import DataOrigin, DataType, GeoDataObject

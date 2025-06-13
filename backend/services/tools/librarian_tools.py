@@ -88,10 +88,11 @@ def query_librarian_postgis(state: Annotated[GeoDataAgentState, InjectedState], 
             #new_global_geodata.extend(state["global_geodata"])
             new_global_geodata.extend(results)
 
+        result_summary = [{"id": result.id, "data_source_id": result.data_source_id, "title": result.title} for result in results]
         return Command(update={
                     "messages": [
                         *state["messages"], 
-                        ToolMessage(name="query_librarian_postgis", content=f"Retrieved {len(results)} results, added GeoDataObjects into the global_state, use id and data_source_id for reference: {json.dumps([ {"id": result.id, "data_source_id": result.data_source_id, "title": result.title} for result in results])}", tool_call_id=tool_call_id )
+                        ToolMessage(name="query_librarian_postgis", content=f"Retrieved {len(results)} results, added GeoDataObjects into the global_state, use id and data_source_id for reference: {json.dumps(result_summary)}", tool_call_id=tool_call_id )
                         ], 
                     #"global_geodata": new_global_geodata,
                     "geodata_results": new_global_geodata

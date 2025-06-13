@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 
 from typing import NamedTuple
 from pydantic import BaseModel
@@ -22,6 +22,44 @@ class DataOrigin(Enum):
 class GeoDataIdentifier(NamedTuple):
     id: str
     data_source_id: str
+
+
+@dataclass
+class LayerStyle:
+    """Enhanced style configuration for different geometry types"""
+    # Common stroke properties for all geometry types
+    stroke_color: Optional[str] = "#3388ff"
+    stroke_weight: Optional[float] = 2
+    stroke_opacity: Optional[float] = 1.0
+    stroke_dash_array: Optional[str] = None  # e.g., "5,5" for dashed lines
+    stroke_dash_offset: Optional[float] = None
+    
+    # Fill properties for polygons and circles
+    fill_color: Optional[str] = "#3388ff"
+    fill_opacity: Optional[float] = 0.3
+    fill_pattern: Optional[str] = None  # For pattern fills (future enhancement)
+    
+    # Point/marker specific properties
+    radius: Optional[float] = 8
+    marker_symbol: Optional[str] = None  # For custom markers (future enhancement)
+    
+    # Line-specific properties
+    line_cap: Optional[str] = "round"  # "round", "square", "butt"
+    line_join: Optional[str] = "round"  # "round", "bevel", "miter"
+    
+    # Advanced visual properties
+    blur: Optional[float] = None  # Gaussian blur effect
+    shadow_color: Optional[str] = None  # Drop shadow color
+    shadow_offset_x: Optional[float] = None  # Shadow offset
+    shadow_offset_y: Optional[float] = None  # Shadow offset
+    shadow_blur: Optional[float] = None  # Shadow blur radius
+    
+    # Animation properties (future enhancement)
+    animation_duration: Optional[float] = None  # Animation duration in seconds
+    animation_type: Optional[str] = None  # "pulse", "spin", "bounce", etc.
+    
+    # Conditional styling (future enhancement)
+    style_conditions: Optional[Dict[str, Any]] = None  # For data-driven styling
 
 class GeoDataObject(BaseModel):
     # Required (key) fields
@@ -46,6 +84,7 @@ class GeoDataObject(BaseModel):
 
     visible: Optional[bool] = False
     selected: Optional[bool] = False
+    style: Optional[LayerStyle] = None
 
     class Config:
         # Allow Enum values to be output as raw values

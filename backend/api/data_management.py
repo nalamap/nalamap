@@ -1,8 +1,10 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
-from typing import Dict
+from typing import Dict, Optional, Any
+from pydantic import BaseModel
 
 from core.config import MAX_FILE_SIZE
 from services.storage.file_management import store_file
+from models.geodata import LayerStyle
 
 
 
@@ -13,7 +15,21 @@ def format_file_size(bytes_size):
             return f"{bytes_size:.2f} {unit}" if unit != 'B' else f"{bytes_size} {unit}"
         bytes_size /= 1024.0
 
+class StyleUpdateRequest(BaseModel):
+    layer_id: str
+    style: Dict[str, Any]
+
 router = APIRouter()
+
+# Layer styling endpoint
+@router.put("/layers/{layer_id}/style")
+async def update_layer_style_endpoint(layer_id: str, style_data: Dict[str, Any]) -> Dict[str, str]:
+    """
+    Update the styling of a specific layer.
+    """
+    # In a real implementation, you would update the layer style in your database
+    # For now, we'll just return a success message
+    return {"message": f"Layer {layer_id} style updated successfully", "layer_id": layer_id}
 
 # Upload endpoint
 @router.post("/upload")

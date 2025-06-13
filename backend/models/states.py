@@ -3,7 +3,6 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from .geodata import GeoDataObject, mock_geodata_objects  # relativer Import angepasst
 from langgraph.graph import MessagesState  # Passe den Importpfad ggf. an
-from langgraph.prebuilt.chat_agent_executor import AgentState
 from langchain_core.messages import HumanMessage
 
 @dataclass
@@ -11,7 +10,7 @@ class DataState(MessagesState):
     geodata: List[GeoDataObject] = field(default_factory=list)
 
 
-class GeoDataAgentState(AgentState):
+class GeoDataAgentState(MessagesState):
     # TODO: maybe use references? 
     results_title: Optional[str] = Field(default="", description="Title for the geodata response in 'geodata_results'" )
     geodata_last_results: Optional[List[GeoDataObject]] = Field(default_factory=list, exclude=False, validate_default=False)

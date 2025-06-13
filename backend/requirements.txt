@@ -12,3 +12,4 @@ python-multipart
 shapely
 kml2geojson
 geopandas
+webcolors

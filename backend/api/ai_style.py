@@ -1,0 +1,241 @@
+from typing import List, Dict, Any, Optional
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+from models.geodata import GeoDataObject, LayerStyle
+from services.ai.llm_config import get_llm
+from langchain_core.messages import SystemMessage, HumanMessage
+import json
+import re
+
+router = APIRouter()
+
+class ChatMessage(BaseModel):
+    type: str
+    content: str
+
+class AIChatRequest(BaseModel):
+    query: str
+    messages: List[ChatMessage] = []
+    geodata_layers: List[GeoDataObject] = []
+    geodata_last_results: List[GeoDataObject] = []
+    options: Optional[Dict[str, Any]] = None
+
+class AIChatResponse(BaseModel):
+    response: str
+    updated_layers: List[GeoDataObject] = []
+    messages: List[ChatMessage] = []
+
+def parse_color(color_name: str) -> str:
+    """Convert color names to hex values"""
+    color_map = {
+        "red": "#ff0000",
+        "blue": "#0000ff", 
+        "green": "#00ff00",
+        "yellow": "#ffff00",
+        "orange": "#ffa500",
+        "purple": "#800080",
+        "pink": "#ffc0cb",
+        "brown": "#a52a2a",
+        "black": "#000000",
+        "white": "#ffffff",
+        "gray": "#808080",
+        "grey": "#808080",
+        "cyan": "#00ffff",
+        "magenta": "#ff00ff",
+        "lime": "#00ff00",
+        "navy": "#000080",
+        "silver": "#c0c0c0",
+        "maroon": "#800000",
+        "olive": "#808000",
+        "teal": "#008080",
+        "aqua": "#00ffff"
+    }
+    return color_map.get(color_name.lower(), color_name)
+
+def extract_style_from_ai_response(ai_response: str) -> Dict[str, Any]:
+    """Extract styling parameters from AI response"""
+    style = {}
+    
+    # Extract colors - improved patterns to handle "change to X" and "make it X"
+    color_patterns = [
+        r"(?:change|make|set).*?(?:color|it).*?(?:to|as)\s+([a-zA-Z]+)",  # "change color to red", "make it blue"
+        r"(?:to|as)\s+([a-zA-Z]+)\s*color",  # "to red color"
+        r"color[:\s]+([#\w]+)",
+        r"([a-zA-Z]+)\s+color",
+        r"make\s+(?:it\s+)?([a-zA-Z]+)",
+        r"stroke[:\s]+([#\w]+)",
+        r"fill[:\s]+([#\w]+)"
+    ]
+    
+    for pattern in color_patterns:
+        matches = re.findall(pattern, ai_response.lower())
+        for match in matches:
+            color = parse_color(match)
+            if color.startswith("#"):
+                style["stroke_color"] = color
+                style["fill_color"] = color
+            break
+    
+    # Extract opacity
+    opacity_match = re.search(r"opacity[:\s]+(\d*\.?\d+)", ai_response.lower())
+    if opacity_match:
+        opacity = float(opacity_match.group(1))
+        if opacity > 1:
+            opacity = opacity / 100  # Convert percentage to decimal
+        style["fill_opacity"] = opacity
+        style["stroke_opacity"] = opacity
+    
+    # Extract stroke weight
+    weight_patterns = [
+        r"thick(?:er)?|bold",
+        r"thin(?:ner)?|fine",
+        r"stroke[:\s]*weight[:\s]*(\d+)",
+        r"border[:\s]*(\d+)",
+        r"width[:\s]*(\d+)"
+    ]
+    
+    for pattern in weight_patterns:
+        if pattern in ["thick(?:er)?|bold", "thin(?:ner)?|fine"]:
+            if re.search(pattern, ai_response.lower()):
+                style["stroke_weight"] = 4 if "thick" in pattern or "bold" in pattern else 1
+                break
+        else:
+            match = re.search(pattern, ai_response.lower())
+            if match:
+                style["stroke_weight"] = int(match.group(1))
+                break
+    
+    # Extract transparency/fill
+    if re.search(r"transparent|no\s+fill|empty", ai_response.lower()):
+        style["fill_opacity"] = 0.0
+    elif re.search(r"solid|filled?", ai_response.lower()):
+        style["fill_opacity"] = 0.6
+    
+    # Extract dash patterns
+    if re.search(r"dash(?:ed)?|dotted", ai_response.lower()):
+        if "dotted" in ai_response.lower():
+            style["stroke_dash_array"] = "3,3"
+        else:
+            style["stroke_dash_array"] = "5,5"
+    elif re.search(r"solid", ai_response.lower()):
+        style["stroke_dash_array"] = None
+    
+    # Extract radius for points
+    radius_match = re.search(r"radius[:\s]*(\d+)|size[:\s]*(\d+)|large|small", ai_response.lower())
+    if radius_match:
+        if "large" in ai_response.lower():
+            style["radius"] = 12
+        elif "small" in ai_response.lower():
+            style["radius"] = 4
+        else:
+            radius = radius_match.group(1) or radius_match.group(2)
+            if radius:
+                style["radius"] = int(radius)
+    
+    return style
+
+@router.post("/ai-style", response_model=AIChatResponse)
+async def ai_style(request: AIChatRequest):
+    """
+    AI-powered layer styling endpoint
+    """
+    try:
+        if not request.geodata_layers:
+            response_messages = [
+                *request.messages,
+                ChatMessage(type="human", content=request.query),
+                ChatMessage(type="ai", content="No layers available to style. Please add some layers first.")
+            ]
+            
+            return AIChatResponse(
+                response="No layers available to style. Please add some layers first.",
+                updated_layers=[],
+                messages=response_messages
+            )
+        
+        # Get AI interpretation of the styling request
+        llm = get_llm()
+        
+        system_prompt = """You are a geospatial styling assistant. Your job is to interpret user requests for map layer styling and provide natural, conversational responses.
+
+When a user asks to style layers, respond naturally and conversationally. Explain what you're doing in a friendly way, but don't use a rigid template.
+
+Available style properties:
+- Colors: stroke_color, fill_color (hex codes like #ff0000 for red)
+- Opacity: stroke_opacity, fill_opacity (0.0 to 1.0)  
+- Stroke: stroke_weight (1-10 pixels), stroke_dash_array (like "5,5" for dashed)
+- Points: radius (pixels)
+- Line styles: line_cap (round, square, butt), line_join (round, bevel, miter)
+
+Examples of natural responses:
+- "I'll make that red for you! Changing both the stroke and fill to a bright red color."
+- "Making it blue now - I'm setting the stroke and fill colors to blue."
+- "I'll make the lines thicker and add a dashed pattern for better visibility."
+
+Current layers to style:
+"""
+        
+        layer_info = []
+        for layer in request.geodata_layers:
+            layer_info.append(f"- {layer.name} ({layer.layer_type or 'unknown type'})")
+        
+        system_prompt += "\n".join(layer_info)
+        
+        messages = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=f"User request: {request.query}")
+        ]
+        
+        ai_response = await llm.ainvoke(messages)
+        ai_response_text = ai_response.content
+        
+        # Extract styling parameters from the AI response and user query
+        combined_text = request.query + " " + ai_response_text
+        print(f"Extracting style from: {combined_text}")
+        style_params = extract_style_from_ai_response(combined_text)
+        print(f"Extracted style params: {style_params}")
+        
+        # Apply styling to all layers
+        updated_layers = []
+        for layer in request.geodata_layers:
+            # Create a copy of the layer with updated styling
+            layer_dict = layer.model_dump()
+            
+            # Initialize style if it doesn't exist
+            if not layer_dict.get("style"):
+                layer_dict["style"] = {}
+            
+            # Apply the extracted style parameters
+            layer_dict["style"].update(style_params)
+            
+            # Create new GeoDataObject with updated style
+            updated_layer = GeoDataObject(**layer_dict)
+            updated_layers.append(updated_layer)
+        
+        # Create response messages
+        response_messages = [
+            *request.messages,
+            ChatMessage(type="human", content=request.query),
+            ChatMessage(type="ai", content=ai_response_text)
+        ]
+        
+        return AIChatResponse(
+            response=ai_response_text,
+            updated_layers=updated_layers,
+            messages=response_messages
+        )
+        
+    except Exception as e:
+        print(f"Error in AI styling: {e}")
+        error_message = f"I encountered an error while processing your styling request: {str(e)}. Please try again or use the manual styling panel."
+        response_messages = [
+            *request.messages,
+            ChatMessage(type="human", content=request.query),
+            ChatMessage(type="ai", content=error_message)
+        ]
+        
+        return AIChatResponse(
+            response=error_message,
+            updated_layers=request.geodata_layers,  # Return original layers on error
+            messages=response_messages
+        )

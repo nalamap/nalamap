@@ -1,6 +1,13 @@
 from typing import List
 from langchain_core.tools import BaseTool
-from langgraph.prebuilt import create_react_agent
+try:
+    from langgraph.prebuilt import create_react_agent
+except ImportError:
+    # Fallback for different LangGraph versions
+    try:
+        from langgraph.prebuilt.agent_executor import create_react_agent
+    except ImportError:
+        from langgraph import create_react_agent
 from langgraph.graph.graph import CompiledGraph
 from services.tools.librarian_tools import query_librarian_postgis
 from services.tools.geoprocess_tools import geoprocess_tool
@@ -19,7 +26,7 @@ tools: List[BaseTool] = [
     geocode_using_overpass_to_geostate,
     query_librarian_postgis,
     geoprocess_tool,
-    metadata_search
+    metadata_search,
 ]
 
 

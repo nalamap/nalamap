@@ -3,7 +3,7 @@
 import { useRef, useState, useEffect } from "react";
 import { useMapStore } from "../stores/mapStore";
 import { useLayerStore } from "../stores/layerStore";
-import { Eye, EyeOff, Trash2, Search, MapPin, GripVertical } from "lucide-react";
+import { Eye, EyeOff, Trash2, Search, MapPin, GripVertical, Palette } from "lucide-react";
 import { formatFileSize, isFileSizeValid } from "../utils/fileUtils";
 
 
@@ -17,6 +17,7 @@ export default function LayerManagement() {
   const toggleLayerVisibility = useLayerStore((state) => state.toggleLayerVisibility);
   const removeLayer = useLayerStore((state) => state.removeLayer);
   const reorderLayers = useLayerStore((state) => state.reorderLayers);
+  const updateLayerStyle = useLayerStore((state) => state.updateLayerStyle);
   const setZoomTo = useLayerStore((s) => s.setZoomTo);
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [dropTargetIdx, setDropTargetIdx] = useState<number | null>(null);
@@ -25,6 +26,7 @@ export default function LayerManagement() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [stylePanelOpen, setStylePanelOpen] = useState<string | null>(null); // Store layer ID of open styling panel
 
   // Use ref to store the XMLHttpRequest
   const xhrRef = useRef<XMLHttpRequest | null>(null);
@@ -74,7 +76,7 @@ export default function LayerManagement() {
     // assemble form data
     const formData = new FormData();
     formData.append("file", file);
-    const API_UPLOAD_URL = process.env.NEXT_PUBLIC_API_UPLOAD_URL || "http://localhost:8000/upload";
+    const API_UPLOAD_URL = process.env.NEXT_PUBLIC_API_UPLOAD_URL || "http://localhost:8000/api/upload";
 
     try {
       // Use XMLHttpRequest to track upload progress
@@ -246,6 +248,8 @@ export default function LayerManagement() {
 
       <hr className="my-4" />
 
+      <hr className="my-4" />
+
       {/* User Layers Section */}
       <div className="mb-4">
         <h3 className="font-semibold mb-2">User Layers</h3>
@@ -402,6 +406,13 @@ export default function LayerManagement() {
                           {layer.visible ? <Eye size={16} /> : <EyeOff size={16} />}
                         </button>
                         <button
+                          onClick={() => setStylePanelOpen(stylePanelOpen === layer.id ? null : layer.id)}
+                          title="Style Layer"
+                          className={`${stylePanelOpen === layer.id ? 'text-blue-600' : 'text-gray-600 hover:text-blue-600'}`}
+                        >
+                          <Palette size={16} />
+                        </button>
+                        <button
                           onClick={() => removeLayer(layer.id)}
                           title="Remove Layer"
                           className="text-red-500 hover:text-red-700"
@@ -411,6 +422,354 @@ export default function LayerManagement() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Style Panel */}
+                  {stylePanelOpen === layer.id && (
+                    <div className="mt-2 p-3 bg-gray-50 rounded border-l-4 border-blue-400">
+                      <h4 className="font-semibold text-sm mb-2">Style Options</h4>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        {/* Stroke Color */}
+                        <div>
+                          <label className="block text-gray-700">Stroke Color</label>
+                          <input
+                            type="color"
+                            value={layer.style?.stroke_color || "#3388ff"}
+                            onChange={(e) => updateLayerStyle(layer.id, { stroke_color: e.target.value })}
+                            className="w-full h-6 rounded border"
+                          />
+                        </div>
+                        
+                        {/* Stroke Weight */}
+                        <div>
+                          <label className="block text-gray-700">Stroke Weight</label>
+                          <input
+                            type="range"
+                            min="1"
+                            max="10"
+                            value={layer.style?.stroke_weight || 2}
+                            onChange={(e) => updateLayerStyle(layer.id, { stroke_weight: parseInt(e.target.value) })}
+                            className="w-full"
+                          />
+                          <span className="text-gray-500">{layer.style?.stroke_weight || 2}px</span>
+                        </div>
+                        
+                        {/* Stroke Opacity */}
+                        <div>
+                          <label className="block text-gray-700">Stroke Opacity</label>
+                          <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.1"
+                            value={layer.style?.stroke_opacity || 1.0}
+                            onChange={(e) => updateLayerStyle(layer.id, { stroke_opacity: parseFloat(e.target.value) })}
+                            className="w-full"
+                          />
+                          <span className="text-gray-500">{Math.round((layer.style?.stroke_opacity || 1.0) * 100)}%</span>
+                        </div>
+                        
+                        {/* Dash Array */}
+                        <div>
+                          <label className="block text-gray-700">Dash Pattern</label>
+                          <select
+                            value={layer.style?.stroke_dash_array || ""}
+                            onChange={(e) => updateLayerStyle(layer.id, { stroke_dash_array: e.target.value || undefined })}
+                            className="w-full border rounded px-2 py-1"
+                          >
+                            <option value="">Solid Line</option>
+                            <option value="5,5">Dashed (5,5)</option>
+                            <option value="10,5">Long Dash (10,5)</option>
+                            <option value="3,3">Dotted (3,3)</option>
+                            <option value="10,5,5,5">Dash-Dot (10,5,5,5)</option>
+                            <option value="15,5,5,5,5,5">Long Dash-Dot (15,5,5,5,5,5)</option>
+                          </select>
+                        </div>
+                        
+                        {/* Dash Offset */}
+                        {layer.style?.stroke_dash_array && (
+                          <div>
+                            <label className="block text-gray-700">Dash Offset</label>
+                            <input
+                              type="range"
+                              min="0"
+                              max="20"
+                              value={layer.style?.stroke_dash_offset || 0}
+                              onChange={(e) => updateLayerStyle(layer.id, { stroke_dash_offset: parseFloat(e.target.value) })}
+                              className="w-full"
+                            />
+                            <span className="text-gray-500">{layer.style?.stroke_dash_offset || 0}px</span>
+                          </div>
+                        )}
+                        
+                        {/* Fill Color */}
+                        <div>
+                          <label className="block text-gray-700">Fill Color</label>
+                          <input
+                            type="color"
+                            value={layer.style?.fill_color || "#3388ff"}
+                            onChange={(e) => updateLayerStyle(layer.id, { fill_color: e.target.value })}
+                            className="w-full h-6 rounded border"
+                          />
+                        </div>
+                        
+                        {/* Fill Opacity */}
+                        <div>
+                          <label className="block text-gray-700">Fill Opacity</label>
+                          <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.1"
+                            value={layer.style?.fill_opacity || 0.3}
+                            onChange={(e) => updateLayerStyle(layer.id, { fill_opacity: parseFloat(e.target.value) })}
+                            className="w-full"
+                          />
+                          <span className="text-gray-500">{Math.round((layer.style?.fill_opacity || 0.3) * 100)}%</span>
+                        </div>
+                        
+                        {/* Circle Radius (for point data) */}
+                        <div>
+                          <label className="block text-gray-700">Point Radius</label>
+                          <input
+                            type="range"
+                            min="1"
+                            max="20"
+                            value={layer.style?.radius || 6}
+                            onChange={(e) => updateLayerStyle(layer.id, { radius: parseInt(e.target.value) })}
+                            className="w-full"
+                          />
+                          <span className="text-gray-500">{layer.style?.radius || 6}px</span>
+                        </div>
+
+                        {/* Line Cap Style */}
+                        <div>
+                          <label className="block text-gray-700">Line Cap</label>
+                          <select
+                            value={layer.style?.line_cap || "round"}
+                            onChange={(e) => updateLayerStyle(layer.id, { line_cap: e.target.value })}
+                            className="w-full border rounded px-2 py-1"
+                          >
+                            <option value="round">Round</option>
+                            <option value="square">Square</option>
+                            <option value="butt">Butt</option>
+                          </select>
+                        </div>
+
+                        {/* Line Join Style */}
+                        <div>
+                          <label className="block text-gray-700">Line Join</label>
+                          <select
+                            value={layer.style?.line_join || "round"}
+                            onChange={(e) => updateLayerStyle(layer.id, { line_join: e.target.value })}
+                            className="w-full border rounded px-2 py-1"
+                          >
+                            <option value="round">Round</option>
+                            <option value="bevel">Bevel</option>
+                            <option value="miter">Miter</option>
+                          </select>
+                        </div>
+                      </div>
+                      
+                      {/* Advanced styling section */}
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <h4 className="text-xs font-semibold text-gray-600 mb-2">Advanced Effects</h4>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          {/* Shadow Color */}
+                          <div>
+                            <label className="block text-gray-700">Shadow Color</label>
+                            <input
+                              type="color"
+                              value={layer.style?.shadow_color || "#000000"}
+                              onChange={(e) => updateLayerStyle(layer.id, { 
+                                shadow_color: e.target.value,
+                                shadow_offset_x: layer.style?.shadow_offset_x || 2,
+                                shadow_offset_y: layer.style?.shadow_offset_y || 2,
+                                shadow_blur: layer.style?.shadow_blur || 4
+                              })}
+                              className="w-full h-6 rounded border"
+                            />
+                          </div>
+
+                          {/* Shadow Blur */}
+                          <div>
+                            <label className="block text-gray-700">Shadow Blur</label>
+                            <input
+                              type="range"
+                              min="0"
+                              max="10"
+                              value={layer.style?.shadow_blur || 0}
+                              onChange={(e) => updateLayerStyle(layer.id, { shadow_blur: parseFloat(e.target.value) })}
+                              className="w-full"
+                            />
+                            <span className="text-gray-500">{layer.style?.shadow_blur || 0}px</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Preset buttons */}
+                      <div className="mt-3">
+                        <h4 className="text-xs font-semibold text-gray-600 mb-2">Quick Presets</h4>
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          <button 
+                            onClick={() => updateLayerStyle(layer.id, { stroke_color: "#ff0000", fill_color: "#ff0000", fill_opacity: 0.2 })}
+                            className="px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600"
+                          >
+                            Red
+                          </button>
+                          <button 
+                            onClick={() => updateLayerStyle(layer.id, { stroke_color: "#00ff00", fill_color: "#00ff00", fill_opacity: 0.2 })}
+                            className="px-2 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600"
+                          >
+                            Green
+                          </button>
+                          <button 
+                            onClick={() => updateLayerStyle(layer.id, { stroke_color: "#0000ff", fill_color: "#0000ff", fill_opacity: 0.2 })}
+                            className="px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
+                          >
+                            Blue
+                          </button>
+                          <button 
+                            onClick={() => updateLayerStyle(layer.id, { stroke_color: "#ffff00", fill_color: "#ffff00", fill_opacity: 0.2 })}
+                            className="px-2 py-1 bg-yellow-500 text-white text-xs rounded hover:bg-yellow-600"
+                          >
+                            Yellow
+                          </button>
+                          <button 
+                            onClick={() => updateLayerStyle(layer.id, { stroke_color: "#800080", fill_color: "#800080", fill_opacity: 0.2 })}
+                            className="px-2 py-1 bg-purple-500 text-white text-xs rounded hover:bg-purple-600"
+                          >
+                            Purple
+                          </button>
+                          <button 
+                            onClick={() => updateLayerStyle(layer.id, { stroke_color: "#ffa500", fill_color: "#ffa500", fill_opacity: 0.2 })}
+                            className="px-2 py-1 bg-orange-500 text-white text-xs rounded hover:bg-orange-600"
+                          >
+                            Orange
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          <button 
+                            onClick={() => updateLayerStyle(layer.id, { stroke_dash_array: "5,5" })}
+                            className="px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
+                          >
+                            Dashed
+                          </button>
+                          <button 
+                            onClick={() => updateLayerStyle(layer.id, { stroke_dash_array: "3,3" })}
+                            className="px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
+                          >
+                            Dotted
+                          </button>
+                          <button 
+                            onClick={() => updateLayerStyle(layer.id, { stroke_dash_array: undefined })}
+                            className="px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
+                          >
+                            Solid
+                          </button>
+                          <button 
+                            onClick={() => updateLayerStyle(layer.id, { radius: 12, stroke_weight: 3 })}
+                            className="px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
+                          >
+                            Large Points
+                          </button>
+                        </div>
+                        
+                        {/* Advanced Styling Presets */}
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          <button 
+                            onClick={() => updateLayerStyle(layer.id, { 
+                              stroke_color: "#ff0000", 
+                              stroke_weight: 4, 
+                              stroke_dash_array: "10,5",
+                              fill_opacity: 0.1 
+                            })}
+                            className="px-2 py-1 bg-rose-500 text-white text-xs rounded hover:bg-rose-600"
+                          >
+                            Thick Dashed
+                          </button>
+                          <button 
+                            onClick={() => updateLayerStyle(layer.id, { 
+                              stroke_color: "#0066cc", 
+                              stroke_weight: 1, 
+                              stroke_opacity: 0.8,
+                              fill_color: "#0066cc",
+                              fill_opacity: 0.15 
+                            })}
+                            className="px-2 py-1 bg-sky-500 text-white text-xs rounded hover:bg-sky-600"
+                          >
+                            Subtle Blue
+                          </button>
+                          <button 
+                            onClick={() => updateLayerStyle(layer.id, { 
+                              stroke_color: "#00aa00", 
+                              stroke_weight: 3, 
+                              stroke_opacity: 1.0,
+                              stroke_dash_array: "3,3,10,3",
+                              fill_opacity: 0.0 
+                            })}
+                            className="px-2 py-1 bg-emerald-500 text-white text-xs rounded hover:bg-emerald-600"
+                          >
+                            Green Outline
+                          </button>
+                          <button 
+                            onClick={() => updateLayerStyle(layer.id, { 
+                              stroke_color: "#ff6600", 
+                              stroke_weight: 2, 
+                              radius: 15,
+                              fill_color: "#ffaa00",
+                              fill_opacity: 0.6 
+                            })}
+                            className="px-2 py-1 bg-amber-500 text-white text-xs rounded hover:bg-amber-600"
+                          >
+                            Highlight Points
+                          </button>
+                        </div>
+                        
+                        {/* Geometry-specific quick actions */}
+                        <div className="mt-2">
+                          <h4 className="text-xs font-semibold text-gray-600 mb-1">Quick Actions</h4>
+                          <div className="flex flex-wrap gap-1">
+                            <button 
+                              onClick={() => updateLayerStyle(layer.id, { stroke_dash_array: "5,5" })}
+                              className="px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
+                            >
+                              Dashed
+                            </button>
+                            <button 
+                              onClick={() => updateLayerStyle(layer.id, { stroke_dash_array: "3,3" })}
+                              className="px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
+                            >
+                              Dotted
+                            </button>
+                            <button 
+                              onClick={() => updateLayerStyle(layer.id, { stroke_dash_array: undefined })}
+                              className="px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
+                            >
+                              Solid
+                            </button>
+                            <button 
+                              onClick={() => updateLayerStyle(layer.id, { radius: 12, stroke_weight: 3 })}
+                              className="px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
+                            >
+                              Large Points
+                            </button>
+                            <button 
+                              onClick={() => updateLayerStyle(layer.id, { stroke_weight: 1, fill_opacity: 0.1 })}
+                              className="px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
+                            >
+                              Subtle
+                            </button>
+                            <button 
+                              onClick={() => updateLayerStyle(layer.id, { stroke_weight: 4, stroke_opacity: 1.0 })}
+                              className="px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
+                            >
+                              Bold
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Drop indicator - showing BELOW when appropriate */}
                   {isDropTarget && !showIndicatorAbove && (
