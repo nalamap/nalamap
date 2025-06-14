@@ -204,45 +204,65 @@ def op_simplify(
     
 def op_overlay(
     layers: List[Dict[str, Any]],
-    how: str = "intersection"
+    how: str = "intersection",
+    crs: str = "EPSG:3857"
 ) -> List[Dict[str, Any]]:
     """
     Perform a set-based overlay across N layers. Supports 'intersection', 'union',
     'difference', 'symmetric_difference', and 'identity'. For N > 2, applies the operation iteratively:
       result = overlay(layer1, layer2, how)
       result = overlay(result, layer3, how)
+      crs : str, default "EPSG:3857"
+        Working Coordinate Reference System used *internally* for the overlay.
+        Provide a projected CRS (e.g. equal-area or Web Mercator) for more
+        accurate operations. **The output will always be reprojected to
+        EPSG:4326.**
       ...
     Returns a single FeatureCollection (in a list) of the final result.
     """
     if len(layers) < 2:
         # Not enough layers to overlay; return original layers unchanged
         return layers
+    
+    # Helper: convert a layer to a GeoDataFrame in working CRS
+    def _layer_to_gdf(layer: Dict[str, Any]) -> gpd.GeoDataFrame:
+        feats = _flatten_features([layer])
+        gdf = gpd.GeoDataFrame.from_features(feats)
+        # Assume incoming CRS is WGS84 if undefined
+        if gdf.crs is None:
+            gdf.set_crs("EPSG:4326", inplace=True)
+        return gdf.to_crs(crs)
 
-    # Convert first layer to GeoDataFrame
+    
+    
+    # Prepare the base layer
     try:
-        base_feats = _flatten_features([layers[0]])
-        base_gdf = gpd.GeoDataFrame.from_features(base_feats)
-        base_gdf.set_crs("EPSG:4326", inplace=True)
-    except Exception as e:
-        logger.exception(f"Error preparing base layer for overlay: {e}")
+        result_gdf = _layer_to_gdf(layers[0])
+    except Exception as exc:
+        logger.exception("Error preparing base layer for overlay: %s", exc)
         return []
+    
 
-    result_gdf = base_gdf
-
+    # Iterate through the remaining layers
     for layer in layers[1:]:
         try:
-            next_feats = _flatten_features([layer])
-            next_gdf = gpd.GeoDataFrame.from_features(next_feats)
-            next_gdf.set_crs("EPSG:4326", inplace=True)
+            next_gdf = _layer_to_gdf(layer)
             result_gdf = gpd.overlay(result_gdf, next_gdf, how=how)
+
+            # Exit early if the intermediate result is empty
             if result_gdf.empty:
-                # If intermediate result is empty, no need to continue
                 return [{"type": "FeatureCollection", "features": []}]
-        except Exception as e:
-            logger.exception(f"Error during overlay with layer: {e}")
+
+        except Exception as exc:
+            logger.exception("Error during overlay with layer: %s", exc)
             return []
 
-    if result_gdf.empty:
+    # Re‑project the final result back to EPSG:4326 for output
+    try:
+        if not result_gdf.empty:
+            result_gdf = result_gdf.to_crs("EPSG:4326")
+    except Exception as exc:
+        logger.exception("Error reprojecting result to EPSG:4326: %s", exc)
         return [{"type": "FeatureCollection", "features": []}]
 
     fc = json.loads(result_gdf.to_json())
@@ -397,6 +417,18 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
         "  ]\n"
         "}}\n"
         "```"
+         "Example for a user query 'overlay layer1 and layer2 with intersection in EPSG:3413':"
+        "```json\n"
+        "{{\n"
+        "  \"steps\": [\n"
+        "    {{\n"
+        "      \"operation\": \"overlay\",\n"
+        "      \"params\": {{ \"how\": intersection, \"crs\": \"EPSG:3413\" }}\n"
+        "    }}\n"
+        "  ]\n"
+        "}}\n"
+        "```"
+        
     ).format(
         query_json_string=json.dumps(query),
         available_operations_list_json_string=json.dumps(available_ops) 
@@ -465,7 +497,7 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
 def geoprocess_tool(
     state: Annotated[GeoDataAgentState, InjectedState],
     tool_call_id: Annotated[str, InjectedToolCallId],
-    target_layer_id: Optional[str] = None,
+    target_layer_ids: Optional[List[str]] = None,
     operation: Optional[str] = None
 ) -> Union[Dict[str, Any], Command]:
     """
@@ -475,9 +507,9 @@ def geoprocess_tool(
         state: The agent state containing geodata_layers
         tool_call_id: ID for this tool call
         target_layer_id: ID of the specific layer to process. If not provided, will attempt to determine from context.
-        operation: Optional operation hint (buffer, intersection, etc.)
+        operation: Optional operation hint (buffer, overlay, etc.)
     
-    The tool will apply operations like buffer, intersection, union, difference, or clip to the specified layer.
+    The tool will apply operations like buffer, overlay, simplify, sjoin, merge, sjoin_nearest, centroid to the specified layer.
     """
     # Safely pull out the list (defaults to [] if key missing or None)
     layers = state.get("geodata_layers") or []
@@ -497,19 +529,18 @@ def geoprocess_tool(
             }
         )
     
-    # If target_layer_id is provided, filter to just that layer
-    selected_layers = []
-    if target_layer_id:
-        selected_layers = [layer for layer in layers if layer.id == target_layer_id]
-        if not selected_layers:
-            # Provide a helpful error with available layer IDs
-            available_layers = [{"id": layer.id, "title": layer.title} for layer in layers]
+    # Select layers by ID or default to first
+    if target_layer_ids:
+        selected = [layer for layer in layers if layer.id in target_layer_ids]
+        missing = set(target_layer_ids) - {l.id for l in selected}
+        if missing:
+            available = [{"id": l.id, "title": l.title} for l in layers]
             return Command(
                 update={
                     "messages": [
                         ToolMessage(
-                            name="geoprocess_tool", 
-                            content=f"Error: Layer with ID '{target_layer_id}' not found. Available layers: {json.dumps(available_layers)}", 
+                            name="geoprocess_tool",
+                            content=f"Error: Layer IDs not found: {missing}. Available layers: {json.dumps(available)}",
                             tool_call_id=tool_call_id,
                             status="error"
                         )
@@ -517,23 +548,21 @@ def geoprocess_tool(
                 }
             )
     else:
-        # If no specific layer ID was provided, use only the first layer
-        # This prevents the multiple-layer error
-        selected_layers = [layers[0]]
+        selected = [layers[0]]
     
     # Get URLs for the selected layers only
     layer_urls = [
         layer.data_link
-        for layer in selected_layers
+        for layer in selected
         if layer.data_type in (DataType.GEOJSON, DataType.UPLOADED)
     ]
     
     # Name derived from input layer
-    result_name = selected_layers[0].name if selected_layers else ""
+    result_name = selected[0].name if selected else ""
 
     # Load GeoJSONs from either local disk or remote URL
     input_layers: List[Dict[str, Any]] = []
-    for layer in selected_layers:
+    for layer in selected:
         if layer.data_type not in (DataType.GEOJSON, DataType.UPLOADED):
             continue
 
@@ -661,7 +690,7 @@ def geoprocess_tool(
             "operation: buffer params: radius=<number>, radius_unit=<meters|kilometers|miles>, buffer_crs=<string>",
             "operation: centroid params:",
             "operation: simplify params: tolerance=<number>, preserve_topology=<bool>",
-            "operation: overlay params: how=<intersection|union|difference|symmetric_difference|identity>",
+            "operation: overlay params: how=<intersection|union|difference|symmetric_difference|identity>, crs=<string>",
             "operation: merge params: on=<list_of_strings>|null, how=<inner|left|right|outer>",
             "operation: sjoin params: how=<inner|left|right>, predicate=<string>",
             "operation: sjoin_nearest params: how=<inner|left|right>, max_distance=<number>|null, distance_col=<string>|null"
