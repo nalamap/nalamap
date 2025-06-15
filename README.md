@@ -146,6 +146,34 @@ docker-compose -f dev.docker-compose.yml up --build
 - **Docker**: Container platform
 - **Nginx**: Web server and reverse proxy
 
+## Running Tests
+
+The project includes a test suite for the backend components. To run the tests:
+
+1. Navigate to the backend directory:
+   ```bash
+   cd backend
+   ```
+
+2. Create and activate a Python virtual environment:
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+
+3. Install pytest and project dependencies:
+   ```bash
+   pip install pytest
+   pip install -r requirements.txt
+   ```
+
+4. Run the tests:
+   ```bash
+   python -m pytest tests/ -v
+   ```
+
+Note: Some tests may require a running server or mock data. If you encounter connection errors, it's likely because the test is trying to access resources that aren't available in the test environment.
+
 ## Contributing
 
 We welcome contributions from the community! If you're interested in helping improve GeoWeaver, please check out our [Contributing Guide](CONTRIBUTING.md) for information on how to get started.
