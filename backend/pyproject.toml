@@ -30,6 +30,18 @@ flake8 = "*"
 black = "*"
 isort = "*"
 
+[tool.flake8]
+max-line-length = 100
+extend-exclude = [
+  ".venv",           # Poetry in-project virtualenv
+  "venv",            # other common names
+  "env",
+  "__pycache__",
+  "build",
+  "dist",
+  "**/site-packages" # just in case
+]
+
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"

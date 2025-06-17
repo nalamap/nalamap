@@ -31,10 +31,12 @@ jobs:
           poetry config virtualenvs.in-project true
           poetry install --no-interaction --no-ansi
 
+      - name: Run tests
+        run: poetry run pytest tests/
+
       - name: Lint (flake8 + black)
         run: |
           poetry run flake8 .
           poetry run black --check .
 
-      - name: Run tests
-        run: poetry run pytest tests/
+      
