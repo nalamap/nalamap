@@ -312,7 +312,7 @@ async def geoprocess(req: GeoweaverRequest):
 
     # Convert to common Geodatamodel
     response_str: str = (
-        f"Here are the processing results, used Tools: {", ".join(tools_used)}:"
+        f"Here are the processing results, used Tools: {', '.join(tools_used)}:"
     )
     geodataResponse: GeoweaverResponse = GeoweaverResponse(
         geodata_layers=req.geodata_layers
