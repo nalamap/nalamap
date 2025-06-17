@@ -10,6 +10,7 @@ from services.ai.llm_config import get_llm
 
 # ========== Tool Implementations ==========
 
+
 def _flatten_features(layers):
     """
     Given a list of Feature or FeatureCollection dicts, return a flat list of Feature dicts.
@@ -33,7 +34,11 @@ def _get_layer_geoms(layers):
     """
     geoms = []
     for layer in layers:
-        feats = layer.get("features") if layer.get("type") == "FeatureCollection" else ([layer] if layer.get("type") == "Feature" else [])
+        feats = (
+            layer.get("features")
+            if layer.get("type") == "FeatureCollection"
+            else ([layer] if layer.get("type") == "Feature" else [])
+        )
         if not feats:
             continue
         gdf = gpd.GeoDataFrame.from_features(feats)
@@ -60,13 +65,12 @@ def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857"):
     # Reproject to chosen metric CRS for buffering
     gdf = gdf.to_crs(buffer_crs)
     # Buffer in meter units
-    gdf['geometry'] = gdf.geometry.buffer(radius)
+    gdf["geometry"] = gdf.geometry.buffer(radius)
     # Reproject back to geographic coords
     gdf = gdf.to_crs("EPSG:4326")
     # Export to GeoJSON Feature list
     fc = json.loads(gdf.to_json())
-    return fc['features']
-
+    return fc["features"]
 
 
 def op_intersection(layers, **kwargs):
@@ -110,11 +114,19 @@ def op_clip(layers, **kwargs):
     """Clips the first FeatureCollection by the second."""
     if len(layers) < 2:
         return _flatten_features(layers)
-    subj_feats = layers[0].get("features", []) if layers[0].get("type") == "FeatureCollection" else [layers[0]]
-    mask_feats = layers[1].get("features", []) if layers[1].get("type") == "FeatureCollection" else [layers[1]]
+    subj_feats = (
+        layers[0].get("features", [])
+        if layers[0].get("type") == "FeatureCollection"
+        else [layers[0]]
+    )
+    mask_feats = (
+        layers[1].get("features", [])
+        if layers[1].get("type") == "FeatureCollection"
+        else [layers[1]]
+    )
     subj_gdf = gpd.GeoDataFrame.from_features(subj_feats)
     mask_geom = unary_union(gpd.GeoDataFrame.from_features(mask_feats).geometry)
-    subj_gdf['geometry'] = subj_gdf.geometry.intersection(mask_geom)
+    subj_gdf["geometry"] = subj_gdf.geometry.intersection(mask_geom)
     fc = json.loads(subj_gdf.to_json())
     return [fc]
 
@@ -125,7 +137,7 @@ def op_simplify(layers, tolerance=0.01):
     if not feats:
         return []
     gdf = gpd.GeoDataFrame.from_features(feats)
-    gdf['geometry'] = gdf.geometry.simplify(tolerance)
+    gdf["geometry"] = gdf.geometry.simplify(tolerance)
     fc = json.loads(gdf.to_json())
     return [fc]
 
@@ -137,10 +149,11 @@ TOOL_REGISTRY = {
     "union": op_union,
     "difference": op_difference,
     "clip": op_clip,
-    "simplify": op_simplify
+    "simplify": op_simplify,
 }
 
 # ========== Geoprocess Executor ==========
+
 
 async def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -165,12 +178,14 @@ async def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
         coords = geom.get("coordinates")
         # simplistic bbox extraction: assume Feature has 'bbox' prop
         bbox = feat.get("bbox") or props.get("bbox")
-        layer_meta.append({
-            "resource_id": props.get("resource_id"),
-            "name": props.get("name"),
-            "geometry_type": gtype,
-            "bbox": bbox
-        })
+        layer_meta.append(
+            {
+                "resource_id": props.get("resource_id"),
+                "name": props.get("name"),
+                "geometry_type": gtype,
+                "bbox": bbox,
+            }
+        )
 
         # 1) Invoke LLM planner with metadata only
     llm = get_llm()
@@ -179,20 +194,22 @@ async def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
         "You have the following input layers with metadata (id, name, geometry_type, bbox). "
         "Based on the user request and available operations, choose the best sequence of operations. "
         "Return a JSON with 'steps' array, each having 'operation with params' (one of: "
-        + ", ".join(available_ops) + "). Dont define at any operation params with layer or layers as all functions are called as func(layers: result, **params)"
+        + ", ".join(available_ops)
+        + "). Dont define at any operation params with layer or layers as all functions are called as func(layers: result, **params)"
     )
     user_payload = {
         "query": query,
         "available_operations": available_ops,
-        "layers": layer_meta
+        "layers": layer_meta,
     }
     user_msg = json.dumps(user_payload)
 
     # Use LangChain chat generate methods since AzureChatOpenAI doesn't have .chat()
     from langchain.schema import SystemMessage, HumanMessage
+
     messages = [SystemMessage(content=system_msg), HumanMessage(content=user_msg)]
     # agenerate expects a list of message lists for batching
-    response = await llm.agenerate([messages])  
+    response = await llm.agenerate([messages])
     # extract text from first generation
     content = response.generations[0][0].text
 
@@ -200,7 +217,7 @@ async def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
         plan = json.loads(content)
     except json.JSONDecodeError:
         raise ValueError(f"Failed to parse LLM response as JSON: {content}")
-    
+
     steps = plan.get("steps", [])
 
     # 2) Execute each step on full geojson layers on full geojson layers
@@ -214,7 +231,4 @@ async def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
             result = func(result, **params)
             executed_ops.append(op_name)
 
-    return {
-        "tool_sequence": executed_ops,
-        "result_layers": result
-    }
+    return {"tool_sequence": executed_ops, "result_layers": result}

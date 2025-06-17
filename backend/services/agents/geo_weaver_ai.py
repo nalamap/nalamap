@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field
 from typing import List, Dict, Optional
 
 from services.ai.llm_config import get_llm
-from core.config import *  
+from core.config import *
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from models.states import DataState
 
@@ -15,17 +15,21 @@ def prepare_messages(state: DataState) -> DataState:
         state["messages"].append(HumanMessage(first_message))
     else:
         state["messages"] = [
-            SystemMessage("You are a helpful assistant for GeoWeaver, a geospatial data platform."),
-            HumanMessage(first_message)
+            SystemMessage(
+                "You are a helpful assistant for GeoWeaver, a geospatial data platform."
+            ),
+            HumanMessage(first_message),
         ]
     return state
 
+
 async def query_ai(state: DataState) -> DataState:
     print(state["messages"])
-    llm = get_llm() 
-    response = await llm.ainvoke(state["messages"]) 
+    llm = get_llm()
+    response = await llm.ainvoke(state["messages"])
     state["messages"].append(AIMessage(response.content))
     return state
+
 
 # build the little graph
 graph = StateGraph(state_schema=DataState)
