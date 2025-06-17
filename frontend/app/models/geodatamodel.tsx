@@ -23,7 +23,7 @@ export interface GeoDataObject {
     bounding_box?: string | number[] // Can be WKT POLYGON string or array [minX, minY, maxX, maxY]
     layer_type?: string
     properties?: Record<string, string>
-    
+
     visible?: boolean
     selected?: boolean;     // <— new flag
 }
@@ -34,7 +34,7 @@ export interface GeoweaverRequest {
     geodata_last_results?: GeoDataObject[]
     geodata_layers?: GeoDataObject[]
     //global_geodata?: GeoDataObject[]
-    options?: Map<string, Set<string>>
+    options?: Record<string, unknown[]>
 }
 
 export interface GeoweaverResponse {
@@ -43,4 +43,5 @@ export interface GeoweaverResponse {
     geodata_results?: GeoDataObject[]
     geodata_layers?: GeoDataObject[]
     //global_geodata?: GeoDataObject[]
+    options?: Record<string, unknown[]>
 }

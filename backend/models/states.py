@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from .geodata import GeoDataObject, mock_geodata_objects  # relativer Import angepasst
 from langgraph.graph import MessagesState  # Passe den Importpfad ggf. an
 from langgraph.prebuilt.chat_agent_executor import AgentState
@@ -17,7 +17,7 @@ class GeoDataAgentState(AgentState):
     geodata_last_results: Optional[List[GeoDataObject]] = Field(default_factory=list, exclude=False, validate_default=False)
     geodata_results: Optional[List[GeoDataObject]] = Field(default_factory=list, exclude=True, validate_default=False)
     geodata_layers: Optional[List[GeoDataObject]] = Field(default_factory=list, exclude=False, validate_default=False)
-    
+    options: Optional[Dict[str, Any]] = Field(default_factory=dict, exclude=False, validate_default=False)
     # --- Internal-only fields (excluded from LLM prompt) ---
     #global_geodata: Optional[List[GeoDataObject]] = Field(default_factory=list, exclude=True, validate_default=False)
 
@@ -30,6 +30,7 @@ def get_minimal_debug_state(tool_call: bool = False) -> GeoDataAgentState:
     initial_geo_state["geodata_results"] = []
     initial_geo_state["geodata_layers"] = []
     initial_geo_state["results_title"] = ""
+    initial_geo_state["options"] = {}
     if tool_call:
         initial_geo_state["is_last_step"] = False
         initial_geo_state["remaining_steps"] = 5
@@ -43,6 +44,7 @@ def get_medium_debug_state(tool_call: bool = False) -> GeoDataAgentState:
     initial_geo_state["geodata_results"] = []
     initial_geo_state["geodata_layers"] = []
     initial_geo_state["results_title"] = ""
+    initial_geo_state["options"] = {}
     if tool_call:
         initial_geo_state["is_last_step"] = False
         initial_geo_state["remaining_steps"] = 5

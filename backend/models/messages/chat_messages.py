@@ -33,7 +33,7 @@ class GeoweaverRequest(BaseModel):
     geodata_last_results: Optional[List[GeoDataObject]] = None
     geodata_layers: Optional[List[GeoDataObject]] = None
     #global_geodata: Optional[List[GeoDataObject]] = None
-    options: Optional[Dict[str, Set[Any]]]
+    options: Optional[Dict[str, Any]] = None
 
 class GeoweaverResponse(BaseModel):
     """
@@ -44,3 +44,4 @@ class GeoweaverResponse(BaseModel):
     geodata_results: Optional[List[GeoDataObject]] = None
     #geodata_layers: Optional[List[GeoDataObject]] = None
     global_geodata: Optional[List[GeoDataObject]] = None
+    options: Optional[Dict[str, Any]] = None

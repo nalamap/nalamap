@@ -48,7 +48,15 @@ export function useGeoweaverAgent(apiUrl: string) {
         // for each key, convert its array into a Set
         .map(([key, value]) => [key, new Set(value as any[])] as const)
     )
-    console.log(settingsMap)
+
+    const settingsObj: Record<string, unknown[]> = Object.fromEntries(
+      Array.from(settingsMap.entries()).map(([key, set]) => [
+        key,
+        Array.from(set),        // turn Set → Array
+      ])
+    );
+
+    console.log(settingsObj)
 
     try {
       let response = null;
@@ -62,7 +70,7 @@ export function useGeoweaverAgent(apiUrl: string) {
           geodata_last_results: geoDataList,
           geodata_layers: layerStore.layers,
           // global_geodata: layerStore.globalGeodata,
-          options: settingsMap
+          options: settingsObj
         }
         setInput("");
         console.log(payload)

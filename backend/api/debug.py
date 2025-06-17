@@ -44,7 +44,7 @@ async def search(req: GeoweaverRequest):
     return GeoweaverResponse(messages=[*req.messages, human_msg, ai_msg],
                             results_title="Search Results",
                             geodata_results=results,
-                            geodata_layers=req.geodata_layers) #, global_geodata=global_geodata)
+                            geodata_layers=req.geodata_layers, options=req.options) #, global_geodata=global_geodata)
     
 @router.post("/api/geocode", tags=["debug"], response_model=GeoweaverResponse)
 async def geocode(req: GeoweaverRequest) -> Dict[str, Any]:
@@ -68,7 +68,7 @@ async def geocode(req: GeoweaverRequest) -> Dict[str, Any]:
     
     # TODO: Adapt tool to add GeoDataObject to calling state and summary or so
     
-    geocodeResponse: GeoweaverResponse = GeoweaverResponse(results_title="Geocoding Results:", geodata_layers=req.geodata_layers)
+    geocodeResponse: GeoweaverResponse = GeoweaverResponse(results_title="Geocoding Results:", geodata_layers=req.geodata_layers, options=req.options)
     geocodeResponse.messages = messages
 
     # 3) Build our own result list
@@ -276,7 +276,7 @@ async def geoprocess(req: GeoweaverRequest):
 
     # Convert to common Geodatamodel
     response_str: str = f"Here are the processing results, used Tools: {", ".join(tools_used)}:"
-    geodataResponse: GeoweaverResponse = GeoweaverResponse(geodata_layers=req.geodata_layers)
+    geodataResponse: GeoweaverResponse = GeoweaverResponse(geodata_layers=req.geodata_layers, options=req.options)
     geodataResponse.geodata_results = new_geodata
     # geodataResponse.global_geodata=global_geodata
     geodataResponse.messages = [*req.messages, AIMessage(response_str)]
