@@ -3,32 +3,41 @@ name: CI
 on:
   pull_request:
     paths:
-      - "backend/**"
+      - 'backend/**'
 
 jobs:
-  call-setup:
-    uses: ./.github/workflows/setup.yml
-    with:
-      project-dir: "backend"
-      python-version: "3.11"
-
   test:
-    needs: call-setup
+    environment: Secrets
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: backend
-    env:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Poetry
+        run: |
+          python -m pip install --upgrade pip
+          pip install poetry
+
+      - name: Install dependencies
+        run: |
+          poetry config virtualenvs.in-project true
+          poetry install --no-interaction --no-ansi
 
       - name: Run tests
         run: poetry run python -m pytest tests/
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
   lint:
-    needs: call-setup
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -36,8 +45,25 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
-        
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Poetry
+        run: |
+          python -m pip install --upgrade pip
+          pip install poetry
+
+      - name: Install dependencies
+        run: |
+          poetry config virtualenvs.in-project true
+          poetry install --no-interaction --no-ansi
+
       - name: Lint (flake8 + black)
         run: |
           poetry run flake8 .
           poetry run black --check .
+
+      
