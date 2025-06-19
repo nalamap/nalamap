@@ -9,6 +9,7 @@ jobs:
   call-setup:
     uses: ./.github/workflows/setup.yml
     with:
+      project-dir: "backend"
       python-version: "3.11"
 
   test:
