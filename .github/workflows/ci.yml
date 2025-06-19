@@ -21,6 +21,9 @@ jobs:
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
       - name: Run tests
         run: poetry run python -m pytest tests/
 
@@ -31,6 +34,9 @@ jobs:
       run:
         working-directory: backend
     steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+        
       - name: Lint (flake8 + black)
         run: |
           poetry run flake8 .
