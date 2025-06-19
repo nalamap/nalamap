@@ -27,19 +27,20 @@ geopandas = "*"
 [tool.poetry.group.dev.dependencies]
 pytest = "*"
 flake8 = "*"
+flake8-pyproject = "*"
 black = "*"
 isort = "*"
 
 [tool.flake8]
 max-line-length = 100
-extend-exclude = [
-  ".venv",           # Poetry in-project virtualenv
-  "venv",            # other common names
-  "env",
-  "__pycache__",
-  "build",
-  "dist",
-  "**/site-packages" # just in case
+exclude = [
+  ".venv/**",           # any file under .venv/
+  "venv/**",
+  "env/**",
+  "__pycache__/**",
+  "build/**",
+  "dist/**",
+  "**/site-packages/**"
 ]
 
 [build-system]
