@@ -4,6 +4,7 @@ on:
     inputs:
       python-version:
         required: false
+        type: string
         default: "3.11"
 
 jobs:
