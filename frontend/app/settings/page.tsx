@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import Sidebar from '../components/Sidebar'
-import { useSettingsStore, GeoServerBackend, SearchPortal } from '../stores/settingsStore'
+import { useSettingsStore, GeoServerBackend, SearchPortal, SettingsSnapshot } from '../stores/settingsStore'
 
 export default function SettingsPage() {
     const portals = useSettingsStore((s) => s.search_portals)
@@ -13,17 +13,65 @@ export default function SettingsPage() {
     const addBackend = useSettingsStore((s) => s.addBackend)
     const removeBackend = useSettingsStore((s) => s.removeBackend)
     const toggleBackend = useSettingsStore((s) => s.toggleBackend)
+    const getSettings = useSettingsStore((s) => s.getSettings)
+    const setSettings = useSettingsStore((s) => s.setSettings)
 
     const [newPortal, setNewPortal] = useState('')
     const [newBackend, setNewBackend] = useState<Omit<GeoServerBackend, 'enabled'>>({ url: '', username: '', password: '' })
 
+    const exportSettings = () => {
+        const snapshot: SettingsSnapshot = getSettings()
+        const dataStr = JSON.stringify(snapshot, null, 2)
+        const blob = new Blob([dataStr], { type: 'application/json' })
+        const href = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = href
+        link.download = 'settings.json'
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(href)
+    }
+
+    const importSettings = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        const reader = new FileReader()
+        reader.onload = (evt) => {
+            try {
+                const obj = JSON.parse(evt.target?.result as string) as SettingsSnapshot
+                setSettings(obj)
+            } catch (err) {
+                console.error('Invalid settings JSON', err)
+                alert('Failed to load settings: invalid JSON format.')
+            }
+        }
+        reader.readAsText(file)
+        e.target.value = ''
+    }
+
     return (
         <div className="relative h-screen w-screen overflow-hidden">
-            <div className="fixed left-0 top-0 bottom-0 w-[4%] z-[2]" style={{ backgroundColor: 'rgb(64, 64, 64)' }}>
+            <div className="fixed left-0 top-0 bottom-0 w-[4%] z-[2] bg-gray-800">
                 <Sidebar />
             </div>
-            <main className="fixed top-0 left-[10%] right-[10%] bottom-0 w-[80%] overflow-auto scroll-smooth">
+            <main className="fixed top-0 left-[10%] right-[10%] bottom-0 w-[80%] overflow-auto scroll-smooth p-6">
                 <h1 className="text-3xl font-semibold mb-6">Settings</h1>
+
+                <div className="flex space-x-4 mb-8">
+                    <button onClick={exportSettings} className="bg-green-600 text-white px-4 py-2 rounded">
+                        Export Settings
+                    </button>
+                    <label className="bg-blue-600 text-white px-4 py-2 rounded cursor-pointer">
+                        Import Settings
+                        <input
+                            type="file"
+                            accept="application/json"
+                            onChange={importSettings}
+                            className="hidden"
+                        />
+                    </label>
+                </div>
 
                 {/* Geodata Portals */}
                 <section className="mb-8">
