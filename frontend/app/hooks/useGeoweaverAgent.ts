@@ -5,14 +5,12 @@ import { useState } from "react";
 import { ChatMessage, GeoDataObject, GeoweaverRequest, GeoweaverResponse } from "../models/geodatamodel";
 import { useSettingsStore } from '../stores/settingsStore'
 import { useLayerStore } from '../stores/layerStore'
+import { useChatInterfaceStore } from "../stores/chatInterfaceStore";
 
 export function useGeoweaverAgent(apiUrl: string) {
-  const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [geoDataList, setGeoDataList] = useState<GeoDataObject[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const layerStore = useLayerStore();
+  const chatInterfaceStore = useChatInterfaceStore();
+
 
 
   const appendHumanMessage = (query: string) => {
@@ -27,7 +25,7 @@ export function useGeoweaverAgent(apiUrl: string) {
       type: "human",
     };
 
-    setMessages([...messages, humanMsg]);
+    chatInterfaceStore.setMessages([...chatInterfaceStore.messages, humanMsg]);
   };
 
 
@@ -36,9 +34,9 @@ export function useGeoweaverAgent(apiUrl: string) {
     layerUrls: string[] = [],
     options?: { portal?: string; bboxWkt?: string }
   ) {
-    const params = new URLSearchParams({ query: input, endpoint }); // unused at the moment? -> Move to Settingsstore
-    setLoading(true);
-    setError("");
+    const params = new URLSearchParams({ query: chatInterfaceStore.input, endpoint }); // unused at the moment? -> Move to Settingsstore
+    chatInterfaceStore.setLoading(true);
+    chatInterfaceStore.setError("");
 
     const rawSettings = useSettingsStore.getState();
     const settingsMap = new Map<string, Set<any>>(
@@ -60,19 +58,19 @@ export function useGeoweaverAgent(apiUrl: string) {
 
     try {
       let response = null;
-      let fullQuery = input
+      let fullQuery = chatInterfaceStore.input
       if (endpoint === "geoprocess" || endpoint === "chat" || endpoint === "geocode" || endpoint === "search") {
         const selectedLayers = useLayerStore.getState().layers.filter((l) => l.selected);
-        appendHumanMessage(input);
+        appendHumanMessage(chatInterfaceStore.input);
         const payload: GeoweaverRequest = {
-          messages: messages,
-          query: input,
-          geodata_last_results: geoDataList,
+          messages: chatInterfaceStore.messages,
+          query: chatInterfaceStore.input,
+          geodata_last_results: chatInterfaceStore.geoDataList,
           geodata_layers: layerStore.layers,
           // global_geodata: layerStore.globalGeodata,
           options: settingsObj
         }
-        setInput("");
+        chatInterfaceStore.setInput("");
         console.log(payload)
         response = await fetch(`${apiUrl}/${endpoint}`, {
           method: 'POST',
@@ -97,19 +95,19 @@ export function useGeoweaverAgent(apiUrl: string) {
         throw new Error("Response was missing Messages");
       }
 
-      setGeoDataList(data.geodata_results);
-      setMessages(data.messages);
+      chatInterfaceStore.setGeoDataList(data.geodata_results);
+      chatInterfaceStore.setMessages(data.messages);
       if (data.geodata_layers)
         layerStore.synchronizeLayersFromBackend(data.geodata_layers);
       //if (data.global_geodata)
       //  layerStore.synchronizeGlobalGeodataFromBackend(data.global_geodata);
     } catch (e: any) {
-      setError(e.message || "Something went wrong");
+      chatInterfaceStore.setError(e.message || "Something went wrong");
     } finally {
-      setLoading(false);
+      chatInterfaceStore.setLoading(false);
     }
   }
 
-  return { input, setInput, messages, geoDataList, loading, error, queryGeoweaverAgent };
+  return { input: chatInterfaceStore.input, setInput: chatInterfaceStore.setInput, messages: chatInterfaceStore.messages, geoDataList: chatInterfaceStore.geoDataList, loading: chatInterfaceStore.loading, error: chatInterfaceStore.error, queryGeoweaverAgent };
 
 }
