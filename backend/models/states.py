@@ -17,6 +17,9 @@ class GeoDataAgentState(MessagesState):
     geodata_results: Optional[List[GeoDataObject]] = Field(default_factory=list, exclude=True, validate_default=False)
     geodata_layers: Optional[List[GeoDataObject]] = Field(default_factory=list, exclude=False, validate_default=False)
     
+    # Required by create_react_agent
+    remaining_steps: Optional[int] = Field(default=10, description="Number of remaining steps for the agent")
+    
     # --- Internal-only fields (excluded from LLM prompt) ---
     #global_geodata: Optional[List[GeoDataObject]] = Field(default_factory=list, exclude=True, validate_default=False)
 

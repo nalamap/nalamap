@@ -10,7 +10,9 @@ from services.multi_agent_orch import multi_agent_executor
 import json
 import openai # Import openai for error handling
 
-def normalize_messages(raw: List[BaseMessage]) -> List[BaseMessage]:
+def normalize_messages(raw: Optional[List[BaseMessage]]) -> List[BaseMessage]:
+    if raw is None:
+        return []
     normalized: List[BaseMessage] = []
     for idx, m in enumerate(raw):
         # 1) Already a subclass?
@@ -98,7 +100,7 @@ def normalize_messages(raw: List[BaseMessage]) -> List[BaseMessage]:
 
 
 router = APIRouter()
-@router.post("/api/chatmock", tags=["geoweaver"], response_model=GeoweaverResponse)
+@router.post("/chatmock", tags=["geoweaver"], response_model=GeoweaverResponse)
 async def ask_geoweaver(request: GeoweaverRequest):
     """
     Ask a question to the GeoWeaver, which 
@@ -115,7 +117,7 @@ async def ask_geoweaver(request: GeoweaverRequest):
     return response
 
 
-@router.post("/api/chat2", tags=["geoweaver"], response_model=GeoweaverResponse)
+@router.post("/chat2", tags=["geoweaver"], response_model=GeoweaverResponse)
 async def ask_geoweaver(request: GeoweaverRequest):
     """
     Ask a question to the GeoWeaver Orchestrator, which uses tools to respond and analyse geospatial information.
@@ -137,7 +139,7 @@ async def ask_geoweaver(request: GeoweaverRequest):
     return response
 
 
-@router.post("/api/chat", tags=["geoweaver"], response_model=GeoweaverResponse)
+@router.post("/chat", tags=["geoweaver"], response_model=GeoweaverResponse)
 async def ask_geoweaver(request: GeoweaverRequest):
     """
     Ask a question to the GeoWeaver Single Agent, which uses tools to respond and analyse geospatial information.
@@ -151,7 +153,7 @@ async def ask_geoweaver(request: GeoweaverRequest):
     # state.global_geodata=request.global_geodata,
 
     try:
-        executor_result: GeoDataAgentState = single_agent.invoke(state, debug=True)
+        executor_result: GeoDataAgentState = single_agent.invoke(state, debug=False)
         
         result_messages: List[BaseMessage] = executor_result.get('messages', [])
         results_title: Optional[str] = executor_result.get("results_title", "")

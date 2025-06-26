@@ -95,7 +95,7 @@ def extract_layer_names_from_text(text: str, available_layers: List[GeoDataObjec
     print(f"Final mentioned layers: {mentioned_layers}")
     return mentioned_layers
 
-def extract_style_from_ai_response(ai_response: str) -> Dict[str, Any]:
+def extract_style_from_ai_response(ai_response: str, geometry_type: str = None) -> Dict[str, Any]:
     """Extract styling parameters from AI response"""
     style = {}
     
@@ -103,8 +103,8 @@ def extract_style_from_ai_response(ai_response: str) -> Dict[str, Any]:
     color_patterns = [
         r"(?:change|make|set).*?(?:color|it).*?(?:to|as)\s+([a-zA-Z]+)",  # "change color to red", "make it blue"
         r"(?:to|as)\s+([a-zA-Z]+)\s*color",  # "to red color"
+        r"([a-zA-Z]+)\s+(?:color|borders?|stroke|outline)",  # "red color", "red borders", "red stroke"
         r"color[:\s]+([#\w]+)",
-        r"([a-zA-Z]+)\s+color",
         r"make\s+(?:it\s+)?([a-zA-Z]+)",
         r"stroke[:\s]+([#\w]+)",
         r"fill[:\s]+([#\w]+)"
@@ -115,8 +115,12 @@ def extract_style_from_ai_response(ai_response: str) -> Dict[str, Any]:
         for match in matches:
             color = parse_color(match)
             if color.startswith("#"):
+                # Always set stroke color for all geometry types
                 style["stroke_color"] = color
-                style["fill_color"] = color
+                
+                # Only set fill color for polygons and points, not for polylines
+                if geometry_type != "LineString" and geometry_type != "MultiLineString":
+                    style["fill_color"] = color
             break
     
     # Extract opacity
@@ -150,9 +154,11 @@ def extract_style_from_ai_response(ai_response: str) -> Dict[str, Any]:
     
     # Extract transparency/fill
     if re.search(r"transparent|no\s+fill|empty", ai_response.lower()):
-        style["fill_opacity"] = 0.0
+        if geometry_type not in ["LineString", "MultiLineString"]:
+            style["fill_opacity"] = 0.0
     elif re.search(r"solid|filled?", ai_response.lower()):
-        style["fill_opacity"] = 0.6
+        if geometry_type not in ["LineString", "MultiLineString"]:
+            style["fill_opacity"] = 0.6
     
     # Extract dash patterns
     if re.search(r"dash(?:ed)?|dotted", ai_response.lower()):
@@ -163,19 +169,54 @@ def extract_style_from_ai_response(ai_response: str) -> Dict[str, Any]:
     elif re.search(r"solid", ai_response.lower()):
         style["stroke_dash_array"] = None
     
-    # Extract radius for points
-    radius_match = re.search(r"radius[:\s]*(\d+)|size[:\s]*(\d+)|large|small", ai_response.lower())
-    if radius_match:
-        if "large" in ai_response.lower():
-            style["radius"] = 12
-        elif "small" in ai_response.lower():
-            style["radius"] = 4
-        else:
+    # Extract radius for points (only applicable to Point geometries)
+    if geometry_type in ["Point", "MultiPoint", "Unknown", "Mixed"]:
+        radius_match = re.search(r"radius[:\s]*(\d+)|size[:\s]*(\d+)", ai_response.lower())
+        if radius_match:
             radius = radius_match.group(1) or radius_match.group(2)
             if radius:
                 style["radius"] = int(radius)
+        elif re.search(r"large", ai_response.lower()):
+            style["radius"] = 12
+        elif re.search(r"small", ai_response.lower()):
+            style["radius"] = 4
+    
+    # For polylines, ensure we have some default styling if no specific styling was extracted
+    if geometry_type in ["LineString", "MultiLineString"] and not style:
+        # Set default stroke properties for polylines
+        style["stroke_weight"] = 2
+        style["stroke_opacity"] = 1.0
     
     return style
+
+def detect_geometry_type(data_link: str) -> str:
+    """
+    Detect the geometry type from GeoJSON data by examining the first feature.
+    Returns the geometry type or 'Mixed' if multiple types are found.
+    """
+    try:
+        import requests
+        response = requests.get(data_link, timeout=10)
+        if response.status_code == 200:
+            geojson_data = response.json()
+            
+            if "features" in geojson_data and geojson_data["features"]:
+                # Check the first few features to determine the geometry type
+                geometry_types = set()
+                for feature in geojson_data["features"][:5]:  # Check first 5 features
+                    if "geometry" in feature and "type" in feature["geometry"]:
+                        geometry_types.add(feature["geometry"]["type"])
+                
+                if len(geometry_types) == 1:
+                    return list(geometry_types)[0]
+                elif len(geometry_types) > 1:
+                    return "Mixed"
+            
+        return "Unknown"
+    except Exception as e:
+        print(f"Error detecting geometry type from {data_link}: {e}")
+        return "Unknown"
+    
 
 @router.post("/ai-style", response_model=AIChatResponse)
 async def ai_style(request: AIChatRequest):
@@ -260,8 +301,6 @@ Current layers available:
         # Extract styling parameters from the AI response and user query
         combined_text = request.query + " " + ai_response_text
         print(f"Extracting style from: {combined_text}")
-        style_params = extract_style_from_ai_response(combined_text)
-        print(f"Extracted style params: {style_params}")
         
         # Extract mentioned layer names from the user query and AI response
         mentioned_layers = extract_layer_names_from_text(combined_text, request.geodata_layers)
@@ -306,6 +345,17 @@ Current layers available:
         for layer in request.geodata_layers:
             if layer.id in layers_to_style_ids:
                 print(f"Applying styling to layer: {layer.name} (ID: {layer.id})")
+                
+                # Detect geometry type for this layer
+                geometry_type = "Unknown"
+                if (layer.layer_type and layer.layer_type.upper() in ["WFS", "UPLOADED"]) or layer.data_link.lower().endswith(('.geojson', '.json')):
+                    geometry_type = detect_geometry_type(layer.data_link)
+                    print(f"Detected geometry type for layer {layer.name}: {geometry_type}")
+                
+                # Extract style parameters with geometry type awareness
+                layer_style_params = extract_style_from_ai_response(combined_text, geometry_type)
+                print(f"Layer-specific style params for {layer.name}: {layer_style_params}")
+                
                 # Create a copy of the layer with updated styling
                 layer_dict = layer.model_dump()
                 
@@ -314,8 +364,8 @@ Current layers available:
                     layer_dict["style"] = {}
                 
                 # Apply the extracted style parameters
-                layer_dict["style"].update(style_params)
-                print(f"Applied style: {style_params}")
+                layer_dict["style"].update(layer_style_params)
+                print(f"Applied style: {layer_style_params}")
                 
                 # Create new GeoDataObject with updated style
                 updated_layer = GeoDataObject(**layer_dict)

@@ -256,7 +256,15 @@ function LeafletGeoJSONLayer({
   
   useEffect(() => {
     setForceUpdate(prev => prev + 1);
-  }, [layerStyle?.stroke_color, layerStyle?.fill_color, layerStyle?.stroke_weight]);
+  }, [
+    layerStyle?.stroke_color, 
+    layerStyle?.fill_color, 
+    layerStyle?.stroke_weight,
+    layerStyle?.radius,
+    layerStyle?.fill_opacity,
+    layerStyle?.stroke_opacity,
+    layerStyle?.stroke_dash_array
+  ]);
 
   // Create a canvas renderer instance
   const canvasRenderer = L.canvas();
@@ -732,7 +740,7 @@ export default function LeafletMapComponent() {
               ) {
                 // Create a stable style hash for the key to force re-render when style changes
                 const styleHash = layer.style ? 
-                  `${layer.style.stroke_color}-${layer.style.fill_color}-${layer.style.stroke_weight}-${layer.style.fill_opacity}` : 
+                  `${layer.style.stroke_color}-${layer.style.fill_color}-${layer.style.stroke_weight}-${layer.style.fill_opacity}-${layer.style.radius}-${layer.style.stroke_opacity}-${layer.style.stroke_dash_array}` : 
                   'default';
                 return <LeafletGeoJSONLayer key={`${layer.id}-${styleHash}`} url={layer.data_link} layerStyle={layer.style} />;
               }

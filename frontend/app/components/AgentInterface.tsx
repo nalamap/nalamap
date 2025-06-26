@@ -145,7 +145,8 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
         { role: "agent", content: `Processing request: ${input}` },
       ]);
     } else if (activeTool === "ai-style") {
-      await queryGeoweaverAgent(activeTool);
+      // AI styling is now integrated into the main chat agent, so use "chat" endpoint
+      await queryGeoweaverAgent("chat");
       setConversation((prev) => [
         ...prev,
         { role: "agent", content: `Applying styling: ${input}` },

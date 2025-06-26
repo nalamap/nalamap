@@ -9,9 +9,9 @@ from fastapi.staticfiles import StaticFiles
 #from sqlalchemy.ext.asyncio import AsyncSession
 from core.config import LOCAL_UPLOAD_DIR
 from services.database.database import init_db, close_db
-from api import data_management, ai_style
-# Temporarily disable debug and geoweaver due to NumPy compatibility issues
-# from api import debug, geoweaver
+from api import data_management, ai_style, geoweaver
+# Temporarily disable debug due to NumPy compatibility issues  
+# from api import debug
 
 
 tags_metadata = [
@@ -57,7 +57,7 @@ app.mount("/uploads", StaticFiles(directory=LOCAL_UPLOAD_DIR), name="uploads")
 
 # Include API routers
 # app.include_router(debug.router, prefix="/api")  # Temporarily disabled due to NumPy issues
-# app.include_router(geoweaver.router, prefix="/api")  # Temporarily disabled due to NumPy issues
+app.include_router(geoweaver.router, prefix="/api")  # Main chat functionality with styling
 app.include_router(data_management.router, prefix="/api")
 app.include_router(ai_style.router, prefix="/api")  # AI Style button functionality
 

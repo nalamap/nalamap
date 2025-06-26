@@ -42,5 +42,5 @@ class GeoweaverResponse(BaseModel):
     messages: Optional[List[BaseMessage]] = None
     results_title: Optional[str] = None
     geodata_results: Optional[List[GeoDataObject]] = None
-    #geodata_layers: Optional[List[GeoDataObject]] = None
+    geodata_layers: Optional[List[GeoDataObject]] = None  # Uncommented for styling support
     global_geodata: Optional[List[GeoDataObject]] = None

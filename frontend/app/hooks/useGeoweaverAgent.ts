@@ -132,8 +132,24 @@ export function useGeoweaverAgent(apiUrl: string) {
 
       setGeoDataList(data.geodata_results);
       setMessages(data.messages);
-      if (data.geodata_layers)
-        layerStore.synchronizeLayersFromBackend(data.geodata_layers);
+      
+      // Check if this was a styling operation by looking for style_map_layers in messages
+      const isStyleOperation = data.messages.some(msg => 
+        msg.type === "tool" && msg.content?.includes("Successfully applied styling")
+      );
+      
+      if (data.geodata_layers) {
+        if (isStyleOperation) {
+          // For styling operations, use updateLayersFromBackend to preserve existing layers
+          console.log("Detected styling operation, using updateLayersFromBackend");
+          console.log("Styling data.geodata_layers:", data.geodata_layers);
+          layerStore.updateLayersFromBackend(data.geodata_layers);
+        } else {
+          // For other operations, use synchronizeLayersFromBackend
+          console.log("Regular operation, using synchronizeLayersFromBackend");
+          layerStore.synchronizeLayersFromBackend(data.geodata_layers);
+        }
+      }
       //if (data.global_geodata)
       //  layerStore.synchronizeGlobalGeodataFromBackend(data.global_geodata);
     } catch (e: any) {
