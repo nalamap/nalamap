@@ -6,6 +6,68 @@ import { useLayerStore } from "../stores/layerStore";
 import { Eye, EyeOff, Trash2, Search, MapPin, GripVertical, Palette } from "lucide-react";
 import { formatFileSize, isFileSizeValid } from "../utils/fileUtils";
 
+// Reusable component for quick action buttons
+interface QuickActionButton {
+  label: string;
+  style: any;
+  className?: string;
+}
+
+interface QuickActionsProps {
+  layerId: string;
+  updateLayerStyle: (layerId: string, style: any) => void;
+  buttons: QuickActionButton[];
+}
+
+const QuickActionsButtons: React.FC<QuickActionsProps> = ({ layerId, updateLayerStyle, buttons }) => (
+  <div className="flex flex-wrap gap-1">
+    {buttons.map((button, index) => (
+      <button
+        key={index}
+        onClick={() => updateLayerStyle(layerId, button.style)}
+        className={button.className || "px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"}
+      >
+        {button.label}
+      </button>
+    ))}
+  </div>
+);
+
+// Configuration for different quick action button sets
+const BASIC_QUICK_ACTIONS: QuickActionButton[] = [
+  { label: "Dashed", style: { stroke_dash_array: "5,5" } },
+  { label: "Dotted", style: { stroke_dash_array: "3,3" } },
+  { label: "Solid", style: { stroke_dash_array: undefined } },
+  { label: "Large Points", style: { radius: 12, stroke_weight: 3 } },
+];
+
+const ADVANCED_QUICK_ACTIONS: QuickActionButton[] = [
+  { 
+    label: "Thick Dashed", 
+    style: { stroke_color: "#ff0000", stroke_weight: 4, stroke_dash_array: "10,5", fill_opacity: 0.1 },
+    className: "px-2 py-1 bg-rose-500 text-white text-xs rounded hover:bg-rose-600"
+  },
+  { 
+    label: "Subtle Blue", 
+    style: { stroke_color: "#0066cc", stroke_weight: 1, stroke_opacity: 0.8, fill_color: "#0066cc", fill_opacity: 0.15 },
+    className: "px-2 py-1 bg-sky-500 text-white text-xs rounded hover:bg-sky-600"
+  },
+  { 
+    label: "Green Outline", 
+    style: { stroke_color: "#00aa00", stroke_weight: 3, stroke_opacity: 1.0, stroke_dash_array: "3,3,10,3", fill_opacity: 0.0 },
+    className: "px-2 py-1 bg-emerald-500 text-white text-xs rounded hover:bg-emerald-600"
+  },
+  { 
+    label: "Highlight Points", 
+    style: { stroke_color: "#ff6600", stroke_weight: 2, radius: 15, fill_color: "#ffaa00", fill_opacity: 0.6 },
+    className: "px-2 py-1 bg-amber-500 text-white text-xs rounded hover:bg-amber-600"
+  },
+];
+
+const SECONDARY_QUICK_ACTIONS: QuickActionButton[] = [
+  { label: "Subtle", style: { stroke_weight: 1, fill_opacity: 0.1 } },
+  { label: "Bold", style: { stroke_weight: 4, stroke_opacity: 1.0 } },
+];
 
 export default function LayerManagement() {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -647,125 +709,29 @@ export default function LayerManagement() {
                             Orange
                           </button>
                         </div>
-                        <div className="flex flex-wrap gap-1">
-                          <button 
-                            onClick={() => updateLayerStyle(layer.id, { stroke_dash_array: "5,5" })}
-                            className="px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
-                          >
-                            Dashed
-                          </button>
-                          <button 
-                            onClick={() => updateLayerStyle(layer.id, { stroke_dash_array: "3,3" })}
-                            className="px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
-                          >
-                            Dotted
-                          </button>
-                          <button 
-                            onClick={() => updateLayerStyle(layer.id, { stroke_dash_array: undefined })}
-                            className="px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
-                          >
-                            Solid
-                          </button>
-                          <button 
-                            onClick={() => updateLayerStyle(layer.id, { radius: 12, stroke_weight: 3 })}
-                            className="px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
-                          >
-                            Large Points
-                          </button>
-                        </div>
+                        <QuickActionsButtons
+                          layerId={layer.id}
+                          updateLayerStyle={updateLayerStyle}
+                          buttons={BASIC_QUICK_ACTIONS}
+                        />
                         
                         {/* Advanced Styling Presets */}
-                        <div className="flex flex-wrap gap-1 mt-2">
-                          <button 
-                            onClick={() => updateLayerStyle(layer.id, { 
-                              stroke_color: "#ff0000", 
-                              stroke_weight: 4, 
-                              stroke_dash_array: "10,5",
-                              fill_opacity: 0.1 
-                            })}
-                            className="px-2 py-1 bg-rose-500 text-white text-xs rounded hover:bg-rose-600"
-                          >
-                            Thick Dashed
-                          </button>
-                          <button 
-                            onClick={() => updateLayerStyle(layer.id, { 
-                              stroke_color: "#0066cc", 
-                              stroke_weight: 1, 
-                              stroke_opacity: 0.8,
-                              fill_color: "#0066cc",
-                              fill_opacity: 0.15 
-                            })}
-                            className="px-2 py-1 bg-sky-500 text-white text-xs rounded hover:bg-sky-600"
-                          >
-                            Subtle Blue
-                          </button>
-                          <button 
-                            onClick={() => updateLayerStyle(layer.id, { 
-                              stroke_color: "#00aa00", 
-                              stroke_weight: 3, 
-                              stroke_opacity: 1.0,
-                              stroke_dash_array: "3,3,10,3",
-                              fill_opacity: 0.0 
-                            })}
-                            className="px-2 py-1 bg-emerald-500 text-white text-xs rounded hover:bg-emerald-600"
-                          >
-                            Green Outline
-                          </button>
-                          <button 
-                            onClick={() => updateLayerStyle(layer.id, { 
-                              stroke_color: "#ff6600", 
-                              stroke_weight: 2, 
-                              radius: 15,
-                              fill_color: "#ffaa00",
-                              fill_opacity: 0.6 
-                            })}
-                            className="px-2 py-1 bg-amber-500 text-white text-xs rounded hover:bg-amber-600"
-                          >
-                            Highlight Points
-                          </button>
+                        <div className="mt-2">
+                          <QuickActionsButtons
+                            layerId={layer.id}
+                            updateLayerStyle={updateLayerStyle}
+                            buttons={ADVANCED_QUICK_ACTIONS}
+                          />
                         </div>
                         
                         {/* Geometry-specific quick actions */}
                         <div className="mt-2">
                           <h4 className="text-xs font-semibold text-gray-600 mb-1">Quick Actions</h4>
-                          <div className="flex flex-wrap gap-1">
-                            <button 
-                              onClick={() => updateLayerStyle(layer.id, { stroke_dash_array: "5,5" })}
-                              className="px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
-                            >
-                              Dashed
-                            </button>
-                            <button 
-                              onClick={() => updateLayerStyle(layer.id, { stroke_dash_array: "3,3" })}
-                              className="px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
-                            >
-                              Dotted
-                            </button>
-                            <button 
-                              onClick={() => updateLayerStyle(layer.id, { stroke_dash_array: undefined })}
-                              className="px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
-                            >
-                              Solid
-                            </button>
-                            <button 
-                              onClick={() => updateLayerStyle(layer.id, { radius: 12, stroke_weight: 3 })}
-                              className="px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
-                            >
-                              Large Points
-                            </button>
-                            <button 
-                              onClick={() => updateLayerStyle(layer.id, { stroke_weight: 1, fill_opacity: 0.1 })}
-                              className="px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
-                            >
-                              Subtle
-                            </button>
-                            <button 
-                              onClick={() => updateLayerStyle(layer.id, { stroke_weight: 4, stroke_opacity: 1.0 })}
-                              className="px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
-                            >
-                              Bold
-                            </button>
-                          </div>
+                          <QuickActionsButtons
+                            layerId={layer.id}
+                            updateLayerStyle={updateLayerStyle}
+                            buttons={[...BASIC_QUICK_ACTIONS, ...SECONDARY_QUICK_ACTIONS]}
+                          />
                         </div>
                       </div>
                     </div>

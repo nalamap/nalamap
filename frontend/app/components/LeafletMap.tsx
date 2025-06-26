@@ -256,15 +256,7 @@ function LeafletGeoJSONLayer({
   
   useEffect(() => {
     setForceUpdate(prev => prev + 1);
-  }, [
-    layerStyle?.stroke_color, 
-    layerStyle?.fill_color, 
-    layerStyle?.stroke_weight,
-    layerStyle?.radius,
-    layerStyle?.fill_opacity,
-    layerStyle?.stroke_opacity,
-    layerStyle?.stroke_dash_array
-  ]);
+  }, [JSON.stringify(layerStyle)]);
 
   // Create a canvas renderer instance
   const canvasRenderer = L.canvas();
