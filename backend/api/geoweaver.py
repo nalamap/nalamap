@@ -180,6 +180,7 @@ async def ask_geoweaver(request: GeoweaverRequest):
         geodata_layers=request.geodata_layers,
         results_title="",
         geodata_results=[],
+        remaining_steps=10,  # Explicitly set remaining_steps
     )
     # state.global_geodata=request.global_geodata,
 

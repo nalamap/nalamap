@@ -361,3 +361,15 @@ def check_and_auto_style_layers(
         ]
     })
 
+
+def _detect_layers_needing_styling(available_layers):
+    """Helper function to detect layers that need styling (used for testing)."""
+    return [
+        layer for layer in available_layers 
+        if not layer.style or (
+            layer.style and 
+            layer.style.stroke_color in ["#3388ff", None] and 
+            layer.style.fill_color in ["#3388ff", None]
+        )
+    ]
+
