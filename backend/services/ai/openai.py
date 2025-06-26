@@ -1,6 +1,7 @@
 from langchain_openai import ChatOpenAI
 from os import getenv
 
+
 def get_llm(max_tokens: int = 6000):
     return ChatOpenAI(
         model="gpt-4o-mini",
@@ -9,4 +10,3 @@ def get_llm(max_tokens: int = 6000):
         timeout=None,
         max_retries=3,
     )
-

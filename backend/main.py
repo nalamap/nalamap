@@ -7,7 +7,8 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 
 from fastapi.staticfiles import StaticFiles
-#from sqlalchemy.ext.asyncio import AsyncSession
+
+# from sqlalchemy.ext.asyncio import AsyncSession
 from core.config import LOCAL_UPLOAD_DIR
 from services.database.database import init_db, close_db
 from api import data_management, ai_style, geoweaver, debug, auto_styling
@@ -32,18 +33,20 @@ tags_metadata = [
 
 app = FastAPI()
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
     yield
     await close_db()
 
+
 app = FastAPI(
     title="GeoWeaver API",
     description="API for making geospatial data accessible",
     version="0.1.0",
     lifespan=lifespan,
-    openapi_tags=tags_metadata
+    openapi_tags=tags_metadata,
 )
 
 # CORS
@@ -52,7 +55,7 @@ app.add_middleware(
     allow_origins=["*"],  
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"]
+    allow_headers=["*"],
 )
 
 # Local upload directory and base URL
@@ -74,28 +77,36 @@ async def root():
 
 # Exception handlers
 
+
 @app.exception_handler(status.HTTP_400_BAD_REQUEST)
 async def validation_exception_handler(request: Request, exc):
-	exc_str = f'{exc}'.replace('\n', ' ').replace('   ', ' ')
-	logging.error(f"{request}: {exc_str}")
-	content = {'status_code': 10400, 'message': exc_str, 'data': None}
-	return JSONResponse(content=content, status_code=status.HTTP_400_BAD_REQUEST)
+    exc_str = f"{exc}".replace("\n", " ").replace("   ", " ")
+    logging.error(f"{request}: {exc_str}")
+    content = {"status_code": 10400, "message": exc_str, "data": None}
+    return JSONResponse(content=content, status_code=status.HTTP_400_BAD_REQUEST)
+
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-	exc_str = f'{exc}'.replace('\n', ' ').replace('   ', ' ')
-	logging.error(f"{request}: {exc_str}")
-	content = {'status_code': 10422, 'message': exc_str, 'data': None}
-	return JSONResponse(content=content, status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
+    exc_str = f"{exc}".replace("\n", " ").replace("   ", " ")
+    logging.error(f"{request}: {exc_str}")
+    content = {"status_code": 10422, "message": exc_str, "data": None}
+    return JSONResponse(
+        content=content, status_code=status.HTTP_422_UNPROCESSABLE_ENTITY
+    )
+
 
 @app.exception_handler(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE)
 async def request_entity_too_large_handler(request: Request, exc):
     return JSONResponse(
         status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-        content={"detail": "File size exceeds the 100MB limit. Please upload a smaller file."}
+        content={
+            "detail": "File size exceeds the 100MB limit. Please upload a smaller file."
+        },
     )
 
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

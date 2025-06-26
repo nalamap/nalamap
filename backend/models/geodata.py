@@ -18,7 +18,6 @@ class DataOrigin(Enum):
     GEPROCESSING = "geprocessing"
 
 
-
 class GeoDataIdentifier(NamedTuple):
     id: str
     data_source_id: str
@@ -64,12 +63,12 @@ class LayerStyle:
 class GeoDataObject(BaseModel):
     # Required (key) fields
     id: str
-    data_source_id: str   # e.g. database name
+    data_source_id: str  # e.g. database name
     data_type: DataType
     data_origin: str
 
     # Required metadata
-    data_source: str      # e.g. portal name
+    data_source: str  # e.g. portal name
     data_link: str
     name: str
 
@@ -134,7 +133,7 @@ def mock_geodata_objects() -> List[GeoDataObject]:
             score=0.13876973,
             bounding_box="POLYGON((54.34999999999883 -34.76458333333335,54.34999999999883 37.21874999999888,-17.23958333333337 37.21874999999888,-17.23958333333337 -34.76458333333335,54.34999999999883 -34.76458333333335))",
             layer_type="WMS",
-            properties={"resource_id": "1512", "format": None}
+            properties={"resource_id": "1512", "format": None},
         ),
         GeoDataObject(
             id="2180",
@@ -175,7 +174,7 @@ def mock_geodata_objects() -> List[GeoDataObject]:
             score=0.14160219,
             bounding_box="POLYGON((54.34999999999883 -34.76458333333335,54.34999999999883 37.21874999999888,-17.23958333333337 37.21874999999888,-17.23958333333337 -34.76458333333335,54.34999999999883 -34.76458333333335))",
             layer_type="WFS",
-            properties={"resource_id": "2180", "format": None}
+            properties={"resource_id": "2180", "format": None},
         ),
         GeoDataObject(
             id="1866",
@@ -197,11 +196,11 @@ def mock_geodata_objects() -> List[GeoDataObject]:
     **Resource constraints:**
     Open Database License (ODC-ODbL)
     """,
-            llm_description="The \"rivieres_principales_hotosm_fao\" dataset provides a detailed representation of the main rivers in the Central African Republic. Derived from the HOTOSM Central African Republic Waterways, this dataset ensures continuity of river lines and is distributed under the ODC-ODbL license. Geographic coverage spans approximately 2.23°N–11.01°N latitude and 14.40°E–27.45°E longitude.",
+            llm_description='The "rivieres_principales_hotosm_fao" dataset provides a detailed representation of the main rivers in the Central African Republic. Derived from the HOTOSM Central African Republic Waterways, this dataset ensures continuity of river lines and is distributed under the ODC-ODbL license. Geographic coverage spans approximately 2.23°N–11.01°N latitude and 14.40°E–27.45°E longitude.',
             score=0.15012261,
             bounding_box="POLYGON((27.4488258 2.2256092,27.4488258 11.0132214040059,14.4023134008397 11.0132214040059,14.4023134008397 2.2256092,27.4488258 2.2256092))",
             layer_type="WMS",
-            properties={"resource_id": "1866", "format": None}
+            properties={"resource_id": "1866", "format": None},
         ),
         GeoDataObject(
             id="1718",
@@ -213,11 +212,11 @@ def mock_geodata_objects() -> List[GeoDataObject]:
             name="Rivers (Ethiopia)",
             title="Rivers (Ethiopia)",
             description="No notes available",
-            llm_description="The \"Rivers (Ethiopia)\" geospatial dataset provides a comprehensive representation of the river systems within Ethiopia, covering a geographic extent defined by the bounding box coordinates from approximately 3.92° to 14.89° latitude and 32.86° to 45.23° longitude. Accessible via WMS and ideal for hydrological studies.",
+            llm_description='The "Rivers (Ethiopia)" geospatial dataset provides a comprehensive representation of the river systems within Ethiopia, covering a geographic extent defined by the bounding box coordinates from approximately 3.92° to 14.89° latitude and 32.86° to 45.23° longitude. Accessible via WMS and ideal for hydrological studies.',
             score=0.15421289,
             bounding_box="POLYGON((45.227108897280175 3.924902666646508,45.227108897280175 14.88983906218417,32.8600492633985 14.88983906218417,32.8600492633985 3.924902666646508,45.227108897280175 3.924902666646508))",
             layer_type="WMS",
-            properties={"resource_id": "1718", "format": None}
+            properties={"resource_id": "1718", "format": None},
         ),
         GeoDataObject(
             id="1993",
@@ -229,11 +228,11 @@ def mock_geodata_objects() -> List[GeoDataObject]:
             name="Rivers (Ethiopia)",
             title="Rivers (Ethiopia)",
             description="No notes available",
-            llm_description="The \"Rivers (Ethiopia)\" dataset maps river systems across Ethiopia, supporting environmental management and planning, covering approximately 3.92°–14.89°N latitude and 32.86°–45.23°E longitude.",
+            llm_description='The "Rivers (Ethiopia)" dataset maps river systems across Ethiopia, supporting environmental management and planning, covering approximately 3.92°–14.89°N latitude and 32.86°–45.23°E longitude.',
             score=0.15872921,
             bounding_box="POLYGON((45.227108897280175 3.924902666646508,45.227108897280175 14.88983906218417,32.8600492633985 14.88983906218417,32.8600492633985 3.924902666646508,45.227108897280175 3.924902666646508))",
             layer_type="WMS",
-            properties={"resource_id": "1993", "format": None}
+            properties={"resource_id": "1993", "format": None},
         ),
         GeoDataObject(
             id="2012",
@@ -245,11 +244,11 @@ def mock_geodata_objects() -> List[GeoDataObject]:
             name="main rivers in Rwanda",
             title="main rivers in Rwanda",
             description="No notes available",
-            llm_description="The \"Main Rivers in Rwanda\" dataset provides a detailed representation of the primary river systems within Rwanda, covering approximately 29.56°–30.78°E longitude and -2.57°–-1.38°S latitude. Accessible via WMS.",
+            llm_description='The "Main Rivers in Rwanda" dataset provides a detailed representation of the primary river systems within Rwanda, covering approximately 29.56°–30.78°E longitude and -2.57°–-1.38°S latitude. Accessible via WMS.',
             score=0.15911782,
             bounding_box="POLYGON((30.78125 -2.57292,30.78125 -1.38333,29.56458 -1.38333,29.56458 -2.57292,30.78125 -2.57292))",
             layer_type="WMS",
-            properties={"resource_id": "2012", "format": None}
+            properties={"resource_id": "2012", "format": None},
         ),
         GeoDataObject(
             id="1623",
@@ -270,11 +269,11 @@ def mock_geodata_objects() -> List[GeoDataObject]:
 
     **Resource constraints:** Covered by HydroSHEDS License Agreement (https://www.hydrosheds.org).
     """,
-            llm_description="The \"awash_rivers\" dataset represents the Awash River network, derived from HydroRIVERS and co-registered with HydroBASINS sub-basins. Covering approximately 43.10°–38.23°E longitude and 8.14°–12.23°N latitude, this dataset supports hydrological studies and environmental management under the HydroSHEDS License Agreement.",
+            llm_description='The "awash_rivers" dataset represents the Awash River network, derived from HydroRIVERS and co-registered with HydroBASINS sub-basins. Covering approximately 43.10°–38.23°E longitude and 8.14°–12.23°N latitude, this dataset supports hydrological studies and environmental management under the HydroSHEDS License Agreement.',
             score=0.17129919,
             bounding_box="POLYGON((43.1020833333324 8.14374999999932,43.1020833333324 12.2270833333326,38.2312499999991 12.2270833333326,38.2312499999991 8.14374999999932,43.1020833333324 8.14374999999932))",
             layer_type="WMS",
-            properties={"resource_id": "1623", "format": None}
+            properties={"resource_id": "1623", "format": None},
         ),
         GeoDataObject(
             id="1511",
@@ -293,11 +292,11 @@ def mock_geodata_objects() -> List[GeoDataObject]:
 
     **Resource constraints:** copyright
     """,
-            llm_description="This geospatial dataset, titled \"Rivers,\" provides a detailed representation of the main rivers across Mindanao Island, Philippines, published on January 1, 2020. Accessible via WMS and subject to copyright.",
+            llm_description='This geospatial dataset, titled "Rivers," provides a detailed representation of the main rivers across Mindanao Island, Philippines, published on January 1, 2020. Accessible via WMS and subject to copyright.',
             score=0.17454045,
             bounding_box="POLYGON((76.00000000019992 -7.000000000299735,76.00000000019992 45.00000000009999,-16.7080219443572 45.00000000009999,-16.7080219443572 -7.000000000299735,76.00000000019992 -7.000000000299735))",
             layer_type="WMS",
-            properties={"resource_id": "1511", "format": None}
+            properties={"resource_id": "1511", "format": None},
         ),
         GeoDataObject(
             id="2119",
@@ -318,11 +317,11 @@ def mock_geodata_objects() -> List[GeoDataObject]:
 
     **Resource constraints:** Covered by HydroSHEDS License Agreement (https://www.hydrosheds.org).
     """,
-            llm_description="The \"Awash_rivers\" dataset is a geospatial representation of the Awash River network, derived from HydroRIVERS with co-registration to HydroBASINS sub-basins. Covering approximately 43.10°–38.23°E longitude and 8.14°–12.23°N latitude, freely available under the HydroSHEDS License Agreement.",
+            llm_description='The "Awash_rivers" dataset is a geospatial representation of the Awash River network, derived from HydroRIVERS with co-registration to HydroBASINS sub-basins. Covering approximately 43.10°–38.23°E longitude and 8.14°–12.23°N latitude, freely available under the HydroSHEDS License Agreement.',
             score=0.17614436,
             bounding_box="POLYGON((43.104518749999 8.14131458333259,43.104518749999 12.2295187499992,38.2288145833324 12.2295187499992,38.2288145833324 8.14131458333259,43.104518749999 8.14131458333259))",
             layer_type="WFS",
-            properties={"resource_id": "2119", "format": None}
+            properties={"resource_id": "2119", "format": None},
         ),
         GeoDataObject(
             id="842",
@@ -356,10 +355,10 @@ def mock_geodata_objects() -> List[GeoDataObject]:
     - HydroSHEDS: http://www.worldwildlife.org/hydrosheds
     - HydroSHEDS tech info: https://www.hydrosheds.org/
     """,
-            llm_description="The \"Hydrological Basins in Africa\" dataset provides a comprehensive delineation of major and sub-basins across Africa, derived from WWF HydroSHEDS and Hydro1K. It includes codes, names, areas, and flow directions, supporting hydrological studies and water resource management under the AQUASTAT program.",
+            llm_description='The "Hydrological Basins in Africa" dataset provides a comprehensive delineation of major and sub-basins across Africa, derived from WWF HydroSHEDS and Hydro1K. It includes codes, names, areas, and flow directions, supporting hydrological studies and water resource management under the AQUASTAT program.',
             score=0.1765908,
             bounding_box="POLYGON((54.53749999999906 -34.837500000000276,54.53749999999906 37.56249999999858,-18.162499999999717 37.56249999999858,-18.162499999999717 -34.837500000000276,54.53749999999906 -34.837500000000276))",
             layer_type="WMS",
-            properties={"resource_id": "842", "format": None}
+            properties={"resource_id": "842", "format": None},
         ),
     ]

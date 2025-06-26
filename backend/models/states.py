@@ -30,13 +30,13 @@ class GeoDataAgentState(MessagesState):
     remaining_steps: Optional[int] = Field(default=10, description="Number of remaining steps for the agent")
     
     # --- Internal-only fields (excluded from LLM prompt) ---
-    #global_geodata: Optional[List[GeoDataObject]] = Field(default_factory=list, exclude=True, validate_default=False)
+    # global_geodata: Optional[List[GeoDataObject]] = Field(default_factory=list, exclude=True, validate_default=False)
 
 
 def get_minimal_debug_state(tool_call: bool = False) -> GeoDataAgentState:
     initial_geo_state: GeoDataAgentState = GeoDataAgentState()
     initial_geo_state["messages"] = [HumanMessage("Please show Frankfurt")]
-    #initial_geo_state["global_geodata"] = []
+    # initial_geo_state["global_geodata"] = []
     initial_geo_state["geodata_last_results"] = []
     initial_geo_state["geodata_results"] = []
     initial_geo_state["geodata_layers"] = []
@@ -46,11 +46,12 @@ def get_minimal_debug_state(tool_call: bool = False) -> GeoDataAgentState:
         initial_geo_state["remaining_steps"] = 5
     return initial_geo_state
 
+
 def get_medium_debug_state(tool_call: bool = False) -> GeoDataAgentState:
     initial_geo_state: GeoDataAgentState = GeoDataAgentState()
     initial_geo_state["messages"] = [HumanMessage("Show layers for rivers in egypt")]
-    #initial_geo_state["global_geodata"] = mock_geodata_objects()[0:2]
-    initial_geo_state["geodata_last_results"] =  mock_geodata_objects()[0:2]
+    # initial_geo_state["global_geodata"] = mock_geodata_objects()[0:2]
+    initial_geo_state["geodata_last_results"] = mock_geodata_objects()[0:2]
     initial_geo_state["geodata_results"] = []
     initial_geo_state["geodata_layers"] = []
     initial_geo_state["results_title"] = ""

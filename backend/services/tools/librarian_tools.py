@@ -9,19 +9,30 @@ from langchain_core.tools.base import InjectedToolCallId
 from langchain_core.messages import ToolMessage
 from langgraph.prebuilt import InjectedState
 from services.database.database import close_db, get_db, init_db
-from models.states import GeoDataAgentState, get_medium_debug_state, get_minimal_debug_state
+from models.states import (
+    GeoDataAgentState,
+    get_medium_debug_state,
+    get_minimal_debug_state,
+)
 from models.geodata import DataOrigin, DataType, GeoDataObject
 
 
 @tool
-def query_librarian_postgis(state: Annotated[GeoDataAgentState, InjectedState], tool_call_id: Annotated[str, InjectedToolCallId],  query: str, maxRows: int = 10, portal_filter: Optional[str] = None, bbox_wkt: Optional[str] = None) -> Union[Dict[str, Any], Command]:
+def query_librarian_postgis(
+    state: Annotated[GeoDataAgentState, InjectedState],
+    tool_call_id: Annotated[str, InjectedToolCallId],
+    query: str,
+    maxRows: int = 10,
+    portal_filter: Optional[str] = None,
+    bbox_wkt: Optional[str] = None,
+) -> Union[Dict[str, Any], Command]:
     """
     Tool to find geospatial layers and datasets for a given thematic query.
-    Use for: 
+    Use for:
     * Finding datasets and layers that match a specific thematic query.
-    * Finding datasets and layers that match a specific location given user data. 
-    * Finding datasets that cannot be found using geocoding tools. 
-    Strengths: 
+    * Finding datasets and layers that match a specific location given user data.
+    * Finding datasets that cannot be found using geocoding tools.
+    Strengths:
     * Provides a wide range of geospatial data sources, including maps, satellite imagery, and vector data.
     * Allows for flexible queries using natural language, allowing users to search for data by theme, location, or other criteria.
     Limitations:
@@ -32,9 +43,10 @@ def query_librarian_postgis(state: Annotated[GeoDataAgentState, InjectedState], 
     portal_filter: portal name (string) or null
     bbox_wkt: WKT polygon string or null like POLYGON((...)) to limit results to an area
     Inform the user that the results are limited to the datasets and layers available in the linked database.
-    Inform the user about the total number of results for the query. 
-    Always use the bounding box to limit the results to a specific area. 
+    Inform the user about the total number of results for the query.
+    Always use the bounding box to limit the results to a specific area.
     """
+
     async def _inner():
         async for cur in get_db():
             await cur.execute(
@@ -56,7 +68,7 @@ def query_librarian_postgis(state: Annotated[GeoDataAgentState, InjectedState], 
                     maxRows,
                     portal_filter,
                     bbox_wkt,
-                )
+                ),
             )
             rows = await cur.fetchall()
 
@@ -64,7 +76,7 @@ def query_librarian_postgis(state: Annotated[GeoDataAgentState, InjectedState], 
             GeoDataObject(
                 id=str(row[0]),
                 data_source_id="geoweaver.postgis",
-                data_type=DataType.GEOJSON if row[1]=="geojson" else DataType.LAYER,
+                data_type=DataType.GEOJSON if row[1] == "geojson" else DataType.LAYER,
                 data_origin=row[6],
                 data_source=row[1],
                 data_link=row[5],
@@ -72,7 +84,7 @@ def query_librarian_postgis(state: Annotated[GeoDataAgentState, InjectedState], 
                 title=row[3],
                 description=row[4],
                 llm_description=row[7],
-                score=1-row[9],
+                score=1 - row[9],
                 bounding_box=row[8],
                 layer_type=row[1],
             )
@@ -81,23 +93,40 @@ def query_librarian_postgis(state: Annotated[GeoDataAgentState, InjectedState], 
 
         new_global_geodata: List[GeoDataObject]
 
-        if "geodata_results" not in state or state["geodata_results"] is None or not isinstance(state["geodata_results"], List) or len(state["geodata_results"]) == 0:
+        if (
+            "geodata_results" not in state
+            or state["geodata_results"] is None
+            or not isinstance(state["geodata_results"], List)
+            or len(state["geodata_results"]) == 0
+        ):
             new_global_geodata = results
         else:
             new_global_geodata = []
-            #new_global_geodata.extend(state["global_geodata"])
+            # new_global_geodata.extend(state["global_geodata"])
             new_global_geodata.extend(results)
 
-        result_summary = [{"id": result.id, "data_source_id": result.data_source_id, "title": result.title} for result in results]
-        return Command(update={
-                    "messages": [
-                        *state["messages"], 
-                        ToolMessage(name="query_librarian_postgis", content=f"Retrieved {len(results)} results, added GeoDataObjects into the global_state, use id and data_source_id for reference: {json.dumps(result_summary)}", tool_call_id=tool_call_id )
-                        ], 
-                    #"global_geodata": new_global_geodata,
-                    "geodata_results": new_global_geodata
-        })
-    
+        return Command(
+            update={
+                "messages": [
+                    *state["messages"],
+                    ToolMessage(
+                        name="query_librarian_postgis",
+                        content = (
+                            f"Retrieved {len(results)} results, "
+                            "added GeoDataObjects into the global_state, "
+                            "use id and data_source_id for reference: "
+                            + json.dumps([
+                                {"id": r.id, "data_source_id": r.data_source_id, "title": r.title}
+                                for r in results
+                            ])
+                        ),
+                        tool_call_id=tool_call_id,
+                    ),
+                ],
+                # "global_geodata": new_global_geodata,
+                "geodata_results": new_global_geodata,
+            }
+        )
     try:
         loop = asyncio.get_event_loop()
     except RuntimeError:
@@ -118,7 +147,22 @@ if __name__ == "__main__":
     try:
         initial_state: GeoDataAgentState = get_minimal_debug_state(True)
         print(initial_state)
-        print(query_librarian_postgis.invoke({'args': {"state": initial_state,  'tool_call_id': 'testcallid1234', "query": "Rivers Africa", "geojson": True}, 'name': 'geocode_nominatim', 'type': 'tool_call', 'id': 'id2',  'tool_call_id': 'testcallid1234'}))
+        print(
+            query_librarian_postgis.invoke(
+                {
+                    "args": {
+                        "state": initial_state,
+                        "tool_call_id": "testcallid1234",
+                        "query": "Rivers Africa",
+                        "geojson": True,
+                    },
+                    "name": "geocode_nominatim",
+                    "type": "tool_call",
+                    "id": "id2",
+                    "tool_call_id": "testcallid1234",
+                }
+            )
+        )
         print(initial_state)
         asyncio.run(close_db())
     except:

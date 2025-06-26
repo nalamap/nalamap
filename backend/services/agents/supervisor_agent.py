@@ -22,15 +22,23 @@ Respond with JSON only.
 """
 
 DATASET_KEYWORDS = {
-    "dataset", "datasets", "data", "download",
+    "dataset",
+    "datasets",
+    "data",
+    "download",
     "search database",
 }
 
 llm = get_llm()
 
+
 def choose_agent(messages) -> str:
     user_messages = [m for m in messages if isinstance(m, HumanMessage)]
-    text = user_messages[-1].content.lower() if isinstance(user_messages[-1], HumanMessage) or user_messages else ""
+    text = (
+        user_messages[-1].content.lower()
+        if isinstance(user_messages[-1], HumanMessage) or user_messages
+        else ""
+    )
     if any(kw in text for kw in DATASET_KEYWORDS):
         return "librarien"
     llm_prompt = LLM_PROMPT.format(query=text)
@@ -42,7 +50,10 @@ def choose_agent(messages) -> str:
         return "geo_helper"
     return "finish"
 
-async def supervisor_node(state: DataState) -> Command[Literal["geo_helper","librarien","finish"]]:
+
+async def supervisor_node(
+    state: DataState,
+) -> Command[Literal["geo_helper", "librarien", "finish"]]:
     user_messages = [m for m in state["messages"] if isinstance(m, HumanMessage)]
     user_text = user_messages[-1].content.lower() if user_messages else ""
     messages = [SystemMessage(LLM_PROMPT.format(query=user_text))] + user_messages[-1:]
@@ -56,7 +67,6 @@ async def supervisor_node(state: DataState) -> Command[Literal["geo_helper","lib
         nxt = raw.lower()
         reason = ""
     goto = END if nxt == "finish" else nxt
-    return Command(goto=goto, update={
-        "messages": state["messages"],
-        "geodata": state["geodata"]
-    })
+    return Command(
+        goto=goto, update={"messages": state["messages"], "geodata": state["geodata"]}
+    )

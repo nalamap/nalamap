@@ -10,31 +10,45 @@ from models.geodata import mock_geodata_objects
 from models.geodata import GeoDataObject
 from services.agents.geo_weaver_ai import ai_executor as geo_helper_executor
 from services.agents.langgraph_agent import SearchState, executor as librarien_executor
-from services.agents.supervisor_agent import choose_agent, supervisor_node as llm_supervisor_node
+from services.agents.supervisor_agent import (
+    choose_agent,
+    supervisor_node as llm_supervisor_node,
+)
 from langchain_core.messages import HumanMessage, AIMessage
+
 
 async def supervisor_node(state: DataState) -> Command:
     user_messages = [m for m in state["messages"] if isinstance(m, HumanMessage)]
     choice = choose_agent(user_messages)
     print(f"[Orch] ▶ supervisor_node chose: {choice}")
-    return Command(goto=choice, update={"messages": state["messages"], "geodata": state["geodata"]})
+    return Command(
+        goto=choice, update={"messages": state["messages"], "geodata": state["geodata"]}
+    )
+
 
 def convert_to_geo_input(state: DataState) -> Dict:
     last = state["messages"][-1].content
-    return state # {"input": last, "messages": state["messages"], "geodata": state["geodata"]}
+    return state  # {"input": last, "messages": state["messages"], "geodata": state["geodata"]}
+
 
 async def geo_helper_node(state: DataState) -> Command:
     geo_input = convert_to_geo_input(state)
     ai_state = await geo_helper_executor.ainvoke(geo_input)
-    #output = getattr(ai_state, "response", None) or "⚠️ Geo Helper returned no response."
-    #new_msgs = state["messages"] + [{"role": "assistant", "content": output}]
-    return Command(update={"messages": ai_state["messages"], "geodata": ai_state["geodata"]}) # getattr(ai_state, "geodata", state["geodata"])})
+    # output = getattr(ai_state, "response", None) or "⚠️ Geo Helper returned no response."
+    # new_msgs = state["messages"] + [{"role": "assistant", "content": output}]
+    return Command(
+        update={"messages": ai_state["messages"], "geodata": ai_state["geodata"]}
+    )  # getattr(ai_state, "geodata", state["geodata"])})
+
 
 def convert_to_search_input(state: DataState) -> Dict:
-    query = next((m.content for m in reversed(state["messages"]) if isinstance(m, HumanMessage)), "")
+    query = next(
+        (m.content for m in reversed(state["messages"]) if isinstance(m, HumanMessage)),
+        "",
+    )
     # return state # {"query": query, "messages": state["messages"], "geodata": state["geodata"]}
     return SearchState(raw_query=query)
-    
+
 
 async def librarien_node(state: DataState) -> Command:
     search_input = convert_to_search_input(state)
@@ -45,8 +59,11 @@ async def librarien_node(state: DataState) -> Command:
         output += json.dumps(r.model_dump()) + "####"
     output += "END_DB_RESULTS####"
     # print(output)
-    new_msgs = state["messages"] + [AIMessage(content="I found some layers and added them to the state ")]# [{"role": "assistant", "content": output}]
-    return Command(update={"messages": new_msgs, "geodata": results })
+    new_msgs = state["messages"] + [
+        AIMessage(content="I found some layers and added them to the state ")
+    ]  # [{"role": "assistant", "content": output}]
+    return Command(update={"messages": new_msgs, "geodata": results})
+
 
 # --- Build the graph ---
 graph = StateGraph(state_schema=DataState)
@@ -56,14 +73,14 @@ graph.add_node("librarien", librarien_node)
 
 graph.set_entry_point("supervisor")
 
+
 def agent_selector(state: DataState):
     user_messages = [m for m in state["messages"] if isinstance(m, HumanMessage)]
     return choose_agent(user_messages[-1:])
 
+
 graph.add_conditional_edges(
-    "supervisor",
-    agent_selector,
-    {"geo_helper": "geo_helper", "librarien": "librarien"}
+    "supervisor", agent_selector, {"geo_helper": "geo_helper", "librarien": "librarien"}
 )
 
 graph.add_edge("geo_helper", END)
@@ -71,9 +88,11 @@ graph.add_edge("librarien", END)
 
 multi_agent_executor = graph.compile()
 
+
 # --- Runner ---
 async def main():
     from services.database.database import init_db, close_db
+
     try:
         await init_db()
         messages = []
@@ -98,6 +117,7 @@ async def main():
             executor_result = await multi_agent_executor.ainvoke(state)
     finally:
         await close_db()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

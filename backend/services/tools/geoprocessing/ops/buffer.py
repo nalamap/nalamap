@@ -1,0 +1,92 @@
+import geopandas as gpd
+import json
+import logging
+
+logger = logging.getLogger(__name__)
+
+def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857", radius_unit="meters"):
+    """
+    Buffers features of a single input layer item individually.
+    If multiple layers are provided, this function will raise a ValueError.
+    Input geometries are assumed in EPSG:4326. This function:
+      1) Expects `layers` to be a list containing a single layer item (FeatureCollection or Feature).
+      2) Converts radius to meters based on radius_unit (default is "meters").
+      3) Extracts features from the single layer item.
+      4) Creates a GeoDataFrame from these features.
+      5) Reprojects the GeoDataFrame to buffer_crs (default EPSG:3857, which uses meters).
+      6) Applies buffer to each feature geometry with the meter-based radius.
+      7) Reprojects the GeoDataFrame (with buffered features) back to EPSG:4326.
+      8) Returns a list containing one FeatureCollection with the individually buffered features.
+    Supported radius_unit: "meters", "kilometers", "miles".
+    """
+    if not layers:
+        logger.warning("op_buffer called with no layers")
+        return []  # No input layer, return empty list
+
+    if len(layers) > 1:
+        # Extract layer names/titles if available for better error information
+        layer_info = []
+        for i, layer in enumerate(layers):
+            name = None
+            if isinstance(layer, dict):
+                props = layer.get("properties", {})
+                if props:
+                    name = props.get("name") or props.get("title")
+                # Also try to get name from features if it's a FeatureCollection
+                if (
+                    not name
+                    and layer.get("type") == "FeatureCollection"
+                    and layer.get("features")
+                ):
+                    first_feat = layer["features"][0] if layer["features"] else None
+                    if first_feat and isinstance(first_feat, dict):
+                        props = first_feat.get("properties", {})
+                        if props:
+                            name = props.get("name") or props.get("title")
+            layer_info.append(f"Layer {i+1}" + (f": {name}" if name else ""))
+
+        layer_desc = ", ".join(layer_info)
+        raise ValueError(
+            f"Buffer operation error: Only one layer can be buffered at a time. Received {len(layers)} layers: {layer_desc}. Please specify a single target layer."
+        )
+
+    layer_item = layers[0]  # Process the single layer provided
+    unit = radius_unit.lower()
+    factor = {"meters": 1.0, "kilometers": 1000.0, "miles": 1609.34}.get(unit)
+    if factor is None:
+        logger.warning(f"Unknown radius_unit '{radius_unit}', assuming meters")
+        factor = 1.0
+
+    actual_radius_meters = float(radius) * factor
+
+    current_features = []
+    if isinstance(layer_item, dict):
+        if layer_item.get("type") == "FeatureCollection":
+            current_features = layer_item.get("features", [])
+        elif layer_item.get("type") == "Feature":
+            current_features = [layer_item]
+
+    if not current_features:
+        # This case might occur if the single layer_item was an empty FeatureCollection or invalid
+        print(
+            f"Warning: The provided layer item is empty or not a recognizable Feature/FeatureCollection: {type(layer_item)}"
+        )
+        return []
+
+    try:
+        gdf = gpd.GeoDataFrame.from_features(current_features)
+        gdf.set_crs("EPSG:4326", inplace=True)
+
+        gdf_reprojected = gdf.to_crs(buffer_crs)
+        gdf_reprojected["geometry"] = gdf_reprojected.geometry.buffer(
+            actual_radius_meters
+        )
+        gdf_buffered_individual = gdf_reprojected.to_crs("EPSG:4326")
+
+        if gdf_buffered_individual.empty:
+            return []  # Resulting GeoDataFrame is empty
+
+        fc = json.loads(gdf_buffered_individual.to_json())
+        return [fc]  # Return a list containing the single FeatureCollection
+    except Exception as e:
+        logger.exception(f"Error in op_buffer: {e}")
