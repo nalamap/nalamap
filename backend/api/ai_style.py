@@ -6,6 +6,9 @@ from services.ai.llm_config import get_llm
 from langchain_core.messages import SystemMessage, HumanMessage
 import json
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -57,8 +60,8 @@ def extract_layer_names_from_text(text: str, available_layers: List[GeoDataObjec
     text_lower = text.lower()
     mentioned_layers = []
     
-    print(f"Extracting layer names from text: '{text}'")
-    print(f"Available layers: {[layer.name for layer in available_layers]}")
+    logger.debug(f"Extracting layer names from text: '{text}'")
+    logger.debug(f"Available layers: {[layer.name for layer in available_layers]}")
     
     # Create a mapping of possible layer identifiers to actual layer names
     layer_identifiers = {}
@@ -81,18 +84,18 @@ def extract_layer_names_from_text(text: str, available_layers: List[GeoDataObjec
         for word in words:
             if len(word) > 3:  # Only consider words longer than 3 characters
                 layer_identifiers[word] = layer.name
-                print(f"  Mapped keyword '{word}' -> '{layer.name}'")
+                logger.debug(f"  Mapped keyword '{word}' -> '{layer.name}'")
     
-    print(f"Layer identifiers: {layer_identifiers}")
+    logger.debug(f"Layer identifiers: {layer_identifiers}")
     
     # Look for layer mentions in the text
     # First try exact matches, then partial matches
     for identifier, actual_name in sorted(layer_identifiers.items(), key=lambda x: len(x[0]), reverse=True):
         if identifier in text_lower and actual_name not in mentioned_layers:
             mentioned_layers.append(actual_name)
-            print(f"  Found match: '{identifier}' -> '{actual_name}'")
+            logger.debug(f"  Found match: '{identifier}' -> '{actual_name}'")
     
-    print(f"Final mentioned layers: {mentioned_layers}")
+    logger.debug(f"Final mentioned layers: {mentioned_layers}")
     return mentioned_layers
 
 def extract_style_from_ai_response(ai_response: str, geometry_type: str = None) -> Dict[str, Any]:
@@ -121,6 +124,10 @@ def extract_style_from_ai_response(ai_response: str, geometry_type: str = None) 
                 # Only set fill color for polygons and points, not for polylines
                 if geometry_type != "LineString" and geometry_type != "MultiLineString":
                     style["fill_color"] = color
+                # Found a valid color, no need to check more matches for this pattern
+                break
+        # If we found a color, we can stop checking other patterns
+        if "stroke_color" in style:
             break
     
     # Extract opacity
@@ -214,7 +221,7 @@ def detect_geometry_type(data_link: str) -> str:
             
         return "Unknown"
     except Exception as e:
-        print(f"Error detecting geometry type from {data_link}: {e}")
+        logger.error(f"Error detecting geometry type from {data_link}: {e}")
         return "Unknown"
     
 
@@ -300,31 +307,31 @@ Current layers available:
         
         # Extract styling parameters from the AI response and user query
         combined_text = request.query + " " + ai_response_text
-        print(f"Extracting style from: {combined_text}")
+        logger.debug(f"Extracting style from: {combined_text}")
         
         # Extract mentioned layer names from the user query and AI response
         mentioned_layers = extract_layer_names_from_text(combined_text, request.geodata_layers)
-        print(f"Mentioned layers: {mentioned_layers}")
+        logger.debug(f"Mentioned layers: {mentioned_layers}")
         
         # Determine which layers to style
         layers_to_style_ids = []
         
         if mentioned_layers:
             # Style only the mentioned layers
-            print(f"User mentioned specific layers: {mentioned_layers}")
+            logger.debug(f"User mentioned specific layers: {mentioned_layers}")
             for layer in request.geodata_layers:
                 if layer.name in mentioned_layers:
                     layers_to_style_ids.append(layer.id)
-                    print(f"Will style layer: {layer.name} (ID: {layer.id})")
+                    logger.debug(f"Will style layer: {layer.name} (ID: {layer.id})")
         elif len(request.geodata_layers) == 1:
             # If only one layer, style it
             layers_to_style_ids = [request.geodata_layers[0].id]
-            print(f"Single layer, will style: {request.geodata_layers[0].name}")
+            logger.debug(f"Single layer, will style: {request.geodata_layers[0].name}")
         else:
             # Multiple layers but none specified - ask for clarification
             layer_names = [layer.name for layer in request.geodata_layers]
             clarification_message = f"I see you have multiple layers available: {', '.join(layer_names)}. Which layer would you like me to style?"
-            print(f"Multiple layers without specification, asking for clarification")
+            logger.debug(f"Multiple layers without specification, asking for clarification")
             
             response_messages = [
                 *request.messages,
@@ -338,23 +345,23 @@ Current layers available:
                 messages=response_messages
             )
         
-        print(f"Final layers to style (IDs): {layers_to_style_ids}")
+        logger.debug(f"Final layers to style (IDs): {layers_to_style_ids}")
         
         # Apply styling to selected layers
         updated_layers = []
         for layer in request.geodata_layers:
             if layer.id in layers_to_style_ids:
-                print(f"Applying styling to layer: {layer.name} (ID: {layer.id})")
+                logger.debug(f"Applying styling to layer: {layer.name} (ID: {layer.id})")
                 
                 # Detect geometry type for this layer
                 geometry_type = "Unknown"
                 if (layer.layer_type and layer.layer_type.upper() in ["WFS", "UPLOADED"]) or layer.data_link.lower().endswith(('.geojson', '.json')):
                     geometry_type = detect_geometry_type(layer.data_link)
-                    print(f"Detected geometry type for layer {layer.name}: {geometry_type}")
+                    logger.debug(f"Detected geometry type for layer {layer.name}: {geometry_type}")
                 
                 # Extract style parameters with geometry type awareness
                 layer_style_params = extract_style_from_ai_response(combined_text, geometry_type)
-                print(f"Layer-specific style params for {layer.name}: {layer_style_params}")
+                logger.debug(f"Layer-specific style params for {layer.name}: {layer_style_params}")
                 
                 # Create a copy of the layer with updated styling
                 layer_dict = layer.model_dump()
@@ -365,13 +372,13 @@ Current layers available:
                 
                 # Apply the extracted style parameters
                 layer_dict["style"].update(layer_style_params)
-                print(f"Applied style: {layer_style_params}")
+                logger.debug(f"Applied style: {layer_style_params}")
                 
                 # Create new GeoDataObject with updated style
                 updated_layer = GeoDataObject(**layer_dict)
                 updated_layers.append(updated_layer)
             else:
-                print(f"Keeping layer unchanged: {layer.name} (ID: {layer.id})")
+                logger.debug(f"Keeping layer unchanged: {layer.name} (ID: {layer.id})")
                 # Keep the layer unchanged
                 updated_layers.append(layer)
         
@@ -389,7 +396,7 @@ Current layers available:
         )
         
     except Exception as e:
-        print(f"Error in AI styling: {e}")
+        logger.error(f"Error in AI styling: {e}")
         error_message = f"I encountered an error while processing your styling request: {str(e)}. Please try again or use the manual styling panel."
         response_messages = [
             *request.messages,
