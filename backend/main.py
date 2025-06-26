@@ -1,4 +1,5 @@
 import os
+import logging
 from fastapi import FastAPI, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -9,7 +10,13 @@ from fastapi.staticfiles import StaticFiles
 #from sqlalchemy.ext.asyncio import AsyncSession
 from core.config import LOCAL_UPLOAD_DIR
 from services.database.database import init_db, close_db
-from api import data_management, ai_style, geoweaver, debug
+from api import data_management, ai_style, geoweaver, debug, auto_styling
+
+# Configure logging to show info level messages for debugging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 
 tags_metadata = [
@@ -58,6 +65,7 @@ app.include_router(debug.router, prefix="/api")
 app.include_router(geoweaver.router, prefix="/api")  # Main chat functionality with styling
 app.include_router(data_management.router, prefix="/api")
 app.include_router(ai_style.router, prefix="/api")  # AI Style button functionality
+app.include_router(auto_styling.router, prefix="/api")  # Automatic styling for uploads
 
 @app.get("/")
 async def root():
@@ -65,7 +73,6 @@ async def root():
 
 
 # Exception handlers
-import logging
 
 @app.exception_handler(status.HTTP_400_BAD_REQUEST)
 async def validation_exception_handler(request: Request, exc):

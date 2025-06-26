@@ -11,6 +11,58 @@ from langchain_core.messages import ToolMessage
 from pydantic import BaseModel, Field
 from models.states import GeoDataAgentState
 from models.geodata import GeoDataObject, LayerStyle
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+# Color name to hex mapping for consistent color handling
+COLOR_NAME_MAP = {
+    # Warm colors
+    "coral": "#FF7F50",
+    "peach": "#FFCBA4", 
+    "goldenrod": "#DAA520",
+    "gold": "#FFD700",
+    "salmon": "#FA8072",
+    "orange": "#FFA500",
+    "darkorange": "#FF8C00",
+    "brown": "#A52A2A",
+    "darkred": "#8B0000",
+    "tomato": "#FF6347",
+    "orangered": "#FF4500",
+    
+    # Cool colors
+    "lightblue": "#ADD8E6",
+    "darkblue": "#00008B",
+    "lightgreen": "#90EE90",
+    "darkgreen": "#006400",
+    "lightgray": "#D3D3D3",
+    "darkgray": "#A9A9A9",
+    "gray": "#808080",
+    "grey": "#808080",
+    
+    # Basic colors
+    "red": "#FF0000",
+    "green": "#008000",
+    "blue": "#0000FF",
+    "yellow": "#FFFF00",
+    "purple": "#800080",
+    "pink": "#FFC0CB",
+    "white": "#FFFFFF",
+    "black": "#000000"
+}
+
+
+def normalize_color(color: str) -> str:
+    """
+    Normalize color names to hex values for consistent handling.
+    Returns hex value if color is a known name, otherwise returns the input.
+    """
+    if color and color.lower() in COLOR_NAME_MAP:
+        hex_color = COLOR_NAME_MAP[color.lower()]
+        logger.info(f"Converted color name '{color}' to hex '{hex_color}'")
+        return hex_color
+    return color
 
 
 @tool  
@@ -66,20 +118,30 @@ def style_map_layers(
     # Determine which layers to style with smart detection
     layers_to_style = []
     
+    # Log available layers for debugging
+    logger.info(f"Available layers: {[layer.name for layer in available_layers]}")
+    logger.info(f"Requested layer_names: {layer_names}")
+    
     # Smart single-layer detection
     if len(available_layers) == 1 and not layer_names:
         # Only one layer available and no specific layer names provided
         # Automatically apply styling to the single layer
         layers_to_style = available_layers
+        logger.info("Single layer auto-detection: styling the only available layer")
     elif layer_names:
         # Use explicitly specified layer names
         for layer_name in layer_names:
             matching_layers = [layer for layer in available_layers if layer.name == layer_name]
-            layers_to_style.extend(matching_layers)
+            if matching_layers:
+                layers_to_style.extend(matching_layers)
+                logger.info(f"Found matching layer for '{layer_name}': {[l.name for l in matching_layers]}")
+            else:
+                logger.warning(f"No matching layer found for '{layer_name}'")
     else:
         # Multiple layers available and no specific names provided
         # Style all available layers
         layers_to_style = available_layers
+        logger.info("Multiple layers: styling all available layers")
     
     if not layers_to_style:
         message = f"Could not find any layers matching the specified names. Available layers: {', '.join([layer.name for layer in available_layers])}"
@@ -100,9 +162,9 @@ def style_map_layers(
         style_params = {}
         
         if fill_color is not None:
-            style_params["fill_color"] = fill_color
+            style_params["fill_color"] = normalize_color(fill_color)
         if stroke_color is not None:
-            style_params["stroke_color"] = stroke_color
+            style_params["stroke_color"] = normalize_color(stroke_color)
         if stroke_width is not None:
             style_params["stroke_weight"] = stroke_width  # Note: stroke_weight in the model
         if fill_opacity is not None:
@@ -113,6 +175,9 @@ def style_map_layers(
             style_params["radius"] = radius
         if dash_pattern is not None:
             style_params["stroke_dash_array"] = dash_pattern
+        
+        # Log the styling parameters being applied
+        logger.info(f"Applying styling to layer '{layer.name}': {style_params}")
         
         # Initialize with defaults if no style exists
         if not layer_dict.get("style"):
@@ -129,6 +194,9 @@ def style_map_layers(
         
         # Update with the provided parameters
         layer_dict["style"].update(style_params)
+        
+        # Log the final style after update
+        logger.info(f"Final style for layer '{layer.name}': {layer_dict['style']}")
         
         # Create new GeoDataObject
         updated_layer = GeoDataObject(**layer_dict)
@@ -169,15 +237,10 @@ def auto_style_new_layers(
     layer_names: Optional[List[str]] = None
 ) -> Command:
     """
-    Automatically apply industry-standard colors to new layers based on AI analysis of their names and descriptions.
+    Automatically detect and trigger styling for newly uploaded layers that have default styling.
     
-    The agent should analyze each layer name and description, then intelligently choose appropriate colors
-    based on cartographic best practices and industry standards. The agent has full knowledge of:
-    - Standard cartographic color conventions
-    - Industry-standard symbologies for different feature types
-    - Color accessibility and contrast principles
-    
-    This tool should be called when new layers are added to provide appropriate default styling.
+    This tool identifies layers that need intelligent styling (those with default blue colors) 
+    and prompts the agent to apply appropriate cartographic colors based on layer names and descriptions.
     
     Args:
         layer_names: Specific layer names to auto-style (if None, styles all layers needing styling)
@@ -213,7 +276,7 @@ def auto_style_new_layers(
         ]
     
     if not layers_to_style:
-        message = "No layers found that need auto-styling."
+        message = "No layers found that need auto-styling. All layers appear to have custom styling already."
         return Command(update={
             "messages": [
                 *state["messages"], 
@@ -221,11 +284,9 @@ def auto_style_new_layers(
             ]
         })
     
-    # The agent should now use the style_map_layers tool to apply intelligent styling
-    # This approach allows the agent to use its full AI knowledge rather than hardcoded rules
-    
     # Create a summary of layers that need styling
     layer_summaries = []
+    
     for layer in layers_to_style:
         summary = f"'{layer.name}'"
         if layer.description:
@@ -237,15 +298,66 @@ def auto_style_new_layers(
     layers_summary = "; ".join(layer_summaries)
     
     message = (
-        f"Ready to apply intelligent auto-styling to {len(layers_to_style)} layer(s): {layers_summary}. "
-        f"The agent should now analyze each layer name and description to choose appropriate colors "
-        f"using the style_map_layers tool with industry-standard cartographic colors."
+        f"Automatically detected {len(layers_to_style)} layer(s) that need intelligent styling: {layers_summary}.\n\n"
+        f"I will now analyze each layer name using AI to determine the most appropriate cartographic styling and apply the colors automatically..."
     )
     
     return Command(update={
         "messages": [
             *state["messages"], 
             ToolMessage(name="auto_style_new_layers", content=message, tool_call_id=tool_call_id)
+        ]
+    })
+
+
+@tool
+def check_and_auto_style_layers(
+    state: Annotated[Dict[str, Any], InjectedState],
+    tool_call_id: Annotated[str, InjectedToolCallId]
+) -> Command:
+    """
+    Automatically check for new layers that need styling and apply appropriate colors.
+    This tool should be called proactively when the agent detects layer changes.
+    """
+    available_layers = state.get("geodata_layers", [])
+    
+    if not available_layers:
+        return Command(update={
+            "messages": [
+                *state["messages"], 
+                ToolMessage(name="check_and_auto_style_layers", content="No layers available for auto-styling.", tool_call_id=tool_call_id)
+            ]
+        })
+    
+    # Find layers that need styling (have default colors)
+    layers_needing_style = [
+        layer for layer in available_layers 
+        if not layer.style or (
+            layer.style and 
+            layer.style.stroke_color in ["#3388ff", None] and 
+            layer.style.fill_color in ["#3388ff", None]
+        )
+    ]
+    
+    if not layers_needing_style:
+        return Command(update={
+            "messages": [
+                *state["messages"], 
+                ToolMessage(name="check_and_auto_style_layers", content="All layers already have custom styling.", tool_call_id=tool_call_id)
+            ]
+        })
+    
+    # Trigger auto-styling workflow
+    layer_names = [layer.name for layer in layers_needing_style]
+    message = (
+        f"Detected {len(layers_needing_style)} newly uploaded layer(s) that need styling: {', '.join(layer_names)}. "
+        f"Automatically applying intelligent cartographic styling based on layer names..."
+    )
+    
+    return Command(update={
+        "messages": [
+            *state["messages"], 
+            ToolMessage(name="check_and_auto_style_layers", content=message, tool_call_id=tool_call_id)
         ]
     })
 

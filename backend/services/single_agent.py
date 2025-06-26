@@ -7,7 +7,7 @@ from services.tools.librarian_tools import query_librarian_postgis
 from services.tools.geoprocess_tools import geoprocess_tool
 from services.tools.geocoding import geocode_using_nominatim_to_geostate, geocode_using_geonames, geocode_using_overpass_to_geostate
 from services.tools.geostate_management import describe_geodata_object, list_global_geodata, set_result_list, metadata_search
-from services.tools.styling_tools import style_map_layers, auto_style_new_layers
+from services.tools.styling_tools import style_map_layers, auto_style_new_layers, check_and_auto_style_layers
 from models.states import GeoDataAgentState, get_medium_debug_state, get_minimal_debug_state
 from services.ai.llm_config import get_llm
 
@@ -24,6 +24,7 @@ tools: List[BaseTool] = [
     metadata_search,
     style_map_layers,  # Manual styling tool
     auto_style_new_layers,  # Intelligent auto-styling tool
+    check_and_auto_style_layers,  # Automatic layer style checker
 ]
 
 
@@ -44,6 +45,11 @@ def create_geo_agent() -> CompiledGraph:
         "- When responding to questions about a dataset, first check if it's available in the state, and use its 'title', 'description', 'llm_description', 'data_source', 'layer_type', 'bounding_box' and other properties to provide specific, detailed information.\n"
         "# INTERACTION GUIDELINES\n"
         "- Be conversational and accessible to users without GIS expertise.\n"
+        "- AUTOMATIC STYLING PRIORITY: Always check for and automatically style newly uploaded layers at the start of each interaction.\n"
+        "  - First use check_and_auto_style_layers() to detect layers needing styling.\n"
+        "  - Then use auto_style_new_layers() to identify which layers need AI-powered styling.\n"
+        "  - Finally, use your AI reasoning to determine appropriate colors and call style_map_layers() for each layer.\n"
+        "  - This ensures all new layers get intelligent styling before responding to user queries.\n"
         "- Always clarify ambiguous requests by asking specific questions.\n"
         "- Proactively guide users through their mapping journey, suggesting potential next steps.\n"
         "- When users ask to highlight or visualize a location, use geocoding and layer styling tools.\n"
@@ -51,17 +57,27 @@ def create_geo_agent() -> CompiledGraph:
         "  - The agent should interpret styling requests and call the tool with specific parameters like fill_color, stroke_color, stroke_width, etc.\n"
         "  - SINGLE LAYER DETECTION: When there's only ONE layer, use NO layer_names - auto-applies to that layer.\n"
         "  - SPECIFIC LAYER TARGETING: When user mentions a specific layer name (e.g., 'make the Rivers layer blue'), use layer_names=['Rivers'].\n"
-        "  - MULTIPLE LAYERS: When user says 'make it blue' with multiple layers, apply to all (no layer_names).\n"
+        "  - SAME COLOR FOR ALL: When user wants the SAME color applied to all layers (e.g., 'make everything green'), use ONE call with no layer_names.\n"
+        "  - DIFFERENT COLORS FOR EACH: When user wants DIFFERENT colors for each layer (e.g., 'apply 3 different warm colors'), make SEPARATE calls for each layer with layer_names=['LayerName'].\n"
+        "  - CRITICAL: When using layer_names, use the EXACT layer names from the geodata_layers state. Do NOT modify or truncate the names.\n"
         "  - Examples: 'make it blue' with 1 layer → style_map_layers(stroke_color='blue')\n"
         "  - Examples: 'make the Rivers blue' → style_map_layers(layer_names=['Rivers'], stroke_color='blue')\n"
-        "  - Examples: 'make everything green' with multiple layers → style_map_layers(fill_color='green')\n"
-        "  - Use standard color names (red, blue, green, lightgrey, purple, etc.) or hex values. The agent has full color knowledge.\n"
-        "- INTELLIGENT AUTO-STYLING: When new layers are added, proactively offer to apply industry-standard colors using 'auto_style_new_layers'.\n"
-        "  - Analyze layer names (e.g., 'Rivers', 'Buildings', 'Parks') and apply cartographically appropriate colors.\n"
-        "  - After calling auto_style_new_layers, immediately follow up with style_map_layers to apply your intelligent color choices.\n"
-        "  - Water features → blues, Roads → grays/blacks, Vegetation → greens, Buildings → browns/tans, etc.\n"
-        "  - Consider accessibility, contrast, and cartographic best practices when choosing colors.\n"
-        "  - Example workflow: auto_style_new_layers() → style_map_layers(stroke_color='deepblue', fill_color='lightblue') for rivers\n"
+        "  - Examples: 'make everything green' → style_map_layers(fill_color='green') [same color for all]\n"
+        "  - Examples: '3 different warm colors' → style_map_layers(layer_names=['Layer1'], fill_color='peach'), then style_map_layers(layer_names=['Layer2'], fill_color='coral'), etc.\n"
+        "  - Use standard color names (red, blue, green, coral, peach, brown, darkorange, etc.) - these will be converted to proper hex values.\n"
+        "- AUTOMATIC STYLING: Automatically style all newly uploaded layers based on their names using intelligent AI analysis.\n"
+        "  - This happens automatically whenever new layers are detected that need styling (have default #3388ff colors).\n"
+        "  - When you detect new layers via auto_style_new_layers(), analyze each layer name using AI reasoning (not hardcoded rules).\n"
+        "  - Think intelligently about what each layer represents based on its name and apply appropriate cartographic colors.\n"
+        "  - IMPORTANT: For automatic styling, each layer should get DIFFERENT appropriate colors - make SEPARATE style_map_layers() calls for each layer using layer_names=['LayerName'].\n"
+        "  - For each layer, reason about: What does this layer name suggest? What type of geographic feature? What colors would be most appropriate?\n"
+        "  - Examples of AI reasoning:\n"
+        "    • 'Rivers_of_Europe' → Think: water features → choose blue tones → style_map_layers(layer_names=['Rivers_of_Europe'], fill_color='lightblue', stroke_color='darkblue')\n"
+        "    • 'Urban_Buildings_NYC' → Think: built environment → choose browns/grays → style_map_layers(layer_names=['Urban_Buildings_NYC'], fill_color='lightgray', stroke_color='darkgray')\n"
+        "    • 'National_Parks_Canada' → Think: protected natural areas → choose green tones → style_map_layers(layer_names=['National_Parks_Canada'], fill_color='lightgreen', stroke_color='darkgreen')\n"
+        "    • 'Transport_Routes_Berlin' → Think: infrastructure → choose appropriate colors → style_map_layers(layer_names=['Transport_Routes_Berlin'], fill_color='yellow', stroke_color='orange')\n"
+        "  - Always explain your reasoning when applying automatic styling.\n"
+        "  - Consider accessibility, contrast, and cartographic best practices in your AI analysis.\n"
         "- When a user asks to find amenities (e.g., 'restaurants in Paris', 'hospitals near the Colosseum'), use the 'geocode_using_overpass_to_geostate' tool. \n"
         "  - For this tool, you must extract the amenity type (e.g., 'restaurant', 'hospital') and the location name (e.g., 'Paris', 'Colosseum').\n"
         "  - Pass the original user query as the 'query' parameter.\n"
