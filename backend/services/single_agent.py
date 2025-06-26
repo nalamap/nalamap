@@ -4,22 +4,35 @@ from langgraph.prebuilt import create_react_agent
 from langgraph.graph.graph import CompiledGraph
 from services.tools.librarian_tools import query_librarian_postgis
 from services.tools.geoprocess_tools import geoprocess_tool
-from services.tools.geocoding import geocode_using_nominatim_to_geostate, geocode_using_geonames, geocode_using_overpass_to_geostate
-from services.tools.geostate_management import describe_geodata_object, list_global_geodata, set_result_list, metadata_search
-from models.states import GeoDataAgentState, get_medium_debug_state, get_minimal_debug_state
+from services.tools.geocoding import (
+    geocode_using_nominatim_to_geostate,
+    geocode_using_geonames,
+    geocode_using_overpass_to_geostate,
+)
+from services.tools.geostate_management import (
+    describe_geodata_object,
+    list_global_geodata,
+    set_result_list,
+    metadata_search,
+)
+from models.states import (
+    GeoDataAgentState,
+    get_medium_debug_state,
+    get_minimal_debug_state,
+)
 from services.ai.llm_config import get_llm
 
 
 tools: List[BaseTool] = [
-    #set_result_list,
-    #list_global_geodata,
-    #describe_geodata_object,
-    #geocode_using_geonames, # its very simple and does not create a geojson
+    # set_result_list,
+    # list_global_geodata,
+    # describe_geodata_object,
+    # geocode_using_geonames, # its very simple and does not create a geojson
     geocode_using_nominatim_to_geostate,
     geocode_using_overpass_to_geostate,
     query_librarian_postgis,
     geoprocess_tool,
-    metadata_search
+    metadata_search,
 ]
 
 
@@ -55,10 +68,10 @@ def create_geo_agent() -> CompiledGraph:
         "- Help users discover and use external data sources through WFS and WMS protocols.\n"
         "- Assist users in uploading and processing their own geospatial data.\n"
         "- Connect with open data portals to help users find relevant datasets.\n\n"
-        #"# RESPONSE FORMAT\n"
-        #"- Always use the set_result_list tool at the end of your processing to show retrieved geodata results to the user.\n"
-        #"- Set 'results_title' appropriately (e.g., \"Search Results\", \"Matching Locations\") and populate the 'geodata_results' list with datasets that are relevant to the user's request.\n"
-        #"- When providing results, briefly explain what each result represents and how it relates to the user's request.\n\n"
+        # "# RESPONSE FORMAT\n"
+        # "- Always use the set_result_list tool at the end of your processing to show retrieved geodata results to the user.\n"
+        # "- Set 'results_title' appropriately (e.g., \"Search Results\", \"Matching Locations\") and populate the 'geodata_results' list with datasets that are relevant to the user's request.\n"
+        # "- When providing results, briefly explain what each result represents and how it relates to the user's request.\n\n"
         "Remember, your goal is to empower users without GIS expertise to create meaningful maps and gain insights from spatial data through natural conversation."
     )
     return create_react_agent(
@@ -66,11 +79,12 @@ def create_geo_agent() -> CompiledGraph:
         state_schema=GeoDataAgentState,
         tools=tools,
         model=llm.bind_tools(tools, parallel_tool_calls=False),
-        prompt=system_prompt
-        #debug=True,
+        prompt=system_prompt,
+        # debug=True,
         # config_schema=GeoData,
-        #response_format=GeoData
+        # response_format=GeoData
     )
+
 
 single_agent = create_geo_agent()
 
@@ -83,14 +97,23 @@ if __name__ == "__main__":
     if not debug_tool:
         # Ask the agent; private fields are kept internally but not sent to the LLM
         response = single_agent.invoke(initial_geo_state)
-        print(64*"-")
+        print(64 * "-")
         print(response["messages"])
         for message in response["messages"]:
             print(message.type, ":", message.content)
-        print(64*"-")
+        print(64 * "-")
         print(response["geodata_results"])
-        #print("-"*64)
-        #print(response["messages"])
+        # print("-"*64)
+        # print(response["messages"])
     else:
         # Tool debugging
-        print(describe_geodata_object.run(state=initial_geo_state, tool_input={"state": initial_geo_state, "id":"1512", "data_source_id": "db_name"}))
+        print(
+            describe_geodata_object.run(
+                state=initial_geo_state,
+                tool_input={
+                    "state": initial_geo_state,
+                    "id": "1512",
+                    "data_source_id": "db_name",
+                },
+            )
+        )

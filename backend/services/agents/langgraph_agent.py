@@ -10,7 +10,7 @@ import json
 
 
 ## 1) System prompt now instructs the LLM to output JSON with exactly these keys.
-system_msg  = """
+system_msg = """
 You are GeoSearchAgent. 
 Given a free-text user query, extract and return a JSON object with:
   - searchquery: the text to send to the database
@@ -22,8 +22,10 @@ Example output:
 """
 
 # Use LangChain chat generate methods since AzureChatOpenAI doesn't have .chat()
- 
+
 llm = get_llm()
+
+
 # 2) State carries everything, but initially only `raw_query` is set.
 class SearchState(BaseModel):
     raw_query: str
@@ -33,26 +35,25 @@ class SearchState(BaseModel):
     num_results: int = Field(10, ge=1)
     results: List[GeoDataObject] = []
 
+
 # 3) Node #1: parse the user's raw_query via LLM into our structured fields.
 async def parse_llm(state: SearchState) -> SearchState:
     user_msg = state.raw_query
-    messages = [
-        SystemMessage(content=system_msg),
-        HumanMessage(content=user_msg)
-    ]
+    messages = [SystemMessage(content=system_msg), HumanMessage(content=user_msg)]
     # agenerate expects a list of message‐lists for batching:
     response = await llm.agenerate([messages])
     # pull out the text from the first generation:
     json_text = response.generations[0][0].text
-    
+
     # parse it (you may want to add error‐handling here)
     parsed = json.loads(json_text)
     state.searchquery = parsed["searchquery"]
-    state.portal     = parsed.get("portal")
-    state.bbox_wkt     = parsed.get("bbox_wkt")
+    state.portal = parsed.get("portal")
+    state.bbox_wkt = parsed.get("bbox_wkt")
     # keep num_results at its default or override if you want the LLM to set it
-    
+
     return state
+
 
 # 4) Node #2: hit PostGIS, pushing the score‐filter into SQL
 async def query_postgis(state: SearchState) -> SearchState:
@@ -76,7 +77,7 @@ async def query_postgis(state: SearchState) -> SearchState:
                 state.num_results,
                 state.portal,
                 state.bbox_wkt,
-            )
+            ),
         )
         rows = await cur.fetchall()
 
@@ -84,7 +85,9 @@ async def query_postgis(state: SearchState) -> SearchState:
         GeoDataObject(
             id=str(row[0]),
             data_source_id="geoweaver.postgis",
-            data_type=DataType.GEOJSON if row[1].lower()=="geojson" else DataType.LAYER,
+            data_type=(
+                DataType.GEOJSON if row[1].lower() == "geojson" else DataType.LAYER
+            ),
             data_origin=DataOrigin.TOOL,
             data_source=row[6] if row[6] else row[1],
             data_link=row[5],
@@ -99,6 +102,7 @@ async def query_postgis(state: SearchState) -> SearchState:
         for row in rows
     ]
     return state
+
 
 # 5) Assemble the graph
 graph = StateGraph(state_schema=SearchState)

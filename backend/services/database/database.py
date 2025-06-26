@@ -7,6 +7,7 @@ from core.config import DATABASE_URL
 # Initialize connection pool as None
 db_pool = None
 
+
 async def init_db():
     """Initialize the async database pool."""
     global db_pool
@@ -14,11 +15,13 @@ async def init_db():
         db_pool = AsyncConnectionPool(conninfo=DATABASE_URL, min_size=1, max_size=10)
         await db_pool.open()  # Ensure the pool is open
 
+
 async def close_db():
     """Close the async database pool."""
     global db_pool
     if db_pool:
         await db_pool.close()
+
 
 # Dependency function for FastAPI
 async def get_db():

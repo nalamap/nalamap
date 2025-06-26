@@ -24,4 +24,4 @@ MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB in bytes
 # Database
 
 # Database connection URL
-DATABASE_URL = os.getenv('DATABASE_AZURE_URL')
+DATABASE_URL = os.getenv("DATABASE_AZURE_URL")
