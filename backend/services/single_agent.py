@@ -1,7 +1,7 @@
 from typing import List
 from langchain_core.tools import BaseTool
 from langgraph.prebuilt import create_react_agent
-from langgraph.graph.graph import CompiledGraph
+from langgraph.graph.state import CompiledStateGraph
 from services.tools.librarian_tools import query_librarian_postgis
 from services.tools.geoprocess_tools import geoprocess_tool
 from services.tools.geocoding import (
@@ -36,7 +36,7 @@ tools: List[BaseTool] = [
 ]
 
 
-def create_geo_agent() -> CompiledGraph:
+def create_geo_agent() -> CompiledStateGraph:
     llm = get_llm()
     system_prompt = (
         "You are NaLaMap: an advanced geospatial assistant designed to help users without GIS expertise create maps and perform spatial analysis through natural language interaction.\n\n"
