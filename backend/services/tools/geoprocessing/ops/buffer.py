@@ -4,6 +4,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857", radius_unit="meters"):
     """
     Buffers features of a single input layer item individually.

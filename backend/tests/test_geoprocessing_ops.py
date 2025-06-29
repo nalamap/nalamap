@@ -1,6 +1,7 @@
 import os
 import sys
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import math
 import pytest
@@ -26,7 +27,11 @@ def test_op_buffer_basic_and_error_cases():
     pt_fc = {
         "type": "FeatureCollection",
         "features": [
-            {"type": "Feature", "properties": {}, "geometry": {"type": "Point", "coordinates": [0, 0]}}
+            {
+                "type": "Feature",
+                "properties": {},
+                "geometry": {"type": "Point", "coordinates": [0, 0]},
+            }
         ],
     }
     result = op_buffer([pt_fc], radius=1, radius_unit="meters")
@@ -62,7 +67,11 @@ def test_op_merge_insufficient_and_inner_join():
     fc1 = {
         "type": "FeatureCollection",
         "features": [
-            {"type": "Feature", "properties": {"id": 1}, "geometry": {"type": "Point", "coordinates": [0, 0]}}
+            {
+                "type": "Feature",
+                "properties": {"id": 1},
+                "geometry": {"type": "Point", "coordinates": [0, 0]},
+            }
         ],
     }
     # fewer than two returns original
@@ -70,7 +79,11 @@ def test_op_merge_insufficient_and_inner_join():
     fc2 = {
         "type": "FeatureCollection",
         "features": [
-            {"type": "Feature", "properties": {"id": 1, "val": "A"}, "geometry": {"type": "Point", "coordinates": [1, 1]}}
+            {
+                "type": "Feature",
+                "properties": {"id": 1, "val": "A"},
+                "geometry": {"type": "Point", "coordinates": [1, 1]},
+            }
         ],
     }
     merged = op_merge([fc1, fc2], on=["id"], how="inner")
@@ -95,13 +108,27 @@ def test_op_overlay_insufficient_and_intersection():
     rect1 = {
         "type": "FeatureCollection",
         "features": [
-            {"type": "Feature", "properties": {}, "geometry": {"type": "Polygon", "coordinates": [[[0, 0], [2, 0], [2, 2], [0, 2], [0, 0]]]}}
+            {
+                "type": "Feature",
+                "properties": {},
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[0, 0], [2, 0], [2, 2], [0, 2], [0, 0]]],
+                },
+            }
         ],
     }
     rect2 = {
         "type": "FeatureCollection",
         "features": [
-            {"type": "Feature", "properties": {}, "geometry": {"type": "Polygon", "coordinates": [[[1, 1], [3, 1], [3, 3], [1, 3], [1, 1]]]}}
+            {
+                "type": "Feature",
+                "properties": {},
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[1, 1], [3, 1], [3, 3], [1, 3], [1, 1]]],
+                },
+            }
         ],
     }
     result = op_overlay([rect1, rect2], how="intersection", crs="EPSG:4326")
@@ -119,7 +146,14 @@ def test_op_simplify_empty_and_tolerance_zero():
     poly = {
         "type": "FeatureCollection",
         "features": [
-            {"type": "Feature", "properties": {}, "geometry": {"type": "Polygon", "coordinates": [[[0, 0], [0, 1], [1, 0], [0, 0]]]}}
+            {
+                "type": "Feature",
+                "properties": {},
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[0, 0], [0, 1], [1, 0], [0, 0]]],
+                },
+            }
         ],
     }
     result = op_simplify([poly], tolerance=0.0, preserve_topology=True)
@@ -138,13 +172,24 @@ def test_op_sjoin_insufficient_and_intersects_join():
     pt_fc = {
         "type": "FeatureCollection",
         "features": [
-            {"type": "Feature", "properties": {"id": 1}, "geometry": {"type": "Point", "coordinates": [0.5, 0.5]}}
+            {
+                "type": "Feature",
+                "properties": {"id": 1},
+                "geometry": {"type": "Point", "coordinates": [0.5, 0.5]},
+            }
         ],
     }
     sq_fc = {
         "type": "FeatureCollection",
         "features": [
-            {"type": "Feature", "properties": {"name": "sq"}, "geometry": {"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]]}}
+            {
+                "type": "Feature",
+                "properties": {"name": "sq"},
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]],
+                },
+            }
         ],
     }
     result = op_sjoin([pt_fc, sq_fc], how="inner", predicate="intersects")
@@ -161,20 +206,32 @@ def test_op_sjoin_insufficient_and_intersects_join():
 def test_op_sjoin_nearest_insufficient_and_distance_column():
     # fewer than two returns original
     fc = {"type": "FeatureCollection", "features": []}
-    assert op_sjoin_nearest([fc], how="inner", max_distance=None, distance_col="dist") == [fc]
+    assert op_sjoin_nearest(
+        [fc], how="inner", max_distance=None, distance_col="dist"
+    ) == [fc]
     pt1_fc = {
         "type": "FeatureCollection",
         "features": [
-            {"type": "Feature", "properties": {"id": 1}, "geometry": {"type": "Point", "coordinates": [0, 0]}}
+            {
+                "type": "Feature",
+                "properties": {"id": 1},
+                "geometry": {"type": "Point", "coordinates": [0, 0]},
+            }
         ],
     }
     pt2_fc = {
         "type": "FeatureCollection",
         "features": [
-            {"type": "Feature", "properties": {"id": 2}, "geometry": {"type": "Point", "coordinates": [1, 1]}}
+            {
+                "type": "Feature",
+                "properties": {"id": 2},
+                "geometry": {"type": "Point", "coordinates": [1, 1]},
+            }
         ],
     }
-    result = op_sjoin_nearest([pt1_fc, pt2_fc], how="inner", max_distance=None, distance_col="dist")
+    result = op_sjoin_nearest(
+        [pt1_fc, pt2_fc], how="inner", max_distance=None, distance_col="dist"
+    )
     assert len(result) == 1
     features = result[0]["features"]
     assert len(features) == 1

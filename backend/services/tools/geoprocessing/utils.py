@@ -7,11 +7,13 @@ from langchain_core.messages import HumanMessage
 
 logger = logging.getLogger(__name__)
 
+
 def get_last_human_content(messages: List[Any]) -> str:
     for msg in reversed(messages):
         if isinstance(msg, HumanMessage):
             return msg.content
     raise ValueError("No human message found in context")
+
 
 def flatten_features(layers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
@@ -26,6 +28,7 @@ def flatten_features(layers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         else:
             logger.debug(f"Skipping invalid GeoJSON layer: {layer}")
     return feats
+
 
 def get_layer_geoms(layers: List[Dict[str, Any]]) -> List[Any]:
     """

@@ -111,14 +111,20 @@ def query_librarian_postgis(
                     *state["messages"],
                     ToolMessage(
                         name="query_librarian_postgis",
-                        content = (
+                        content=(
                             f"Retrieved {len(results)} results, "
                             "added GeoDataObjects into the global_state, "
                             "use id and data_source_id for reference: "
-                            + json.dumps([
-                                {"id": r.id, "data_source_id": r.data_source_id, "title": r.title}
-                                for r in results
-                            ])
+                            + json.dumps(
+                                [
+                                    {
+                                        "id": r.id,
+                                        "data_source_id": r.data_source_id,
+                                        "title": r.title,
+                                    }
+                                    for r in results
+                                ]
+                            )
                         ),
                         tool_call_id=tool_call_id,
                     ),

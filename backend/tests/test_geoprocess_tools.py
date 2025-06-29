@@ -71,7 +71,7 @@ def stub_requests(monkeypatch):
     return _stub
 
 
-#def test_buffer_endpoint_creates_buffered_result(client):
+# def test_buffer_endpoint_creates_buffered_result(client):
 #    # Prepare payload
 #    payload = {
 #        "messages": [

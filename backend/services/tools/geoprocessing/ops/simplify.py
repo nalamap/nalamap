@@ -7,6 +7,7 @@ from services.tools.geoprocessing.utils import flatten_features
 
 logger = logging.getLogger(__name__)
 
+
 def op_simplify(
     layers: List[Dict[str, Any]],
     tolerance: float = 0.01,

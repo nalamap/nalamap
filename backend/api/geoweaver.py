@@ -156,7 +156,10 @@ async def ask_geoweaver(request: GeoweaverRequest):
     result_response: str = result_messages[-1].content
     result_geodata: List[GeoDataObject] = executor_result["geodata"]
     response: GeoweaverResponse = GeoweaverResponse(
-        messages=result_messages, response=result_response, geodata=result_geodata, options=request.options
+        messages=result_messages,
+        response=result_response,
+        geodata=result_geodata,
+        options=request.options,
     )
     return response
 
@@ -196,8 +199,8 @@ async def ask_geoweaver(request: GeoweaverRequest):
         geodata_layers: List[GeoDataObject] = executor_result.get("geodata_layers", [])
         # global_geodata: List[GeoDataObject] = executor_result.get('global_geodata', [])
 
-        result_options: Dict[str, Any] = executor_result.get('options', {})
-        
+        result_options: Dict[str, Any] = executor_result.get("options", {})
+
         if not result_messages:  # Should always have messages, but safeguard
             result_messages = [
                 AIMessage(
@@ -214,8 +217,8 @@ async def ask_geoweaver(request: GeoweaverRequest):
         ]  # Include history
         results_title = "Model Error"
         geodata_results = []
-        geodata_layers = state.get('geodata_layers', []) # Preserve existing layers
-        # global_geodata = state.get('global_geodata', []) 
+        geodata_layers = state.get("geodata_layers", [])  # Preserve existing layers
+        # global_geodata = state.get('global_geodata', [])
         result_options = options
 
     except openai.APIError as e:
@@ -227,8 +230,8 @@ async def ask_geoweaver(request: GeoweaverRequest):
         geodata_layers = state.get("geodata_layers", [])
         # global_geodata = state.get('global_geodata', [])
         result_options = options
-        
-    except Exception as e: # Catch any other unexpected errors during agent execution
+
+    except Exception as e:  # Catch any other unexpected errors during agent execution
         print(f"Unexpected error during agent execution: {e}")
         error_message = f"An unexpected error occurred while processing your request: {str(e)}. Please try again."
         result_messages = [*messages, AIMessage(content=error_message)]
@@ -253,11 +256,11 @@ async def ask_geoweaver(request: GeoweaverRequest):
         result_messages = [AIMessage(content="No response content generated.")]
 
     response: GeoweaverResponse = GeoweaverResponse(
-        messages=result_messages, 
-        results_title=results_title, 
-        geodata_results=geodata_results, 
-        geodata_layers=geodata_layers, 
-        #global_geodata=global_geodata,
+        messages=result_messages,
+        results_title=results_title,
+        geodata_results=geodata_results,
+        geodata_layers=geodata_layers,
+        # global_geodata=global_geodata,
         options=result_options,
     )
     return response

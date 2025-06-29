@@ -81,7 +81,9 @@ async def geocode(req: GeoweaverRequest) -> Dict[str, Any]:
     # TODO: Adapt tool to add GeoDataObject to calling state and summary or so
 
     geocodeResponse: GeoweaverResponse = GeoweaverResponse(
-        results_title="Geocoding Results:", geodata_layers=req.geodata_layers, options=req.options
+        results_title="Geocoding Results:",
+        geodata_layers=req.geodata_layers,
+        options=req.options,
     )
     geocodeResponse.messages = messages
 

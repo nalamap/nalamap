@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
+
 def op_merge(
     layers: List[Dict[str, Any]], on: Optional[List[str]] = None, how: str = "inner"
 ) -> List[Dict[str, Any]]:

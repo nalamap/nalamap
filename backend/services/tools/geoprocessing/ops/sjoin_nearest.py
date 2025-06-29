@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
+
 def op_sjoin_nearest(
     layers: List[Dict[str, Any]],
     how: str = "inner",
