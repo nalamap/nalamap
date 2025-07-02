@@ -25,7 +25,7 @@ def test_layer_style_defaults_and_custom():
     # Default style
     style = LayerStyle()
     assert style.stroke_color in ["#3388ff", "#3388f"]
-    assert style.fill_color in ["#3388ff", "#3388f"] 
+    assert style.fill_color in ["#3388ff", "#3388f"]
     assert style.stroke_weight == 2
     assert style.fill_opacity == 0.3
     # Custom style
@@ -51,6 +51,7 @@ def test_geodata_object_creation_and_styling():
     assert len(layers) == 3
     assert all(layer.style is not None for layer in layers)
 
+
 # Helper function
 def create_test_layer(name: str, has_default_style: bool = True) -> GeoDataObject:
     """Create a test layer for styling tests."""
@@ -66,11 +67,11 @@ def create_test_layer(name: str, has_default_style: bool = True) -> GeoDataObjec
         description=f"Test {name} layer",
         visible=True,
     )
-    
+
     if has_default_style:
         layer.style = LayerStyle()  # Default styling
     else:
         # Custom styling to simulate non-default
         layer.style = LayerStyle(stroke_color="#404040", fill_color="#808080")
-    
+
     return layer

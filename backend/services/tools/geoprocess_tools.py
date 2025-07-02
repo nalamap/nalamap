@@ -257,7 +257,7 @@ def geoprocess_tool(
         gj: Optional[Dict[str, Any]] = None
 
         # 1) If the URL matches BASE_URL/uploads/, load from LOCAL_UPLOAD_DIR
-        if url.startswith("{BASE_URL}/uploads/"):
+        if url.startswith(f"{BASE_URL}/uploads/"):
             filename = os.path.basename(url)
             local_path = os.path.join(LOCAL_UPLOAD_DIR, filename)
             try:
@@ -424,12 +424,12 @@ def geoprocess_tool(
     out_urls: List[str] = []
     for layer in result_layers:
         out_uuid = uuid.uuid4().hex
-        filename = "{out_uuid}_geoprocess.geojson"
+        filename = f"{out_uuid}_geoprocess.geojson"
         path = os.path.join(LOCAL_UPLOAD_DIR, filename)
         with open(path, "w", encoding="utf-8") as f:
             json.dump(layer, f)
 
-        url = "{BASE_URL}/uploads/{filename}"
+        url = f"{BASE_URL}/uploads/{filename}"
         out_urls.append(url)
         new_geodata.append(
             GeoDataObject(

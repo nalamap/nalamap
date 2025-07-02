@@ -69,7 +69,7 @@ async def apply_automatic_styling_to_new_layers(
         # Return the updated layers with applied styling
         updated_layers = result.get("geodata_layers", geodata_layers)
         logger.info(
-            "Successfully applied automatic styling to {len(layers_needing_styling)} layers"
+            f"Successfully applied automatic styling to {len(layers_needing_styling)} layers"
         )
         return updated_layers
 

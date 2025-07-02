@@ -117,7 +117,7 @@ async def auto_style_layers(request: AutoStyleRequest):
 
         return AutoStyleResponse(
             success=True,
-            message="Successfully applied automatic AI styling to {len(layers_needing_styling)} layer(s)",
+            message=f"Successfully applied automatic AI styling to {len(layers_needing_styling)} layer(s)",
             styled_layers=styled_layer_dicts,
         )
 

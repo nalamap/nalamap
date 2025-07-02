@@ -94,7 +94,7 @@ def create_geodata_object_from_geojson(
         "geometry": nominatim_response["geojson"],
     }
 
-    url, unique_id = store_file("{place_id}_{name}.json", json.dumps(geojson).encode())
+    url, unique_id = store_file(f"{place_id}_{name}.json", json.dumps(geojson).encode())
     # Copy selected properties
     properties: Dict[str, Any] = dict()
     for prop in [
@@ -118,11 +118,11 @@ def create_geodata_object_from_geojson(
     if bbox and len(bbox) == 4:
         lat_min, lat_max, lon_min, lon_max = map(float, bbox)
         bounding_box = (
-            "POLYGON(({lon_max} {lat_min},"
-            "{lon_max} {lat_max},"
-            "{lon_min} {lat_max},"
-            "{lon_min} {lat_min},"
-            "{lon_max} {lat_min}))"
+            f"POLYGON(({lon_max} {lat_min},"
+            f"{lon_max} {lat_max},"
+            f"{lon_min} {lat_max},"
+            f"{lon_min} {lat_min},"
+            f"{lon_max} {lat_min}))"
         )
     else:
         bounding_box = None
@@ -484,11 +484,11 @@ def create_collection_geodata_object(
             max_lat += buffer
 
         bounding_box_str = (
-            "POLYGON(({max_lon} {min_lat},"
-            "{max_lon} {max_lat},"
-            "{min_lon} {max_lat},"
-            "{min_lon} {min_lat},"
-            "{max_lon} {min_lat}))"
+            f"POLYGON(({max_lon} {min_lat},"
+            f"{max_lon} {max_lat},"
+            f"{min_lon} {max_lat},"
+            f"{min_lon} {min_lat},"
+            f"{max_lon} {min_lat}))"
         )
 
     collection_name = (

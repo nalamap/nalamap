@@ -6,6 +6,7 @@ import logging
 import re
 from typing import Any, Dict, Optional
 
+from models.geodata import LayerStyle
 
 logger = logging.getLogger(__name__)
 

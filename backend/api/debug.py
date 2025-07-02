@@ -40,7 +40,7 @@ async def search(req: GeoweaverRequest):
             "I'm sorry, I couldn't find any datasets matching your criteria."
         )
     else:
-        human_msg = HumanMessage("{req.query}")
+        human_msg = HumanMessage(f"{req.query}")
         ai_msg = AIMessage("Here are relevant layers:")
 
     # global_geodata=req.global_geodata
@@ -101,11 +101,11 @@ async def geocode(req: GeoweaverRequest) -> Dict[str, Any]:
         if bbox and len(bbox) == 4:
             lat_min, lat_max, lon_min, lon_max = map(float, bbox)
             bounding_box = (
-                "POLYGON(({lon_max} {lat_min},"
-                "{lon_max} {lat_max},"
-                "{lon_min} {lat_max},"
-                "{lon_min} {lat_min},"
-                "{lon_max} {lat_min}))"
+                f"POLYGON(({lon_max} {lat_min},"
+                f"{lon_max} {lat_max},"
+                f"{lon_min} {lat_max},"
+                f"{lon_min} {lat_min},"
+                f"{lon_max} {lat_min}))"
             )
         else:
             bounding_box = None
@@ -124,11 +124,11 @@ async def geocode(req: GeoweaverRequest) -> Dict[str, Any]:
         geojson_dict = kml2geojson_convert(io.StringIO(geo_kml_string))
         # print(json.dump(geojson_dict))
 
-        out_filename = "{clean_allow(name_prop)}_geocode_{uuid.uuid4().hex}.geojson"
+        out_filename = f"{clean_allow(name_prop)}_geocode_{uuid.uuid4().hex}.geojson"
         out_path = os.path.join(LOCAL_UPLOAD_DIR, out_filename)
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(geojson_dict, f)
-        out_url = "{BASE_URL}/uploads/{out_filename}"
+        out_url = f"{BASE_URL}/uploads/{out_filename}"
 
         # Copy selected properties
         properties: Dict[str, Any] = dict()
@@ -269,11 +269,11 @@ async def geoprocess(req: GeoweaverRequest):
     out_urls = []
     for result_layer in result_layers:
         out_uuid: str = uuid.uuid4().hex
-        out_filename = "{out_uuid}_geoprocess.geojson"
+        out_filename = f"{out_uuid}_geoprocess.geojson"
         out_path = os.path.join(LOCAL_UPLOAD_DIR, out_filename)
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(result_layer, f)
-        out_url = "{BASE_URL}/uploads/{out_filename}"
+        out_url = f"{BASE_URL}/uploads/{out_filename}"
         out_urls.append(out_url)
         new_geodata.append(
             GeoDataObject(

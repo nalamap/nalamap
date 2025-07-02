@@ -11,7 +11,7 @@ from services.storage.file_management import store_file
 def format_file_size(bytes_size):
     for unit in ["B", "KB", "MB", "GB"]:
         if bytes_size < 1024 or unit == "GB":
-            return "{bytes_size:.2f} {unit}" if unit != "B" else "{bytes_size} {unit}"
+            return f"{bytes_size:.2f} {unit}" if unit != "B" else f"{bytes_size} {unit}"
         bytes_size /= 1024.0
 
 
@@ -34,7 +34,7 @@ async def update_layer_style_endpoint(
     # In a real implementation, you would update the layer style in your database
     # For now, we'll just return a success message
     return {
-        "message": "Layer {layer_id} style updated successfully",
+        "message": f"Layer {layer_id} style updated successfully",
         "layer_id": layer_id,
     }
 
@@ -55,12 +55,12 @@ async def upload_file(file: UploadFile = File(...)) -> Dict[str, str]:
         if content_length > MAX_FILE_SIZE:
             raise HTTPException(
                 status_code=413,  # Request Entity Too Large
-                detail="File size ({format_file_size(content_length)}) exceeds the limit of 100MB.",
+                detail=f"File size ({format_file_size(content_length)}) exceeds the limit of 100MB.",
             )
     elif content_length > MAX_FILE_SIZE:
         raise HTTPException(
             status_code=413,  # Request Entity Too Large
-            detail="File size ({format_file_size(content_length)}) exceeds the limit of 100MB.",
+            detail=f"File size ({format_file_size(content_length)}) exceeds the limit of 100MB.",
         )
 
     # Read the file content if not already read
