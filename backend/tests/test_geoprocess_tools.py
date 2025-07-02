@@ -1,20 +1,20 @@
 # tests/test_chat_integration.py
 
+import importlib
 import os
 import json
-import pytest
 from types import SimpleNamespace
-from fastapi.testclient import TestClient
-from langchain_core.messages import HumanMessage
-import requests
-from core.config import BASE_URL, LOCAL_UPLOAD_DIR
-from services.ai import llm_config
-from main import app  # wherever your FastAPI instance lives
 
 import geopandas as gpd
+import pytest
+import requests
+from fastapi.testclient import TestClient
+from langchain_core.messages import HumanMessage
 from shapely.geometry import shape
 
-import importlib
+from core.config import BASE_URL, LOCAL_UPLOAD_DIR
+from main import app  # wherever your FastAPI instance lives
+from services.ai import llm_config
 
 # ensure LOCAL_UPLOAD_DIR exists for test
 os.makedirs(LOCAL_UPLOAD_DIR, exist_ok=True)
@@ -64,14 +64,14 @@ def stub_requests(monkeypatch):
                     return SimpleNamespace(
                         status_code=status_code, json=lambda sample=sample: sample
                     )
-            raise RuntimeError(f"No stub defined for URL: {url!r}")
+            raise RuntimeError("No stub defined for URL: {url!r}")
 
         monkeypatch.setattr(requests, "get", fake_get)
 
     return _stub
 
 
-#def test_buffer_endpoint_creates_buffered_result(client):
+# def test_buffer_endpoint_creates_buffered_result(client):
 #    # Prepare payload
 #    payload = {
 #        "messages": [

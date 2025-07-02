@@ -1,6 +1,6 @@
 import psycopg
-from psycopg_pool import AsyncConnectionPool
 from fastapi import FastAPI
+from psycopg_pool import AsyncConnectionPool
 
 from core.config import DATABASE_URL
 

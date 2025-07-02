@@ -1,9 +1,11 @@
-import geopandas as gpd
 import json
 import logging
 from typing import Any, Dict, List, Optional
 
+import geopandas as gpd
+
 logger = logging.getLogger(__name__)
+
 
 def op_sjoin_nearest(
     layers: List[Dict[str, Any]],
@@ -35,5 +37,5 @@ def op_sjoin_nearest(
         )
         return [json.loads(joined.to_json())]
     except Exception as e:
-        logger.exception(f"Error in op_sjoin_nearest: {e}")
+        logger.exception("Error in op_sjoin_nearest: {e}")
         return []

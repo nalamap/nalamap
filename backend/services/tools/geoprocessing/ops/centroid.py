@@ -1,9 +1,11 @@
-import geopandas as gpd
 import json
 import logging
 from typing import Any, Dict, List
 
+import geopandas as gpd
+
 logger = logging.getLogger(__name__)
+
 
 def op_centroid(layers: List[Dict[str, Any]], **kwargs) -> List[Dict[str, Any]]:
     """
@@ -25,5 +27,5 @@ def op_centroid(layers: List[Dict[str, Any]], **kwargs) -> List[Dict[str, Any]]:
         fc = json.loads(centroids.to_json())
         return [fc]
     except Exception as e:
-        logger.exception(f"Error in op_centroid: {e}")
+        logger.exception("Error in op_centroid: {e}")
         return []

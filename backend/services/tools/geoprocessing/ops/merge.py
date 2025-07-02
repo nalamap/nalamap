@@ -1,9 +1,11 @@
-import geopandas as gpd
-import json
 import logging
+import json
 from typing import Any, Dict, List, Optional
 
+import geopandas as gpd
+
 logger = logging.getLogger(__name__)
+
 
 def op_merge(
     layers: List[Dict[str, Any]], on: Optional[List[str]] = None, how: str = "inner"
@@ -27,5 +29,5 @@ def op_merge(
         merged.set_geometry(gdf1.geometry.name, inplace=True)
         return [json.loads(merged.to_json())]
     except Exception as e:
-        logger.exception(f"Error in op_merge: {e}")
+        logger.exception("Error in op_merge: {e}")
         return []

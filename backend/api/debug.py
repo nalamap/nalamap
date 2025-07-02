@@ -1,12 +1,16 @@
 import io
-import uuid
-from fastapi import APIRouter, HTTPException, Query
-from typing import List, Optional, Any, Dict, TextIO
 import json
+import os
+import uuid
+from typing import Any, Dict, List, Optional
 
+from fastapi import APIRouter, HTTPException
+from kml2geojson.main import convert as kml2geojson_convert
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from pydantic import BaseModel
 
-from utility.string_methods import clean_allow
+# Geo conversion
+
 from core.config import BASE_URL, LOCAL_UPLOAD_DIR
 from models.geodata import DataOrigin, DataType, GeoDataObject
 from models.messages.chat_messages import (
@@ -15,15 +19,10 @@ from models.messages.chat_messages import (
     OrchestratorRequest,
     OrchestratorResponse,
 )
+from services.agents.langgraph_agent import SearchState, executor
 from services.multi_agent_orch import multi_agent_executor
-from services.agents.langgraph_agent import executor, SearchState
 from services.tools.geocoding import geocode_using_nominatim
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
-import os
-
-# Geo conversion
-from shapely.geometry import mapping
-from kml2geojson.main import convert as kml2geojson_convert
+from utility.string_methods import clean_allow
 
 router = APIRouter()
 
@@ -36,12 +35,12 @@ async def search(req: GeoweaverRequest):
     results: List[GeoDataObject] = result_state["results"]
     # Decide which message to send based on whether we got anything back
     if numresults == 0:
-        human_msg = HumanMessage(f"Search layers for “{req.query}”")
+        human_msg = HumanMessage("Search layers for “{req.query}”")
         ai_msg = AIMessage(
             "I'm sorry, I couldn't find any datasets matching your criteria."
         )
     else:
-        human_msg = HumanMessage(f"{req.query}")
+        human_msg = HumanMessage("{req.query}")
         ai_msg = AIMessage("Here are relevant layers:")
 
     # global_geodata=req.global_geodata
@@ -102,17 +101,17 @@ async def geocode(req: GeoweaverRequest) -> Dict[str, Any]:
         if bbox and len(bbox) == 4:
             lat_min, lat_max, lon_min, lon_max = map(float, bbox)
             bounding_box = (
-                f"POLYGON(({lon_max} {lat_min},"
-                f"{lon_max} {lat_max},"
-                f"{lon_min} {lat_max},"
-                f"{lon_min} {lat_min},"
-                f"{lon_max} {lat_min}))"
+                "POLYGON(({lon_max} {lat_min},"
+                "{lon_max} {lat_max},"
+                "{lon_min} {lat_max},"
+                "{lon_min} {lat_min},"
+                "{lon_max} {lat_min}))"
             )
         else:
             bounding_box = None
 
         # Convert GeoKML to GeoJSON
-        geo_kml_string: str = f"""<?xml version="1.0" encoding="UTF-8"?>
+        geo_kml_string: str = """<?xml version="1.0" encoding="UTF-8"?>
             <kml xmlns="http://www.opengis.net/kml/2.2">
               <Document>
                 <Placemark>
@@ -125,11 +124,11 @@ async def geocode(req: GeoweaverRequest) -> Dict[str, Any]:
         geojson_dict = kml2geojson_convert(io.StringIO(geo_kml_string))
         # print(json.dump(geojson_dict))
 
-        out_filename = f"{clean_allow(name_prop)}_geocode_{uuid.uuid4().hex}.geojson"
+        out_filename = "{clean_allow(name_prop)}_geocode_{uuid.uuid4().hex}.geojson"
         out_path = os.path.join(LOCAL_UPLOAD_DIR, out_filename)
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(geojson_dict, f)
-        out_url = f"{BASE_URL}/uploads/{out_filename}"
+        out_url = "{BASE_URL}/uploads/{out_filename}"
 
         # Copy selected properties
         properties: Dict[str, Any] = dict()
@@ -224,7 +223,7 @@ async def geoprocess(req: GeoweaverRequest):
             with open(path, "r", encoding="utf-8") as f:
                 gj = json.load(f)
         except Exception as exc:
-            raise HTTPException(status_code=400, detail=f"Could not load {url}: {exc}")
+            raise HTTPException(status_code=400, detail="Could not load {url}: {exc}")
         if isinstance(gj, List):  # GeoJSON list? TODO: Verify GeoCoding
             gj = gj[0]
         if gj.get("type") == "FeatureCollection":
@@ -270,11 +269,11 @@ async def geoprocess(req: GeoweaverRequest):
     out_urls = []
     for result_layer in result_layers:
         out_uuid: str = uuid.uuid4().hex
-        out_filename = f"{out_uuid}_geoprocess.geojson"
+        out_filename = "{out_uuid}_geoprocess.geojson"
         out_path = os.path.join(LOCAL_UPLOAD_DIR, out_filename)
         with open(out_path, "w", encoding="utf-8") as f:
             json.dump(result_layer, f)
-        out_url = f"{BASE_URL}/uploads/{out_filename}"
+        out_url = "{BASE_URL}/uploads/{out_filename}"
         out_urls.append(out_url)
         new_geodata.append(
             GeoDataObject(
@@ -295,11 +294,11 @@ async def geoprocess(req: GeoweaverRequest):
             )
         )
     # output_fc = {"type": "FeatureCollection", "features": result_layers}
-    # out_filename = f"{uuid.uuid4().hex}_geoprocess.geojson"
+    # out_filename = "{uuid.uuid4().hex}_geoprocess.geojson"
     # out_path = os.path.join(LOCAL_UPLOAD_DIR, out_filename)
     # with open(out_path, "w", encoding="utf-8") as f:
     #    json.dump(output_fc, f)
-    # out_url = f"{BASE_URL}/uploads/{out_filename}"
+    # out_url = "{BASE_URL}/uploads/{out_filename}"
 
     # 5) Return the URL of the new file
     # return GeoProcessResponse(
@@ -311,8 +310,12 @@ async def geoprocess(req: GeoweaverRequest):
     # global_geodata.extend(new_geodata)
 
     # Convert to common Geodatamodel
-    response_str: str = f"Here are the processing results, used Tools: {', '.join(tools_used)}:"
-    geodataResponse: GeoweaverResponse = GeoweaverResponse(geodata_layers=req.geodata_layers)
+    response_str: str = (
+        "Here are the processing results, used Tools: {', '.join(tools_used)}:"
+    )
+    geodataResponse: GeoweaverResponse = GeoweaverResponse(
+        geodata_layers=req.geodata_layers
+    )
     geodataResponse.geodata_results = new_geodata
     # geodataResponse.global_geodata=global_geodata
     geodataResponse.messages = [*req.messages, AIMessage(response_str)]

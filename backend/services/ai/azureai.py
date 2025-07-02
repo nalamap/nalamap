@@ -1,6 +1,7 @@
 # Implementation for Azure AI
-from langchain_openai import AzureChatOpenAI
 from os import getenv
+
+from langchain_openai import AzureChatOpenAI
 
 
 def get_llm(max_tokens: int = 6000):

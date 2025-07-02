@@ -1,7 +1,9 @@
 from typing import Any, Dict, List, Literal, Optional, Set, Union
-from pydantic import BaseModel
-from models.geodata import GeoDataObject
+
 from langchain_core.messages import BaseMessage
+from pydantic import BaseModel
+
+from models.geodata import GeoDataObject
 
 # class ChatMessage(BaseModel):
 #    role: Literal["user", "assistant", "system"]
@@ -50,5 +52,7 @@ class GeoweaverResponse(BaseModel):
     messages: Optional[List[BaseMessage]] = None
     results_title: Optional[str] = None
     geodata_results: Optional[List[GeoDataObject]] = None
-    geodata_layers: Optional[List[GeoDataObject]] = None  # Uncommented for styling support
+    geodata_layers: Optional[List[GeoDataObject]] = (
+        None  # Uncommented for styling support
+    )
     global_geodata: Optional[List[GeoDataObject]] = None

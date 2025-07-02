@@ -1,9 +1,11 @@
-import geopandas as gpd
 import json
 import logging
 from typing import Any, Dict, List
 
+import geopandas as gpd
+
 logger = logging.getLogger(__name__)
+
 
 def op_sjoin(
     layers: List[Dict[str, Any]], how: str = "inner", predicate: str = "intersects"
@@ -25,5 +27,5 @@ def op_sjoin(
         joined = gpd.sjoin(left_gdf, right_gdf, how=how, predicate=predicate)
         return [json.loads(joined.to_json())]
     except Exception as e:
-        logger.exception(f"Error in op_sjoin: {e}")
+        logger.exception("Error in op_sjoin: {e}")
         return []

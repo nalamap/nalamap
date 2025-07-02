@@ -1,5 +1,6 @@
-from langchain_openai import ChatOpenAI
 from os import getenv
+
+from langchain_openai import ChatOpenAI
 
 
 def get_llm(max_tokens: int = 6000):

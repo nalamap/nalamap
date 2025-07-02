@@ -1,18 +1,23 @@
 from dataclasses import dataclass, field
-from pydantic import BaseModel, Field
 from typing import List, Optional
-from typing_extensions import Annotated
-from .geodata import GeoDataObject, mock_geodata_objects  # relativer Import angepasst
-from langgraph.graph import MessagesState, add_messages  # Passe den Importpfad ggf. an
+
 from langchain_core.messages import HumanMessage
+from langgraph.graph import MessagesState, add_messages  # Passe den Importpfad ggf. an
+from pydantic import BaseModel, Field
+from typing_extensions import Annotated
+
+from .geodata import GeoDataObject, mock_geodata_objects  # relativer Import angepasst
 
 
-def update_geodata_layers(current: List[GeoDataObject], new: List[GeoDataObject]) -> List[GeoDataObject]:
+def update_geodata_layers(
+    current: List[GeoDataObject], new: List[GeoDataObject]
+) -> List[GeoDataObject]:
     """
     Reducer function to handle updates to geodata_layers.
     This function replaces the entire layer list with the new one.
     """
     return new
+
 
 @dataclass
 class DataState(MessagesState):
@@ -20,15 +25,25 @@ class DataState(MessagesState):
 
 
 class GeoDataAgentState(MessagesState):
-    # TODO: maybe use references? 
-    results_title: Optional[str] = Field(default="", description="Title for the geodata response in 'geodata_results'" )
-    geodata_last_results: Optional[List[GeoDataObject]] = Field(default_factory=list, exclude=False, validate_default=False)
-    geodata_results: Optional[List[GeoDataObject]] = Field(default_factory=list, exclude=True, validate_default=False)
-    geodata_layers: Annotated[List[GeoDataObject], update_geodata_layers] = Field(default_factory=list, exclude=False, validate_default=False)
-    
+    # TODO: maybe use references?
+    results_title: Optional[str] = Field(
+        default="", description="Title for the geodata response in 'geodata_results'"
+    )
+    geodata_last_results: Optional[List[GeoDataObject]] = Field(
+        default_factory=list, exclude=False, validate_default=False
+    )
+    geodata_results: Optional[List[GeoDataObject]] = Field(
+        default_factory=list, exclude=True, validate_default=False
+    )
+    geodata_layers: Annotated[List[GeoDataObject], update_geodata_layers] = Field(
+        default_factory=list, exclude=False, validate_default=False
+    )
+
     # Required by create_react_agent
-    remaining_steps: Optional[int] = Field(default=10, description="Number of remaining steps for the agent")
-    
+    remaining_steps: Optional[int] = Field(
+        default=10, description="Number of remaining steps for the agent"
+    )
+
     # --- Internal-only fields (excluded from LLM prompt) ---
     # global_geodata: Optional[List[GeoDataObject]] = Field(default_factory=list, exclude=True, validate_default=False)
 

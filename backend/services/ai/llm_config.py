@@ -1,5 +1,6 @@
-from dotenv import load_dotenv
 import os
+
+from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
@@ -15,4 +16,4 @@ elif llm_provider == "anthropic":
 elif llm_provider == "deepseek":
     from .deepseek import get_llm
 else:
-    raise ValueError(f"Unsupported LLM provider: {llm_provider}")
+    raise ValueError("Unsupported LLM provider: {llm_provider}")

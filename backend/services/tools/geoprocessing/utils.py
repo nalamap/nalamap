@@ -2,16 +2,18 @@ import logging
 from typing import Any, Dict, List
 
 import geopandas as gpd
-from shapely.ops import unary_union
 from langchain_core.messages import HumanMessage
+from shapely.ops import unary_union
 
 logger = logging.getLogger(__name__)
+
 
 def get_last_human_content(messages: List[Any]) -> str:
     for msg in reversed(messages):
         if isinstance(msg, HumanMessage):
             return msg.content
     raise ValueError("No human message found in context")
+
 
 def flatten_features(layers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
@@ -24,8 +26,9 @@ def flatten_features(layers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         elif layer.get("type") == "Feature":
             feats.append(layer)
         else:
-            logger.debug(f"Skipping invalid GeoJSON layer: {layer}")
+            logger.debug("Skipping invalid GeoJSON layer: {layer}")
     return feats
+
 
 def get_layer_geoms(layers: List[Dict[str, Any]]) -> List[Any]:
     """
@@ -40,7 +43,7 @@ def get_layer_geoms(layers: List[Dict[str, Any]]) -> List[Any]:
         elif layer_type == "Feature":
             feats = [layer]
         else:
-            logger.debug(f"Skipping layer with missing or invalid type: {layer_type}")
+            logger.debug("Skipping layer with missing or invalid type: {layer_type}")
             continue
 
         if not feats:

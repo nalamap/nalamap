@@ -1,22 +1,22 @@
-import os
 import logging
-from fastapi import FastAPI, status, Request
-from fastapi.middleware.cors import CORSMiddleware
+import os
 from contextlib import asynccontextmanager
-from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
 
+from fastapi import FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+
+from api import ai_style, auto_styling, data_management, debug, geoweaver
 
 # from sqlalchemy.ext.asyncio import AsyncSession
 from core.config import LOCAL_UPLOAD_DIR
-from services.database.database import init_db, close_db
-from api import data_management, ai_style, geoweaver, debug, auto_styling
+from services.database.database import close_db, init_db
 
 # Configure logging to show info level messages for debugging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
 
@@ -52,7 +52,7 @@ app = FastAPI(
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -65,10 +65,13 @@ app.mount("/uploads", StaticFiles(directory=LOCAL_UPLOAD_DIR), name="uploads")
 
 # Include API routers
 app.include_router(debug.router, prefix="/api")
-app.include_router(geoweaver.router, prefix="/api")  # Main chat functionality with styling
+app.include_router(
+    geoweaver.router, prefix="/api"
+)  # Main chat functionality with styling
 app.include_router(data_management.router, prefix="/api")
 app.include_router(ai_style.router, prefix="/api")  # AI Style button functionality
 app.include_router(auto_styling.router, prefix="/api")  # Automatic styling for uploads
+
 
 @app.get("/")
 async def root():
@@ -80,7 +83,7 @@ async def root():
 
 @app.exception_handler(status.HTTP_400_BAD_REQUEST)
 async def validation_exception_handler(request: Request, exc):
-    exc_str = f"{exc}".replace("\n", " ").replace("   ", " ")
+    exc_str = "{exc}".replace("\n", " ").replace("   ", " ")
     logging.error(f"{request}: {exc_str}")
     content = {"status_code": 10400, "message": exc_str, "data": None}
     return JSONResponse(content=content, status_code=status.HTTP_400_BAD_REQUEST)
@@ -88,7 +91,7 @@ async def validation_exception_handler(request: Request, exc):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    exc_str = f"{exc}".replace("\n", " ").replace("   ", " ")
+    exc_str = "{exc}".replace("\n", " ").replace("   ", " ")
     logging.error(f"{request}: {exc_str}")
     content = {"status_code": 10422, "message": exc_str, "data": None}
     return JSONResponse(

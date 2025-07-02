@@ -1,14 +1,16 @@
 import json
-from typing_extensions import Annotated
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
+
+from langchain_core.messages import ToolMessage
 from langchain_core.tools import tool
+from langchain_core.tools.base import InjectedToolCallId
 from langgraph.prebuilt import InjectedState
 from langgraph.types import Command
-from langchain_core.tools.base import InjectedToolCallId
-from models.states import GeoDataAgentState, get_medium_debug_state
-from models.geodata import GeoDataIdentifier, GeoDataObject
-from langchain_core.messages import ToolMessage
 from pydantic import BaseModel, Field
+from typing_extensions import Annotated
+
+from models.geodata import GeoDataIdentifier, GeoDataObject
+from models.states import GeoDataAgentState, get_medium_debug_state
 
 """
  Utility tools to manage the GeoData State
@@ -44,7 +46,7 @@ def set_result_list(
 
     message: str
     if len(data_to_look_up) == 0:
-        message = f"Successfully added {len(result_tuples)} to the result list!"
+        message = "Successfully added {len(result_tuples)} to the result list!"
     else:
         message = f"Added {len(result_tuples)-len(data_to_look_up)} geoobjects to the result list, but the following were not found in global_geodata: {json.dumps(list(data_to_look_up))} "
 

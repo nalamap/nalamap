@@ -1,8 +1,10 @@
-import geopandas as gpd
-import json
 import logging
 
+import geopandas as gpd
+import json
+
 logger = logging.getLogger(__name__)
+
 
 def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857", radius_unit="meters"):
     """
@@ -43,7 +45,7 @@ def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857", radius_unit="meters"
                         props = first_feat.get("properties", {})
                         if props:
                             name = props.get("name") or props.get("title")
-            layer_info.append(f"Layer {i+1}" + (f": {name}" if name else ""))
+            layer_info.append("Layer {i+1}" + (": {name}" if name else ""))
 
         layer_desc = ", ".join(layer_info)
         raise ValueError(
@@ -54,7 +56,7 @@ def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857", radius_unit="meters"
     unit = radius_unit.lower()
     factor = {"meters": 1.0, "kilometers": 1000.0, "miles": 1609.34}.get(unit)
     if factor is None:
-        logger.warning(f"Unknown radius_unit '{radius_unit}', assuming meters")
+        logger.warning("Unknown radius_unit '{radius_unit}', assuming meters")
         factor = 1.0
 
     actual_radius_meters = float(radius) * factor
@@ -69,7 +71,7 @@ def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857", radius_unit="meters"
     if not current_features:
         # This case might occur if the single layer_item was an empty FeatureCollection or invalid
         print(
-            f"Warning: The provided layer item is empty or not a recognizable Feature/FeatureCollection: {type(layer_item)}"
+            "Warning: The provided layer item is empty or not a recognizable Feature/FeatureCollection: {type(layer_item)}"
         )
         return []
 
@@ -89,4 +91,4 @@ def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857", radius_unit="meters"
         fc = json.loads(gdf_buffered_individual.to_json())
         return [fc]  # Return a list containing the single FeatureCollection
     except Exception as e:
-        logger.exception(f"Error in op_buffer: {e}")
+        logger.exception("Error in op_buffer: {e}")
