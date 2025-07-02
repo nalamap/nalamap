@@ -2,8 +2,8 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 from langchain_core.messages import HumanMessage
-from langgraph.graph import MessagesState, add_messages  # Passe den Importpfad ggf. an
-from pydantic import BaseModel, Field
+from langgraph.graph import MessagesState
+from pydantic import Field
 from typing_extensions import Annotated
 
 from .geodata import GeoDataObject, mock_geodata_objects  # relativer Import angepasst

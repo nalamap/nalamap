@@ -311,7 +311,8 @@ def convert_osm_element_to_geojson_feature(
             # will decide which elements to process based on the primary query tags.
             pass  # No strict filtering here, caller handles primary feature identification
 
-    feature_id = f"{osm_type}/{osm_id}"  # GeoJSON feature ID, can be non-unique if features are from different sources in a collection
+    # GeoJSON feature ID, can be non-unique if features are from different sources in a collection
+    feature_id = f"{osm_type}/{osm_id}"
 
     geojson_feature: Dict[str, Any] = {
         "type": "Feature",
@@ -411,7 +412,8 @@ def create_collection_geodata_object(
     collection_type_name: str,  # e.g., "Points", "Areas", "Lines"
     base_query_name: str,  # e.g., "restaurants near Eiffel Tower"
     amenity_key_display: str,  # e.g., "Restaurants"
-    location_name_display: str,  # e.g., "Eiffel Tower (using area bounds)" - for user-facing title/description
+    # e.g., "Eiffel Tower (using area bounds)" - for user-facing title/description
+    location_name_display: str,
     osm_tag_kv_filter: str,  # e.g. "amenity=restaurant"
     location_name_for_filename: str,  # e.g., "Eiffel Tower" - for cleaner filenames
 ) -> Optional[GeoDataObject]:
@@ -532,8 +534,10 @@ def geocode_using_overpass_to_geostate(
     query: str,
     amenity_key: str,  # e.g. "restaurant", "park", "hospital" - to be mapped to OSM tags
     location_name: str,  # e.g. "Paris", "London", "near the Colosseum", or a country name like "Germany"
-    radius_meters: int = 10000,  # Default search radius around a point, e.g. 10km. Used if location_name resolves to a point.
-    max_results: int = 2500,  # Max results from Overpass. Default is 2500. User can specify a different limit.
+    # Default search radius around a point, e.g. 10km. Used if location_name resolves to a point.
+    radius_meters: int = 10000,
+    # Max results from Overpass. Default is 2500. User can specify a different limit.
+    max_results: int = 2500,
     timeout: int = 300,  # Default timeout in seconds
 ) -> Union[Dict[str, Any], Command]:
     """

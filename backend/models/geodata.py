@@ -1,6 +1,6 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, NamedTuple, Optional, Union
+from typing import Any, Dict, List, NamedTuple, Optional
 
 from pydantic import BaseModel
 
@@ -101,12 +101,16 @@ def mock_geodata_objects() -> List[GeoDataObject]:
             data_type=DataType.LAYER,
             data_origin=DataOrigin.TOOL,
             data_source="AQUAMAPS",
-            data_link="https://io.apps.fao.org/geoserver/wms/wms?service=WMS&request=GetMap&layers=AQUAMAPS:rivers_africa&format=image/png&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256",
+            data_link=(
+                "https://io.apps.fao.org/geoserver/wms/wms?service=WMS&request=GetMap&"
+                "layers=AQUAMAPS:rivers_africa&format=image/png&BBOX={bbox-epsg-3857}&"
+                "WIDTH=256&HEIGHT=256"
+            ),
             name="AQUAMAPS:rivers_africa",
             title="Rivers of Africa (Derived from HydroSHEDS)",
             description="""The rivers of Africa dataset is derived from the World Wildlife Fund's (WWF) HydroSHEDS drainage direction layer and a stream network layer. The source of the drainage direction layer was the 15-second Digital Elevation Model (DEM) from NASA's Shuttle Radar Topographic Mission (SRTM). The raster stream network was determined by using the HydroSHEDS flow accumulation grid, with a threshold of about 1000 km² upstream area.
 
-    The stream network dataset consists of the following information: the origin node of each arc in the network (FROM_NODE), the destination of each arc in the network (TO_NODE), the Strahler stream order of each arc in the network (STRAHLER), numerical code and name of the major basin that the arc falls within (MAJ_BAS and MAJ_NAME); - area of the major basin in square km that the arc falls within (MAJ_AREA); - numerical code and name of the sub-basin that the arc falls within (SUB_BAS and SUB_NAME); - area of the sub-basin in square km that the arc falls within (SUB_AREA); - numerical code of the sub-basin towards which the sub-basin flows that the arc falls within (TO_SUBBAS) (the codes -888 and -999 have been assigned respectively to internal sub-basins and to sub-basins draining into the sea). 
+    The stream network dataset consists of the following information: the origin node of each arc in the network (FROM_NODE), the destination of each arc in the network (TO_NODE), the Strahler stream order of each arc in the network (STRAHLER), numerical code and name of the major basin that the arc falls within (MAJ_BAS and MAJ_NAME); - area of the major basin in square km that the arc falls within (MAJ_AREA); - numerical code and name of the sub-basin that the arc falls within (SUB_BAS and SUB_NAME); - area of the sub-basin in square km that the arc falls within (SUB_AREA); - numerical code of the sub-basin towards which the sub-basin flows that the arc falls within (TO_SUBBAS) (the codes -888 and -999 have been assigned respectively to internal sub-basins and to sub-basins draining into the sea).
     The attributes table now includes a field named "Regime" with tentative classification of perennial ("P") and intermittent ("I") streams.
 
     **Supplemental Information:**
@@ -147,7 +151,7 @@ def mock_geodata_objects() -> List[GeoDataObject]:
             title="Rivers of Africa (Derived from HydroSHEDS)",
             description="""The rivers of Africa dataset is derived from the World Wildlife Fund's (WWF) HydroSHEDS drainage direction layer and a stream network layer. The source of the drainage direction layer was the 15-second Digital Elevation Model (DEM) from NASA's Shuttle Radar Topographic Mission (SRTM). The raster stream network was determined by using the HydroSHEDS flow accumulation grid, with a threshold of about 1000 km² upstream area.
 
-    The stream network dataset consists of the following information: the origin node of each arc in the network (FROM_NODE), the destination of each arc in the network (TO_NODE), the Strahler stream order of each arc in the network (STRAHLER), numerical code and name of the major basin that the arc falls within (MAJ_BAS and MAJ_NAME); - area of the major basin in square km that the arc falls within (MAJ_AREA); - numerical code and name of the sub-basin that the arc falls within (SUB_BAS and SUB_NAME); - area of the sub-basin in square km that the arc falls within (SUB_AREA); - numerical code of the sub-basin towards which the sub-basin flows that the arc falls within (TO_SUBBAS) (the codes -888 and -999 have been assigned respectively to internal sub-basins and to sub-basins draining into the sea). 
+    The stream network dataset consists of the following information: the origin node of each arc in the network (FROM_NODE), the destination of each arc in the network (TO_NODE), the Strahler stream order of each arc in the network (STRAHLER), numerical code and name of the major basin that the arc falls within (MAJ_BAS and MAJ_NAME); - area of the major basin in square km that the arc falls within (MAJ_AREA); - numerical code and name of the sub-basin that the arc falls within (SUB_BAS and SUB_NAME); - area of the sub-basin in square km that the arc falls within (SUB_AREA); - numerical code of the sub-basin towards which the sub-basin flows that the arc falls within (TO_SUBBAS) (the codes -888 and -999 have been assigned respectively to internal sub-basins and to sub-basins draining into the sea).
     The attributes table now includes a field named "Regime" with tentative classification of perennial ("P") and intermittent ("I") streams.
 
     **Supplemental Information:**

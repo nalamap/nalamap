@@ -10,7 +10,7 @@ from models.geodata import DataOrigin, DataType, GeoDataObject
 from services.ai.llm_config import get_llm
 from services.database.database import get_db
 
-## 1) System prompt now instructs the LLM to output JSON with exactly these keys.
+# 1) System prompt now instructs the LLM to output JSON with exactly these keys.
 system_msg = """
 You are GeoSearchAgent. 
 Given a free-text user query, extract and return a JSON object with:

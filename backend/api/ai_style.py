@@ -271,7 +271,8 @@ async def ai_style(request: AIChatRequest):
         # Get AI interpretation of the styling request
         llm = get_llm()
 
-        system_prompt = """You are a geospatial styling assistant. Your job is to interpret user requests for map layer styling and provide natural, conversational responses.
+        system_prompt = """You are a geospatial styling assistant. Your job is to interpret user requests for map 
+layer styling and provide natural, conversational responses.
 
 IMPORTANT INSTRUCTIONS:
 1. If the user mentions a specific layer name or keyword (like "rivers",
@@ -294,7 +295,8 @@ Available style properties:
 Examples of responses:
 - "I'll make the rivers red for you!" (when user says "make the rivers red")
 - "Making the Africa basins blue now!" (when user says "make basins blue")
-- "I see you have multiple layers. Which one would you like me to style?" (when user says "make it blue" with multiple layers)
+- "I see you have multiple layers. Which one would you like me to style?" 
+  (when user says "make it blue" with multiple layers)
 
 Current layers available:
 """
@@ -317,12 +319,7 @@ Current layers available:
         is_clarification = any(
             keyword in ai_response_text.lower()
             for keyword in [
-                "which",
-                "what",
-                "?",
-                "clarify",
-                "specify",
-                "multiple layers",
+                "which", "what", "?", "clarify", "specify", "multiple layers",
                 "available",
             ]
         )
@@ -368,7 +365,7 @@ Current layers available:
         else:
             # Multiple layers but none specified - ask for clarification
             layer_names = [layer.name for layer in request.geodata_layers]
-            clarification_message = "I see you have multiple layers available: {', '.join(layer_names)}. Which layer would you like me to style?"
+            clarification_message = f"I see you have multiple layers available: {', '.join(layer_names)}. Which layer would you like me to style?"
             logger.debug(
                 "Multiple layers without specification, asking for clarification"
             )
@@ -443,9 +440,9 @@ Current layers available:
             messages=response_messages,
         )
 
-    except Exception as e:
-        logger.error("Error in AI styling: {e}")
-        error_message = "I encountered an error while processing your styling request: {str(e)}. Please try again or use the manual styling panel."
+    except Exception:
+        logger.error("Error in AI styling")
+        error_message = "I encountered an error while processing your styling request. Please try again or use the manual styling panel."
         response_messages = [
             *request.messages,
             ChatMessage(type="human", content=request.query),

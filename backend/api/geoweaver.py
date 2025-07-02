@@ -74,9 +74,7 @@ def normalize_messages(raw: Optional[List[BaseMessage]]) -> List[BaseMessage]:
                             "type": "tool_call",
                         }
                     )
-                # ai_kwargs["tool_calls"] = normalized_tool_calls #TODO: Add back once fixed https://langchain-ai.github.io/langgraph/troubleshooting/errors/INVALID_CHAT_HISTORY/
-
-            # Finally merge in the other metadata (token_usage, model_name, etc)
+                # Finally merge in the other metadata (token_usage, model_name, etc)
             ai_kwargs.update(extra)
 
             normalized.append(AIMessage(**ai_kwargs))
@@ -140,10 +138,9 @@ async def ask_geoweaver(request: GeoweaverRequest):
 
 
 @router.post("/chat2", tags=["geoweaver"], response_model=GeoweaverResponse)
-async def ask_geoweaver(request: GeoweaverRequest):
-    """
-    Ask a question to the GeoWeaver Orchestrator, which uses tools to respond and analyse geospatial information.
-    """
+async def ask_geoweaver_orchestrator(request: GeoweaverRequest):
+    """Ask a question to the GeoWeaver Orchestrator, which uses tools to respond
+    and analyse geospatial information."""
     messages: List[BaseMessage] = normalize_messages(request.messages)
     messages.append(HumanMessage(request.query))
 
@@ -164,10 +161,9 @@ async def ask_geoweaver(request: GeoweaverRequest):
 
 
 @router.post("/chat", tags=["geoweaver"], response_model=GeoweaverResponse)
-async def ask_geoweaver(request: GeoweaverRequest):
-    """
-    Ask a question to the GeoWeaver Single Agent, which uses tools to respond and analyse geospatial information.
-    """
+async def ask_geoweaver_agent(request: GeoweaverRequest):
+    """Ask a question to the GeoWeaver Single Agent, which uses tools to respond
+    and analyse geospatial information."""
     print("befor normalize:", request.messages)
     messages: List[BaseMessage] = normalize_messages(request.messages)
     messages.append(
@@ -203,9 +199,13 @@ async def ask_geoweaver(request: GeoweaverRequest):
                 )
             ]
 
-    except openai.InternalServerError as e:
-        print("OpenAI Internal Server Error: {e}")
-        error_message = "I encountered an issue with the AI model while processing your request (Internal Server Error: {e.response.status_code if e.response else 'N/A'}). This might be a temporary problem. Please try again in a few moments. If the problem persists, simplifying your query might help."
+    except openai.InternalServerError:
+        print("OpenAI Internal Server Error")
+        error_message = (
+            "I encountered an issue with the AI model while processing your request. "
+            "This might be a temporary problem. Please try again in a few moments. "
+            "If the problem persists, simplifying your query might help."
+        )
         result_messages = [
             *messages,
             AIMessage(content=error_message),
@@ -215,18 +215,23 @@ async def ask_geoweaver(request: GeoweaverRequest):
         geodata_layers = state.get("geodata_layers", [])  # Preserve existing layers
         # global_geodata = state.get('global_geodata', [])
 
-    except openai.APIError as e:
-        print("OpenAI API Error: {e}")
-        error_message = "I encountered an API error while trying to process your request (Status: {e.response.status_code if e.response else 'N/A'}). Please check your query or try again later. Details: {str(e)}"
+    except openai.APIError:
+        print("OpenAI API Error")
+        error_message = (
+            "I encountered an API error while trying to process your request. "
+            "Please check your query or try again later."
+        )
         result_messages = [*messages, AIMessage(content=error_message)]
         results_title = "API Error"
         geodata_results = []
         geodata_layers = state.get("geodata_layers", [])
         # global_geodata = state.get('global_geodata', [])
 
-    except Exception as e:  # Catch any other unexpected errors during agent execution
-        print("Unexpected error during agent execution: {e}")
-        error_message = "An unexpected error occurred while processing your request: {str(e)}. Please try again."
+    except Exception:  # Catch any other unexpected errors during agent execution
+        print("Unexpected error during agent execution")
+        error_message = (
+            "An unexpected error occurred while processing your request. Please try again."
+        )
         result_messages = [*messages, AIMessage(content=error_message)]
         results_title = "Unexpected Error"
         geodata_results = []

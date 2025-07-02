@@ -56,9 +56,8 @@ async def search(req: GeoweaverRequest):
 
 @router.post("/api/geocode", tags=["debug"], response_model=GeoweaverResponse)
 async def geocode(req: GeoweaverRequest) -> Dict[str, Any]:
-    """
-    Geocode the given request using the OpenStreetMap API. Returns and geokml some additional information.
-    """
+    """Geocode the given request using the OpenStreetMap API. 
+    Returns and geokml some additional information."""
     # futue input: request: GeoweaverRequest
     response: str = "Geocoding results:"
     messages: List[BaseMessage] = [
@@ -88,13 +87,10 @@ async def geocode(req: GeoweaverRequest) -> Dict[str, Any]:
     # Nominatim returns a list of places
     for props in data:
         place_id = str(props.get("place_id"))
-        osm_type = props.get("osm_type")
         display_name = props.get("display_name")
         name_prop = props.get("name")
-        typ = props.get("type")
         importance = props.get("importance")
         bbox = props.get("boundingbox")  # [lat_min, lat_max, lon_min, lon_max]
-        raw_geo = props.get("geokml")
 
         # turn bbox into WKT POLYGON string
         bounding_box: Optional[str]
@@ -118,7 +114,7 @@ async def geocode(req: GeoweaverRequest) -> Dict[str, Any]:
                   ${raw_geo}
                 </Placemark>
               </Document>
-            </kml>        
+            </kml>
             """
 
         geojson_dict = kml2geojson_convert(io.StringIO(geo_kml_string))
@@ -222,8 +218,8 @@ async def geoprocess(req: GeoweaverRequest):
         try:
             with open(path, "r", encoding="utf-8") as f:
                 gj = json.load(f)
-        except Exception as exc:
-            raise HTTPException(status_code=400, detail="Could not load {url}: {exc}")
+        except Exception:
+            raise HTTPException(status_code=400, detail=f"Could not load {url}")
         if isinstance(gj, List):  # GeoJSON list? TODO: Verify GeoCoding
             gj = gj[0]
         if gj.get("type") == "FeatureCollection":

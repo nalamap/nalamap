@@ -42,8 +42,8 @@ async def auto_style_layers(request: AutoStyleRequest):
                 # Create GeoDataObject from the layer dict
                 layer = GeoDataObject(**layer_dict)
                 geodata_layers.append(layer)
-            except Exception as e:
-                logger.warning("Could not convert layer to GeoDataObject: {e}")
+            except Exception:
+                logger.warning("Could not convert layer to GeoDataObject")
                 continue
 
         if not geodata_layers:
@@ -80,10 +80,9 @@ async def auto_style_layers(request: AutoStyleRequest):
             )
 
         # Create a message that triggers automatic styling
-        layer_names = [layer.name for layer in layers_needing_styling]
         styling_prompt = (
-            "I've detected {len(layers_needing_styling)} newly uploaded layer(s) that need automatic styling: "
-            "{', '.join(layer_names)}. Please check for layers needing styling using check_and_auto_style_layers, "
+            f"I've detected {len(layers_needing_styling)} newly uploaded layer(s) that need automatic styling. "
+            "Please check for layers needing styling using check_and_auto_style_layers, "
             "then analyze the layer names using auto_style_new_layers, and finally apply intelligent "
             "AI-powered styling to these layers using style_map_layers with appropriate cartographic colors."
         )
@@ -121,10 +120,10 @@ async def auto_style_layers(request: AutoStyleRequest):
             styled_layers=styled_layer_dicts,
         )
 
-    except Exception as e:
-        logger.error("Error in auto_style_layers: {str(e)}")
+    except Exception:
+        logger.error("Error in auto_style_layers")
         return AutoStyleResponse(
             success=False,
-            message="Error applying automatic styling: {str(e)}",
+            message="Error applying automatic styling",
             styled_layers=request.layers,  # Return original layers on error
         )

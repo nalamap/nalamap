@@ -154,7 +154,7 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
                         start_line = i
                         break
                 # Get content starting from the line after the first ``` line
-                cleaned_content = "\n".join(lines[start_line + 1 :])
+                cleaned_content = "\n".join(lines[start_line + 1:])
                 # Remove the last ``` and anything after it
                 if "```" in cleaned_content:
                     cleaned_content = cleaned_content.split("```")[0]

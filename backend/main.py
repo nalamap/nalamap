@@ -27,7 +27,8 @@ tags_metadata = [
     },
     {
         "name": "geoweaver",
-        "description": "Geoweaver API endpoints can be used to interact with the Geoweaver answer geospatial questions.",
+        "description": "Geoweaver API endpoints can be used to interact with the "
+        "Geoweaver answer geospatial questions.",
     },
 ]
 
@@ -65,12 +66,10 @@ app.mount("/uploads", StaticFiles(directory=LOCAL_UPLOAD_DIR), name="uploads")
 
 # Include API routers
 app.include_router(debug.router, prefix="/api")
-app.include_router(
-    geoweaver.router, prefix="/api"
-)  # Main chat functionality with styling
+app.include_router(geoweaver.router, prefix="/api")  # Main chat functionality
 app.include_router(data_management.router, prefix="/api")
 app.include_router(ai_style.router, prefix="/api")  # AI Style button functionality
-app.include_router(auto_styling.router, prefix="/api")  # Automatic styling for uploads
+app.include_router(auto_styling.router, prefix="/api")  # Automatic styling
 
 
 @app.get("/")
@@ -82,7 +81,7 @@ async def root():
 
 
 @app.exception_handler(status.HTTP_400_BAD_REQUEST)
-async def validation_exception_handler(request: Request, exc):
+async def validation_exception_handler_400(request: Request, exc):
     exc_str = f"{exc}".replace("\n", " ").replace("   ", " ")
     logging.error(f"{request}: {exc_str}")
     content = {"status_code": 10400, "message": exc_str, "data": None}
@@ -90,7 +89,7 @@ async def validation_exception_handler(request: Request, exc):
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
+async def validation_exception_handler_422(request: Request, exc: RequestValidationError):
     exc_str = f"{exc}".replace("\n", " ").replace("   ", " ")
     logging.error(f"{request}: {exc_str}")
     content = {"status_code": 10422, "message": exc_str, "data": None}
