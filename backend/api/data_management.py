@@ -11,7 +11,11 @@ from services.storage.file_management import store_file
 def format_file_size(bytes_size):
     for unit in ["B", "KB", "MB", "GB"]:
         if bytes_size < 1024 or unit == "GB":
-            return f"{bytes_size:.2f} {unit}" if unit != "B" else f"{bytes_size} {unit}"
+            return (
+                f"{bytes_size:.2f} {unit}"
+                if unit != "B"
+                else f"{bytes_size} {unit}"
+            )
         bytes_size /= 1024.0
 
 
@@ -25,7 +29,9 @@ router = APIRouter()
 
 # Layer styling endpoint
 @router.put("/layers/{layer_id}/style")
-async def update_layer_style_endpoint(layer_id: str, style_data: Dict[str, Any]) -> Dict[str, str]:
+async def update_layer_style_endpoint(
+    layer_id: str, style_data: Dict[str, Any]
+) -> Dict[str, str]:
     """
     Update the styling of a specific layer.
     """

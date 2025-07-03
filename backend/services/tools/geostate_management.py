@@ -53,7 +53,11 @@ def set_result_list(
         update={
             "messages": [
                 *state["messages"],
-                ToolMessage(name="set_result_list", content=message, tool_call_id=tool_call_id),
+                ToolMessage(
+                    name="set_result_list",
+                    content=message,
+                    tool_call_id=tool_call_id,
+                ),
             ],
             "geodata_results": result_list,
         }
@@ -79,7 +83,9 @@ def list_global_geodata(
 
 @tool
 def describe_geodata_object(
-    state: Annotated[GeoDataAgentState, InjectedState], id: str, data_source_id: str
+    state: Annotated[GeoDataAgentState, InjectedState],
+    id: str,
+    data_source_id: str,
 ) -> List[Dict[str, str]]:
     """
     Describes a GeoData Object with the given id and data_source_id returning its description and additional properties
@@ -136,7 +142,10 @@ def metadata_search(
                 score += 8
             if dataset.description and term in dataset.description.lower():
                 score += 3
-            if dataset.llm_description and term in dataset.llm_description.lower():
+            if (
+                dataset.llm_description
+                and term in dataset.llm_description.lower()
+            ):
                 score += 3
             if dataset.data_source and term in dataset.data_source.lower():
                 score += 2
@@ -154,7 +163,9 @@ def metadata_search(
                 search_results.append((dataset, score, "layer"))
 
         # Then search in last results if needed
-        if len(search_results) < 2:  # Only look in last_results if we don't have good matches yet
+        if (
+            len(search_results) < 2
+        ):  # Only look in last_results if we don't have good matches yet
             for dataset in last_results:
                 score = get_relevance_score(dataset)
                 if score > 0:
@@ -212,7 +223,9 @@ def metadata_search(
         metadata = {k: v for k, v in metadata.items() if v is not None}
         response_parts.append(metadata)
 
-    response_message = f"Found {len(best_matches)} dataset(s) matching '{query}':\n\n"
+    response_message = (
+        f"Found {len(best_matches)} dataset(s) matching '{query}':\n\n"
+    )
     response_message += json.dumps(response_parts, indent=2)
 
     return Command(

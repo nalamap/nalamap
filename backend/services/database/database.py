@@ -10,7 +10,9 @@ async def init_db():
     """Initialize the async database pool."""
     global db_pool
     if db_pool is None:  # Ensure we only initialize once
-        db_pool = AsyncConnectionPool(conninfo=DATABASE_URL, min_size=1, max_size=10)
+        db_pool = AsyncConnectionPool(
+            conninfo=DATABASE_URL, min_size=1, max_size=10
+        )
         await db_pool.open()  # Ensure the pool is open
 
 

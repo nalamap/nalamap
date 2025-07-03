@@ -59,7 +59,8 @@ def stub_requests(monkeypatch):
             for key, sample in mapping.items():
                 if key in url:
                     return SimpleNamespace(
-                        status_code=status_code, json=lambda sample=sample: sample
+                        status_code=status_code,
+                        json=lambda sample=sample: sample,
                     )
             raise RuntimeError("No stub defined for URL: {url!r}")
 
@@ -310,7 +311,9 @@ def test_chat_buffer_line_expected_result(client, stub_requests):
     print(expected_series)
     # 5a) using almost_equals with decimal precision:
     #    returns a boolean Series; assert all True
-    assert actual_series.geom_equals_exact(expected_series, tolerance=0.0015).all()
+    assert actual_series.geom_equals_exact(
+        expected_series, tolerance=0.0015
+    ).all()
 
 
 def test_chat_overlay_intersection_expected_area(client, stub_requests):
@@ -318,12 +321,16 @@ def test_chat_overlay_intersection_expected_area(client, stub_requests):
     with open(pathaoi) as f:
         aoi = json.load(f)
 
-    pathgreenland = os.path.join(os.path.dirname(__file__), "testdata", "greenland.json")
+    pathgreenland = os.path.join(
+        os.path.dirname(__file__), "testdata", "greenland.json"
+    )
     with open(pathgreenland) as f:
         greenland = json.load(f)
 
     path_inter_greenland = os.path.join(
-        os.path.dirname(__file__), "testdata", "intersection_greenland_aoi.json"
+        os.path.dirname(__file__),
+        "testdata",
+        "intersection_greenland_aoi.json",
     )
     with open(path_inter_greenland) as f:
         intersection = json.load(f)
@@ -416,4 +423,6 @@ def test_chat_overlay_intersection_expected_area(client, stub_requests):
     expected_series = gpd.GeoSeries([expected], crs="EPSG:4326")
     # 5a) using almost_equals with decimal precision:
     #    returns a boolean Series; assert all True
-    assert actual_series.geom_equals_exact(expected_series, tolerance=100).all()
+    assert actual_series.geom_equals_exact(
+        expected_series, tolerance=100
+    ).all()

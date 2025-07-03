@@ -56,9 +56,13 @@ def choose_agent(messages) -> str:
 async def supervisor_node(
     state: DataState,
 ) -> Command[Literal["geo_helper", "librarien", "finish"]]:
-    user_messages = [m for m in state["messages"] if isinstance(m, HumanMessage)]
+    user_messages = [
+        m for m in state["messages"] if isinstance(m, HumanMessage)
+    ]
     user_text = user_messages[-1].content.lower() if user_messages else ""
-    messages = [SystemMessage(LLM_PROMPT.format(query=user_text))] + user_messages[-1:]
+    messages = [
+        SystemMessage(LLM_PROMPT.format(query=user_text))
+    ] + user_messages[-1:]
     response = await llm.ainvoke(messages)
     raw = response.content.strip()
     try:
@@ -67,4 +71,7 @@ async def supervisor_node(
     except json.JSONDecodeError:
         nxt = raw.lower()
     goto = END if nxt == "finish" else nxt
-    return Command(goto=goto, update={"messages": state["messages"], "geodata": state["geodata"]})
+    return Command(
+        goto=goto,
+        update={"messages": state["messages"], "geodata": state["geodata"]},
+    )

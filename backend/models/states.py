@@ -6,7 +6,10 @@ from langgraph.graph import MessagesState
 from pydantic import Field
 from typing_extensions import Annotated
 
-from .geodata import GeoDataObject, mock_geodata_objects  # relativer Import angepasst
+from .geodata import (
+    GeoDataObject,
+    mock_geodata_objects,
+)  # relativer Import angepasst
 
 
 def update_geodata_layers(
@@ -27,7 +30,8 @@ class DataState(MessagesState):
 class GeoDataAgentState(MessagesState):
     # TODO: maybe use references?
     results_title: Optional[str] = Field(
-        default="", description="Title for the geodata response in 'geodata_results'"
+        default="",
+        description="Title for the geodata response in 'geodata_results'",
     )
     geodata_last_results: Optional[List[GeoDataObject]] = Field(
         default_factory=list, exclude=False, validate_default=False
@@ -35,8 +39,8 @@ class GeoDataAgentState(MessagesState):
     geodata_results: Optional[List[GeoDataObject]] = Field(
         default_factory=list, exclude=True, validate_default=False
     )
-    geodata_layers: Annotated[List[GeoDataObject], update_geodata_layers] = Field(
-        default_factory=list, exclude=False, validate_default=False
+    geodata_layers: Annotated[List[GeoDataObject], update_geodata_layers] = (
+        Field(default_factory=list, exclude=False, validate_default=False)
     )
 
     # Required by create_react_agent
@@ -66,7 +70,9 @@ def get_minimal_debug_state(tool_call: bool = False) -> GeoDataAgentState:
 
 def get_medium_debug_state(tool_call: bool = False) -> GeoDataAgentState:
     initial_geo_state: GeoDataAgentState = GeoDataAgentState()
-    initial_geo_state["messages"] = [HumanMessage("Show layers for rivers in egypt")]
+    initial_geo_state["messages"] = [
+        HumanMessage("Show layers for rivers in egypt")
+    ]
     # initial_geo_state["global_geodata"] = mock_geodata_objects()[0:2]
     initial_geo_state["geodata_last_results"] = mock_geodata_objects()[0:2]
     initial_geo_state["geodata_results"] = []

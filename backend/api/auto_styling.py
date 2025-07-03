@@ -32,7 +32,9 @@ async def auto_style_layers(request: AutoStyleRequest):
     try:
         if not request.layers:
             return AutoStyleResponse(
-                success=True, message="No layers provided for styling", styled_layers=[]
+                success=True,
+                message="No layers provided for styling",
+                styled_layers=[],
             )
 
         # Convert dict layers to GeoDataObject instances
@@ -114,7 +116,8 @@ async def auto_style_layers(request: AutoStyleRequest):
                 styled_layer_dicts.append(layer.__dict__)
 
         logger.info(
-            f"Successfully applied automatic styling to " f"{len(layers_needing_styling)} layers"
+            f"Successfully applied automatic styling to "
+            f"{len(layers_needing_styling)} layers"
         )
 
         return AutoStyleResponse(

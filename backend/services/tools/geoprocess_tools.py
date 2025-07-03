@@ -123,7 +123,10 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
     # Use LangChain chat generate methods since AzureChatOpenAI doesn't have .chat()
     from langchain.schema import SystemMessage
 
-    messages = [SystemMessage(content=system_msg), HumanMessage(content=user_msg)]
+    messages = [
+        SystemMessage(content=system_msg),
+        HumanMessage(content=user_msg),
+    ]
     # agenerate expects a list of message lists for batching
     response = llm.generate([messages])
     # extract text from first generation
@@ -133,7 +136,10 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
         # Strip markdown code blocks if present
         cleaned_content = content
         # Check for markdown code block format: ```json ... ```
-        if cleaned_content.strip().startswith("```") and "```" in cleaned_content.strip()[3:]:
+        if (
+            cleaned_content.strip().startswith("```")
+            and "```" in cleaned_content.strip()[3:]
+        ):
             # Extract content between first ``` and last ```
             first_delimiter = cleaned_content.find("```")
             last_delimiter = cleaned_content.rfind("```")
@@ -154,7 +160,7 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
         # Try to parse the cleaned content
         plan = json.loads(cleaned_content)
     except json.JSONDecodeError:
-        raise ValueError("Failed to parse LLM response as JSON: {content}")
+        raise ValueError(f"Failed to parse LLM response as JSON: {content}")
 
     steps = plan.get("steps", [])
 
@@ -213,7 +219,9 @@ def geoprocess_tool(
         selected = [layer for layer in layers if layer.id in target_layer_ids]
         missing = set(target_layer_ids) - {layer.id for layer in selected}
         if missing:
-            all_available = [{"id": layer.id, "title": layer.title} for layer in layers]
+            all_available = [
+                {"id": layer.id, "title": layer.title} for layer in layers
+            ]
             return Command(
                 update={
                     "messages": [
@@ -309,7 +317,9 @@ def geoprocess_tool(
                 try:
                     resp = requests.get(url, timeout=20)
                     if resp.status_code != 200:
-                        raise IOError(f"HTTP {resp.status_code} when fetching {url}")
+                        raise IOError(
+                            f"HTTP {resp.status_code} when fetching {url}"
+                        )
                     gj = resp.json()
                 except Exception as exc:
                     return {

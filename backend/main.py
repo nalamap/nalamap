@@ -16,7 +16,8 @@ from services.database.database import close_db, init_db
 
 # Configure logging to show info level messages for debugging
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
 
@@ -24,7 +25,8 @@ tags_metadata = [
     {
         "name": "debug",
         "description": (
-            "The debug methods are used for directly interacting with the " "models and tools"
+            "The debug methods are used for directly interacting with the "
+            "models and tools"
         ),
     },
     {
@@ -70,7 +72,9 @@ app.mount("/uploads", StaticFiles(directory=LOCAL_UPLOAD_DIR), name="uploads")
 app.include_router(debug.router, prefix="/api")
 app.include_router(geoweaver.router, prefix="/api")  # Main chat functionality
 app.include_router(data_management.router, prefix="/api")
-app.include_router(ai_style.router, prefix="/api")  # AI Style button functionality
+app.include_router(
+    ai_style.router, prefix="/api"
+)  # AI Style button functionality
 app.include_router(auto_styling.router, prefix="/api")  # Automatic styling
 
 
@@ -87,22 +91,30 @@ async def validation_exception_handler_400(request: Request, exc):
     exc_str = f"{exc}".replace("\n", " ").replace("   ", " ")
     logging.error(f"{request}: {exc_str}")
     content = {"status_code": 10400, "message": exc_str, "data": None}
-    return JSONResponse(content=content, status_code=status.HTTP_400_BAD_REQUEST)
+    return JSONResponse(
+        content=content, status_code=status.HTTP_400_BAD_REQUEST
+    )
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler_422(request: Request, exc: RequestValidationError):
+async def validation_exception_handler_422(
+    request: Request, exc: RequestValidationError
+):
     exc_str = f"{exc}".replace("\n", " ").replace("   ", " ")
     logging.error(f"{request}: {exc_str}")
     content = {"status_code": 10422, "message": exc_str, "data": None}
-    return JSONResponse(content=content, status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
+    return JSONResponse(
+        content=content, status_code=status.HTTP_422_UNPROCESSABLE_ENTITY
+    )
 
 
 @app.exception_handler(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE)
 async def request_entity_too_large_handler(request: Request, exc):
     return JSONResponse(
         status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-        content={"detail": "File size exceeds the 100MB limit. Please upload a smaller file."},
+        content={
+            "detail": "File size exceeds the 100MB limit. Please upload a smaller file."
+        },
     )
 
 

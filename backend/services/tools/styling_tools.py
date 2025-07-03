@@ -106,9 +106,7 @@ def style_map_layers(
     available_layers = state.get("geodata_layers", [])
 
     if not available_layers:
-        message = (
-            "No layers are currently available to style. Please add some layers to the map first."
-        )
+        message = "No layers are currently available to style. Please add some layers to the map first."
         return Command(
             update={
                 "messages": [
@@ -126,7 +124,9 @@ def style_map_layers(
     layers_to_style = []
 
     # Log available layers for debugging
-    logger.info(f"Available layers: {[layer.name for layer in available_layers]}")
+    logger.info(
+        f"Available layers: {[layer.name for layer in available_layers]}"
+    )
     logger.info(f"Requested layer_names: {layer_names}")
 
     # Smart single-layer detection
@@ -134,15 +134,20 @@ def style_map_layers(
         # Only one layer available and no specific layer names provided
         # Automatically apply styling to the single layer
         layers_to_style = available_layers
-        logger.info("Single layer auto-detection: styling the only available layer")
+        logger.info(
+            "Single layer auto-detection: styling the only available layer"
+        )
     elif layer_names:
         # Use explicitly specified layer names
         for layer_name in layer_names:
-            matching_layers = [layer for layer in available_layers if layer.name == layer_name]
+            matching_layers = [
+                layer for layer in available_layers if layer.name == layer_name
+            ]
             if matching_layers:
                 layers_to_style.extend(matching_layers)
                 logger.info(
-                    "Found matching layer for '{layer_name}': {[l.name for l in matching_layers]}"
+                    f"Found matching layer for '{layer_name}': "
+                    f"{[layer.name for layer in matching_layers]}"
                 )
             else:
                 logger.warning(f"No matching layer found for '{layer_name}'")
@@ -181,7 +186,9 @@ def style_map_layers(
         if stroke_color is not None:
             style_params["stroke_color"] = normalize_color(stroke_color)
         if stroke_width is not None:
-            style_params["stroke_weight"] = stroke_width  # Note: stroke_weight in the model
+            style_params["stroke_weight"] = (
+                stroke_width  # Note: stroke_weight in the model
+            )
         if fill_opacity is not None:
             style_params["fill_opacity"] = fill_opacity
         if stroke_opacity is not None:
@@ -192,7 +199,9 @@ def style_map_layers(
             style_params["stroke_dash_array"] = dash_pattern
 
         # Log the styling parameters being applied
-        logger.info(f"Applying styling to layer '{layer.name}': {style_params}")
+        logger.info(
+            f"Applying styling to layer '{layer.name}': {style_params}"
+        )
 
         # Initialize with defaults if no style exists
         if not layer_dict.get("style"):
@@ -211,7 +220,9 @@ def style_map_layers(
         layer_dict["style"].update(style_params)
 
         # Log the final style after update
-        logger.info(f"Final style for layer '{layer.name}': {layer_dict['style']}")
+        logger.info(
+            f"Final style for layer '{layer.name}': {layer_dict['style']}"
+        )
 
         # Create new GeoDataObject
         updated_layer = GeoDataObject(**layer_dict)
@@ -220,7 +231,9 @@ def style_map_layers(
     # Update the state with styled layers
     updated_layers = []
     for layer in available_layers:
-        styled_layer = next((sl for sl in styled_layers if sl.id == layer.id), None)
+        styled_layer = next(
+            (sl for sl in styled_layers if sl.id == layer.id), None
+        )
         if styled_layer:
             updated_layers.append(styled_layer)
         else:
@@ -229,7 +242,7 @@ def style_map_layers(
     # Return success message and update state
     styled_layer_names = [layer.name for layer in layers_to_style]
     if len(styled_layer_names) == 1:
-        message = "Successfully applied styling to layer '{styled_layer_names[0]}'. The changes should be visible on the map."
+        message = f"Successfully applied styling to layer '{styled_layer_names[0]}'. The changes should be visible on the map."
     else:
         message = f"Successfully applied styling to {len(styled_layer_names)} layers: {', '.join(styled_layer_names)}. The changes should be visible on the map."
 
@@ -237,7 +250,11 @@ def style_map_layers(
         update={
             "messages": [
                 *state["messages"],
-                ToolMessage(name="style_map_layers", content=message, tool_call_id=tool_call_id),
+                ToolMessage(
+                    name="style_map_layers",
+                    content=message,
+                    tool_call_id=tool_call_id,
+                ),
             ],
             "geodata_layers": updated_layers,
         }
@@ -285,7 +302,9 @@ def auto_style_new_layers(
     if layer_names:
         # Style specific layers
         for layer_name in layer_names:
-            matching_layers = [layer for layer in available_layers if layer.name == layer_name]
+            matching_layers = [
+                layer for layer in available_layers if layer.name == layer_name
+            ]
             layers_to_style.extend(matching_layers)
     else:
         # Style all layers that have default styling or no styling
@@ -319,11 +338,11 @@ def auto_style_new_layers(
     layer_summaries = []
 
     for layer in layers_to_style:
-        summary = "'{layer.name}'"
+        summary = f"'{layer.name}'"
         if layer.description:
-            summary += " (description: {layer.description[:100]}...)"
+            summary += f" (description: {layer.description[:100]}...)"
         elif layer.title:
-            summary += " (title: {layer.title})"
+            summary += f" (title: {layer.title})"
         layer_summaries.append(summary)
 
     layers_summary = "; ".join(layer_summaries)

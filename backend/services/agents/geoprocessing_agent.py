@@ -126,7 +126,9 @@ def op_clip(layers, **kwargs):
         else [layers[1]]
     )
     subj_gdf = gpd.GeoDataFrame.from_features(subj_feats)
-    mask_geom = unary_union(gpd.GeoDataFrame.from_features(mask_feats).geometry)
+    mask_geom = unary_union(
+        gpd.GeoDataFrame.from_features(mask_feats).geometry
+    )
     subj_gdf["geometry"] = subj_gdf.geometry.intersection(mask_geom)
     fc = json.loads(subj_gdf.to_json())
     return [fc]
@@ -213,7 +215,10 @@ async def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
     # have .chat()
     from langchain.schema import HumanMessage, SystemMessage
 
-    messages = [SystemMessage(content=system_msg), HumanMessage(content=user_msg)]
+    messages = [
+        SystemMessage(content=system_msg),
+        HumanMessage(content=user_msg),
+    ]
     # agenerate expects a list of message lists for batching
     response = await llm.agenerate([messages])
     # extract text from first generation
@@ -222,7 +227,7 @@ async def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
     try:
         plan = json.loads(content)
     except json.JSONDecodeError:
-        raise ValueError("Failed to parse LLM response as JSON: {content}")
+        raise ValueError(f"Failed to parse LLM response as JSON: {content}")
 
     steps = plan.get("steps", [])
 

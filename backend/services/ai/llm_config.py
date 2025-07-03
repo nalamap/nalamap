@@ -16,4 +16,4 @@ elif llm_provider == "anthropic":
 elif llm_provider == "deepseek":
     from .deepseek import get_llm  # noqa: F401
 else:
-    raise ValueError("Unsupported LLM provider: {llm_provider}")
+    raise ValueError(f"Unsupported LLM provider: {llm_provider}")

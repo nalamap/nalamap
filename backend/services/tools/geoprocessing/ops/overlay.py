@@ -10,7 +10,9 @@ logger = logging.getLogger(__name__)
 
 
 def op_overlay(
-    layers: List[Dict[str, Any]], how: str = "intersection", crs: str = "EPSG:3857"
+    layers: List[Dict[str, Any]],
+    how: str = "intersection",
+    crs: str = "EPSG:3857",
 ) -> List[Dict[str, Any]]:
     """
     Perform a set-based overlay across N layers. Supports 'intersection', 'union',

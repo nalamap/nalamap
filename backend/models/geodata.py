@@ -36,11 +36,15 @@ class LayerStyle:
     # Fill properties for polygons and circles
     fill_color: Optional[str] = "#3388f"
     fill_opacity: Optional[float] = 0.3
-    fill_pattern: Optional[str] = None  # For pattern fills (future enhancement)
+    fill_pattern: Optional[str] = (
+        None  # For pattern fills (future enhancement)
+    )
 
     # Point/marker specific properties
     radius: Optional[float] = 8
-    marker_symbol: Optional[str] = None  # For custom markers (future enhancement)
+    marker_symbol: Optional[str] = (
+        None  # For custom markers (future enhancement)
+    )
 
     # Line-specific properties
     line_cap: Optional[str] = "round"  # "round", "square", "butt"
@@ -58,7 +62,9 @@ class LayerStyle:
     animation_type: Optional[str] = None  # "pulse", "spin", "bounce", etc.
 
     # Conditional styling (future enhancement)
-    style_conditions: Optional[Dict[str, Any]] = None  # For data-driven styling
+    style_conditions: Optional[Dict[str, Any]] = (
+        None  # For data-driven styling
+    )
 
 
 class GeoDataObject(BaseModel):
