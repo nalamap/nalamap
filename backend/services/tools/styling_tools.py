@@ -337,8 +337,8 @@ def auto_style_new_layers(
     layers_summary = "; ".join(layer_summaries)
 
     message = (
-        "Automatically detected {len(layers_to_style)} layer(s) that need intelligent styling: {layers_summary}.\n\n"
-        f"I will now analyze each layer name using AI to determine the most appropriate cartographic styling and apply the colors automatically..."
+        f"Automatically detected {len(layers_to_style)} layer(s) that need intelligent styling: {layers_summary}.\n\n"
+        "I will now analyze each layer name using AI to determine the most appropriate cartographic styling and apply the colors automatically..."
     )
 
     return Command(
@@ -409,8 +409,8 @@ def check_and_auto_style_layers(
     # Trigger auto-styling workflow
     layer_names = [layer.name for layer in layers_needing_style]
     message = (
-        "Detected {len(layers_needing_style)} newly uploaded layer(s) that need styling: {', '.join(layer_names)}. "
-        f"Automatically applying intelligent cartographic styling based on layer names..."
+        f"Detected {len(layers_needing_style)} newly uploaded layer(s) that need styling: {', '.join(layer_names)}. "
+        "Automatically applying intelligent cartographic styling based on layer names..."
     )
 
     return Command(

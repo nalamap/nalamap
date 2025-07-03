@@ -56,7 +56,7 @@ async def search(req: GeoweaverRequest):
 
 @router.post("/api/geocode", tags=["debug"], response_model=GeoweaverResponse)
 async def geocode(req: GeoweaverRequest) -> Dict[str, Any]:
-    """Geocode the given request using the OpenStreetMap API. 
+    """Geocode the given request using the OpenStreetMap API.
     Returns and geokml some additional information."""
     # futue input: request: GeoweaverRequest
     response: str = "Geocoding results:"

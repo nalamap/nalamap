@@ -271,7 +271,7 @@ async def ai_style(request: AIChatRequest):
         # Get AI interpretation of the styling request
         llm = get_llm()
 
-        system_prompt = """You are a geospatial styling assistant. Your job is to interpret user requests for map 
+        system_prompt = """You are a geospatial styling assistant. Your job is to interpret user requests for map
 layer styling and provide natural, conversational responses.
 
 IMPORTANT INSTRUCTIONS:
@@ -295,7 +295,7 @@ Available style properties:
 Examples of responses:
 - "I'll make the rivers red for you!" (when user says "make the rivers red")
 - "Making the Africa basins blue now!" (when user says "make basins blue")
-- "I see you have multiple layers. Which one would you like me to style?" 
+- "I see you have multiple layers. Which one would you like me to style?"
   (when user says "make it blue" with multiple layers)
 
 Current layers available:
@@ -319,7 +319,12 @@ Current layers available:
         is_clarification = any(
             keyword in ai_response_text.lower()
             for keyword in [
-                "which", "what", "?", "clarify", "specify", "multiple layers",
+                "which",
+                "what",
+                "?",
+                "clarify",
+                "specify",
+                "multiple layers",
                 "available",
             ]
         )

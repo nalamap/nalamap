@@ -126,7 +126,7 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
     user_msg = json.dumps(user_payload)
 
     # Use LangChain chat generate methods since AzureChatOpenAI doesn't have .chat()
-    from langchain.schema import HumanMessage, SystemMessage
+    from langchain.schema import SystemMessage
 
     messages = [SystemMessage(content=system_msg), HumanMessage(content=user_msg)]
     # agenerate expects a list of message lists for batching
@@ -154,7 +154,7 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
                         start_line = i
                         break
                 # Get content starting from the line after the first ``` line
-                cleaned_content = "\n".join(lines[start_line + 1:])
+                cleaned_content = "\n".join(lines[start_line + 1 :])
                 # Remove the last ``` and anything after it
                 if "```" in cleaned_content:
                     cleaned_content = cleaned_content.split("```")[0]
@@ -219,9 +219,9 @@ def geoprocess_tool(
     # Select layers by ID or default to first
     if target_layer_ids:
         selected = [layer for layer in layers if layer.id in target_layer_ids]
-        missing = set(target_layer_ids) - {l.id for l in selected}
+        missing = set(target_layer_ids) - {layer.id for layer in selected}
         if missing:
-            available = [{"id": l.id, "title": l.title} for l in layers]
+            available = [{"id": layer.id, "title": layer.title} for layer in layers]
             return Command(
                 update={
                     "messages": [

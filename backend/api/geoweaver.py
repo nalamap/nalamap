@@ -229,9 +229,7 @@ async def ask_geoweaver_agent(request: GeoweaverRequest):
 
     except Exception:  # Catch any other unexpected errors during agent execution
         print("Unexpected error during agent execution")
-        error_message = (
-            "An unexpected error occurred while processing your request. Please try again."
-        )
+        error_message = "An unexpected error occurred while processing your request. Please try again."
         result_messages = [*messages, AIMessage(content=error_message)]
         results_title = "Unexpected Error"
         geodata_results = []

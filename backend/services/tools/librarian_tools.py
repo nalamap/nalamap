@@ -173,5 +173,5 @@ if __name__ == "__main__":
         )
         print(initial_state)
         asyncio.run(close_db())
-    except:
+    except Exception:
         asyncio.run(close_db())

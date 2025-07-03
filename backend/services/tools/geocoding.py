@@ -85,7 +85,7 @@ def create_geodata_object_from_geojson(
     nominatim_response: Dict[str, Any],
 ) -> Optional[GeoDataObject]:
     """Saves the GeoJson response, saves it in storage and create a GeoDataObject from it"""
-    if not "geojson" in nominatim_response:
+    if "geojson" not in nominatim_response:
         return None
     place_id: str = str(nominatim_response["place_id"])
     name: str = nominatim_response["name"]

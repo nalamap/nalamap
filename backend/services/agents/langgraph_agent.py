@@ -12,7 +12,7 @@ from services.database.database import get_db
 
 # 1) System prompt now instructs the LLM to output JSON with exactly these keys.
 system_msg = """
-You are GeoSearchAgent. 
+You are GeoSearchAgent.
 Given a free-text user query, extract and return a JSON object with:
   - searchquery: the text to send to the database
   - portal_filter: portal name (strings) or null
