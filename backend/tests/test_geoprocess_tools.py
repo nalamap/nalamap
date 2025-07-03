@@ -59,7 +59,8 @@ def stub_requests(monkeypatch):
             for key, sample in mapping.items():
                 if key in url:
                     return SimpleNamespace(
-                        status_code=status_code, json=lambda sample=sample: sample
+                        status_code=status_code,
+                        json=lambda sample=sample: sample,
                     )
             raise RuntimeError("No stub defined for URL: {url!r}")
 
@@ -323,7 +324,9 @@ def test_chat_overlay_intersection_expected_area(client, stub_requests):
         greenland = json.load(f)
 
     path_inter_greenland = os.path.join(
-        os.path.dirname(__file__), "testdata", "intersection_greenland_aoi.json"
+        os.path.dirname(__file__),
+        "testdata",
+        "intersection_greenland_aoi.json",
     )
     with open(path_inter_greenland) as f:
         intersection = json.load(f)

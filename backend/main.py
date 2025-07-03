@@ -16,7 +16,8 @@ from services.database.database import close_db, init_db
 
 # Configure logging to show info level messages for debugging
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
 

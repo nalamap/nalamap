@@ -67,4 +67,7 @@ async def supervisor_node(
     except json.JSONDecodeError:
         nxt = raw.lower()
     goto = END if nxt == "finish" else nxt
-    return Command(goto=goto, update={"messages": state["messages"], "geodata": state["geodata"]})
+    return Command(
+        goto=goto,
+        update={"messages": state["messages"], "geodata": state["geodata"]},
+    )

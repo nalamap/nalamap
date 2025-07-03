@@ -49,7 +49,10 @@ def test_op_centroid_empty_and_centroid_point():
             {
                 "type": "Feature",
                 "properties": {},
-                "geometry": {"type": "LineString", "coordinates": [[0, 0], [2, 0]]},
+                "geometry": {
+                    "type": "LineString",
+                    "coordinates": [[0, 0], [2, 0]],
+                },
             }
         ],
     }

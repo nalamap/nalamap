@@ -6,7 +6,10 @@ from langgraph.graph import MessagesState
 from pydantic import Field
 from typing_extensions import Annotated
 
-from .geodata import GeoDataObject, mock_geodata_objects  # relativer Import angepasst
+from .geodata import (
+    GeoDataObject,
+    mock_geodata_objects,
+)  # relativer Import angepasst
 
 
 def update_geodata_layers(
@@ -27,7 +30,8 @@ class DataState(MessagesState):
 class GeoDataAgentState(MessagesState):
     # TODO: maybe use references?
     results_title: Optional[str] = Field(
-        default="", description="Title for the geodata response in 'geodata_results'"
+        default="",
+        description="Title for the geodata response in 'geodata_results'",
     )
     geodata_last_results: Optional[List[GeoDataObject]] = Field(
         default_factory=list, exclude=False, validate_default=False

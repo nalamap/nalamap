@@ -404,13 +404,13 @@ def detect_layer_type(layer_name: str, layer_description: str = None) -> str:
     if layer_description:
         text_to_analyze += " " + layer_description.lower()
 
-    logger.debug("Analyzing text for layer type: '{text_to_analyze}'")
+    logger.debug(f"Analyzing text for layer type: '{text_to_analyze}'")
 
     # Check keywords in order of specificity
     for feature_type, keywords in FEATURE_KEYWORDS.items():
         for keyword in keywords:
             if re.search(r"\b" + re.escape(keyword) + r"\b", text_to_analyze):
-                logger.debug("Detected layer type '{feature_type}' from keyword '{keyword}'")
+                logger.debug(f"Detected layer type '{feature_type}' from keyword '{keyword}'")
                 return feature_type
 
     logger.debug("No specific layer type detected, using default")
@@ -489,11 +489,13 @@ def generate_automatic_style(
         line_join="round",
     )
 
-    logger.info("Generated automatic style for layer '{layer_name}' (type: {layer_type}): {style}")
+    logger.info(f"Generated automatic style for layer '{layer_name}' (type: {layer_type}): {style}")
     return style
 
 
-def apply_automatic_styling_to_layer(layer_dict: Dict[str, Any]) -> Dict[str, Any]:
+def apply_automatic_styling_to_layer(
+    layer_dict: Dict[str, Any],
+) -> Dict[str, Any]:
     """
     Apply automatic styling to a layer dictionary.
 
@@ -536,5 +538,5 @@ def apply_automatic_styling_to_layer(layer_dict: Dict[str, Any]) -> Dict[str, An
     # Apply the styling to the layer
     layer_dict["style"] = style_dict
 
-    logger.info("Applied automatic styling to layer '{layer_name}'")
+    logger.info(f"Applied automatic styling to layer '{layer_name}'")
     return layer_dict

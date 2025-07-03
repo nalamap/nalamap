@@ -53,7 +53,11 @@ def set_result_list(
         update={
             "messages": [
                 *state["messages"],
-                ToolMessage(name="set_result_list", content=message, tool_call_id=tool_call_id),
+                ToolMessage(
+                    name="set_result_list",
+                    content=message,
+                    tool_call_id=tool_call_id,
+                ),
             ],
             "geodata_results": result_list,
         }
@@ -79,7 +83,9 @@ def list_global_geodata(
 
 @tool
 def describe_geodata_object(
-    state: Annotated[GeoDataAgentState, InjectedState], id: str, data_source_id: str
+    state: Annotated[GeoDataAgentState, InjectedState],
+    id: str,
+    data_source_id: str,
 ) -> List[Dict[str, str]]:
     """
     Describes a GeoData Object with the given id and data_source_id returning its description and additional properties

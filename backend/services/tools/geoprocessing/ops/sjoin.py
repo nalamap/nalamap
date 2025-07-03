@@ -8,7 +8,9 @@ logger = logging.getLogger(__name__)
 
 
 def op_sjoin(
-    layers: List[Dict[str, Any]], how: str = "inner", predicate: str = "intersects"
+    layers: List[Dict[str, Any]],
+    how: str = "inner",
+    predicate: str = "intersects",
 ) -> List[Dict[str, Any]]:
     """
     Perform a spatial join between two layers.

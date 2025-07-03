@@ -25,7 +25,16 @@ def normalize_messages(raw: Optional[List[BaseMessage]]) -> List[BaseMessage]:
     normalized: List[BaseMessage] = []
     for idx, m in enumerate(raw):
         # 1) Already a subclass?
-        if isinstance(m, (HumanMessage, AIMessage, SystemMessage, ToolMessage, FunctionMessage)):
+        if isinstance(
+            m,
+            (
+                HumanMessage,
+                AIMessage,
+                SystemMessage,
+                ToolMessage,
+                FunctionMessage,
+            ),
+        ):
             normalized.append(m)
             continue
 
@@ -153,7 +162,9 @@ async def ask_geoweaver_orchestrator(request: GeoweaverRequest):
     result_response: str = result_messages[-1].content
     result_geodata: List[GeoDataObject] = executor_result["geodata"]
     response: GeoweaverResponse = GeoweaverResponse(
-        messages=result_messages, response=result_response, geodata=result_geodata
+        messages=result_messages,
+        response=result_response,
+        geodata=result_geodata,
     )
     return response
 
@@ -224,7 +235,7 @@ async def ask_geoweaver_agent(request: GeoweaverRequest):
     except Exception:  # Catch any other unexpected errors during agent execution
         print("Unexpected error during agent execution")
         error_message = (
-            "An unexpected error occurred while processing your request. Please try again."
+            "An unexpected error occurred while processing your request. " "Please try again."
         )
         result_messages = [*messages, AIMessage(content=error_message)]
         results_title = "Unexpected Error"
@@ -241,9 +252,11 @@ async def ask_geoweaver_agent(request: GeoweaverRequest):
     ):
         results_title = "Agent results:"
 
-    # Ensure result_messages always has at least one message for response construction
+    # Ensure result_messages always has at least one message for response
+    # construction
     if not result_messages:
-        # This case should ideally be handled by the agent or error blocks, but as a final fallback:
+        # This case should ideally be handled by the agent or error blocks,
+        # but as a final fallback:
         result_messages = [AIMessage(content="No response content generated.")]
 
     response: GeoweaverResponse = GeoweaverResponse(

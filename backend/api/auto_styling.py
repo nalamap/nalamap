@@ -32,7 +32,9 @@ async def auto_style_layers(request: AutoStyleRequest):
     try:
         if not request.layers:
             return AutoStyleResponse(
-                success=True, message="No layers provided for styling", styled_layers=[]
+                success=True,
+                message="No layers provided for styling",
+                styled_layers=[],
             )
 
         # Convert dict layers to GeoDataObject instances

@@ -39,7 +39,10 @@ class SearchState(BaseModel):
 # 3) Node #1: parse the user's raw_query via LLM into our structured fields.
 async def parse_llm(state: SearchState) -> SearchState:
     user_msg = state.raw_query
-    messages = [SystemMessage(content=system_msg), HumanMessage(content=user_msg)]
+    messages = [
+        SystemMessage(content=system_msg),
+        HumanMessage(content=user_msg),
+    ]
     # agenerate expects a list of message‐lists for batching:
     response = await llm.agenerate([messages])
     # pull out the text from the first generation:

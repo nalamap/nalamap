@@ -213,7 +213,10 @@ async def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
     # have .chat()
     from langchain.schema import HumanMessage, SystemMessage
 
-    messages = [SystemMessage(content=system_msg), HumanMessage(content=user_msg)]
+    messages = [
+        SystemMessage(content=system_msg),
+        HumanMessage(content=user_msg),
+    ]
     # agenerate expects a list of message lists for batching
     response = await llm.agenerate([messages])
     # extract text from first generation
@@ -222,7 +225,7 @@ async def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
     try:
         plan = json.loads(content)
     except json.JSONDecodeError:
-        raise ValueError("Failed to parse LLM response as JSON: {content}")
+        raise ValueError(f"Failed to parse LLM response as JSON: {content}")
 
     steps = plan.get("steps", [])
 
