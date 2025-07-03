@@ -254,7 +254,10 @@ async def ask_geoweaver_agent(request: GeoweaverRequest):
         Exception
     ):  # Catch any other unexpected errors during agent execution
         print("Unexpected error during agent execution")
-        error_message = "An unexpected error occurred while processing your request. Please try again."
+        error_message = (
+            "An unexpected error occurred while processing your request. "
+            "Please try again."
+        )
         result_messages = [*messages, AIMessage(content=error_message)]
         results_title = "Unexpected Error"
         geodata_results = []
@@ -270,9 +273,11 @@ async def ask_geoweaver_agent(request: GeoweaverRequest):
     ):
         results_title = "Agent results:"
 
-    # Ensure result_messages always has at least one message for response construction
+    # Ensure result_messages always has at least one message for response
+    # construction
     if not result_messages:
-        # This case should ideally be handled by the agent or error blocks, but as a final fallback:
+        # This case should ideally be handled by the agent or error blocks,
+        # but as a final fallback:
         result_messages = [AIMessage(content="No response content generated.")]
 
     response: GeoweaverResponse = GeoweaverResponse(
