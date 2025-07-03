@@ -444,7 +444,7 @@ export default function LayerManagement() {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".geojson,.kml,.json,.zip"
+            accept=".geojson"
             onChange={handleFileUpload}
             className="hidden"
             disabled={isUploading}
@@ -482,9 +482,9 @@ export default function LayerManagement() {
             </div>
           ) : (
             <>
-              <p className="text-sm text-gray-500">Drag & drop or click to upload files</p>
+              <p className="text-sm text-gray-500">Drag & drop or click to upload GeoJSON files</p>
               <p className="text-xs text-gray-400 mt-1">Supports multiple files • Max size: {MAX_FILE_SIZE_FORMATTED}</p>
-              <p className="text-xs text-gray-400">Formats: .geojson, .kml, .json, .zip</p>
+              <p className="text-xs text-gray-400">Format: .geojson only</p>
             </>
           )}
         </div>

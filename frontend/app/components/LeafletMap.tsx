@@ -331,20 +331,25 @@ function LeafletGeoJSONLayer({
   const handleGeoJsonRef = (layer: L.GeoJSON) => {
     if (!layer) return;
     geojsonRef = layer;
-    map.fitBounds(layer.getBounds());
+    // Only zoom to bounds for new layers, not styling updates
+    // We can detect this by checking if the layer already exists in the store
+    const existingLayer = useLayerStore.getState().layers.find(l => l.data_link === url);
+    if (!existingLayer || !existingLayer.style) {
+      map.fitBounds(layer.getBounds());
+    }
   };
 
   const pointToLayer = (feature: any, latlng: L.LatLng) => {
-    // Use custom radius if provided in style
-    const radius = layerStyle?.radius || 8;
+    // Use custom radius if provided in style, default to 4 (half of previous 8)
+    const radius = layerStyle?.radius || 4;
     return L.circleMarker(latlng, {
       radius: radius,
       // Apply style properties for circle markers
       color: layerStyle?.stroke_color || "#3388ff",
       weight: layerStyle?.stroke_weight || 2,
-      opacity: layerStyle?.stroke_opacity || 1.0,
+      opacity: layerStyle?.stroke_opacity || 0.85, // Changed from 1.0 to 0.85 (85% opacity)
       fillColor: layerStyle?.fill_color || "#3388ff",
-      fillOpacity: layerStyle?.fill_opacity || 0.3,
+      fillOpacity: layerStyle?.fill_opacity || 0.15, // Changed from 0.3 to 0.15 for less transparency
       dashArray: layerStyle?.stroke_dash_array || undefined,
       dashOffset: layerStyle?.stroke_dash_offset?.toString() || undefined,
       // Apply advanced line properties
@@ -358,9 +363,9 @@ function LeafletGeoJSONLayer({
     const baseStyle = {
       color: layerStyle?.stroke_color || "#3388ff",
       weight: layerStyle?.stroke_weight || 2,
-      opacity: layerStyle?.stroke_opacity || 1.0,
+      opacity: layerStyle?.stroke_opacity || 0.85, // Changed from 1.0 to 0.85
       fillColor: layerStyle?.fill_color || "#3388ff",
-      fillOpacity: layerStyle?.fill_opacity || 0.3,
+      fillOpacity: layerStyle?.fill_opacity || 0.15, // Changed from 0.3 to 0.15
       dashArray: layerStyle?.stroke_dash_array || undefined,
       dashOffset: layerStyle?.stroke_dash_offset?.toString() || undefined,
       // Apply advanced line properties

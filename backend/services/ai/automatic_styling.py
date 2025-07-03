@@ -144,8 +144,9 @@ FEATURE_STYLES = {
         "stroke_color": "#3388f",  # Default blue
         "fill_color": "#3388f",
         "stroke_weight": 2,
-        "fill_opacity": 0.3,
-        "stroke_opacity": 1.0,
+        "fill_opacity": 0.15,  # Changed from 0.3 to 0.15 for less transparency
+        "stroke_opacity": 0.85,  # Changed from 1.0 to 0.85 (85% opacity)
+        "radius": 4,  # Added default radius of 4 (half size)
     },
 }
 
@@ -453,15 +454,18 @@ def generate_automatic_style(
 
         # For point geometries
         elif geometry_type in ["point", "multipoint"]:
-            base_style["radius"] = 8
-            base_style["fill_opacity"] = max(base_style.get("fill_opacity", 0.3), 0.6)
+            base_style["radius"] = 4  # Changed from 8 to 4 (half size)
+            base_style["fill_opacity"] = max(
+                base_style.get("fill_opacity", 0.15), 0.4
+            )  # Adjusted base opacity
+            base_style["stroke_opacity"] = 0.85  # Set default stroke opacity to 85%
 
             # Buildings and urban features need smaller points
             if layer_type in ["building", "urban"]:
-                base_style["radius"] = 6
+                base_style["radius"] = 3  # Changed from 6 to 3
             # Infrastructure and energy need larger, more visible points
             elif layer_type in ["infrastructure", "energy", "power"]:
-                base_style["radius"] = 10
+                base_style["radius"] = 6  # Changed from 10 to 6
 
         # For polygon geometries
         elif geometry_type in ["polygon", "multipolygon"]:

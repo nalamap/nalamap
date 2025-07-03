@@ -74,7 +74,9 @@ def geocode_using_nominatim(query: str, geojson: bool = False, maxRows: int = 3)
     """Geocoding user requests using the Open Street Map Nominatim API."""
     # TODO: Add support for OSM tags.
     url: str = (
-        "https://nominatim.openstreetmap.org/search?q={query}&format=json&polygon_kml={1 if geojson else 0}&addressdetails=1&limit={maxRows}"
+        f"https://nominatim.openstreetmap.org/search"
+        f"?q={query}&format=json&polygon_kml={1 if geojson else 0}"
+        f"&addressdetails=1&limit={maxRows}"
     )
     response = requests.get(url, headers=headers_geoweaver)
     if response.status_code == 200:
@@ -177,7 +179,9 @@ def geocode_using_nominatim_to_geostate(
     * does not support broader geographical queries like finding nearby places, hierarchical relationships beyond administrative divisions
     """
     url: str = (
-        "https://nominatim.openstreetmap.org/search?q={query}&format=json&polygon_geojson={1 if geojson else 0}&addressdetails=0&limit={maxRows}"
+        f"https://nominatim.openstreetmap.org/search"
+        f"?q={query}&format=json&polygon_geojson={1 if geojson else 0}"
+        f"&addressdetails=0&limit={maxRows}"
     )
     response = requests.get(url, headers=headers_geoweaver)
     if response.status_code == 200:

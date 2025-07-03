@@ -59,7 +59,7 @@ async def geocode(req: GeoweaverRequest) -> Dict[str, Any]:
     # futue input: request: GeoweaverRequest
     response: str = "Geocoding results:"
     messages: List[BaseMessage] = [
-        *req.messages,
+        *(req.messages or []),
         HumanMessage(f"Geocode {req.query}!"),
         AIMessage(response),
     ]

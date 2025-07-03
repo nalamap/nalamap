@@ -199,10 +199,10 @@ def style_map_layers(
             layer_dict["style"] = {
                 "stroke_color": "#3388f",
                 "stroke_weight": 2,
-                "stroke_opacity": 1.0,
+                "stroke_opacity": 0.85,  # Changed from 1.0 to 0.85 (85% opacity)
                 "fill_color": "#3388f",
-                "fill_opacity": 0.3,
-                "radius": 8,
+                "fill_opacity": 0.15,  # Changed from 0.3 to 0.15 for less transparency
+                "radius": 4,  # Changed from 8 to 4 (half size)
                 "line_cap": "round",
                 "line_join": "round",
             }
