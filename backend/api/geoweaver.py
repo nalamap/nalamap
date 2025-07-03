@@ -41,9 +41,7 @@ def normalize_messages(raw: Optional[List[BaseMessage]]) -> List[BaseMessage]:
         t = getattr(m, "type", "").lower()
         content = getattr(m, "content", None)
         if content is None:
-            raise HTTPException(
-                400, detail="message[{idx}].content is missing"
-            )
+            raise HTTPException(400, detail="message[{idx}].content is missing")
 
         # Grab raw additional_kwargs so we can pull out tool_calls/refusal
         raw_additional = getattr(m, "additional_kwargs", {}) or {}
@@ -114,9 +112,7 @@ def normalize_messages(raw: Optional[List[BaseMessage]]) -> List[BaseMessage]:
             )
 
         else:
-            raise HTTPException(
-                400, detail="message[{idx}].type '{t}' not recognized"
-            )
+            raise HTTPException(400, detail="message[{idx}].type '{t}' not recognized")
 
     return normalized
 
@@ -124,9 +120,7 @@ def normalize_messages(raw: Optional[List[BaseMessage]]) -> List[BaseMessage]:
 router = APIRouter()
 
 
-@router.post(
-    "/api/chatmock", tags=["geoweaver"], response_model=GeoweaverResponse
-)
+@router.post("/api/chatmock", tags=["geoweaver"], response_model=GeoweaverResponse)
 async def ask_geoweaver(request: GeoweaverRequest):
     """
     Ask a question to the GeoWeaver, which
@@ -197,27 +191,17 @@ async def ask_geoweaver_agent(request: GeoweaverRequest):
     # state.global_geodata=request.global_geodata,
 
     try:
-        executor_result: GeoDataAgentState = single_agent.invoke(
-            state, debug=True
-        )
+        executor_result: GeoDataAgentState = single_agent.invoke(state, debug=True)
 
-        result_messages: List[BaseMessage] = executor_result.get(
-            "messages", []
-        )
+        result_messages: List[BaseMessage] = executor_result.get("messages", [])
         results_title: Optional[str] = executor_result.get("results_title", "")
-        geodata_results: List[GeoDataObject] = executor_result.get(
-            "geodata_results", []
-        )
-        geodata_layers: List[GeoDataObject] = executor_result.get(
-            "geodata_layers", []
-        )
+        geodata_results: List[GeoDataObject] = executor_result.get("geodata_results", [])
+        geodata_layers: List[GeoDataObject] = executor_result.get("geodata_layers", [])
         # global_geodata: List[GeoDataObject] = executor_result.get('global_geodata', [])
 
         if not result_messages:  # Should always have messages, but safeguard
             result_messages = [
-                AIMessage(
-                    content="Agent processed the request but returned no explicit messages."
-                )
+                AIMessage(content="Agent processed the request but returned no explicit messages.")
             ]
 
     except openai.InternalServerError:
@@ -233,9 +217,7 @@ async def ask_geoweaver_agent(request: GeoweaverRequest):
         ]  # Include history
         results_title = "Model Error"
         geodata_results = []
-        geodata_layers = state.get(
-            "geodata_layers", []
-        )  # Preserve existing layers
+        geodata_layers = state.get("geodata_layers", [])  # Preserve existing layers
         # global_geodata = state.get('global_geodata', [])
 
     except openai.APIError:
@@ -250,13 +232,10 @@ async def ask_geoweaver_agent(request: GeoweaverRequest):
         geodata_layers = state.get("geodata_layers", [])
         # global_geodata = state.get('global_geodata', [])
 
-    except (
-        Exception
-    ):  # Catch any other unexpected errors during agent execution
+    except Exception:  # Catch any other unexpected errors during agent execution
         print("Unexpected error during agent execution")
         error_message = (
-            "An unexpected error occurred while processing your request. "
-            "Please try again."
+            "An unexpected error occurred while processing your request. " "Please try again."
         )
         result_messages = [*messages, AIMessage(content=error_message)]
         results_title = "Unexpected Error"

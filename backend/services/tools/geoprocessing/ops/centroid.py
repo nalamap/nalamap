@@ -7,9 +7,7 @@ import geopandas as gpd
 logger = logging.getLogger(__name__)
 
 
-def op_centroid(
-    layers: List[Dict[str, Any]], **kwargs
-) -> List[Dict[str, Any]]:
+def op_centroid(layers: List[Dict[str, Any]], **kwargs) -> List[Dict[str, Any]]:
     """
     Compute the centroid of each feature in the first FeatureCollection and
     return a new FeatureCollection of Point features.

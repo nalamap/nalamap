@@ -4,9 +4,7 @@ import sys
 from models.geodata import GeoDataObject, LayerStyle
 from services.tools.styling_tools import normalize_color
 
-sys.path.insert(
-    0, os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-)
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
 def test_normalize_color_valid_and_invalid():
@@ -29,9 +27,7 @@ def test_layer_style_defaults_and_custom():
     assert style.stroke_weight == 2
     assert style.fill_opacity == 0.3
     # Custom style
-    custom = LayerStyle(
-        stroke_color="#ff0000", fill_color="#00ff00", radius=10
-    )
+    custom = LayerStyle(stroke_color="#ff0000", fill_color="#00ff00", radius=10)
     assert custom.stroke_color == "#ff0000"
     assert custom.fill_color == "#00ff00"
     assert custom.radius == 10
@@ -55,9 +51,7 @@ def test_geodata_object_creation_and_styling():
 
 
 # Helper function
-def create_test_layer(
-    name: str, has_default_style: bool = True
-) -> GeoDataObject:
+def create_test_layer(name: str, has_default_style: bool = True) -> GeoDataObject:
     """Create a test layer for styling tests."""
     layer = GeoDataObject(
         id=f"test-{name}",

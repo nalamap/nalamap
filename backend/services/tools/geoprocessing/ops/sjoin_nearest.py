@@ -23,12 +23,8 @@ def op_sjoin_nearest(
     if len(layers) < 2:
         return layers
     try:
-        left_gdf = gpd.GeoDataFrame.from_features(
-            layers[0].get("features", [])
-        )
-        right_gdf = gpd.GeoDataFrame.from_features(
-            layers[1].get("features", [])
-        )
+        left_gdf = gpd.GeoDataFrame.from_features(layers[0].get("features", []))
+        right_gdf = gpd.GeoDataFrame.from_features(layers[1].get("features", []))
         left_gdf.set_crs("EPSG:4326", inplace=True)
         right_gdf.set_crs("EPSG:4326", inplace=True)
 

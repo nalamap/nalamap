@@ -410,9 +410,7 @@ def detect_layer_type(layer_name: str, layer_description: str = None) -> str:
     for feature_type, keywords in FEATURE_KEYWORDS.items():
         for keyword in keywords:
             if re.search(r"\b" + re.escape(keyword) + r"\b", text_to_analyze):
-                logger.debug(
-                    f"Detected layer type '{feature_type}' from keyword '{keyword}'"
-                )
+                logger.debug(f"Detected layer type '{feature_type}' from keyword '{keyword}'")
                 return feature_type
 
     logger.debug("No specific layer type detected, using default")
@@ -437,9 +435,7 @@ def generate_automatic_style(
     layer_type = detect_layer_type(layer_name, layer_description)
 
     # Get base style for the detected type
-    base_style = FEATURE_STYLES.get(
-        layer_type, FEATURE_STYLES["default"]
-    ).copy()
+    base_style = FEATURE_STYLES.get(layer_type, FEATURE_STYLES["default"]).copy()
 
     # Adjust styling based on geometry type
     if geometry_type:
@@ -451,14 +447,10 @@ def generate_automatic_style(
 
             # Roads and transportation need thicker lines
             if layer_type in ["road", "transport"]:
-                base_style["stroke_weight"] = max(
-                    base_style.get("stroke_weight", 2), 4
-                )
+                base_style["stroke_weight"] = max(base_style.get("stroke_weight", 2), 4)
             # Rivers need medium thickness
             elif layer_type in ["river", "water"]:
-                base_style["stroke_weight"] = max(
-                    base_style.get("stroke_weight", 2), 3
-                )
+                base_style["stroke_weight"] = max(base_style.get("stroke_weight", 2), 3)
 
         # For point geometries
         elif geometry_type in ["point", "multipoint"]:
@@ -466,9 +458,7 @@ def generate_automatic_style(
             base_style["fill_opacity"] = max(
                 base_style.get("fill_opacity", 0.15), 0.4
             )  # Adjusted base opacity
-            base_style["stroke_opacity"] = (
-                0.85  # Set default stroke opacity to 85%
-            )
+            base_style["stroke_opacity"] = 0.85  # Set default stroke opacity to 85%
 
             # Buildings and urban features need smaller points
             if layer_type in ["building", "urban"]:
@@ -481,14 +471,10 @@ def generate_automatic_style(
         elif geometry_type in ["polygon", "multipolygon"]:
             # Administrative boundaries need low fill opacity
             if layer_type in ["boundary", "administrative"]:
-                base_style["fill_opacity"] = min(
-                    base_style.get("fill_opacity", 0.3), 0.2
-                )
+                base_style["fill_opacity"] = min(base_style.get("fill_opacity", 0.3), 0.2)
             # Water bodies need higher fill opacity
             elif layer_type in ["water", "lake", "ocean"]:
-                base_style["fill_opacity"] = max(
-                    base_style.get("fill_opacity", 0.3), 0.6
-                )
+                base_style["fill_opacity"] = max(base_style.get("fill_opacity", 0.3), 0.6)
 
     # Create LayerStyle object
     style = LayerStyle(
@@ -503,9 +489,7 @@ def generate_automatic_style(
         line_join="round",
     )
 
-    logger.info(
-        f"Generated automatic style for layer '{layer_name}' (type: {layer_type}): {style}"
-    )
+    logger.info(f"Generated automatic style for layer '{layer_name}' (type: {layer_type}): {style}")
     return style
 
 
@@ -523,9 +507,7 @@ def apply_automatic_styling_to_layer(
     """
     # Extract layer information
     layer_name = layer_dict.get("name", "")
-    layer_description = layer_dict.get("description") or layer_dict.get(
-        "title", ""
-    )
+    layer_description = layer_dict.get("description") or layer_dict.get("title", "")
 
     # Try to detect geometry type from data_link if it's a GeoJSON
     geometry_type = None
@@ -535,9 +517,7 @@ def apply_automatic_styling_to_layer(
         pass
 
     # Generate automatic styling
-    auto_style = generate_automatic_style(
-        layer_name, layer_description, geometry_type
-    )
+    auto_style = generate_automatic_style(layer_name, layer_description, geometry_type)
 
     # Convert LayerStyle to dictionary
     style_dict = {

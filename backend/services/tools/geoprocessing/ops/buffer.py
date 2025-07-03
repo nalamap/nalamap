@@ -6,9 +6,7 @@ import json
 logger = logging.getLogger(__name__)
 
 
-def op_buffer(
-    layers, radius=10000, buffer_crs="EPSG:3857", radius_unit="meters"
-):
+def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857", radius_unit="meters"):
     """
     Buffers features of a single input layer item individually.
     If multiple layers are provided, this function will raise a ValueError.
@@ -37,14 +35,8 @@ def op_buffer(
                 if props:
                     name = props.get("name") or props.get("title")
                 # Also try to get name from features if it's a FeatureCollection
-                if (
-                    not name
-                    and layer.get("type") == "FeatureCollection"
-                    and layer.get("features")
-                ):
-                    first_feat = (
-                        layer["features"][0] if layer["features"] else None
-                    )
+                if not name and layer.get("type") == "FeatureCollection" and layer.get("features"):
+                    first_feat = layer["features"][0] if layer["features"] else None
                     if first_feat and isinstance(first_feat, dict):
                         props = first_feat.get("properties", {})
                         if props:
@@ -84,9 +76,7 @@ def op_buffer(
         gdf.set_crs("EPSG:4326", inplace=True)
 
         gdf_reprojected = gdf.to_crs(buffer_crs)
-        gdf_reprojected["geometry"] = gdf_reprojected.geometry.buffer(
-            actual_radius_meters
-        )
+        gdf_reprojected["geometry"] = gdf_reprojected.geometry.buffer(actual_radius_meters)
         gdf_buffered_individual = gdf_reprojected.to_crs("EPSG:4326")
 
         if gdf_buffered_individual.empty:

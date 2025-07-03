@@ -126,9 +126,7 @@ def op_clip(layers, **kwargs):
         else [layers[1]]
     )
     subj_gdf = gpd.GeoDataFrame.from_features(subj_feats)
-    mask_geom = unary_union(
-        gpd.GeoDataFrame.from_features(mask_feats).geometry
-    )
+    mask_geom = unary_union(gpd.GeoDataFrame.from_features(mask_feats).geometry)
     subj_gdf["geometry"] = subj_gdf.geometry.intersection(mask_geom)
     fc = json.loads(subj_gdf.to_json())
     return [fc]

@@ -42,9 +42,7 @@ def get_layer_geoms(layers: List[Dict[str, Any]]) -> List[Any]:
         elif layer_type == "Feature":
             feats = [layer]
         else:
-            logger.debug(
-                f"Skipping layer with missing or invalid type: {layer_type}"
-            )
+            logger.debug(f"Skipping layer with missing or invalid type: {layer_type}")
             continue
 
         if not feats:

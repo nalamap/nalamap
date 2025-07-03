@@ -98,9 +98,7 @@ def state_with_river_layer(basic_state, sample_river_layer):
 
 
 @pytest.fixture
-def state_with_multiple_layers(
-    basic_state, sample_river_layer, sample_building_layer
-):
+def state_with_multiple_layers(basic_state, sample_river_layer, sample_building_layer):
     """Create a state with multiple layers."""
     basic_state["geodata_layers"] = [sample_river_layer, sample_building_layer]
     return basic_state

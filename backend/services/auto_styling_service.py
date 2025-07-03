@@ -43,9 +43,7 @@ async def apply_automatic_styling_to_new_layers(
         logger.info("No layers need automatic styling")
         return geodata_layers
 
-    logger.info(
-        f"Applying automatic styling to {len(layers_needing_styling)} layers"
-    )
+    logger.info(f"Applying automatic styling to {len(layers_needing_styling)} layers")
 
     # Create a message that triggers the automatic styling workflow
     layer_names = [layer.name for layer in layers_needing_styling]

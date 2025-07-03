@@ -142,10 +142,7 @@ def metadata_search(
                 score += 8
             if dataset.description and term in dataset.description.lower():
                 score += 3
-            if (
-                dataset.llm_description
-                and term in dataset.llm_description.lower()
-            ):
+            if dataset.llm_description and term in dataset.llm_description.lower():
                 score += 3
             if dataset.data_source and term in dataset.data_source.lower():
                 score += 2
@@ -163,9 +160,7 @@ def metadata_search(
                 search_results.append((dataset, score, "layer"))
 
         # Then search in last results if needed
-        if (
-            len(search_results) < 2
-        ):  # Only look in last_results if we don't have good matches yet
+        if len(search_results) < 2:  # Only look in last_results if we don't have good matches yet
             for dataset in last_results:
                 score = get_relevance_score(dataset)
                 if score > 0:
@@ -223,9 +218,7 @@ def metadata_search(
         metadata = {k: v for k, v in metadata.items() if v is not None}
         response_parts.append(metadata)
 
-    response_message = (
-        f"Found {len(best_matches)} dataset(s) matching '{query}':\n\n"
-    )
+    response_message = f"Found {len(best_matches)} dataset(s) matching '{query}':\n\n"
     response_message += json.dumps(response_parts, indent=2)
 
     return Command(

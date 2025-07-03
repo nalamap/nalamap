@@ -73,9 +73,7 @@ def query_librarian_postgis(
             GeoDataObject(
                 id=str(row[0]),
                 data_source_id="geoweaver.postgis",
-                data_type=(
-                    DataType.GEOJSON if row[1] == "geojson" else DataType.LAYER
-                ),
+                data_type=(DataType.GEOJSON if row[1] == "geojson" else DataType.LAYER),
                 data_origin=row[6],
                 data_source=row[1],
                 data_link=row[5],

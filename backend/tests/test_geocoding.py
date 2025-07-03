@@ -7,9 +7,7 @@ import pytest
 import requests
 
 # Add the backend directory to the path for imports
-sys.path.insert(
-    0, os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-)
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from services.tools.geocoding import (  # noqa: E402
     create_geodata_object_from_geojson,
@@ -154,9 +152,7 @@ class TestGeocodingBasicFunctions:
             result = geocode_using_geonames.func("Paris")
             assert result == "Error calling the GeoNames API."
 
-    def test_geocode_using_geonames_custom_params(
-        self, mock_geonames_response
-    ):
+    def test_geocode_using_geonames_custom_params(self, mock_geonames_response):
         """Test GeoNames with custom parameters"""
         with patch("requests.get") as mock_get:
             mock_response = Mock()
@@ -198,9 +194,7 @@ class TestGeocodingBasicFunctions:
             assert len(parsed_result) == 1
             assert parsed_result[0]["display_name"] == "Paris, France"
 
-    def test_geocode_using_nominatim_with_geojson(
-        self, mock_nominatim_response
-    ):
+    def test_geocode_using_nominatim_with_geojson(self, mock_nominatim_response):
         """Test Nominatim with GeoJSON enabled"""
         with patch("requests.get") as mock_get:
             mock_response = Mock()
@@ -242,9 +236,7 @@ class TestGeocodingBasicFunctions:
 class TestGeodataObjectCreation:
     """Test GeoDataObject creation from geocoding responses"""
 
-    def test_create_geodata_object_from_geojson_success(
-        self, mock_nominatim_geojson_response
-    ):
+    def test_create_geodata_object_from_geojson_success(self, mock_nominatim_geojson_response):
         """Test successful GeoDataObject creation"""
         nominatim_data = mock_nominatim_geojson_response[0]
 
@@ -284,9 +276,7 @@ class TestGeodataObjectCreation:
         geo_object = create_geodata_object_from_geojson(nominatim_data)
         assert geo_object is None
 
-    def test_create_geodata_object_no_bounding_box(
-        self, mock_nominatim_geojson_response
-    ):
+    def test_create_geodata_object_no_bounding_box(self, mock_nominatim_geojson_response):
         """Test GeoDataObject creation without bounding box"""
         nominatim_data = mock_nominatim_geojson_response[0].copy()
         del nominatim_data["boundingbox"]
@@ -314,9 +304,7 @@ class TestGeocodingErrorHandling:
         with patch("requests.get") as mock_get:
             mock_response = Mock()
             mock_response.status_code = 200
-            mock_response.json.side_effect = json.JSONDecodeError(
-                "Invalid JSON", "", 0
-            )
+            mock_response.json.side_effect = json.JSONDecodeError("Invalid JSON", "", 0)
             mock_get.return_value = mock_response
 
             # Current implementation doesn't handle gracefully

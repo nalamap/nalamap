@@ -88,11 +88,7 @@ async def query_postgis(state: SearchState) -> SearchState:
         GeoDataObject(
             id=str(row[0]),
             data_source_id="geoweaver.postgis",
-            data_type=(
-                DataType.GEOJSON
-                if row[1].lower() == "geojson"
-                else DataType.LAYER
-            ),
+            data_type=(DataType.GEOJSON if row[1].lower() == "geojson" else DataType.LAYER),
             data_origin=DataOrigin.TOOL,
             data_source=row[6] if row[6] else row[1],
             data_link=row[5],

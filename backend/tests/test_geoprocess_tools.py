@@ -311,9 +311,7 @@ def test_chat_buffer_line_expected_result(client, stub_requests):
     print(expected_series)
     # 5a) using almost_equals with decimal precision:
     #    returns a boolean Series; assert all True
-    assert actual_series.geom_equals_exact(
-        expected_series, tolerance=0.0015
-    ).all()
+    assert actual_series.geom_equals_exact(expected_series, tolerance=0.0015).all()
 
 
 def test_chat_overlay_intersection_expected_area(client, stub_requests):
@@ -321,9 +319,7 @@ def test_chat_overlay_intersection_expected_area(client, stub_requests):
     with open(pathaoi) as f:
         aoi = json.load(f)
 
-    pathgreenland = os.path.join(
-        os.path.dirname(__file__), "testdata", "greenland.json"
-    )
+    pathgreenland = os.path.join(os.path.dirname(__file__), "testdata", "greenland.json")
     with open(pathgreenland) as f:
         greenland = json.load(f)
 
@@ -423,6 +419,4 @@ def test_chat_overlay_intersection_expected_area(client, stub_requests):
     expected_series = gpd.GeoSeries([expected], crs="EPSG:4326")
     # 5a) using almost_equals with decimal precision:
     #    returns a boolean Series; assert all True
-    assert actual_series.geom_equals_exact(
-        expected_series, tolerance=100
-    ).all()
+    assert actual_series.geom_equals_exact(expected_series, tolerance=100).all()

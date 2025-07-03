@@ -116,8 +116,7 @@ async def auto_style_layers(request: AutoStyleRequest):
                 styled_layer_dicts.append(layer.__dict__)
 
         logger.info(
-            f"Successfully applied automatic styling to "
-            f"{len(layers_needing_styling)} layers"
+            f"Successfully applied automatic styling to " f"{len(layers_needing_styling)} layers"
         )
 
         return AutoStyleResponse(

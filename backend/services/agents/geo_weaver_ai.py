@@ -12,9 +12,7 @@ def prepare_messages(state: DataState) -> DataState:
         state["messages"].append(HumanMessage(first_message))
     else:
         state["messages"] = [
-            SystemMessage(
-                "You are a helpful assistant for GeoWeaver, a geospatial data platform."
-            ),
+            SystemMessage("You are a helpful assistant for GeoWeaver, a geospatial data platform."),
             HumanMessage(first_message),
         ]
     return state

@@ -20,9 +20,7 @@ from services.agents.supervisor_agent import (
 
 
 async def supervisor_node(state: DataState) -> Command:
-    user_messages = [
-        m for m in state["messages"] if isinstance(m, HumanMessage)
-    ]
+    user_messages = [m for m in state["messages"] if isinstance(m, HumanMessage)]
     choice = choose_agent(user_messages)
     print(f"[Orch] ▶ supervisor_node chose: {choice}")
     return Command(
@@ -50,11 +48,7 @@ async def geo_helper_node(state: DataState) -> Command:
 
 def convert_to_search_input(state: DataState) -> Dict:
     query = next(
-        (
-            m.content
-            for m in reversed(state["messages"])
-            if isinstance(m, HumanMessage)
-        ),
+        (m.content for m in reversed(state["messages"]) if isinstance(m, HumanMessage)),
         "",
     )
     # return state # {"query": query, "messages": state["messages"], "geodata": state["geodata"]}
@@ -64,9 +58,7 @@ def convert_to_search_input(state: DataState) -> Dict:
 async def librarien_node(state: DataState) -> Command:
     search_input = convert_to_search_input(state)
     search_state: SearchState = await librarien_executor.ainvoke(search_input)
-    results = getattr(search_state, "results", None) or search_state.get(
-        "results", []
-    )
+    results = getattr(search_state, "results", None) or search_state.get("results", [])
     output = "####BEGIN_DB_RESULTS####"
     for r in results:
         output += json.dumps(r.model_dump()) + "####"
@@ -88,9 +80,7 @@ graph.set_entry_point("supervisor")
 
 
 def agent_selector(state: DataState):
-    user_messages = [
-        m for m in state["messages"] if isinstance(m, HumanMessage)
-    ]
+    user_messages = [m for m in state["messages"] if isinstance(m, HumanMessage)]
     return choose_agent(user_messages[-1:])
 
 
