@@ -1,9 +1,11 @@
-import geopandas as gpd
 import json
 import logging
 from typing import Any, Dict, List
 
+import geopandas as gpd
+
 logger = logging.getLogger(__name__)
+
 
 def op_centroid(layers: List[Dict[str, Any]], **kwargs) -> List[Dict[str, Any]]:
     """

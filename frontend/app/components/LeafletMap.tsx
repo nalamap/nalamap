@@ -14,7 +14,7 @@ import { ZoomToSelected } from "./ZoomToLayer"; // adjust path
 
 // Fix leaflet's default icon path issue
 import "leaflet/dist/leaflet.css";
-import { GeoDataObject } from "../models/geodatamodel";
+import { GeoDataObject, LayerStyle } from "../models/geodatamodel";
 
 const defaultIcon = new L.Icon({
   iconUrl: "/marker-icon.png", // Make sure this is in /public folder
@@ -241,9 +241,22 @@ function parseWMTSUrl(access_url: string) {
   }
 }
 
-function LeafletGeoJSONLayer({ url }: { url: string }) {
+function LeafletGeoJSONLayer({ 
+  url, 
+  layerStyle 
+}: { 
+  url: string;
+  layerStyle?: LayerStyle;
+}) {
   const [data, setData] = useState<any>(null);
   const map = useMap();
+  
+  // Force component to re-mount when layerStyle changes significantly
+  const [forceUpdate, setForceUpdate] = useState(0);
+  
+  useEffect(() => {
+    setForceUpdate(prev => prev + 1);
+  }, [JSON.stringify(layerStyle)]);
 
   // Create a canvas renderer instance
   const canvasRenderer = L.canvas();
@@ -253,7 +266,7 @@ function LeafletGeoJSONLayer({ url }: { url: string }) {
       .then((res) => res.json())
       .then((json) => setData(json))
       .catch((err) => console.error("Error fetching GeoJSON:", err));
-  }, [url]);
+  }, [url]); // Only re-fetch when URL changes, not when style changes
 
   const onEachFeature = (feature: any, layer: L.Layer) => {
     const props = feature.properties;
@@ -318,24 +331,74 @@ function LeafletGeoJSONLayer({ url }: { url: string }) {
   const handleGeoJsonRef = (layer: L.GeoJSON) => {
     if (!layer) return;
     geojsonRef = layer;
-    map.fitBounds(layer.getBounds());
+    // Only zoom to bounds for new layers, not styling updates
+    // We can detect this by checking if the layer already exists in the store
+    const existingLayer = useLayerStore.getState().layers.find(l => l.data_link === url);
+    if (!existingLayer || !existingLayer.style) {
+      map.fitBounds(layer.getBounds());
+    }
   };
 
   const pointToLayer = (feature: any, latlng: L.LatLng) => {
-    return L.marker(latlng, { icon: defaultIcon });
+    // Use custom radius if provided in style, default to 4 (half of previous 8)
+    const radius = layerStyle?.radius || 4;
+    return L.circleMarker(latlng, {
+      radius: radius,
+      // Apply style properties for circle markers
+      color: layerStyle?.stroke_color || "#3388ff",
+      weight: layerStyle?.stroke_weight || 2,
+      opacity: layerStyle?.stroke_opacity || 0.85, // Changed from 1.0 to 0.85 (85% opacity)
+      fillColor: layerStyle?.fill_color || "#3388ff",
+      fillOpacity: layerStyle?.fill_opacity || 0.15, // Changed from 0.3 to 0.15 for less transparency
+      dashArray: layerStyle?.stroke_dash_array || undefined,
+      dashOffset: layerStyle?.stroke_dash_offset?.toString() || undefined,
+      // Apply advanced line properties
+      lineCap: (layerStyle?.line_cap as any) || "round",
+      lineJoin: (layerStyle?.line_join as any) || "round",
+    });
+  };
+
+  // Create enhanced style function that uses layer style properties
+  const getFeatureStyle = (feature?: any) => {
+    const baseStyle = {
+      color: layerStyle?.stroke_color || "#3388ff",
+      weight: layerStyle?.stroke_weight || 2,
+      opacity: layerStyle?.stroke_opacity || 0.85, // Changed from 1.0 to 0.85
+      fillColor: layerStyle?.fill_color || "#3388ff",
+      fillOpacity: layerStyle?.fill_opacity || 0.15, // Changed from 0.3 to 0.15
+      dashArray: layerStyle?.stroke_dash_array || undefined,
+      dashOffset: layerStyle?.stroke_dash_offset?.toString() || undefined,
+      // Apply advanced line properties
+      lineCap: (layerStyle?.line_cap as any) || "round",
+      lineJoin: (layerStyle?.line_join as any) || "round",
+    };
+
+    // Apply conditional styling if available
+    if (layerStyle?.style_conditions && feature?.properties) {
+      // Simple example: different colors based on property values
+      const conditions = layerStyle.style_conditions;
+      for (const [property, conditionConfig] of Object.entries(conditions)) {
+        if (feature.properties[property] && typeof conditionConfig === 'object') {
+          const value = feature.properties[property];
+          if (conditionConfig.color_map && conditionConfig.color_map[value]) {
+            baseStyle.color = conditionConfig.color_map[value];
+            baseStyle.fillColor = conditionConfig.color_map[value];
+          }
+        }
+      }
+    }
+
+    return baseStyle;
   };
 
   return data ? (
     <GeoJSON
+      key={`geojson-${forceUpdate}`}
       data={data}
       onEachFeature={onEachFeature}
       pointToLayer={pointToLayer}
       ref={handleGeoJsonRef}
-      style={() => ({
-        color: "#3388ff",
-        weight: 2,
-        fillOpacity: 0.3,
-      })}
+      style={getFeatureStyle}
     />
   ) : null;
 }
@@ -672,7 +735,11 @@ export default function LeafletMapComponent() {
                 layer.layer_type?.toUpperCase() === "WFS" || layer.layer_type?.toUpperCase() === "UPLOADED" ||
                 layer.data_link.toLowerCase().includes("json")
               ) {
-                return <LeafletGeoJSONLayer key={layer.id} url={layer.data_link} />;
+                // Create a stable style hash for the key to force re-render when style changes
+                const styleHash = layer.style ? 
+                  `${layer.style.stroke_color}-${layer.style.fill_color}-${layer.style.stroke_weight}-${layer.style.fill_opacity}-${layer.style.radius}-${layer.style.stroke_opacity}-${layer.style.stroke_dash_array}` : 
+                  'default';
+                return <LeafletGeoJSONLayer key={`${layer.id}-${styleHash}`} url={layer.data_link} layerStyle={layer.style} />;
               }
               return null;
             })}

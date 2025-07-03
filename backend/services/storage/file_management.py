@@ -1,9 +1,9 @@
 import os
-from typing import Tuple
 import uuid
+from typing import Tuple
 
-from utility.string_methods import clean_allow
 from core.config import AZ_CONN, AZ_CONTAINER, BASE_URL, LOCAL_UPLOAD_DIR, USE_AZURE
+from utility.string_methods import clean_allow
 
 
 def store_file(name: str, content: bytes) -> Tuple[str, str]:

@@ -1,20 +1,17 @@
-from langchain_core.tools import tool
-import json
-from langgraph.types import Command
 import asyncio
-from typing_extensions import Annotated
+import json
 from typing import Any, Dict, List, Optional, Union
+
+from langchain_core.messages import ToolMessage
 from langchain_core.tools import tool
 from langchain_core.tools.base import InjectedToolCallId
-from langchain_core.messages import ToolMessage
 from langgraph.prebuilt import InjectedState
+from langgraph.types import Command
+from typing_extensions import Annotated
+
+from models.geodata import DataType, GeoDataObject
+from models.states import GeoDataAgentState, get_minimal_debug_state
 from services.database.database import close_db, get_db, init_db
-from models.states import (
-    GeoDataAgentState,
-    get_medium_debug_state,
-    get_minimal_debug_state,
-)
-from models.geodata import DataOrigin, DataType, GeoDataObject
 
 
 @tool
@@ -111,14 +108,20 @@ def query_librarian_postgis(
                     *state["messages"],
                     ToolMessage(
                         name="query_librarian_postgis",
-                        content = (
-                            f"Retrieved {len(results)} results, "
+                        content=(
+                            "Retrieved {len(results)} results, "
                             "added GeoDataObjects into the global_state, "
                             "use id and data_source_id for reference: "
-                            + json.dumps([
-                                {"id": r.id, "data_source_id": r.data_source_id, "title": r.title}
-                                for r in results
-                            ])
+                            + json.dumps(
+                                [
+                                    {
+                                        "id": r.id,
+                                        "data_source_id": r.data_source_id,
+                                        "title": r.title,
+                                    }
+                                    for r in results
+                                ]
+                            )
                         ),
                         tool_call_id=tool_call_id,
                     ),
@@ -166,5 +169,5 @@ if __name__ == "__main__":
         )
         print(initial_state)
         asyncio.run(close_db())
-    except:
+    except Exception:
         asyncio.run(close_db())

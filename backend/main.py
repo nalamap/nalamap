@@ -1,26 +1,36 @@
+import logging
 import os
-from fastapi import FastAPI, status, Request
-from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
 
+from fastapi import FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+
+from api import ai_style, auto_styling, data_management, debug, geoweaver
 
 # from sqlalchemy.ext.asyncio import AsyncSession
 from core.config import LOCAL_UPLOAD_DIR
-from services.database.database import init_db, close_db
-from api import data_management, debug, geoweaver
+from services.database.database import close_db, init_db
+
+# Configure logging to show info level messages for debugging
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 
 
 tags_metadata = [
     {
         "name": "debug",
-        "description": "The debug methods are used for directly interacting with the models and tools",
+        "description": (
+            "The debug methods are used for directly interacting with the " "models and tools"
+        ),
     },
     {
         "name": "geoweaver",
-        "description": "Geoweaver API endpoints can be used to interact with the Geoweaver answer geospatial questions.",
+        "description": "Geoweaver API endpoints can be used to interact with the "
+        "Geoweaver answer geospatial questions.",
     },
 ]
 
@@ -56,17 +66,24 @@ app.add_middleware(
 os.makedirs(LOCAL_UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=LOCAL_UPLOAD_DIR), name="uploads")
 
-app.include_router(debug.router)
-app.include_router(geoweaver.router)
-app.include_router(data_management.router)
+# Include API routers
+app.include_router(debug.router, prefix="/api")
+app.include_router(geoweaver.router, prefix="/api")  # Main chat functionality
+app.include_router(data_management.router, prefix="/api")
+app.include_router(ai_style.router, prefix="/api")  # AI Style button functionality
+app.include_router(auto_styling.router, prefix="/api")  # Automatic styling
+
+
+@app.get("/")
+async def root():
+    return {"message": "GeoWeaver API is running"}
 
 
 # Exception handlers
-import logging
 
 
 @app.exception_handler(status.HTTP_400_BAD_REQUEST)
-async def validation_exception_handler(request: Request, exc):
+async def validation_exception_handler_400(request: Request, exc):
     exc_str = f"{exc}".replace("\n", " ").replace("   ", " ")
     logging.error(f"{request}: {exc_str}")
     content = {"status_code": 10400, "message": exc_str, "data": None}
@@ -74,22 +91,18 @@ async def validation_exception_handler(request: Request, exc):
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
+async def validation_exception_handler_422(request: Request, exc: RequestValidationError):
     exc_str = f"{exc}".replace("\n", " ").replace("   ", " ")
     logging.error(f"{request}: {exc_str}")
     content = {"status_code": 10422, "message": exc_str, "data": None}
-    return JSONResponse(
-        content=content, status_code=status.HTTP_422_UNPROCESSABLE_ENTITY
-    )
+    return JSONResponse(content=content, status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
 
 
 @app.exception_handler(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE)
 async def request_entity_too_large_handler(request: Request, exc):
     return JSONResponse(
         status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-        content={
-            "detail": "File size exceeds the 100MB limit. Please upload a smaller file."
-        },
+        content={"detail": "File size exceeds the 100MB limit. Please upload a smaller file."},
     )
 
 

@@ -1,8 +1,7 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, NamedTuple, Optional
 
-from typing import NamedTuple
 from pydantic import BaseModel
 
 
@@ -21,6 +20,45 @@ class DataOrigin(Enum):
 class GeoDataIdentifier(NamedTuple):
     id: str
     data_source_id: str
+
+
+@dataclass
+class LayerStyle:
+    """Enhanced style configuration for different geometry types"""
+
+    # Common stroke properties for all geometry types
+    stroke_color: Optional[str] = "#3388f"
+    stroke_weight: Optional[float] = 2
+    stroke_opacity: Optional[float] = 1.0
+    stroke_dash_array: Optional[str] = None  # e.g., "5,5" for dashed lines
+    stroke_dash_offset: Optional[float] = None
+
+    # Fill properties for polygons and circles
+    fill_color: Optional[str] = "#3388f"
+    fill_opacity: Optional[float] = 0.3
+    fill_pattern: Optional[str] = None  # For pattern fills (future enhancement)
+
+    # Point/marker specific properties
+    radius: Optional[float] = 8
+    marker_symbol: Optional[str] = None  # For custom markers (future enhancement)
+
+    # Line-specific properties
+    line_cap: Optional[str] = "round"  # "round", "square", "butt"
+    line_join: Optional[str] = "round"  # "round", "bevel", "miter"
+
+    # Advanced visual properties
+    blur: Optional[float] = None  # Gaussian blur effect
+    shadow_color: Optional[str] = None  # Drop shadow color
+    shadow_offset_x: Optional[float] = None  # Shadow offset
+    shadow_offset_y: Optional[float] = None  # Shadow offset
+    shadow_blur: Optional[float] = None  # Shadow blur radius
+
+    # Animation properties (future enhancement)
+    animation_duration: Optional[float] = None  # Animation duration in seconds
+    animation_type: Optional[str] = None  # "pulse", "spin", "bounce", etc.
+
+    # Conditional styling (future enhancement)
+    style_conditions: Optional[Dict[str, Any]] = None  # For data-driven styling
 
 
 class GeoDataObject(BaseModel):
@@ -46,6 +84,7 @@ class GeoDataObject(BaseModel):
 
     visible: Optional[bool] = False
     selected: Optional[bool] = False
+    style: Optional[LayerStyle] = None
 
     class Config:
         # Allow Enum values to be output as raw values
@@ -62,12 +101,16 @@ def mock_geodata_objects() -> List[GeoDataObject]:
             data_type=DataType.LAYER,
             data_origin=DataOrigin.TOOL,
             data_source="AQUAMAPS",
-            data_link="https://io.apps.fao.org/geoserver/wms/wms?service=WMS&request=GetMap&layers=AQUAMAPS:rivers_africa&format=image/png&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256",
+            data_link=(
+                "https://io.apps.fao.org/geoserver/wms/wms?service=WMS&request=GetMap&"
+                "layers=AQUAMAPS:rivers_africa&format=image/png&BBOX={bbox-epsg-3857}&"
+                "WIDTH=256&HEIGHT=256"
+            ),
             name="AQUAMAPS:rivers_africa",
             title="Rivers of Africa (Derived from HydroSHEDS)",
             description="""The rivers of Africa dataset is derived from the World Wildlife Fund's (WWF) HydroSHEDS drainage direction layer and a stream network layer. The source of the drainage direction layer was the 15-second Digital Elevation Model (DEM) from NASA's Shuttle Radar Topographic Mission (SRTM). The raster stream network was determined by using the HydroSHEDS flow accumulation grid, with a threshold of about 1000 km² upstream area.
 
-    The stream network dataset consists of the following information: the origin node of each arc in the network (FROM_NODE), the destination of each arc in the network (TO_NODE), the Strahler stream order of each arc in the network (STRAHLER), numerical code and name of the major basin that the arc falls within (MAJ_BAS and MAJ_NAME); - area of the major basin in square km that the arc falls within (MAJ_AREA); - numerical code and name of the sub-basin that the arc falls within (SUB_BAS and SUB_NAME); - area of the sub-basin in square km that the arc falls within (SUB_AREA); - numerical code of the sub-basin towards which the sub-basin flows that the arc falls within (TO_SUBBAS) (the codes -888 and -999 have been assigned respectively to internal sub-basins and to sub-basins draining into the sea). 
+    The stream network dataset consists of the following information: the origin node of each arc in the network (FROM_NODE), the destination of each arc in the network (TO_NODE), the Strahler stream order of each arc in the network (STRAHLER), numerical code and name of the major basin that the arc falls within (MAJ_BAS and MAJ_NAME); - area of the major basin in square km that the arc falls within (MAJ_AREA); - numerical code and name of the sub-basin that the arc falls within (SUB_BAS and SUB_NAME); - area of the sub-basin in square km that the arc falls within (SUB_AREA); - numerical code of the sub-basin towards which the sub-basin flows that the arc falls within (TO_SUBBAS) (the codes -888 and -999 have been assigned respectively to internal sub-basins and to sub-basins draining into the sea).
     The attributes table now includes a field named "Regime" with tentative classification of perennial ("P") and intermittent ("I") streams.
 
     **Supplemental Information:**
@@ -108,7 +151,7 @@ def mock_geodata_objects() -> List[GeoDataObject]:
             title="Rivers of Africa (Derived from HydroSHEDS)",
             description="""The rivers of Africa dataset is derived from the World Wildlife Fund's (WWF) HydroSHEDS drainage direction layer and a stream network layer. The source of the drainage direction layer was the 15-second Digital Elevation Model (DEM) from NASA's Shuttle Radar Topographic Mission (SRTM). The raster stream network was determined by using the HydroSHEDS flow accumulation grid, with a threshold of about 1000 km² upstream area.
 
-    The stream network dataset consists of the following information: the origin node of each arc in the network (FROM_NODE), the destination of each arc in the network (TO_NODE), the Strahler stream order of each arc in the network (STRAHLER), numerical code and name of the major basin that the arc falls within (MAJ_BAS and MAJ_NAME); - area of the major basin in square km that the arc falls within (MAJ_AREA); - numerical code and name of the sub-basin that the arc falls within (SUB_BAS and SUB_NAME); - area of the sub-basin in square km that the arc falls within (SUB_AREA); - numerical code of the sub-basin towards which the sub-basin flows that the arc falls within (TO_SUBBAS) (the codes -888 and -999 have been assigned respectively to internal sub-basins and to sub-basins draining into the sea). 
+    The stream network dataset consists of the following information: the origin node of each arc in the network (FROM_NODE), the destination of each arc in the network (TO_NODE), the Strahler stream order of each arc in the network (STRAHLER), numerical code and name of the major basin that the arc falls within (MAJ_BAS and MAJ_NAME); - area of the major basin in square km that the arc falls within (MAJ_AREA); - numerical code and name of the sub-basin that the arc falls within (SUB_BAS and SUB_NAME); - area of the sub-basin in square km that the arc falls within (SUB_AREA); - numerical code of the sub-basin towards which the sub-basin flows that the arc falls within (TO_SUBBAS) (the codes -888 and -999 have been assigned respectively to internal sub-basins and to sub-basins draining into the sea).
     The attributes table now includes a field named "Regime" with tentative classification of perennial ("P") and intermittent ("I") streams.
 
     **Supplemental Information:**

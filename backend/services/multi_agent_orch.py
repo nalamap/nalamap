@@ -1,33 +1,30 @@
 # services/multi_agent_orch.py
 
 import asyncio
-from typing import List, Dict
-from models.states import DataState
-from langgraph.graph import StateGraph, END
-from langgraph.types import Command
 import json
-from models.geodata import mock_geodata_objects
-from models.geodata import GeoDataObject
+from typing import Dict, List
+
+from langchain_core.messages import AIMessage, HumanMessage
+from langgraph.graph import END, StateGraph
+from langgraph.types import Command
+
+from models.geodata import GeoDataObject, mock_geodata_objects
+from models.states import DataState
 from services.agents.geo_weaver_ai import ai_executor as geo_helper_executor
-from services.agents.langgraph_agent import SearchState, executor as librarien_executor
-from services.agents.supervisor_agent import (
-    choose_agent,
-    supervisor_node as llm_supervisor_node,
-)
-from langchain_core.messages import HumanMessage, AIMessage
+from services.agents.langgraph_agent import SearchState
+from services.agents.langgraph_agent import executor as librarien_executor
+from services.agents.supervisor_agent import choose_agent
+from services.agents.supervisor_agent import supervisor_node as llm_supervisor_node
 
 
 async def supervisor_node(state: DataState) -> Command:
     user_messages = [m for m in state["messages"] if isinstance(m, HumanMessage)]
     choice = choose_agent(user_messages)
     print(f"[Orch] ▶ supervisor_node chose: {choice}")
-    return Command(
-        goto=choice, update={"messages": state["messages"], "geodata": state["geodata"]}
-    )
+    return Command(goto=choice, update={"messages": state["messages"], "geodata": state["geodata"]})
 
 
 def convert_to_geo_input(state: DataState) -> Dict:
-    last = state["messages"][-1].content
     return state  # {"input": last, "messages": state["messages"], "geodata": state["geodata"]}
 
 
@@ -91,7 +88,7 @@ multi_agent_executor = graph.compile()
 
 # --- Runner ---
 async def main():
-    from services.database.database import init_db, close_db
+    from services.database.database import close_db, init_db
 
     try:
         await init_db()
@@ -110,11 +107,10 @@ async def main():
             supervisor_result = await llm_supervisor_node(state)
             print(supervisor_result)
             reason = supervisor_result.update.get("reason", "")
-            next_agent = supervisor_result.goto
             if reason:
                 print(f"[Orch] ▶ Supervisor explanation: {reason}")
 
-            executor_result = await multi_agent_executor.ainvoke(state)
+            await multi_agent_executor.ainvoke(state)
     finally:
         await close_db()
 

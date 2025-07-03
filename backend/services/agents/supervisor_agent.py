@@ -1,10 +1,12 @@
 import json
 from typing import Literal
-from services.ai.llm_config import get_llm
-from models.states import DataState
+
+from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import END
 from langgraph.types import Command
-from langchain_core.messages import HumanMessage, SystemMessage
+
+from models.states import DataState
+from services.ai.llm_config import get_llm
 
 LLM_PROMPT = """
 You are an orchestration agent that decides which downstream agent should handle a user query.
@@ -62,11 +64,7 @@ async def supervisor_node(
     try:
         parsed = json.loads(raw)
         nxt = parsed.get("next", "finish")
-        reason = parsed.get("reason", "")
     except json.JSONDecodeError:
         nxt = raw.lower()
-        reason = ""
     goto = END if nxt == "finish" else nxt
-    return Command(
-        goto=goto, update={"messages": state["messages"], "geodata": state["geodata"]}
-    )
+    return Command(goto=goto, update={"messages": state["messages"], "geodata": state["geodata"]})

@@ -1,11 +1,13 @@
-import geopandas as gpd
-import json
 import logging
+import json
 from typing import Any, Dict, List
+
+import geopandas as gpd
 
 from services.tools.geoprocessing.utils import flatten_features
 
 logger = logging.getLogger(__name__)
+
 
 def op_overlay(
     layers: List[Dict[str, Any]], how: str = "intersection", crs: str = "EPSG:3857"

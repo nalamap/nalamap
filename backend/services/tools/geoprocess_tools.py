@@ -1,40 +1,34 @@
 # services/agents/geoprocessing_agent.py
-import geopandas as gpd
-import requests
-from models.geodata import DataOrigin, DataType, GeoDataObject
-from typing_extensions import Annotated
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
-from langchain_core.tools import tool
-from langgraph.prebuilt import InjectedState
-from langgraph.types import Command
-from langchain_core.tools.base import InjectedToolCallId
-from models.states import GeoDataAgentState, get_medium_debug_state
-from models.geodata import GeoDataIdentifier, GeoDataObject
-from langchain_core.messages import ToolMessage
-from pydantic import BaseModel, Field
-from shapely.geometry import shape, mapping
-from shapely.ops import unary_union
-import itertools
+import logging
 import os
 import uuid
-from core.config import BASE_URL, LOCAL_UPLOAD_DIR
 import json
-import logging
+from typing import Any, Dict, List, Optional, Union
+
+import requests
 
 # LLM import
-from langchain_core.messages import HumanMessage
-from services.ai.llm_config import get_llm
+from langchain_core.messages import HumanMessage, ToolMessage
+from langchain_core.tools import tool
+from langchain_core.tools.base import InjectedToolCallId
+from langgraph.prebuilt import InjectedState
+from langgraph.types import Command
+from typing_extensions import Annotated
 
+from core.config import BASE_URL, LOCAL_UPLOAD_DIR
+from models.geodata import DataOrigin, DataType, GeoDataObject
+from models.states import GeoDataAgentState
+from services.ai.llm_config import get_llm
+from services.tools.geoprocessing.ops.buffer import op_buffer
+from services.tools.geoprocessing.ops.centroid import op_centroid
+from services.tools.geoprocessing.ops.merge import op_merge
+from services.tools.geoprocessing.ops.overlay import op_overlay
+from services.tools.geoprocessing.ops.simplify import op_simplify
+from services.tools.geoprocessing.ops.sjoin import op_sjoin
+from services.tools.geoprocessing.ops.sjoin_nearest import op_sjoin_nearest
 
 # Imports of operation functions from geoprocessing ops and utils
 from services.tools.geoprocessing.utils import get_last_human_content
-from services.tools.geoprocessing.ops.buffer import op_buffer
-from services.tools.geoprocessing.ops.centroid import op_centroid
-from services.tools.geoprocessing.ops.simplify import op_simplify
-from services.tools.geoprocessing.ops.overlay import op_overlay
-from services.tools.geoprocessing.ops.merge import op_merge
-from services.tools.geoprocessing.ops.sjoin import op_sjoin
-from services.tools.geoprocessing.ops.sjoin_nearest import op_sjoin_nearest
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -127,7 +121,7 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
     user_msg = json.dumps(user_payload)
 
     # Use LangChain chat generate methods since AzureChatOpenAI doesn't have .chat()
-    from langchain.schema import SystemMessage, HumanMessage
+    from langchain.schema import SystemMessage
 
     messages = [SystemMessage(content=system_msg), HumanMessage(content=user_msg)]
     # agenerate expects a list of message lists for batching
@@ -139,10 +133,7 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
         # Strip markdown code blocks if present
         cleaned_content = content
         # Check for markdown code block format: ```json ... ```
-        if (
-            cleaned_content.strip().startswith("```")
-            and "```" in cleaned_content.strip()[3:]
-        ):
+        if cleaned_content.strip().startswith("```") and "```" in cleaned_content.strip()[3:]:
             # Extract content between first ``` and last ```
             first_delimiter = cleaned_content.find("```")
             last_delimiter = cleaned_content.rfind("```")
@@ -163,7 +154,7 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
         # Try to parse the cleaned content
         plan = json.loads(cleaned_content)
     except json.JSONDecodeError:
-        raise ValueError(f"Failed to parse LLM response as JSON: {content}")
+        raise ValueError("Failed to parse LLM response as JSON: {content}")
 
     steps = plan.get("steps", [])
 
@@ -220,15 +211,15 @@ def geoprocess_tool(
     # Select layers by ID or default to first
     if target_layer_ids:
         selected = [layer for layer in layers if layer.id in target_layer_ids]
-        missing = set(target_layer_ids) - {l.id for l in selected}
+        missing = set(target_layer_ids) - {layer.id for layer in selected}
         if missing:
-            available = [{"id": l.id, "title": l.title} for l in layers]
+            all_available = [{"id": layer.id, "title": layer.title} for layer in layers]
             return Command(
                 update={
                     "messages": [
                         ToolMessage(
                             name="geoprocess_tool",
-                            content=f"Error: Layer IDs not found: {missing}. Available layers: {json.dumps(available)}",
+                            content=f"Error: Layer IDs not found: {missing}. Available layers: {json.dumps(all_available)}",
                             tool_call_id=tool_call_id,
                             status="error",
                         )
@@ -237,13 +228,6 @@ def geoprocess_tool(
             )
     else:
         selected = [layers[0]]
-
-    # Get URLs for the selected layers only
-    layer_urls = [
-        layer.data_link
-        for layer in selected
-        if layer.data_type in (DataType.GEOJSON, DataType.UPLOADED)
-    ]
 
     # Name derived from input layer
     result_name = selected[0].name if selected else ""
@@ -283,13 +267,13 @@ def geoprocess_tool(
             try:
                 with open(url, "r", encoding="utf-8") as f:
                     gj = json.load(f)
-            except Exception as exc:
+            except Exception:
                 return {
                     "update": {
                         "messages": [
                             ToolMessage(
                                 name="geoprocess_tool",
-                                content=f"Error: Failed to read local file '{url}': {exc}",
+                                content="Error: Failed to read local file '{url}': {exc}",
                                 tool_call_id=tool_call_id,
                                 status="error",
                             )
@@ -305,13 +289,13 @@ def geoprocess_tool(
                 try:
                     with open(local_path, "r", encoding="utf-8") as f:
                         gj = json.load(f)
-                except Exception as exc:
+                except Exception:
                     return {
                         "update": {
                             "messages": [
                                 ToolMessage(
                                     name="geoprocess_tool",
-                                    content=f"Error: Failed to read local file '{local_path}': {exc}",
+                                    content=f"Error: Failed to read local file '{local_path}'",
                                     tool_call_id=tool_call_id,
                                     status="error",
                                 )
@@ -327,13 +311,13 @@ def geoprocess_tool(
                     if resp.status_code != 200:
                         raise IOError(f"HTTP {resp.status_code} when fetching {url}")
                     gj = resp.json()
-                except Exception as exc:
+                except Exception:
                     return {
                         "update": {
                             "messages": [
                                 ToolMessage(
                                     name="geoprocess_tool",
-                                    content=f"Error: Failed to fetch GeoJSON from '{url}': {exc}",
+                                    content=f"Error: Failed to fetch GeoJSON from '{url}'",
                                     tool_call_id=tool_call_id,
                                     status="error",
                                 )
@@ -346,7 +330,7 @@ def geoprocess_tool(
                         "messages": [
                             ToolMessage(
                                 name="geoprocess_tool",
-                                content=f"Error: GeoJSON path '{url}' is neither a local file nor a valid HTTP URL.",
+                                content="Error: GeoJSON path '{url}' is neither a local file nor a valid HTTP URL.",
                                 tool_call_id=tool_call_id,
                                 status="error",
                             )
@@ -459,7 +443,7 @@ def geoprocess_tool(
                     name="geoprocess_tool",
                     content="Tools used: "
                     + ", ".join(tools_used)
-                    + f". Added GeoDataObjects into the global_state, use id and data_source_id for reference: {json.dumps([{'id': result.id, 'data_source_id': result.data_source_id, 'title': result.title} for result in new_geodata])}",
+                    + ". Added GeoDataObjects into the global_state, use id and data_source_id for reference: {json.dumps([{'id': result.id, 'data_source_id': result.data_source_id, 'title': result.title} for result in new_geodata])}",
                     tool_call_id=tool_call_id,
                 )
             ],

@@ -1,9 +1,11 @@
-import geopandas as gpd
 import json
 import logging
 from typing import Any, Dict, List, Optional
 
+import geopandas as gpd
+
 logger = logging.getLogger(__name__)
+
 
 def op_sjoin_nearest(
     layers: List[Dict[str, Any]],
