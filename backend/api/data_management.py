@@ -25,9 +25,7 @@ router = APIRouter()
 
 # Layer styling endpoint
 @router.put("/layers/{layer_id}/style")
-async def update_layer_style_endpoint(
-    layer_id: str, style_data: Dict[str, Any]
-) -> Dict[str, str]:
+async def update_layer_style_endpoint(layer_id: str, style_data: Dict[str, Any]) -> Dict[str, str]:
     """
     Update the styling of a specific layer.
     """
@@ -42,8 +40,9 @@ async def update_layer_style_endpoint(
 # Upload endpoint
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...)) -> Dict[str, str]:
-    """Uploads a file either to Azure Blob Storage or local disk and returns its public URL and unique ID.
-    File size is limited to 100MB.
+    """Uploads a file either to Azure Blob Storage or local disk.
+
+    Returns its public URL and unique ID. File size is limited to 100MB.
     """
     # Check file size before reading content - FastAPI can access content_length from header
     content_length = getattr(file, "size", None)
@@ -54,7 +53,10 @@ async def upload_file(file: UploadFile = File(...)) -> Dict[str, str]:
         if content_length > MAX_FILE_SIZE:
             raise HTTPException(
                 status_code=413,  # Request Entity Too Large
-                detail=f"File size ({format_file_size(content_length)}) exceeds the limit of 100MB.",
+                detail=(
+                    f"File size ({format_file_size(content_length)}) "
+                    f"exceeds the limit of 100MB."
+                ),
             )
     elif content_length > MAX_FILE_SIZE:
         raise HTTPException(

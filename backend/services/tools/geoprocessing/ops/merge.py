@@ -29,5 +29,5 @@ def op_merge(
         merged.set_geometry(gdf1.geometry.name, inplace=True)
         return [json.loads(merged.to_json())]
     except Exception as e:
-        logger.exception("Error in op_merge: {e}")
+        logger.exception(f"Error in op_merge: {e}")
         return []

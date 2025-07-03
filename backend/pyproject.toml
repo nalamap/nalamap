@@ -33,6 +33,18 @@ isort = "*"
 
 [tool.flake8]
 max-line-length = 100
+per-file-ignores = [
+    "models/geodata.py:E501",  # Mock Data String
+    "services/tools/geocoding.py:E501",  # Long docstrings and API URLs
+    "services/tools/geoprocess_tools.py:E501,E203",  # Long docstrings and Black formatting
+    "services/tools/geostate_management.py:E501",  # Long docstrings
+    "services/tools/librarian_tools.py:E501",  # Long docstrings
+    "services/tools/styling_tools.py:E501",  # Long docstrings
+    "services/tools/geoprocessing/ops/buffer.py:E501",  # Long docstrings
+    "services/tools/geoprocessing/ops/overlay.py:E501",  # Long docstrings
+    "tests/conftest.py:E402",  # Import order needed for test fixtures
+    "tests/test_geoprocess_tools.py:E501",  # Long test data strings
+]
 exclude = [
   ".venv/**",           # any file under .venv/
   "venv/**",
@@ -73,3 +85,23 @@ filterwarnings = [
     "ignore::PendingDeprecationWarning"
 ]
 timeout = 300
+
+[tool.black]
+line-length = 100
+target-version = ['py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''

@@ -27,5 +27,5 @@ def op_centroid(layers: List[Dict[str, Any]], **kwargs) -> List[Dict[str, Any]]:
         fc = json.loads(centroids.to_json())
         return [fc]
     except Exception as e:
-        logger.exception("Error in op_centroid: {e}")
+        logger.exception(f"Error in op_centroid: {e}")
         return []

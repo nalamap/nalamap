@@ -1,15 +1,14 @@
 import json
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Set, Tuple, Union
 
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import tool
 from langchain_core.tools.base import InjectedToolCallId
 from langgraph.prebuilt import InjectedState
 from langgraph.types import Command
-from pydantic import BaseModel, Field
 from typing_extensions import Annotated
 
-from models.geodata import GeoDataIdentifier, GeoDataObject
+from models.geodata import GeoDataObject
 from models.states import GeoDataAgentState, get_medium_debug_state
 
 """
@@ -54,9 +53,7 @@ def set_result_list(
         update={
             "messages": [
                 *state["messages"],
-                ToolMessage(
-                    name="set_result_list", content=message, tool_call_id=tool_call_id
-                ),
+                ToolMessage(name="set_result_list", content=message, tool_call_id=tool_call_id),
             ],
             "geodata_results": result_list,
         }
@@ -157,9 +154,7 @@ def metadata_search(
                 search_results.append((dataset, score, "layer"))
 
         # Then search in last results if needed
-        if (
-            len(search_results) < 2
-        ):  # Only look in last_results if we don't have good matches yet
+        if len(search_results) < 2:  # Only look in last_results if we don't have good matches yet
             for dataset in last_results:
                 score = get_relevance_score(dataset)
                 if score > 0:

@@ -36,9 +36,7 @@ async def search(req: GeoweaverRequest):
     # Decide which message to send based on whether we got anything back
     if numresults == 0:
         human_msg = HumanMessage("Search layers for “{req.query}”")
-        ai_msg = AIMessage(
-            "I'm sorry, I couldn't find any datasets matching your criteria."
-        )
+        ai_msg = AIMessage("I'm sorry, I couldn't find any datasets matching your criteria.")
     else:
         human_msg = HumanMessage(f"{req.query}")
         ai_msg = AIMessage("Here are relevant layers:")
@@ -186,9 +184,7 @@ class GeoProcessRequest(BaseModel):
 
 
 class GeoProcessResponse(BaseModel):
-    layer_urls: List[
-        str
-    ]  # URL to the new GeoJSON file # TODO: Move API Endpoint to GeoData Model
+    layer_urls: List[str]  # URL to the new GeoJSON file # TODO: Move API Endpoint to GeoData Model
     tools_used: Optional[List[str]] = None
 
 
@@ -306,12 +302,8 @@ async def geoprocess(req: GeoweaverRequest):
     # global_geodata.extend(new_geodata)
 
     # Convert to common Geodatamodel
-    response_str: str = (
-        "Here are the processing results, used Tools: {', '.join(tools_used)}:"
-    )
-    geodataResponse: GeoweaverResponse = GeoweaverResponse(
-        geodata_layers=req.geodata_layers
-    )
+    response_str: str = "Here are the processing results, used Tools: {', '.join(tools_used)}:"
+    geodataResponse: GeoweaverResponse = GeoweaverResponse(geodata_layers=req.geodata_layers)
     geodataResponse.geodata_results = new_geodata
     # geodataResponse.global_geodata=global_geodata
     geodataResponse.messages = [*req.messages, AIMessage(response_str)]

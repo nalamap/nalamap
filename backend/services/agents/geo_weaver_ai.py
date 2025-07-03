@@ -1,10 +1,6 @@
-from typing import Dict, List, Optional
-
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.graph import END, START, StateGraph
-from pydantic import BaseModel, Field
 
-from core.config import *
 from models.states import DataState
 from services.ai.llm_config import get_llm
 
@@ -16,9 +12,7 @@ def prepare_messages(state: DataState) -> DataState:
         state["messages"].append(HumanMessage(first_message))
     else:
         state["messages"] = [
-            SystemMessage(
-                "You are a helpful assistant for GeoWeaver, a geospatial data platform."
-            ),
+            SystemMessage("You are a helpful assistant for GeoWeaver, a geospatial data platform."),
             HumanMessage(first_message),
         ]
     return state

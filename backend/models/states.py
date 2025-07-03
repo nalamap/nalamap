@@ -45,7 +45,9 @@ class GeoDataAgentState(MessagesState):
     )
 
     # --- Internal-only fields (excluded from LLM prompt) ---
-    # global_geodata: Optional[List[GeoDataObject]] = Field(default_factory=list, exclude=True, validate_default=False)
+    # global_geodata: Optional[List[GeoDataObject]] = Field(
+    #     default_factory=list, exclude=True, validate_default=False
+    # )
 
 
 def get_minimal_debug_state(tool_call: bool = False) -> GeoDataAgentState:

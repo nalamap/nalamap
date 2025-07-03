@@ -21,13 +21,10 @@ async def supervisor_node(state: DataState) -> Command:
     user_messages = [m for m in state["messages"] if isinstance(m, HumanMessage)]
     choice = choose_agent(user_messages)
     print(f"[Orch] ▶ supervisor_node chose: {choice}")
-    return Command(
-        goto=choice, update={"messages": state["messages"], "geodata": state["geodata"]}
-    )
+    return Command(goto=choice, update={"messages": state["messages"], "geodata": state["geodata"]})
 
 
 def convert_to_geo_input(state: DataState) -> Dict:
-    last = state["messages"][-1].content
     return state  # {"input": last, "messages": state["messages"], "geodata": state["geodata"]}
 
 
@@ -110,11 +107,10 @@ async def main():
             supervisor_result = await llm_supervisor_node(state)
             print(supervisor_result)
             reason = supervisor_result.update.get("reason", "")
-            next_agent = supervisor_result.goto
             if reason:
-                print("[Orch] ▶ Supervisor explanation: {reason}")
+                print(f"[Orch] ▶ Supervisor explanation: {reason}")
 
-            executor_result = await multi_agent_executor.ainvoke(state)
+            await multi_agent_executor.ainvoke(state)
     finally:
         await close_db()
 

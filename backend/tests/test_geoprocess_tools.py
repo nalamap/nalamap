@@ -1,20 +1,17 @@
 # tests/test_chat_integration.py
 
-import importlib
-import os
 import json
+import os
 from types import SimpleNamespace
 
 import geopandas as gpd
 import pytest
 import requests
 from fastapi.testclient import TestClient
-from langchain_core.messages import HumanMessage
 from shapely.geometry import shape
 
 from core.config import BASE_URL, LOCAL_UPLOAD_DIR
 from main import app  # wherever your FastAPI instance lives
-from services.ai import llm_config
 
 # ensure LOCAL_UPLOAD_DIR exists for test
 os.makedirs(LOCAL_UPLOAD_DIR, exist_ok=True)
@@ -321,9 +318,7 @@ def test_chat_overlay_intersection_expected_area(client, stub_requests):
     with open(pathaoi) as f:
         aoi = json.load(f)
 
-    pathgreenland = os.path.join(
-        os.path.dirname(__file__), "testdata", "greenland.json"
-    )
+    pathgreenland = os.path.join(os.path.dirname(__file__), "testdata", "greenland.json")
     with open(pathgreenland) as f:
         greenland = json.load(f)
 

@@ -1,12 +1,10 @@
 # services/agents/geoprocessing_agent.py
-import itertools
 import logging
 import os
 import uuid
 import json
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Union
 
-import geopandas as gpd
 import requests
 
 # LLM import
@@ -15,14 +13,11 @@ from langchain_core.tools import tool
 from langchain_core.tools.base import InjectedToolCallId
 from langgraph.prebuilt import InjectedState
 from langgraph.types import Command
-from pydantic import BaseModel, Field
-from shapely.geometry import mapping, shape
-from shapely.ops import unary_union
 from typing_extensions import Annotated
 
 from core.config import BASE_URL, LOCAL_UPLOAD_DIR
-from models.geodata import DataOrigin, DataType, GeoDataIdentifier, GeoDataObject
-from models.states import GeoDataAgentState, get_medium_debug_state
+from models.geodata import DataOrigin, DataType, GeoDataObject
+from models.states import GeoDataAgentState
 from services.ai.llm_config import get_llm
 from services.tools.geoprocessing.ops.buffer import op_buffer
 from services.tools.geoprocessing.ops.centroid import op_centroid
@@ -138,10 +133,7 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
         # Strip markdown code blocks if present
         cleaned_content = content
         # Check for markdown code block format: ```json ... ```
-        if (
-            cleaned_content.strip().startswith("```")
-            and "```" in cleaned_content.strip()[3:]
-        ):
+        if cleaned_content.strip().startswith("```") and "```" in cleaned_content.strip()[3:]:
             # Extract content between first ``` and last ```
             first_delimiter = cleaned_content.find("```")
             last_delimiter = cleaned_content.rfind("```")
@@ -221,13 +213,13 @@ def geoprocess_tool(
         selected = [layer for layer in layers if layer.id in target_layer_ids]
         missing = set(target_layer_ids) - {layer.id for layer in selected}
         if missing:
-            available = [{"id": layer.id, "title": layer.title} for layer in layers]
+            all_available = [{"id": layer.id, "title": layer.title} for layer in layers]
             return Command(
                 update={
                     "messages": [
                         ToolMessage(
                             name="geoprocess_tool",
-                            content="Error: Layer IDs not found: {missing}. Available layers: {json.dumps(available)}",
+                            content=f"Error: Layer IDs not found: {missing}. Available layers: {json.dumps(all_available)}",
                             tool_call_id=tool_call_id,
                             status="error",
                         )
@@ -236,13 +228,6 @@ def geoprocess_tool(
             )
     else:
         selected = [layers[0]]
-
-    # Get URLs for the selected layers only
-    layer_urls = [
-        layer.data_link
-        for layer in selected
-        if layer.data_type in (DataType.GEOJSON, DataType.UPLOADED)
-    ]
 
     # Name derived from input layer
     result_name = selected[0].name if selected else ""
@@ -269,7 +254,7 @@ def geoprocess_tool(
                         "messages": [
                             ToolMessage(
                                 name="geoprocess_tool",
-                                content="Error: Failed to read local file '{local_path}': {exc}",
+                                content=f"Error: Failed to read local file '{local_path}': {exc}",
                                 tool_call_id=tool_call_id,
                                 status="error",
                             )
@@ -282,7 +267,7 @@ def geoprocess_tool(
             try:
                 with open(url, "r", encoding="utf-8") as f:
                     gj = json.load(f)
-            except Exception as exc:
+            except Exception:
                 return {
                     "update": {
                         "messages": [
@@ -304,13 +289,13 @@ def geoprocess_tool(
                 try:
                     with open(local_path, "r", encoding="utf-8") as f:
                         gj = json.load(f)
-                except Exception as exc:
+                except Exception:
                     return {
                         "update": {
                             "messages": [
                                 ToolMessage(
                                     name="geoprocess_tool",
-                                    content="Error: Failed to read local file '{local_path}': {exc}",
+                                    content=f"Error: Failed to read local file '{local_path}'",
                                     tool_call_id=tool_call_id,
                                     status="error",
                                 )
@@ -326,13 +311,13 @@ def geoprocess_tool(
                     if resp.status_code != 200:
                         raise IOError(f"HTTP {resp.status_code} when fetching {url}")
                     gj = resp.json()
-                except Exception as exc:
+                except Exception:
                     return {
                         "update": {
                             "messages": [
                                 ToolMessage(
                                     name="geoprocess_tool",
-                                    content="Error: Failed to fetch GeoJSON from '{url}': {exc}",
+                                    content=f"Error: Failed to fetch GeoJSON from '{url}'",
                                     tool_call_id=tool_call_id,
                                     status="error",
                                 )
@@ -396,7 +381,7 @@ def geoprocess_tool(
                 "messages": [
                     ToolMessage(
                         name="geoprocess_tool",
-                        content="Error: {str(e)}\n Please fix your mistakes.",
+                        content=f"Error: {str(e)}\n Please fix your mistakes.",
                         tool_call_id=tool_call_id,
                         status="error",
                     )

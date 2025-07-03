@@ -37,5 +37,5 @@ def op_sjoin_nearest(
         )
         return [json.loads(joined.to_json())]
     except Exception as e:
-        logger.exception("Error in op_sjoin_nearest: {e}")
+        logger.exception(f"Error in op_sjoin_nearest: {e}")
         return []

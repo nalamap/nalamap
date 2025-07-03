@@ -25,9 +25,7 @@ def normalize_messages(raw: Optional[List[BaseMessage]]) -> List[BaseMessage]:
     normalized: List[BaseMessage] = []
     for idx, m in enumerate(raw):
         # 1) Already a subclass?
-        if isinstance(
-            m, (HumanMessage, AIMessage, SystemMessage, ToolMessage, FunctionMessage)
-        ):
+        if isinstance(m, (HumanMessage, AIMessage, SystemMessage, ToolMessage, FunctionMessage)):
             normalized.append(m)
             continue
 
@@ -186,17 +184,13 @@ async def ask_geoweaver_agent(request: GeoweaverRequest):
 
         result_messages: List[BaseMessage] = executor_result.get("messages", [])
         results_title: Optional[str] = executor_result.get("results_title", "")
-        geodata_results: List[GeoDataObject] = executor_result.get(
-            "geodata_results", []
-        )
+        geodata_results: List[GeoDataObject] = executor_result.get("geodata_results", [])
         geodata_layers: List[GeoDataObject] = executor_result.get("geodata_layers", [])
         # global_geodata: List[GeoDataObject] = executor_result.get('global_geodata', [])
 
         if not result_messages:  # Should always have messages, but safeguard
             result_messages = [
-                AIMessage(
-                    content="Agent processed the request but returned no explicit messages."
-                )
+                AIMessage(content="Agent processed the request but returned no explicit messages.")
             ]
 
     except openai.InternalServerError:
@@ -229,7 +223,9 @@ async def ask_geoweaver_agent(request: GeoweaverRequest):
 
     except Exception:  # Catch any other unexpected errors during agent execution
         print("Unexpected error during agent execution")
-        error_message = "An unexpected error occurred while processing your request. Please try again."
+        error_message = (
+            "An unexpected error occurred while processing your request. Please try again."
+        )
         result_messages = [*messages, AIMessage(content=error_message)]
         results_title = "Unexpected Error"
         geodata_results = []

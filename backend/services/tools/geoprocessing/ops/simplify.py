@@ -24,11 +24,9 @@ def op_simplify(
         return []
     try:
         gdf = gpd.GeoDataFrame.from_features(feats)
-        gdf["geometry"] = gdf.geometry.simplify(
-            tolerance, preserve_topology=preserve_topology
-        )
+        gdf["geometry"] = gdf.geometry.simplify(tolerance, preserve_topology=preserve_topology)
         fc = json.loads(gdf.to_json())
         return [fc]
     except Exception as e:
-        logger.exception("Error in op_simplify: {e}")
+        logger.exception(f"Error in op_simplify: {e}")
         return []

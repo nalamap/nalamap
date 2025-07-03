@@ -61,9 +61,7 @@ def parse_color(color_name: str) -> str:
     return color_map.get(color_name.lower(), color_name)
 
 
-def extract_layer_names_from_text(
-    text: str, available_layers: List[GeoDataObject]
-) -> List[str]:
+def extract_layer_names_from_text(text: str, available_layers: List[GeoDataObject]) -> List[str]:
     """Extract layer names mentioned in the user's request"""
     text_lower = text.lower()
     mentioned_layers = []
@@ -109,9 +107,7 @@ def extract_layer_names_from_text(
     return mentioned_layers
 
 
-def extract_style_from_ai_response(
-    ai_response: str, geometry_type: str = None
-) -> Dict[str, Any]:
+def extract_style_from_ai_response(ai_response: str, geometry_type: str = None) -> Dict[str, Any]:
     """Extract styling parameters from AI response"""
     style = {}
 
@@ -166,9 +162,7 @@ def extract_style_from_ai_response(
     for pattern in weight_patterns:
         if pattern in ["thick(?:er)?|bold", "thin(?:ner)?|fine"]:
             if re.search(pattern, ai_response.lower()):
-                style["stroke_weight"] = (
-                    4 if "thick" in pattern or "bold" in pattern else 1
-                )
+                style["stroke_weight"] = 4 if "thick" in pattern or "bold" in pattern else 1
                 break
         else:
             match = re.search(pattern, ai_response.lower())
@@ -195,9 +189,7 @@ def extract_style_from_ai_response(
 
     # Extract radius for points (only applicable to Point geometries)
     if geometry_type in ["Point", "MultiPoint", "Unknown", "Mixed"]:
-        radius_match = re.search(
-            r"radius[:\s]*(\d+)|size[:\s]*(\d+)", ai_response.lower()
-        )
+        radius_match = re.search(r"radius[:\s]*(\d+)|size[:\s]*(\d+)", ai_response.lower())
         if radius_match:
             radius = radius_match.group(1) or radius_match.group(2)
             if radius:
@@ -271,8 +263,8 @@ async def ai_style(request: AIChatRequest):
         # Get AI interpretation of the styling request
         llm = get_llm()
 
-        system_prompt = """You are a geospatial styling assistant. Your job is to interpret user requests for map
-layer styling and provide natural, conversational responses.
+        system_prompt = """You are a geospatial styling assistant. Your job is to interpret user \
+requests for map layer styling and provide natural, conversational responses.
 
 IMPORTANT INSTRUCTIONS:
 1. If the user mentions a specific layer name or keyword (like "rivers",
@@ -315,7 +307,8 @@ Current layers available:
         ai_response = await llm.ainvoke(messages)
         ai_response_text = ai_response.content
 
-        # Check if AI is asking for clarification (contains question marks or clarification keywords)
+        # Check if AI is asking for clarification
+        # (contains question marks or clarification keywords)
         is_clarification = any(
             keyword in ai_response_text.lower()
             for keyword in [
@@ -348,9 +341,7 @@ Current layers available:
         logger.debug("Extracting style from: {combined_text}")
 
         # Extract mentioned layer names from the user query and AI response
-        mentioned_layers = extract_layer_names_from_text(
-            combined_text, request.geodata_layers
-        )
+        mentioned_layers = extract_layer_names_from_text(combined_text, request.geodata_layers)
         logger.debug("Mentioned layers: {mentioned_layers}")
 
         # Determine which layers to style
@@ -370,10 +361,11 @@ Current layers available:
         else:
             # Multiple layers but none specified - ask for clarification
             layer_names = [layer.name for layer in request.geodata_layers]
-            clarification_message = f"I see you have multiple layers available: {', '.join(layer_names)}. Which layer would you like me to style?"
-            logger.debug(
-                "Multiple layers without specification, asking for clarification"
+            clarification_message = (
+                f"I see you have multiple layers available: {', '.join(layer_names)}. "
+                f"Which layer would you like me to style?"
             )
+            logger.debug("Multiple layers without specification, asking for clarification")
 
             response_messages = [
                 *request.messages,
@@ -401,17 +393,11 @@ Current layers available:
                     layer.layer_type and layer.layer_type.upper() in ["WFS", "UPLOADED"]
                 ) or layer.data_link.lower().endswith((".geojson", ".json")):
                     geometry_type = detect_geometry_type(layer.data_link)
-                    logger.debug(
-                        "Detected geometry type for layer {layer.name}: {geometry_type}"
-                    )
+                    logger.debug("Detected geometry type for layer {layer.name}: {geometry_type}")
 
                 # Extract style parameters with geometry type awareness
-                layer_style_params = extract_style_from_ai_response(
-                    combined_text, geometry_type
-                )
-                logger.debug(
-                    "Layer-specific style params for {layer.name}: {layer_style_params}"
-                )
+                layer_style_params = extract_style_from_ai_response(combined_text, geometry_type)
+                logger.debug("Layer-specific style params for {layer.name}: {layer_style_params}")
 
                 # Create a copy of the layer with updated styling
                 layer_dict = layer.model_dump()
@@ -447,7 +433,10 @@ Current layers available:
 
     except Exception:
         logger.error("Error in AI styling")
-        error_message = "I encountered an error while processing your styling request. Please try again or use the manual styling panel."
+        error_message = (
+            "I encountered an error while processing your styling request. "
+            "Please try again or use the manual styling panel."
+        )
         response_messages = [
             *request.messages,
             ChatMessage(type="human", content=request.query),

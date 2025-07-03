@@ -81,10 +81,13 @@ async def auto_style_layers(request: AutoStyleRequest):
 
         # Create a message that triggers automatic styling
         styling_prompt = (
-            f"I've detected {len(layers_needing_styling)} newly uploaded layer(s) that need automatic styling. "
-            "Please check for layers needing styling using check_and_auto_style_layers, "
-            "then analyze the layer names using auto_style_new_layers, and finally apply intelligent "
-            "AI-powered styling to these layers using style_map_layers with appropriate cartographic colors."
+            f"I've detected {len(layers_needing_styling)} newly uploaded "
+            f"layer(s) that need automatic styling. "
+            "Please check for layers needing styling using "
+            "check_and_auto_style_layers, then analyze the layer names using "
+            "auto_style_new_layers, and finally apply intelligent "
+            "AI-powered styling to these layers using style_map_layers with "
+            "appropriate cartographic colors."
         )
 
         # Create state for the agent
@@ -111,12 +114,15 @@ async def auto_style_layers(request: AutoStyleRequest):
                 styled_layer_dicts.append(layer.__dict__)
 
         logger.info(
-            "Successfully applied automatic styling to {len(layers_needing_styling)} layers"
+            f"Successfully applied automatic styling to " f"{len(layers_needing_styling)} layers"
         )
 
         return AutoStyleResponse(
             success=True,
-            message=f"Successfully applied automatic AI styling to {len(layers_needing_styling)} layer(s)",
+            message=(
+                f"Successfully applied automatic AI styling to "
+                f"{len(layers_needing_styling)} layer(s)"
+            ),
             styled_layers=styled_layer_dicts,
         )
 

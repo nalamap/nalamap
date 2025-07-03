@@ -33,7 +33,8 @@ class ChatResponse(BaseModel):
 # Geoweaver Messages
 class GeoweaverRequest(BaseModel):
     """
-    Request of the Frontend to the Geoweaver, which contains the message history, a request and geodata related to the query
+    Request of the Frontend to the Geoweaver, which contains the message history,
+    a request and geodata related to the query
     """
 
     messages: Optional[List[BaseMessage]] = None
@@ -46,13 +47,12 @@ class GeoweaverRequest(BaseModel):
 
 class GeoweaverResponse(BaseModel):
     """
-    Reponse of the Geoweaver, which contains the message history, a response and geodata related to the query
+    Response of the Geoweaver, which contains the message history,
+    a response and geodata related to the query
     """
 
     messages: Optional[List[BaseMessage]] = None
     results_title: Optional[str] = None
     geodata_results: Optional[List[GeoDataObject]] = None
-    geodata_layers: Optional[List[GeoDataObject]] = (
-        None  # Uncommented for styling support
-    )
+    geodata_layers: Optional[List[GeoDataObject]] = None  # Uncommented for styling support
     global_geodata: Optional[List[GeoDataObject]] = None

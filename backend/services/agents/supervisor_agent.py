@@ -64,11 +64,7 @@ async def supervisor_node(
     try:
         parsed = json.loads(raw)
         nxt = parsed.get("next", "finish")
-        reason = parsed.get("reason", "")
     except json.JSONDecodeError:
         nxt = raw.lower()
-        reason = ""
     goto = END if nxt == "finish" else nxt
-    return Command(
-        goto=goto, update={"messages": state["messages"], "geodata": state["geodata"]}
-    )
+    return Command(goto=goto, update={"messages": state["messages"], "geodata": state["geodata"]})

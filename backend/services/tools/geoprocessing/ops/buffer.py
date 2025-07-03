@@ -35,11 +35,7 @@ def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857", radius_unit="meters"
                 if props:
                     name = props.get("name") or props.get("title")
                 # Also try to get name from features if it's a FeatureCollection
-                if (
-                    not name
-                    and layer.get("type") == "FeatureCollection"
-                    and layer.get("features")
-                ):
+                if not name and layer.get("type") == "FeatureCollection" and layer.get("features"):
                     first_feat = layer["features"][0] if layer["features"] else None
                     if first_feat and isinstance(first_feat, dict):
                         props = first_feat.get("properties", {})
@@ -80,9 +76,7 @@ def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857", radius_unit="meters"
         gdf.set_crs("EPSG:4326", inplace=True)
 
         gdf_reprojected = gdf.to_crs(buffer_crs)
-        gdf_reprojected["geometry"] = gdf_reprojected.geometry.buffer(
-            actual_radius_meters
-        )
+        gdf_reprojected["geometry"] = gdf_reprojected.geometry.buffer(actual_radius_meters)
         gdf_buffered_individual = gdf_reprojected.to_crs("EPSG:4326")
 
         if gdf_buffered_individual.empty:
@@ -91,4 +85,5 @@ def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857", radius_unit="meters"
         fc = json.loads(gdf_buffered_individual.to_json())
         return [fc]  # Return a list containing the single FeatureCollection
     except Exception as e:
-        logger.exception("Error in op_buffer: {e}")
+        logger.exception(f"Error in op_buffer: {e}")
+        return []

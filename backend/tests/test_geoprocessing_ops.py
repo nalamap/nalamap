@@ -1,12 +1,9 @@
+import math
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-import math
-
 import pytest
-from shapely.geometry import LineString, Point, Polygon, shape
+from shapely.geometry import Point, Polygon, shape
 
 from services.tools.geoprocessing.ops.buffer import op_buffer
 from services.tools.geoprocessing.ops.centroid import op_centroid
@@ -15,6 +12,8 @@ from services.tools.geoprocessing.ops.overlay import op_overlay
 from services.tools.geoprocessing.ops.simplify import op_simplify
 from services.tools.geoprocessing.ops.sjoin import op_sjoin
 from services.tools.geoprocessing.ops.sjoin_nearest import op_sjoin_nearest
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
 def test_op_buffer_basic_and_error_cases():
@@ -206,9 +205,7 @@ def test_op_sjoin_insufficient_and_intersects_join():
 def test_op_sjoin_nearest_insufficient_and_distance_column():
     # fewer than two returns original
     fc = {"type": "FeatureCollection", "features": []}
-    assert op_sjoin_nearest(
-        [fc], how="inner", max_distance=None, distance_col="dist"
-    ) == [fc]
+    assert op_sjoin_nearest([fc], how="inner", max_distance=None, distance_col="dist") == [fc]
     pt1_fc = {
         "type": "FeatureCollection",
         "features": [
@@ -229,9 +226,7 @@ def test_op_sjoin_nearest_insufficient_and_distance_column():
             }
         ],
     }
-    result = op_sjoin_nearest(
-        [pt1_fc, pt2_fc], how="inner", max_distance=None, distance_col="dist"
-    )
+    result = op_sjoin_nearest([pt1_fc, pt2_fc], how="inner", max_distance=None, distance_col="dist")
     assert len(result) == 1
     features = result[0]["features"]
     assert len(features) == 1

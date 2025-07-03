@@ -4,7 +4,7 @@ Automatic styling system that applies appropriate colors and styles based on lay
 
 import logging
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from models.geodata import LayerStyle
 
@@ -409,9 +409,7 @@ def detect_layer_type(layer_name: str, layer_description: str = None) -> str:
     for feature_type, keywords in FEATURE_KEYWORDS.items():
         for keyword in keywords:
             if re.search(r"\b" + re.escape(keyword) + r"\b", text_to_analyze):
-                logger.debug(
-                    "Detected layer type '{feature_type}' from keyword '{keyword}'"
-                )
+                logger.debug("Detected layer type '{feature_type}' from keyword '{keyword}'")
                 return feature_type
 
     logger.debug("No specific layer type detected, using default")
@@ -469,14 +467,10 @@ def generate_automatic_style(
         elif geometry_type in ["polygon", "multipolygon"]:
             # Administrative boundaries need low fill opacity
             if layer_type in ["boundary", "administrative"]:
-                base_style["fill_opacity"] = min(
-                    base_style.get("fill_opacity", 0.3), 0.2
-                )
+                base_style["fill_opacity"] = min(base_style.get("fill_opacity", 0.3), 0.2)
             # Water bodies need higher fill opacity
             elif layer_type in ["water", "lake", "ocean"]:
-                base_style["fill_opacity"] = max(
-                    base_style.get("fill_opacity", 0.3), 0.6
-                )
+                base_style["fill_opacity"] = max(base_style.get("fill_opacity", 0.3), 0.6)
 
     # Create LayerStyle object
     style = LayerStyle(
@@ -491,9 +485,7 @@ def generate_automatic_style(
         line_join="round",
     )
 
-    logger.info(
-        "Generated automatic style for layer '{layer_name}' (type: {layer_type}): {style}"
-    )
+    logger.info("Generated automatic style for layer '{layer_name}' (type: {layer_type}): {style}")
     return style
 
 

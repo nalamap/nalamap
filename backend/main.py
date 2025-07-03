@@ -23,7 +23,9 @@ logging.basicConfig(
 tags_metadata = [
     {
         "name": "debug",
-        "description": "The debug methods are used for directly interacting with the models and tools",
+        "description": (
+            "The debug methods are used for directly interacting with the " "models and tools"
+        ),
     },
     {
         "name": "geoweaver",
@@ -89,24 +91,18 @@ async def validation_exception_handler_400(request: Request, exc):
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler_422(
-    request: Request, exc: RequestValidationError
-):
+async def validation_exception_handler_422(request: Request, exc: RequestValidationError):
     exc_str = f"{exc}".replace("\n", " ").replace("   ", " ")
     logging.error(f"{request}: {exc_str}")
     content = {"status_code": 10422, "message": exc_str, "data": None}
-    return JSONResponse(
-        content=content, status_code=status.HTTP_422_UNPROCESSABLE_ENTITY
-    )
+    return JSONResponse(content=content, status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
 
 
 @app.exception_handler(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE)
 async def request_entity_too_large_handler(request: Request, exc):
     return JSONResponse(
         status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-        content={
-            "detail": "File size exceeds the 100MB limit. Please upload a smaller file."
-        },
+        content={"detail": "File size exceeds the 100MB limit. Please upload a smaller file."},
     )
 
 

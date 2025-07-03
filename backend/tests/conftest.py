@@ -2,18 +2,16 @@
 Pytest configuration and fixtures for styling tools tests.
 """
 
-import os
 import sys
 from pathlib import Path
 
-# Add the backend root directory to Python path
+import pytest
+
+# Add the backend root directory to Python path first
 backend_root = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_root))
 
-from typing import Any, Dict
-
-import pytest
-
+# Now import after path is set
 from models.geodata import DataOrigin, DataType, GeoDataObject, LayerStyle
 
 
@@ -251,7 +249,10 @@ def realistic_layer_collection():
             data_source="Realistic Source",
             data_link="http://realistic.com",
             name="African Major Rivers 2024",
-            description="Updated dataset of major rivers across Africa including the Nile, Congo, Niger, and Zambezi",
+            description=(
+                "Updated dataset of major rivers across Africa including "
+                "the Nile, Congo, Niger, and Zambezi"
+            ),
             style=LayerStyle(
                 stroke_color="#3388f",
                 stroke_weight=2,

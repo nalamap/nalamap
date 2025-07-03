@@ -3,9 +3,9 @@ Automatic styling service that can be triggered when layers are uploaded.
 """
 
 import logging
-from typing import List, Optional
+from typing import List
 
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import HumanMessage
 
 from models.geodata import GeoDataObject
 from models.states import GeoDataAgentState
@@ -43,14 +43,15 @@ async def apply_automatic_styling_to_new_layers(
         logger.info("No layers need automatic styling")
         return geodata_layers
 
-    logger.info("Applying automatic styling to {len(layers_needing_styling)} layers")
+    logger.info(f"Applying automatic styling to {len(layers_needing_styling)} layers")
 
     # Create a message that triggers the automatic styling workflow
     layer_names = [layer.name for layer in layers_needing_styling]
     styling_prompt = (
-        "I've detected {len(layers_needing_styling)} newly uploaded layer(s) that need automatic styling: "
-        "{', '.join(layer_names)}. Please apply intelligent AI-powered styling to these layers based on their names. "
-        "Use your best judgment to determine appropriate cartographic colors for each layer."
+        f"I've detected {len(layers_needing_styling)} newly uploaded layer(s) that need "
+        f"automatic styling: {', '.join(layer_names)}. Please apply intelligent "
+        f"AI-powered styling to these layers based on their names. Use your best "
+        f"judgment to determine appropriate cartographic colors for each layer."
     )
 
     # Create state for the agent
@@ -74,7 +75,7 @@ async def apply_automatic_styling_to_new_layers(
         return updated_layers
 
     except Exception as e:
-        logger.error("Error applying automatic styling: {str(e)}")
+        logger.error(f"Error applying automatic styling: {str(e)}")
         # Return original layers if styling fails
         return geodata_layers
 
@@ -95,6 +96,7 @@ def trigger_automatic_styling_for_upload(
     # For now, just return the original layers since we need async context
     # This could be enhanced to use asyncio.run() if needed
     logger.info(
-        "Layer '{layer_name}' uploaded - automatic styling will be triggered on next chat interaction"
+        f"Layer '{layer_name}' uploaded - automatic styling will be triggered "
+        "on next chat interaction"
     )
     return geodata_layers

@@ -10,11 +10,9 @@ from langchain_core.tools import tool
 from langchain_core.tools.base import InjectedToolCallId
 from langgraph.prebuilt import InjectedState
 from langgraph.types import Command
-from pydantic import BaseModel, Field
 from typing_extensions import Annotated
 
 from models.geodata import GeoDataObject
-from models.states import GeoDataAgentState
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +106,9 @@ def style_map_layers(
     available_layers = state.get("geodata_layers", [])
 
     if not available_layers:
-        message = "No layers are currently available to style. Please add some layers to the map first."
+        message = (
+            "No layers are currently available to style. Please add some layers to the map first."
+        )
         return Command(
             update={
                 "messages": [
@@ -138,9 +138,7 @@ def style_map_layers(
     elif layer_names:
         # Use explicitly specified layer names
         for layer_name in layer_names:
-            matching_layers = [
-                layer for layer in available_layers if layer.name == layer_name
-            ]
+            matching_layers = [layer for layer in available_layers if layer.name == layer_name]
             if matching_layers:
                 layers_to_style.extend(matching_layers)
                 logger.info(
@@ -183,9 +181,7 @@ def style_map_layers(
         if stroke_color is not None:
             style_params["stroke_color"] = normalize_color(stroke_color)
         if stroke_width is not None:
-            style_params["stroke_weight"] = (
-                stroke_width  # Note: stroke_weight in the model
-            )
+            style_params["stroke_weight"] = stroke_width  # Note: stroke_weight in the model
         if fill_opacity is not None:
             style_params["fill_opacity"] = fill_opacity
         if stroke_opacity is not None:
@@ -241,9 +237,7 @@ def style_map_layers(
         update={
             "messages": [
                 *state["messages"],
-                ToolMessage(
-                    name="style_map_layers", content=message, tool_call_id=tool_call_id
-                ),
+                ToolMessage(name="style_map_layers", content=message, tool_call_id=tool_call_id),
             ],
             "geodata_layers": updated_layers,
         }
@@ -291,9 +285,7 @@ def auto_style_new_layers(
     if layer_names:
         # Style specific layers
         for layer_name in layer_names:
-            matching_layers = [
-                layer for layer in available_layers if layer.name == layer_name
-            ]
+            matching_layers = [layer for layer in available_layers if layer.name == layer_name]
             layers_to_style.extend(matching_layers)
     else:
         # Style all layers that have default styling or no styling
