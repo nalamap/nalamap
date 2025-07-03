@@ -4,13 +4,14 @@ GeoWeaver is an open-source platform that helps users find and analyze geospatia
 
 ## Features
 
-- **Natural Language Interface**: Interact with maps and geospatial data using conversational prompts
-- **Multiple Mapping Options**: Choose between Leaflet and MapLibre GL for different mapping needs
-- **AI-Powered Analysis**: Leverage AI models to interpret and analyze geospatial data
-- **WMS Integration**: Connect with Web Map Service providers to access diverse geospatial datasets
-- **User Management**: Secure authentication and user management system
-- **Responsive Design**: Works across desktop and mobile devices
-- **Docker Deployment**: Easy setup and deployment using Docker containers
+* Upload and display vector data on a map. 
+* Geocode Locations using OSM and GeoNames (e.g. hospitals, schools etc.).
+* Find and integrate data from existing Open Data Portals or own databases.
+* Chat with AI-agent to retrieve information on data content and quality.
+* AI-assisted map and layer styling. 
+* Automated Geoprocessing using natural language (e.g buffer, centroids, intersections).
+* Create and share GIS-AI-Applications for people without geodata expertise based on custom use-cases, processing logic and data-sources.
+* Flexible Extension Possibilities of Toolbox e.g. for including document or web-search
 
 ## Project Structure
 
@@ -136,14 +137,12 @@ docker-compose -f dev.docker-compose.yml up --build
 - **LangChain**: Framework for developing applications powered by language models
 - **LangGraph**: For building complex AI agent workflows
 - **OpenAI/Azure/DeepSeek**: AI model providers for natural language processing
-- **PostgreSQL**: Database for persistent storage
 - **Uvicorn**: ASGI server for serving the FastAPI application
 
 ### Frontend
 - **Next.js 15**: React framework for building web applications
 - **React 19**: JavaScript library for building user interfaces
 - **Leaflet**: Open-source JavaScript library for interactive maps
-- **MapLibre GL**: JavaScript library for vector maps
 - **Tailwind CSS**: Utility-first CSS framework
 - **TypeScript**: Typed JavaScript for safer code
 
