@@ -1,6 +1,6 @@
-# GeoWeaver
+# NaLaMap
 
-GeoWeaver is an open-source platform that helps users find and analyze geospatial data in a natural way. It combines modern web technologies with AI capabilities to create an intuitive interface for interacting with geographic information.
+NaLaMap is an open-source platform that helps users find and analyze geospatial data in a natural way. It combines modern web technologies with AI capabilities to create an intuitive interface for interacting with geographic information.
 
 ## Features
 
