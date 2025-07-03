@@ -267,13 +267,13 @@ def geoprocess_tool(
             try:
                 with open(url, "r", encoding="utf-8") as f:
                     gj = json.load(f)
-            except Exception:
+            except Exception as exc:
                 return {
                     "update": {
                         "messages": [
                             ToolMessage(
                                 name="geoprocess_tool",
-                                content="Error: Failed to read local file '{url}': {exc}",
+                                content=f"Error: Failed to read local file '{url}': {exc}",
                                 tool_call_id=tool_call_id,
                                 status="error",
                             )
@@ -289,13 +289,13 @@ def geoprocess_tool(
                 try:
                     with open(local_path, "r", encoding="utf-8") as f:
                         gj = json.load(f)
-                except Exception:
+                except Exception as exc:
                     return {
                         "update": {
                             "messages": [
                                 ToolMessage(
                                     name="geoprocess_tool",
-                                    content=f"Error: Failed to read local file '{local_path}'",
+                                    content=f"Error: Failed to read local file '{local_path}': {exc}",
                                     tool_call_id=tool_call_id,
                                     status="error",
                                 )
@@ -311,13 +311,13 @@ def geoprocess_tool(
                     if resp.status_code != 200:
                         raise IOError(f"HTTP {resp.status_code} when fetching {url}")
                     gj = resp.json()
-                except Exception:
+                except Exception as exc:
                     return {
                         "update": {
                             "messages": [
                                 ToolMessage(
                                     name="geoprocess_tool",
-                                    content=f"Error: Failed to fetch GeoJSON from '{url}'",
+                                    content=f"Error: Failed to fetch GeoJSON from '{url}': {exc}",
                                     tool_call_id=tool_call_id,
                                     status="error",
                                 )
@@ -330,7 +330,7 @@ def geoprocess_tool(
                         "messages": [
                             ToolMessage(
                                 name="geoprocess_tool",
-                                content="Error: GeoJSON path '{url}' is neither a local file nor a valid HTTP URL.",
+                                content=f"Error: GeoJSON path '{url}' is neither a local file nor a valid HTTP URL.",
                                 tool_call_id=tool_call_id,
                                 status="error",
                             )
@@ -443,7 +443,7 @@ def geoprocess_tool(
                     name="geoprocess_tool",
                     content="Tools used: "
                     + ", ".join(tools_used)
-                    + ". Added GeoDataObjects into the global_state, use id and data_source_id for reference: {json.dumps([{'id': result.id, 'data_source_id': result.data_source_id, 'title': result.title} for result in new_geodata])}",
+                    + f". Added GeoDataObjects into the global_state, use id and data_source_id for reference: {json.dumps([{'id': result.id, 'data_source_id': result.data_source_id, 'title': result.title} for result in new_geodata])}",
                     tool_call_id=tool_call_id,
                 )
             ],

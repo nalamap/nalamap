@@ -52,7 +52,7 @@ def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857", radius_unit="meters"
     unit = radius_unit.lower()
     factor = {"meters": 1.0, "kilometers": 1000.0, "miles": 1609.34}.get(unit)
     if factor is None:
-        logger.warning("Unknown radius_unit '{radius_unit}', assuming meters")
+        logger.warning(f"Unknown radius_unit '{radius_unit}', assuming meters")
         factor = 1.0
 
     actual_radius_meters = float(radius) * factor

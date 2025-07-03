@@ -25,7 +25,7 @@ def flatten_features(layers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         elif layer.get("type") == "Feature":
             feats.append(layer)
         else:
-            logger.debug("Skipping invalid GeoJSON layer: {layer}")
+            logger.debug(f"Skipping invalid GeoJSON layer: {layer}")
     return feats
 
 
@@ -42,7 +42,7 @@ def get_layer_geoms(layers: List[Dict[str, Any]]) -> List[Any]:
         elif layer_type == "Feature":
             feats = [layer]
         else:
-            logger.debug("Skipping layer with missing or invalid type: {layer_type}")
+            logger.debug(f"Skipping layer with missing or invalid type: {layer_type}")
             continue
 
         if not feats:

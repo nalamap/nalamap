@@ -59,7 +59,7 @@ def normalize_color(color: str) -> str:
     """
     if color and color.lower() in COLOR_NAME_MAP:
         hex_color = COLOR_NAME_MAP[color.lower()]
-        logger.info("Converted color name '{color}' to hex '{hex_color}'")
+        logger.info(f"Converted color name '{color}' to hex '{hex_color}'")
         return hex_color
     return color
 
@@ -126,8 +126,8 @@ def style_map_layers(
     layers_to_style = []
 
     # Log available layers for debugging
-    logger.info("Available layers: {[layer.name for layer in available_layers]}")
-    logger.info("Requested layer_names: {layer_names}")
+    logger.info(f"Available layers: {[layer.name for layer in available_layers]}")
+    logger.info(f"Requested layer_names: {layer_names}")
 
     # Smart single-layer detection
     if len(available_layers) == 1 and not layer_names:
@@ -145,7 +145,7 @@ def style_map_layers(
                     "Found matching layer for '{layer_name}': {[l.name for l in matching_layers]}"
                 )
             else:
-                logger.warning("No matching layer found for '{layer_name}'")
+                logger.warning(f"No matching layer found for '{layer_name}'")
     else:
         # Multiple layers available and no specific names provided
         # Style all available layers
@@ -192,7 +192,7 @@ def style_map_layers(
             style_params["stroke_dash_array"] = dash_pattern
 
         # Log the styling parameters being applied
-        logger.info("Applying styling to layer '{layer.name}': {style_params}")
+        logger.info(f"Applying styling to layer '{layer.name}': {style_params}")
 
         # Initialize with defaults if no style exists
         if not layer_dict.get("style"):
@@ -211,7 +211,7 @@ def style_map_layers(
         layer_dict["style"].update(style_params)
 
         # Log the final style after update
-        logger.info("Final style for layer '{layer.name}': {layer_dict['style']}")
+        logger.info(f"Final style for layer '{layer.name}': {layer_dict['style']}")
 
         # Create new GeoDataObject
         updated_layer = GeoDataObject(**layer_dict)
