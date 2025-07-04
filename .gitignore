@@ -7,6 +7,8 @@
 *.orig
 
 backend/uploads/
+backend/.vscode/
+backend/.venv/
 
 # Created by git when using merge tools for conflicts
 *.BACKUP.*

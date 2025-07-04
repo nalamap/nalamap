@@ -1,6 +1,6 @@
-# Contributing to GeoWeaver
+# Contributing to NaLaMap
 
-Thank you for your interest in contributing to GeoWeaver! We're excited to welcome community contributions as we build this project together.
+Thank you for your interest in contributing to NaLaMap! We're excited to welcome community contributions as we build this project together.
 
 ## Getting Started
 
@@ -25,6 +25,15 @@ Thank you for your interest in contributing to GeoWeaver! We're excited to welco
 3. Make your changes
 4. Test your changes
 5. Submit a pull request
+
+## Running Tests
+
+Ensure you have the backend dependencies installed, then run:
+
+```bash
+cd backend
+python -m pytest -v
+```
 
 ## Code Style
 
