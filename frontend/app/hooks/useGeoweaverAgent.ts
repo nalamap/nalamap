@@ -1,5 +1,5 @@
 // hooks/useGeoweaver.ts
-"use client";
+'use client';
 
 import { useState } from "react";
 import { ChatMessage, GeoDataObject, GeoweaverRequest, GeoweaverResponse } from "../models/geodatamodel";
