@@ -75,6 +75,7 @@ app.include_router(ai_style.router, prefix="/api")  # AI Style button functional
 app.include_router(auto_styling.router, prefix="/api")  # Automatic styling
 app.include_router(settings.router, prefix="/api")
 
+
 @app.get("/")
 async def root():
     return {"message": "GeoWeaver API is running"}

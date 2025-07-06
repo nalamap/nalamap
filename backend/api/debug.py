@@ -306,7 +306,7 @@ async def geoprocess(req: GeoweaverRequest):
 
     # Convert to common Geodatamodel
     response_str: str = "Here are the processing results, used Tools: {', '.join(tools_used)}:"
-    geodataResponse: GeoweaverResponse = GeoweaverResponse(geodata_layers=req.geodata_layers, 
+    geodataResponse: GeoweaverResponse = GeoweaverResponse(geodata_layers=req.geodata_layers,
                                                            options=req.options)
     geodataResponse.geodata_results = new_geodata
     # geodataResponse.global_geodata=global_geodata
