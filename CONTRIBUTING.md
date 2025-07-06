@@ -1,4 +1,4 @@
-# Contributing to GeoWeaver
+# Contributing to NaLaMap
 
 Thank you for your interest in contributing to GeoWeaver! We're excited to welcome community contributions as we build this project together.
 
@@ -6,7 +6,7 @@ Thank you for your interest in contributing to GeoWeaver! We're excited to welco
 
 ### Issues
 
-- Check existing issues before creating a new one
+- Check existing issues before creating a new one related to a new feature or pull request. 
 - Use the issue templates when reporting bugs or requesting features
 - Be clear and provide as much information as possible
 
@@ -50,9 +50,6 @@ Thank you for your interest in contributing to GeoWeaver! We're excited to welco
 - Be respectful and inclusive in all interactions
 - Focus on constructive feedback
 - Help others when you can
-
-## Questions?
-
 If you have any questions or need assistance, please open an issue or reach out to the project maintainers.
 
 We appreciate all contributions, whether it's code, documentation, bug reports, or feature suggestions! 
