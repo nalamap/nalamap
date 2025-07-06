@@ -1,20 +1,19 @@
-"use client";
+'use client';
 
 import { MapContainer, LayersControl, TileLayer, WMSTileLayer, GeoJSON, useMap } from "react-leaflet";
 import { useState, useEffect, useRef, useMemo } from "react";
+// Fix leaflet's default icon path issue
 import "leaflet/dist/leaflet.css";
-//import { LayerData } from "./MapLibreMap"; // Assuming the same type definition
 import L from "leaflet";
 import "leaflet-fullscreen/dist/leaflet.fullscreen.css";
 import "leaflet-fullscreen";
 
-import { useMapStore } from "../stores/mapStore"; // Adjust path accordingly
-import { useLayerStore } from "../stores/layerStore";
-import { ZoomToSelected } from "./ZoomToLayer"; // adjust path
+import { useMapStore } from "../../stores/mapStore";
+import { useLayerStore } from "../../stores/layerStore";
+import { ZoomToSelected } from "./ZoomToLayer";
 
-// Fix leaflet's default icon path issue
-import "leaflet/dist/leaflet.css";
-import { GeoDataObject, LayerStyle } from "../models/geodatamodel";
+
+import { GeoDataObject, LayerStyle } from "../../models/geodatamodel";
 
 const defaultIcon = new L.Icon({
   iconUrl: "/marker-icon.png", // Make sure this is in /public folder
@@ -642,8 +641,7 @@ function Legend({
 export default function LeafletMapComponent() {
   const basemap = useMapStore((state) => state.basemap);
   const layers = useLayerStore((state) => state.layers);
-
-  const layerOrderKey = layers.map(l => l.id).join("-");
+  const layerOrderKey = layers.map((l) => l.id).join("-");
 
   // Get the first WMS layer from the layers array (if any) for GetFeatureInfo.
   const wmsLayerData = layers.find(
@@ -653,10 +651,10 @@ export default function LeafletMapComponent() {
   
   // Get all visible layers that can show legends (WMS and WMTS)
   const visibleLayersWithLegends = layers.filter(
-    (layer) => layer.visible && (
-      layer.layer_type?.toUpperCase() === "WMS" || 
-      layer.layer_type?.toUpperCase() === "WMTS"
-    )
+    (layer) =>
+      layer.visible &&
+      (layer.layer_type?.toUpperCase() === "WMS" ||
+        layer.layer_type?.toUpperCase() === "WMTS")
   );
   
   // Memoize legend components to prevent unnecessary re-renders
@@ -665,10 +663,10 @@ export default function LeafletMapComponent() {
       if (layer.layer_type?.toUpperCase() === "WMS") {
         const wmsLayerParsed = parseWMSUrl(layer.data_link);
         return (
-          <Legend 
+          <Legend
             key={`wms-${layer.id}`}
-            wmsLayer={wmsLayerParsed} 
-            title={layer.title || layer.name} 
+            wmsLayer={wmsLayerParsed}
+            title={layer.title || layer.name}
           />
         );
       } else if (layer.layer_type?.toUpperCase() === "WMTS") {
