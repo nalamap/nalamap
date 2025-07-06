@@ -2,6 +2,7 @@
 
 import { MapContainer, LayersControl, TileLayer, WMSTileLayer, GeoJSON, useMap } from "react-leaflet";
 import { useState, useEffect, useRef, useMemo } from "react";
+// Fix leaflet's default icon path issue
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import "leaflet-fullscreen/dist/leaflet.fullscreen.css";
@@ -11,8 +12,7 @@ import { useMapStore } from "../../stores/mapStore";
 import { useLayerStore } from "../../stores/layerStore";
 import { ZoomToSelected } from "./ZoomToLayer";
 
-// Fix leaflet's default icon path issue
-import "leaflet/dist/leaflet.css";
+
 import { GeoDataObject, LayerStyle } from "../../models/geodatamodel";
 
 const defaultIcon = new L.Icon({

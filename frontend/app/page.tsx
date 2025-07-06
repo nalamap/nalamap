@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import Sidebar from './components/sidebar/Sidebar';
 import LayerManagement from './components/sidebar/LayerManagement';
 import MapComponent from './components/maps/MapComponent';
