@@ -1,9 +1,9 @@
 # services/agents/geoprocessing_agent.py
-import geopandas as gpd
-from typing import Dict, List, Any
-from shapely.geometry import shape, mapping
-from shapely.ops import unary_union
 import json
+from typing import Any, Dict, List
+
+import geopandas as gpd
+from shapely.ops import unary_union
 
 # LLM import
 from services.ai.llm_config import get_llm
@@ -13,7 +13,8 @@ from services.ai.llm_config import get_llm
 
 def _flatten_features(layers):
     """
-    Given a list of Feature or FeatureCollection dicts, return a flat list of Feature dicts.
+    Given a list of Feature or FeatureCollection dicts, return a flat list
+    of Feature dicts.
     """
     feats = []
     for layer in layers:
@@ -29,8 +30,8 @@ def _flatten_features(layers):
 
 def _get_layer_geoms(layers):
     """
-    Given a list of Feature or FeatureCollection dicts, return a list of shapely geometries,
-    each being the unary_union of one layer's features.
+    Given a list of Feature or FeatureCollection dicts, return a list of
+    shapely geometries, each being the unary_union of one layer's features.
     """
     geoms = []
     for layer in layers:
@@ -157,8 +158,9 @@ TOOL_REGISTRY = {
 
 async def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Uses an LLM to plan a sequence of geoprocessing operations based on a natural-language query
-    and executes them in order against the input GeoJSON layers.
+    Uses an LLM to plan a sequence of geoprocessing operations based on a
+    natural-language query and executes them in order against the input
+    GeoJSON layers.
 
     Returns:
       - tool_sequence: List of operation names executed
@@ -175,7 +177,6 @@ async def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
         geom = feat.get("geometry", {})
         # get geometry type and bbox if present
         gtype = geom.get("type")
-        coords = geom.get("coordinates")
         # simplistic bbox extraction: assume Feature has 'bbox' prop
         bbox = feat.get("bbox") or props.get("bbox")
         layer_meta.append(
@@ -191,11 +192,15 @@ async def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
     llm = get_llm()
     system_msg = (
         "You are a geospatial processing assistant. "
-        "You have the following input layers with metadata (id, name, geometry_type, bbox). "
-        "Based on the user request and available operations, choose the best sequence of operations. "
-        "Return a JSON with 'steps' array, each having 'operation with params' (one of: "
+        "You have the following input layers with metadata "
+        "(id, name, geometry_type, bbox). "
+        "Based on the user request and available operations, choose the best "
+        "sequence of operations. "
+        "Return a JSON with 'steps' array, each having 'operation with params' "
+        "(one of: "
         + ", ".join(available_ops)
-        + "). Dont define at any operation params with layer or layers as all functions are called as func(layers: result, **params)"
+        + "). Dont define at any operation params with layer or layers "
+        "as all functions are called as func(layers: result, **params)"
     )
     user_payload = {
         "query": query,
@@ -204,10 +209,14 @@ async def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
     }
     user_msg = json.dumps(user_payload)
 
-    # Use LangChain chat generate methods since AzureChatOpenAI doesn't have .chat()
-    from langchain.schema import SystemMessage, HumanMessage
+    # Use LangChain chat generate methods since AzureChatOpenAI doesn't
+    # have .chat()
+    from langchain.schema import HumanMessage, SystemMessage
 
-    messages = [SystemMessage(content=system_msg), HumanMessage(content=user_msg)]
+    messages = [
+        SystemMessage(content=system_msg),
+        HumanMessage(content=user_msg),
+    ]
     # agenerate expects a list of message lists for batching
     response = await llm.agenerate([messages])
     # extract text from first generation
@@ -220,7 +229,7 @@ async def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
 
     steps = plan.get("steps", [])
 
-    # 2) Execute each step on full geojson layers on full geojson layers
+    # 2) Execute each step on full geojson layers
     result = layers
     executed_ops = []
     for step in steps:

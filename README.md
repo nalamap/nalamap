@@ -1,16 +1,17 @@
-# GeoWeaver
+# NaLaMap
 
-GeoWeaver is an open-source platform that helps users find and analyze geospatial data in a natural way. It combines modern web technologies with AI capabilities to create an intuitive interface for interacting with geographic information.
+NaLaMap is an open-source platform that helps users find and analyze geospatial data in a natural way. It combines modern web technologies with AI capabilities to create an intuitive interface for interacting with geographic information.
 
 ## Features
 
-- **Natural Language Interface**: Interact with maps and geospatial data using conversational prompts
-- **Multiple Mapping Options**: Choose between Leaflet and MapLibre GL for different mapping needs
-- **AI-Powered Analysis**: Leverage AI models to interpret and analyze geospatial data
-- **WMS Integration**: Connect with Web Map Service providers to access diverse geospatial datasets
-- **User Management**: Secure authentication and user management system
-- **Responsive Design**: Works across desktop and mobile devices
-- **Docker Deployment**: Easy setup and deployment using Docker containers
+* Upload and display vector data on a map. 
+* Geocode Locations using OSM and GeoNames (e.g. hospitals, schools etc.).
+* Find and integrate data from existing Open Data Portals or own databases.
+* Chat with AI-agent to retrieve information on data content and quality.
+* AI-assisted map and layer styling. 
+* Automated Geoprocessing using natural language (e.g buffer, centroids, intersections).
+* Create and share GIS-AI-Applications for people without geodata expertise based on custom use-cases, processing logic and data-sources.
+* Flexible Extension Possibilities of Toolbox e.g. for including document or web-search
 
 ## Project Structure
 
@@ -43,78 +44,83 @@ geoweaver/
 
 ## Getting Started
 
-### Environment Configuration
+### Prerequisites
 
-Before running the application, you'll need to set up your environment variables:
+- Python 3.10+ (for backend)
+- Node.js 18+ (for frontend)
+- Git
 
-1. Create a `.env` file in the root directory based on the provided `.env.example`:
-   ```bash
-   cp .env.example .env
-   ```
+### Quick Setup (Recommended)
 
-2. Edit the `.env` file to include your API keys and other required settings:
-   - OpenAI API key
-   - Azure OpenAI API key (if using Azure)
-   - DeepSeek API key (if using DeepSeek)
-   - Database connection details
-   - Other service configurations
+Follow these steps to get the application running locally:
 
-> **Note**: Additional README files are available in both the `/frontend` and `/backend` directories with more specific instructions for each component.
+#### 1. Clone the Repository
+```bash
+git clone git@github.com:nalamap/nalamap.git
+cd nalamap
+```
 
-### Docker Deployment
+#### 2. Environment Configuration
+Create a `.env` file in the backend directory based on the provided `.env.example`:
+```bash
+cp .env.example backend/.env
+```
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/geoweaver.git
-   cd geoweaver
-   ```
+Edit the `backend/.env` file to include your API keys:
+- OpenAI API key (required)
+- Azure OpenAI API key (if using Azure)
+- DeepSeek API key (if using DeepSeek)
+- Database connection details
+- Other service configurations
 
-2. Configure your environment variables as described above.
+#### 3. Setup Backend (Python/FastAPI)
+```bash
+# Navigate to backend directory
+cd backend
 
-3. Start the application using Docker Compose:
+# Create virtual environment
+python3 -m venv .venv
+
+# Activate virtual environment
+source .venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Start the backend server
+python3 main.py
+```
+
+The backend will be available at `http://localhost:8000`
+- API Documentation: `http://localhost:8000/docs`
+
+#### 4. Setup Frontend (Next.js)
+Open a new terminal and run:
+```bash
+# Navigate to frontend directory
+cd frontend
+
+# Install dependencies
+npm i
+
+# Start development server
+npm run dev
+```
+
+The frontend will be available at `http://localhost:3000`
+
+### Alternative: Docker Deployment
+
+If you prefer using Docker:
+
+1. Configure your environment variables as described above.
+
+2. Start the application using Docker Compose:
    ```bash
    docker-compose up
    ```
 
-4. Access the application at `http://localhost:80`
-
-### Development Setup
-
-#### Backend (FastAPI)
-
-1. Navigate to the backend directory:
-   ```bash
-   cd backend
-   ```
-
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. Run the development server:
-   ```bash
-   uvicorn main:app --reload
-   ```
-
-#### Frontend (Next.js)
-
-1. Navigate to the frontend directory:
-   ```bash
-   cd frontend
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Start the development server:
-   ```bash
-   npm run dev
-   ```
-
-4. Access the frontend at `http://localhost:3000`
+3. Access the application at `http://localhost:80`
 
 ### Docker Development Environment
 
@@ -131,14 +137,12 @@ docker-compose -f dev.docker-compose.yml up --build
 - **LangChain**: Framework for developing applications powered by language models
 - **LangGraph**: For building complex AI agent workflows
 - **OpenAI/Azure/DeepSeek**: AI model providers for natural language processing
-- **PostgreSQL**: Database for persistent storage
 - **Uvicorn**: ASGI server for serving the FastAPI application
 
 ### Frontend
 - **Next.js 15**: React framework for building web applications
 - **React 19**: JavaScript library for building user interfaces
 - **Leaflet**: Open-source JavaScript library for interactive maps
-- **MapLibre GL**: JavaScript library for vector maps
 - **Tailwind CSS**: Utility-first CSS framework
 - **TypeScript**: Typed JavaScript for safer code
 
@@ -150,29 +154,46 @@ docker-compose -f dev.docker-compose.yml up --build
 
 The project includes a test suite for the backend components. To run the tests:
 
-1. Navigate to the backend directory:
+1. Navigate to the backend directory and activate your virtual environment:
    ```bash
    cd backend
+   source .venv/bin/activate
    ```
 
-2. Create and activate a Python virtual environment:
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
-
-3. Install pytest and project dependencies:
+2. Install pytest (if not already installed):
    ```bash
    pip install pytest
-   pip install -r requirements.txt
    ```
 
-4. Run the tests:
+3. Run the tests:
    ```bash
    python -m pytest tests/ -v
    ```
 
 Note: Some tests may require a running server or mock data. If you encounter connection errors, it's likely because the test is trying to access resources that aren't available in the test environment.
+
+## Troubleshooting
+
+### Common Issues
+
+**Backend fails to start with "Address already in use" error:**
+- Check if port 8000 is already in use: `lsof -i :8000`
+- Kill any existing processes: `kill <PID>`
+
+**Import errors with langgraph:**
+- Ensure you're using the virtual environment: `source backend/.venv/bin/activate`
+- Reinstall dependencies: `pip install -r requirements.txt`
+
+**OpenAI API errors:**
+- Verify your `.env` file is in the `backend/` directory
+- Check that `OPENAI_API_KEY` is set correctly
+
+**Frontend fails to start:**
+- Ensure Node.js 18+ is installed: `node --version`
+- Clear npm cache: `npm cache clean --force`
+- Delete node_modules and reinstall: `rm -rf node_modules && npm i`
+
+> **Note**: Additional README files are available in both the `/frontend` and `/backend` directories with more specific instructions for each component.
 
 ## Contributing
 

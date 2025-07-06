@@ -1,20 +1,17 @@
 # tests/test_chat_integration.py
 
-import os
 import json
-import pytest
+import os
 from types import SimpleNamespace
-from fastapi.testclient import TestClient
-from langchain_core.messages import HumanMessage
-import requests
-from core.config import BASE_URL, LOCAL_UPLOAD_DIR
-from services.ai import llm_config
-from main import app  # wherever your FastAPI instance lives
 
 import geopandas as gpd
+import pytest
+import requests
+from fastapi.testclient import TestClient
 from shapely.geometry import shape
 
-import importlib
+from core.config import BASE_URL, LOCAL_UPLOAD_DIR
+from main import app  # wherever your FastAPI instance lives
 
 # ensure LOCAL_UPLOAD_DIR exists for test
 os.makedirs(LOCAL_UPLOAD_DIR, exist_ok=True)
@@ -62,9 +59,10 @@ def stub_requests(monkeypatch):
             for key, sample in mapping.items():
                 if key in url:
                     return SimpleNamespace(
-                        status_code=status_code, json=lambda sample=sample: sample
+                        status_code=status_code,
+                        json=lambda sample=sample: sample,
                     )
-            raise RuntimeError(f"No stub defined for URL: {url!r}")
+            raise RuntimeError("No stub defined for URL: {url!r}")
 
         monkeypatch.setattr(requests, "get", fake_get)
 
@@ -321,14 +319,14 @@ def test_chat_overlay_intersection_expected_area(client, stub_requests):
     with open(pathaoi) as f:
         aoi = json.load(f)
 
-    pathgreenland = os.path.join(
-        os.path.dirname(__file__), "testdata", "greenland.json"
-    )
+    pathgreenland = os.path.join(os.path.dirname(__file__), "testdata", "greenland.json")
     with open(pathgreenland) as f:
         greenland = json.load(f)
 
     path_inter_greenland = os.path.join(
-        os.path.dirname(__file__), "testdata", "intersection_greenland_aoi.json"
+        os.path.dirname(__file__),
+        "testdata",
+        "intersection_greenland_aoi.json",
     )
     with open(path_inter_greenland) as f:
         intersection = json.load(f)

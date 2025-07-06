@@ -1,12 +1,9 @@
+import math
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-import math
 import pytest
-import json
-from shapely.geometry import shape, Point, Polygon, LineString
+from shapely.geometry import Point, Polygon, shape
 
 from services.tools.geoprocessing.ops.buffer import op_buffer
 from services.tools.geoprocessing.ops.centroid import op_centroid
@@ -15,6 +12,8 @@ from services.tools.geoprocessing.ops.overlay import op_overlay
 from services.tools.geoprocessing.ops.simplify import op_simplify
 from services.tools.geoprocessing.ops.sjoin import op_sjoin
 from services.tools.geoprocessing.ops.sjoin_nearest import op_sjoin_nearest
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
 def test_op_buffer_basic_and_error_cases():
@@ -50,7 +49,10 @@ def test_op_centroid_empty_and_centroid_point():
             {
                 "type": "Feature",
                 "properties": {},
-                "geometry": {"type": "LineString", "coordinates": [[0, 0], [2, 0]]},
+                "geometry": {
+                    "type": "LineString",
+                    "coordinates": [[0, 0], [2, 0]],
+                },
             }
         ],
     }

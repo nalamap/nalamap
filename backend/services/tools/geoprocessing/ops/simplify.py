@@ -1,7 +1,8 @@
-import geopandas as gpd
 import json
 import logging
 from typing import Any, Dict, List
+
+import geopandas as gpd
 
 from services.tools.geoprocessing.utils import flatten_features
 
@@ -23,9 +24,7 @@ def op_simplify(
         return []
     try:
         gdf = gpd.GeoDataFrame.from_features(feats)
-        gdf["geometry"] = gdf.geometry.simplify(
-            tolerance, preserve_topology=preserve_topology
-        )
+        gdf["geometry"] = gdf.geometry.simplify(tolerance, preserve_topology=preserve_topology)
         fc = json.loads(gdf.to_json())
         return [fc]
     except Exception as e:

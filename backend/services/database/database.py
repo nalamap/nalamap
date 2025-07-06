@@ -1,6 +1,4 @@
-import psycopg
 from psycopg_pool import AsyncConnectionPool
-from fastapi import FastAPI
 
 from core.config import DATABASE_URL
 
@@ -21,6 +19,7 @@ async def close_db():
     global db_pool
     if db_pool:
         await db_pool.close()
+        db_pool = None
 
 
 # Dependency function for FastAPI

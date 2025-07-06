@@ -1,10 +1,25 @@
 from dataclasses import dataclass, field
-from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
-from .geodata import GeoDataObject, mock_geodata_objects  # relativer Import angepasst
-from langgraph.graph import MessagesState  # Passe den Importpfad ggf. an
-from langgraph.prebuilt.chat_agent_executor import AgentState
+
 from langchain_core.messages import HumanMessage
+from langgraph.graph import MessagesState
+from pydantic import Field
+from typing_extensions import Annotated
+
+from .geodata import (
+    GeoDataObject,
+    mock_geodata_objects,
+)  # relativer Import angepasst
+
+
+def update_geodata_layers(
+    current: List[GeoDataObject], new: List[GeoDataObject]
+) -> List[GeoDataObject]:
+    """
+    Reducer function to handle updates to geodata_layers.
+    This function replaces the entire layer list with the new one.
+    """
+    return new
 
 
 @dataclass
@@ -12,10 +27,11 @@ class DataState(MessagesState):
     geodata: List[GeoDataObject] = field(default_factory=list)
 
 
-class GeoDataAgentState(AgentState):
+class GeoDataAgentState(MessagesState):
     # TODO: maybe use references?
     results_title: Optional[str] = Field(
-        default="", description="Title for the geodata response in 'geodata_results'"
+        default="",
+        description="Title for the geodata response in 'geodata_results'",
     )
     geodata_last_results: Optional[List[GeoDataObject]] = Field(
         default_factory=list, exclude=False, validate_default=False
@@ -23,15 +39,22 @@ class GeoDataAgentState(AgentState):
     geodata_results: Optional[List[GeoDataObject]] = Field(
         default_factory=list, exclude=True, validate_default=False
     )
-    geodata_layers: Optional[List[GeoDataObject]] = Field(
+    geodata_layers: Annotated[List[GeoDataObject], update_geodata_layers] = Field(
         default_factory=list, exclude=False, validate_default=False
     )
     options: Optional[Dict[str, Any]] = Field(
         default_factory=dict, exclude=False, validate_default=False
     )
 
+    # Required by create_react_agent
+    remaining_steps: Optional[int] = Field(
+        default=10, description="Number of remaining steps for the agent"
+    )
+
     # --- Internal-only fields (excluded from LLM prompt) ---
-    # global_geodata: Optional[List[GeoDataObject]] = Field(default_factory=list, exclude=True, validate_default=False)
+    # global_geodata: Optional[List[GeoDataObject]] = Field(
+    #     default_factory=list, exclude=True, validate_default=False
+    # )
 
 
 def get_minimal_debug_state(tool_call: bool = False) -> GeoDataAgentState:

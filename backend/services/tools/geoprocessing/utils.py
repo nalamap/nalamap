@@ -2,7 +2,6 @@ import logging
 from typing import Any, Dict, List
 
 import geopandas as gpd
-from shapely.ops import unary_union
 from langchain_core.messages import HumanMessage
 
 logger = logging.getLogger(__name__)

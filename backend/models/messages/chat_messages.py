@@ -1,7 +1,9 @@
-from typing import Any, Dict, List, Literal, Optional, Set, Union
-from pydantic import BaseModel
-from models.geodata import GeoDataObject
+from typing import Any, Dict, List, Optional, Set
+
 from langchain_core.messages import BaseMessage
+from pydantic import BaseModel
+
+from models.geodata import GeoDataObject
 
 # class ChatMessage(BaseModel):
 #    role: Literal["user", "assistant", "system"]
@@ -31,7 +33,8 @@ class ChatResponse(BaseModel):
 # Geoweaver Messages
 class GeoweaverRequest(BaseModel):
     """
-    Request of the Frontend to the Geoweaver, which contains the message history, a request and geodata related to the query
+    Request of the Frontend to the Geoweaver, which contains the message history,
+    a request and geodata related to the query
     """
 
     messages: Optional[List[BaseMessage]] = None
@@ -44,12 +47,13 @@ class GeoweaverRequest(BaseModel):
 
 class GeoweaverResponse(BaseModel):
     """
-    Reponse of the Geoweaver, which contains the message history, a response and geodata related to the query
+    Response of the Geoweaver, which contains the message history,
+    a response and geodata related to the query
     """
 
     messages: Optional[List[BaseMessage]] = None
     results_title: Optional[str] = None
     geodata_results: Optional[List[GeoDataObject]] = None
-    # geodata_layers: Optional[List[GeoDataObject]] = None
+    geodata_layers: Optional[List[GeoDataObject]] = None  # Uncommented for styling support
     global_geodata: Optional[List[GeoDataObject]] = None
     options: Optional[Dict[str, Any]] = None

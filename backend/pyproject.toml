@@ -1,11 +1,11 @@
 [tool.poetry]
 name = "backend"
 version = "0.1.0"
-description = "…"
+description = "NalaMap Backend - Geospatial AI Assistant"
 authors = ["NalaMaps Dev Team"]
 readme = "README.md"
 
-# ← disable installing your project’s own code
+# ← disable installing your project's own code
 package-mode = false
 
 [tool.poetry.dependencies]
@@ -33,6 +33,18 @@ isort = "*"
 
 [tool.flake8]
 max-line-length = 100
+per-file-ignores = [
+    "models/geodata.py:E501",  # Mock Data String
+    "services/tools/geocoding.py:E501",  # Long docstrings and API URLs
+    "services/tools/geoprocess_tools.py:E501,E203",  # Long docstrings and Black formatting
+    "services/tools/geostate_management.py:E501",  # Long docstrings
+    "services/tools/librarian_tools.py:E501",  # Long docstrings
+    "services/tools/styling_tools.py:E501",  # Long docstrings
+    "services/tools/geoprocessing/ops/buffer.py:E501",  # Long docstrings
+    "services/tools/geoprocessing/ops/overlay.py:E501",  # Long docstrings
+    "tests/conftest.py:E402",  # Import order needed for test fixtures
+    "tests/test_geoprocess_tools.py:E501",  # Long test data strings
+]
 exclude = [
   ".venv/**",           # any file under .venv/
   "venv/**",
@@ -46,3 +58,50 @@ exclude = [
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "--disable-warnings",
+    "--durations=10"
+]
+markers = [
+    "unit: Unit tests for individual functions",
+    "integration: Integration tests via API",
+    "slow: Slow running tests (>5 seconds)",
+    "performance: Performance and stress tests",
+    "edge_case: Edge case and boundary condition tests",
+    "styling: All styling-related tests",
+    "color_theory: Tests related to color theory and cartography"
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning"
+]
+timeout = 300
+
+[tool.black]
+line-length = 100
+target-version = ['py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''

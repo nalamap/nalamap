@@ -1,52 +1,59 @@
-from io import BytesIO, StringIO
-from os import getenv
-from langchain_core.tools import tool
-import requests
 import json
-from langgraph.types import Command
-
-from typing_extensions import Annotated
 from typing import Any, Dict, List, Optional, Union
+
+import requests
+from langchain_core.messages import ToolMessage
 from langchain_core.tools import tool
 from langchain_core.tools.base import InjectedToolCallId
-from langchain_core.messages import ToolMessage
 from langgraph.prebuilt import InjectedState
-from services.storage.file_management import store_file
-from models.states import (
-    GeoDataAgentState,
-    get_medium_debug_state,
-    get_minimal_debug_state,
-)
-from models.geodata import DataOrigin, DataType, GeoDataObject
-from .constants import AMENITY_MAPPING
+from langgraph.types import Command
+from typing_extensions import Annotated
 
+from models.geodata import DataOrigin, DataType, GeoDataObject
+from models.states import GeoDataAgentState
+from services.storage.file_management import store_file
+
+from .constants import AMENITY_MAPPING
 
 headers_geoweaver = {
     "User-Agent": "GeoWeaver, github.com/geoweaveai, next generation geospatial analysis using agents"
 }
 
 
-# Note: GeoNames only returns longitude / latitude - might not be best fit for our geojson/bounding box case
 @tool
 def geocode_using_geonames(location: str, maxRows: int = 3) -> str:
     """
-    Use for: Basic geocoding of place names (e.g., cities, countries, landmarks). Returns coordinates and bounding boxes.
+    Use for: Basic geocoding of place names (e.g., cities, countries, landmarks).
+    Returns coordinates and bounding boxes.
     Strengths:
-    * Provides coordinates and a well managed system of hierarchical geographic data specific to administrational units, places and landmarks.
+    * Provides coordinates and a well managed system of hierarchical geographic data
+      specific to administrational units, places and landmarks.
     * Is globally consistent and represents better the official administrative units.
     * Has mulit language support.
-    * Can be used to quickly retrieve bounding boxes that can feed into other tools such as the query_librarian_postgis
-    * If a user requires a map with multiple locations such as cities and landmarks shown as pointsand a low zoom level, this datasource provides adequate data for the map.
+    * Can be used to quickly retrieve bounding boxes that can feed into other tools
+      such as the query_librarian_postgis
+    * If a user requires a map with multiple locations such as cities and landmarks
+      shown as points and a low zoom level, this datasource provides adequate data
+      for the map.
 
     Limitations:
-    * Returns only coordinates and bounding boxes. Is therefore not a good fit if user needs to actually see the boundaries of a country or city on the map
+    * Returns only coordinates and bounding boxes. Is therefore not a good fit if
+      user needs to actually see the boundaries of a country or city on the map
     * Has no no street-level support and cannot serve for adress-level geocoding.
     """
-    # Later * Can be used to retrieve hierarchical information on an adress e.g. country, state, city etc. which can be helpful to get more informmation on ambigous geocoding requests.
-    # Later: Tool can be used for reverse geocoding e.g. if a user inputs point data and would like to have a sumamry which points fall within which administrative unit.
-    # Later: Add support for advanced querries like hierarchical querries, find nearby places, find country information, time zones, elevation etc.
+    # Later * Can be used to retrieve hierarchical information on an address e.g.
+    # country, state, city etc. which can be helpful to get more information on
+    # ambiguous geocoding requests.
+    # Later: Tool can be used for reverse geocoding e.g. if a user inputs point data
+    # and would like to have a summary which points fall within which administrative
+    # unit.
+    # Later: Add support for advanced queries like hierarchical queries, find nearby
+    # places, find country information, time zones, elevation etc.
+    from os import getenv
+
     url: str = (
-        f"http://api.geonames.org/searchJSON?q={location}&maxRows={maxRows}&username={getenv('GEONAMES_USER', 'geoweaver')}"
+        f"http://api.geonames.org/searchJSON?q={location}&maxRows={maxRows}"
+        f"&username={getenv('GEONAMES_USER', 'geoweaver')}"
     )
     response = requests.get(url)
 
@@ -67,7 +74,9 @@ def geocode_using_nominatim(query: str, geojson: bool = False, maxRows: int = 3)
     """Geocoding user requests using the Open Street Map Nominatim API."""
     # TODO: Add support for OSM tags.
     url: str = (
-        f"https://nominatim.openstreetmap.org/search?q={query}&format=json&polygon_kml={1 if geojson else 0}&addressdetails=1&limit={maxRows}"
+        f"https://nominatim.openstreetmap.org/search"
+        f"?q={query}&format=json&polygon_kml={1 if geojson else 0}"
+        f"&addressdetails=1&limit={maxRows}"
     )
     response = requests.get(url, headers=headers_geoweaver)
     if response.status_code == 200:
@@ -85,7 +94,7 @@ def create_geodata_object_from_geojson(
     nominatim_response: Dict[str, Any],
 ) -> Optional[GeoDataObject]:
     """Saves the GeoJson response, saves it in storage and create a GeoDataObject from it"""
-    if not "geojson" in nominatim_response:
+    if "geojson" not in nominatim_response:
         return None
     place_id: str = str(nominatim_response["place_id"])
     name: str = nominatim_response["name"]
@@ -170,7 +179,9 @@ def geocode_using_nominatim_to_geostate(
     * does not support broader geographical queries like finding nearby places, hierarchical relationships beyond administrative divisions
     """
     url: str = (
-        f"https://nominatim.openstreetmap.org/search?q={query}&format=json&polygon_geojson={1 if geojson else 0}&addressdetails=0&limit={maxRows}"
+        f"https://nominatim.openstreetmap.org/search"
+        f"?q={query}&format=json&polygon_geojson={1 if geojson else 0}"
+        f"&addressdetails=0&limit={maxRows}"
     )
     response = requests.get(url, headers=headers_geoweaver)
     if response.status_code == 200:
@@ -179,8 +190,8 @@ def geocode_using_nominatim_to_geostate(
             cleaned_data: List[Dict[str, Any]] = []
             for elem in data:
                 if "geojson" in elem:
-                    geocoded_object: Optional[GeoDataObject] = (
-                        create_geodata_object_from_geojson(elem)
+                    geocoded_object: Optional[GeoDataObject] = create_geodata_object_from_geojson(
+                        elem
                     )
                     del elem["geojson"]
                     if geocoded_object:
@@ -198,9 +209,7 @@ def geocode_using_nominatim_to_geostate(
             if geojson:
                 # Simplified message for LLM
                 num_objects_created = sum(
-                    1
-                    for elem in cleaned_data
-                    if "id" in elem and "data_source_id" in elem
+                    1 for elem in cleaned_data if "id" in elem and "data_source_id" in elem
                 )
 
                 actionable_layers_info = []
@@ -221,15 +230,15 @@ def geocode_using_nominatim_to_geostate(
                             )
 
                 if not actionable_layers_info:
-                    tool_message_content = f"Successfully geocoded '{query}'. Found {len(cleaned_data)} potential result(s), but no GeoData objects with full geometry were created or stored."
+                    tool_message_content = "Successfully geocoded '{query}'. Found {len(cleaned_data)} potential result(s), but no GeoData objects with full geometry were created or stored."
                 else:
-                    tool_message_content = f"Successfully geocoded '{query}'. Found {len(cleaned_data)} potential result(s). {len(actionable_layers_info)} GeoData object(s) with full geometry created and stored in geodata_results. "
+                    tool_message_content = "Successfully geocoded '{query}'. Found {len(cleaned_data)} potential result(s). {len(actionable_layers_info)} GeoData object(s) with full geometry created and stored in geodata_results. "
 
                     # Provide structured info for the agent and clear instructions
                     layer_details_for_agent = json.dumps(actionable_layers_info)
 
-                    # Safely get an example name for the guidance
-                    first_layer_example_name = (
+                    # Get an example name for the guidance
+                    example_name = (
                         actionable_layers_info[0].get("name", "Unknown Location")
                         if actionable_layers_info
                         else "Unknown Location"
@@ -237,7 +246,7 @@ def geocode_using_nominatim_to_geostate(
 
                     user_response_guidance = (
                         "Call 'set_result_list' to make these layer(s) available for the user to select. "
-                        + f"In your textual response to the user, confirm the geocoding success and mention the type of locations found (e.g., based on the query or results like '{first_layer_example_name}'). "
+                        + f"In your textual response to the user, confirm the geocoding success and mention the type of locations found (e.g., based on the query or results like '{example_name}'). "
                         + "State that the found layers are now listed (e.g., in a list or panel) and can be selected by the user to be added to the map. "
                         + "Ensure your response clearly indicates the user needs to take an action to add them to the map. "
                         + "Do NOT state or imply that the layers have already been added to the map. "
@@ -271,7 +280,9 @@ def geocode_using_nominatim_to_geostate(
                     }
                     for elem in cleaned_data
                 ][:3]
-                tool_message_content += f" First few results (name, osm_id, class, type): {json.dumps(brief_results)}"
+                tool_message_content += (
+                    f" First few results (name, osm_id, class, type): {json.dumps(brief_results)}"
+                )
                 return {
                     "message": tool_message_content,
                     "results_summary": brief_results,
@@ -311,7 +322,8 @@ def convert_osm_element_to_geojson_feature(
             # will decide which elements to process based on the primary query tags.
             pass  # No strict filtering here, caller handles primary feature identification
 
-    feature_id = f"{osm_type}/{osm_id}"  # GeoJSON feature ID, can be non-unique if features are from different sources in a collection
+    # GeoJSON feature ID, can be non-unique if features are from different sources in a collection
+    feature_id = f"{osm_type}/{osm_id}"
 
     geojson_feature: Dict[str, Any] = {
         "type": "Feature",
@@ -325,18 +337,12 @@ def convert_osm_element_to_geojson_feature(
             "type": "Point",
             "coordinates": [float(element["lon"]), float(element["lat"])],
         }
-    elif (
-        osm_type == "way" and "geometry" in element
-    ):  # Assumes geometry from "out geom;"
+    elif osm_type == "way" and "geometry" in element:  # Assumes geometry from "out geom;"
         coords = [[float(pt["lon"]), float(pt["lat"])] for pt in element["geometry"]]
         if (
             len(coords) >= 2
         ):  # Need at least 2 points for LineString, 4 for valid Polygon (3 unique + close)
-            if (
-                coords[0][0] == coords[-1][0]
-                and coords[0][1] == coords[-1][1]
-                and len(coords) >= 4
-            ):
+            if coords[0][0] == coords[-1][0] and coords[0][1] == coords[-1][1] and len(coords) >= 4:
                 geojson_feature["geometry"] = {
                     "type": "Polygon",
                     "coordinates": [coords],
@@ -411,7 +417,8 @@ def create_collection_geodata_object(
     collection_type_name: str,  # e.g., "Points", "Areas", "Lines"
     base_query_name: str,  # e.g., "restaurants near Eiffel Tower"
     amenity_key_display: str,  # e.g., "Restaurants"
-    location_name_display: str,  # e.g., "Eiffel Tower (using area bounds)" - for user-facing title/description
+    # e.g., "Eiffel Tower (using area bounds)" - for user-facing title/description
+    location_name_display: str,
     osm_tag_kv_filter: str,  # e.g. "amenity=restaurant"
     location_name_for_filename: str,  # e.g., "Eiffel Tower" - for cleaner filenames
 ) -> Optional[GeoDataObject]:
@@ -427,19 +434,15 @@ def create_collection_geodata_object(
 
     # Generate a unique ID and filename for the collection
     safe_amenity_name = (
-        amenity_key_display.lower()
-        .replace(" ", "_")
-        .replace("=", "_")
-        .replace(":", "_")
+        amenity_key_display.lower().replace(" ", "_").replace("=", "_").replace(":", "_")
     )
     # Use location_name_for_filename for a cleaner file path
     safe_location_for_file = (
-        location_name_for_filename.lower()
-        .replace(" ", "_")
-        .replace(",", "")
-        .replace("'", "")
+        location_name_for_filename.lower().replace(" ", "_").replace(",", "").replace("'", "")
     )
-    file_name = f"overpass_{safe_amenity_name}_{collection_type_name.lower()}_{safe_location_for_file}.json"
+    file_name = (
+        f"overpass_{safe_amenity_name}_{collection_type_name.lower()}_{safe_location_for_file}.json"
+    )
 
     data_url, unique_id = store_file(file_name, json.dumps(feature_collection).encode())
 
@@ -469,14 +472,8 @@ def create_collection_geodata_object(
         min_lat, max_lat = min(all_lats), max(all_lats)
 
         # Create a small buffer if all features are points and very close, to make bbox visible
-        is_all_points = all(
-            f["geometry"]["type"] == "Point" for f in features if f["geometry"]
-        )
-        if (
-            is_all_points
-            and (max_lon - min_lon < 0.001)
-            and (max_lat - min_lat < 0.001)
-        ):
+        is_all_points = all(f["geometry"]["type"] == "Point" for f in features if f["geometry"])
+        if is_all_points and (max_lon - min_lon < 0.001) and (max_lat - min_lat < 0.001):
             buffer = 0.001
             min_lon -= buffer
             max_lon += buffer
@@ -492,7 +489,7 @@ def create_collection_geodata_object(
         )
 
     collection_name = (
-        f"{amenity_key_display} ({collection_type_name}) near {location_name_display}"
+        f"{amenity_key_display} ({collection_type_name}) " f"near {location_name_display}"
     )
     description = f"{len(features)} {amenity_key_display.lower()} ({collection_type_name.lower()}) found matching '{osm_tag_kv_filter}' near {location_name_display}. Data from OpenStreetMap."
 
@@ -532,29 +529,33 @@ def geocode_using_overpass_to_geostate(
     query: str,
     amenity_key: str,  # e.g. "restaurant", "park", "hospital" - to be mapped to OSM tags
     location_name: str,  # e.g. "Paris", "London", "near the Colosseum", or a country name like "Germany"
-    radius_meters: int = 10000,  # Default search radius around a point, e.g. 10km. Used if location_name resolves to a point.
-    max_results: int = 2500,  # Max results from Overpass. Default is 2500. User can specify a different limit.
+    # Default search radius around a point, e.g. 10km. Used if location_name resolves to a point.
+    radius_meters: int = 10000,
+    # Max results from Overpass. Default is 2500. User can specify a different limit.
+    max_results: int = 2500,
     timeout: int = 300,  # Default timeout in seconds
 ) -> Union[Dict[str, Any], Command]:
     """
-    Search for specific amenities (e.g., restaurants, parks, schools) near a given location using OpenStreetMap's Overpass API.
-    This tool first attempts to resolve 'location_name':
-    1. If 'location_name' corresponds to a known administrative area (like a country or region) in OpenStreetMap,
-       the search will be performed strictly within the boundaries of that area.
-    2. Otherwise, it geocodes 'location_name' to a point or bounding box.
-       - If a bounding box is found, it's used for the search.
-       - If only a point is found, 'radius_meters' is used to define the search area around that point.
-    Results are grouped by geometry type (Points, Polygons, Lines) into separate GeoJSON FeatureCollection layers.
+    Geocode a location and search for amenities/POIs using the Overpass API.
 
-    If the number of results reaches 'max_results' (default 2500), inform the user that the limit was hit
-    and that they can request a different limit if more features are desired.
-    Also, warn the user that requesting a very high number of features can significantly
-    decrease map performance and might lead to browser slowdowns or crashes.
+    Args:
+        state: The current agent state containing geodata and messages.
+        tool_call_id: The tool call ID for the response.
+        query: The user-friendly query/description for the search.
+        amenity_key: The amenity type (e.g. "restaurant", "park", "hospital").
+        location_name: The location to search (e.g. "Paris", "London", "Germany").
+        radius_meters: Search radius in meters (default: 10000).
+        max_results: Maximum number of results to return (default: 2500).
+        timeout: Timeout for API requests in seconds (default: 300).
+
+    Returns:
+        A Command object to update the agent state or a dictionary with results.
     """
-
     # 1. Map amenity_key to OSM tag
+    # Clean and process the amenity key
     amenity_key_cleaned = amenity_key.lower().replace(" ", "_")
     osm_tag_kv = AMENITY_MAPPING.get(amenity_key_cleaned)
+
     if not osm_tag_kv:
         return Command(
             update={
@@ -583,9 +584,7 @@ def geocode_using_overpass_to_geostate(
     search_mode_description: str = ""
 
     try:
-        nominatim_response_req = requests.get(
-            nominatim_url, headers=headers_geoweaver, timeout=20
-        )
+        nominatim_response_req = requests.get(nominatim_url, headers=headers_geoweaver, timeout=20)
         nominatim_response_req.raise_for_status()
         location_data_list = nominatim_response_req.json()
 
@@ -604,9 +603,7 @@ def geocode_using_overpass_to_geostate(
             )
 
         location_data = location_data_list[0]
-        resolved_location_display_name = location_data.get(
-            "display_name", location_name
-        )
+        resolved_location_display_name = location_data.get("display_name", location_name)
 
         # Prioritize OSM relation ID for area search
         if location_data.get("osm_type") == "relation" and "osm_id" in location_data:
@@ -616,9 +613,7 @@ def geocode_using_overpass_to_geostate(
             except ValueError:
                 osm_relation_id = None  # Failed to parse ID, will fall back
 
-        if (
-            osm_relation_id is None
-        ):  # Fallback to bounding box if no relation ID or if preferred
+        if osm_relation_id is None:  # Fallback to bounding box if no relation ID or if preferred
             if "boundingbox" in location_data:
                 raw_bbox = location_data[
                     "boundingbox"
@@ -631,7 +626,9 @@ def geocode_using_overpass_to_geostate(
                             float(raw_bbox[1]),
                             float(raw_bbox[3]),
                         ]  # s, w, n, e
-                        search_mode_description = f"within the bounding box of '{resolved_location_display_name}'"
+                        search_mode_description = (
+                            f"within the bounding box of '{resolved_location_display_name}'"
+                        )
                     except ValueError:
                         bbox_coords = None
 
@@ -668,6 +665,7 @@ def geocode_using_overpass_to_geostate(
             }
         )
     except (KeyError, IndexError, ValueError) as e:
+        print(f"Error processing location data: {e}")
         return Command(
             update={
                 "messages": [
@@ -862,9 +860,7 @@ def geocode_using_overpass_to_geostate(
 
         if feature_dict and feature_dict["geometry"]:
             element_tags = feature_dict.get("properties", {})
-            is_primary_tagged_feature = (
-                element_tags.get(osm_query_key) == osm_query_value
-            )
+            is_primary_tagged_feature = element_tags.get(osm_query_key) == osm_query_value
 
             if element["type"] != "node" and not is_primary_tagged_feature:
                 continue
@@ -966,9 +962,7 @@ def geocode_using_overpass_to_geostate(
         current_geodata = []
     current_geodata.extend(created_collections)
 
-    total_features_found = (
-        len(point_features) + len(polygon_features) + len(linestring_features)
-    )
+    total_features_found = len(point_features) + len(polygon_features) + len(linestring_features)
 
     if not actionable_layers_info:
         tool_message_content = f"Found {amenity_key_display} {search_mode_description}, but could not form any distinct geometry layers."
@@ -976,12 +970,12 @@ def geocode_using_overpass_to_geostate(
         tool_message_content = f"Found {total_features_found} '{amenity_key_display}' feature(s) {search_mode_description}. Created {len(created_collections)} collection layer(s). "
 
         if total_features_found >= max_results:
-            limit_hit_message = (
+            limit_hit_info = (
                 f"The query returned the maximum allowed number of features ({max_results}). "
-                f"If you need more results, you can ask me to increase this limit. "
-                f"However, please be aware that a very large number of features can significantly degrade map performance."
+                "If you need more results, you can ask me to increase this limit. "
+                "However, please be aware that a very large number of features can significantly degrade map performance."
             )
-            tool_message_content += f"LIMIT_INFO: {limit_hit_message}. "
+            tool_message_content += f"LIMIT_INFO: {limit_hit_info}. "
 
         layer_details_for_agent = json.dumps(actionable_layers_info)
 

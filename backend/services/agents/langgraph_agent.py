@@ -1,17 +1,17 @@
-from fastapi import FastAPI, Body
-from langgraph.graph import StateGraph, START
-from services.ai.llm_config import get_llm
-from pydantic import BaseModel, Field
-from services.database.database import get_db
-from langchain.schema import SystemMessage, HumanMessage
-from models.geodata import GeoDataObject, DataType, DataOrigin
-from typing import List, Optional
 import json
+from typing import List, Optional
 
+from langchain.schema import HumanMessage, SystemMessage
+from langgraph.graph import START, StateGraph
+from pydantic import BaseModel, Field
 
-## 1) System prompt now instructs the LLM to output JSON with exactly these keys.
+from models.geodata import DataOrigin, DataType, GeoDataObject
+from services.ai.llm_config import get_llm
+from services.database.database import get_db
+
+# 1) System prompt now instructs the LLM to output JSON with exactly these keys.
 system_msg = """
-You are GeoSearchAgent. 
+You are GeoSearchAgent.
 Given a free-text user query, extract and return a JSON object with:
   - searchquery: the text to send to the database
   - portal_filter: portal name (strings) or null
@@ -39,7 +39,10 @@ class SearchState(BaseModel):
 # 3) Node #1: parse the user's raw_query via LLM into our structured fields.
 async def parse_llm(state: SearchState) -> SearchState:
     user_msg = state.raw_query
-    messages = [SystemMessage(content=system_msg), HumanMessage(content=user_msg)]
+    messages = [
+        SystemMessage(content=system_msg),
+        HumanMessage(content=user_msg),
+    ]
     # agenerate expects a list of message‐lists for batching:
     response = await llm.agenerate([messages])
     # pull out the text from the first generation:
@@ -85,9 +88,7 @@ async def query_postgis(state: SearchState) -> SearchState:
         GeoDataObject(
             id=str(row[0]),
             data_source_id="geoweaver.postgis",
-            data_type=(
-                DataType.GEOJSON if row[1].lower() == "geojson" else DataType.LAYER
-            ),
+            data_type=(DataType.GEOJSON if row[1].lower() == "geojson" else DataType.LAYER),
             data_origin=DataOrigin.TOOL,
             data_source=row[6] if row[6] else row[1],
             data_link=row[5],

@@ -1,20 +1,17 @@
-from langchain_core.tools import tool
-import json
-from langgraph.types import Command
 import asyncio
-from typing_extensions import Annotated
+import json
 from typing import Any, Dict, List, Optional, Union
+
+from langchain_core.messages import ToolMessage
 from langchain_core.tools import tool
 from langchain_core.tools.base import InjectedToolCallId
-from langchain_core.messages import ToolMessage
 from langgraph.prebuilt import InjectedState
+from langgraph.types import Command
+from typing_extensions import Annotated
+
+from models.geodata import DataType, GeoDataObject
+from models.states import GeoDataAgentState, get_minimal_debug_state
 from services.database.database import close_db, get_db, init_db
-from models.states import (
-    GeoDataAgentState,
-    get_medium_debug_state,
-    get_minimal_debug_state,
-)
-from models.geodata import DataOrigin, DataType, GeoDataObject
 
 
 @tool
@@ -76,7 +73,7 @@ def query_librarian_postgis(
             GeoDataObject(
                 id=str(row[0]),
                 data_source_id="geoweaver.postgis",
-                data_type=DataType.GEOJSON if row[1] == "geojson" else DataType.LAYER,
+                data_type=(DataType.GEOJSON if row[1] == "geojson" else DataType.LAYER),
                 data_origin=row[6],
                 data_source=row[1],
                 data_link=row[5],
@@ -112,7 +109,7 @@ def query_librarian_postgis(
                     ToolMessage(
                         name="query_librarian_postgis",
                         content=(
-                            f"Retrieved {len(results)} results, "
+                            "Retrieved {len(results)} results, "
                             "added GeoDataObjects into the global_state, "
                             "use id and data_source_id for reference: "
                             + json.dumps(
@@ -172,5 +169,5 @@ if __name__ == "__main__":
         )
         print(initial_state)
         asyncio.run(close_db())
-    except:
+    except Exception:
         asyncio.run(close_db())
