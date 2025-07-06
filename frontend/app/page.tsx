@@ -1,10 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
-import Sidebar from './components/Sidebar';
-import LayerManagement from './components/LayerManagement';
-import MapComponent from './components/MapComponent';
-import AgentInterface from './components/AgentInterface';
+import Sidebar from './components/sidebar/Sidebar';
+import LayerManagement from './components/sidebar/LayerManagement';
+import MapComponent from './components/maps/MapComponent';
+import AgentInterface from './components/chat/AgentInterface';
 
 interface Message {
   role: "user" | "agent";
@@ -12,9 +11,6 @@ interface Message {
 }
 
 export default function Home() {
-  const [layers, setLayers] = useState<any[]>([]);
-  const [conversation, setConversation] = useState<Message[]>([]);
-
   return (
     <div className="relative h-screen w-screen overflow-hidden">
       {/* Menubar Panel - left side, 4% width */}
@@ -29,16 +25,12 @@ export default function Home() {
       
       {/* Map Panel - center, 56% width */}
       <div className="fixed top-0 left-[22%] right-[22%] bottom-0 w-[56%]">
-        <MapComponent layers={layers} />
+        <MapComponent />
       </div>
       
       {/* Chat Panel - right side, 22% width */}
       <div className="fixed right-0 top-0 w-[22%] h-full z-[2]" style={{ backgroundColor: 'rgb(255, 255, 255)' }}>
-        <AgentInterface
-          onLayerSelect={(selected: any[]) => setLayers((prev: any[]) => [...prev, ...selected])}
-          conversation={conversation}
-          setConversation={setConversation}
-        />
+        <AgentInterface />
       </div>
     </div>
   );

@@ -1,8 +1,9 @@
+'use client';
 import { useEffect, useRef } from "react";
 import { useMap } from "react-leaflet";
 import L from "leaflet";
-import { GeoDataObject } from "../models/geodatamodel";
-import { useLayerStore } from "../stores/layerStore";
+import { GeoDataObject } from "../../models/geodatamodel";
+import { useLayerStore } from "../../stores/layerStore";
 
 function parseBoundingBoxWKT(wkt: string): L.LatLngBounds | null {
   if (!wkt) return null;

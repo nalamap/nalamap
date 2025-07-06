@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
 import { useState, useEffect, useRef } from "react";
 import wellknown from "wellknown";
-import { useGeoweaverAgent } from "../hooks/useGeoweaverAgent";
+import { useGeoweaverAgent } from "../../hooks/useGeoweaverAgent";
 import { ArrowUp, X, Loader2 } from "lucide-react";
-import { useLayerStore } from "../stores/layerStore";
-import { GeoDataObject } from "../models/geodatamodel";
-import { hashString } from "../utils/hashUtil";
+import { useLayerStore } from "../../stores/layerStore";
+import { GeoDataObject } from "../../models/geodatamodel";
+import { hashString } from "../../utils/hashUtil";
 import ReactMarkdown from "react-markdown";
 
 // Helper function to determine score color and appropriate text color
@@ -56,16 +56,12 @@ function toWkt(bbox: GeoDataObject["bounding_box"]): string | undefined {
   return bbox;
 }
 
-interface Props {
-  onLayerSelect: (layers: any[]) => void;
-  conversation: { role: "user" | "agent"; content: string }[];
-  setConversation: React.Dispatch<React.SetStateAction<{ role: "user" | "agent"; content: string }[]>>;
-}
-
-export default function AgentInterface({ onLayerSelect, conversation: conversation_old, setConversation }: Props) {
+export default function AgentInterface() {
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
   const [activeTool, setActiveTool] = useState<"search" | "chat" | "geocode" | "geoprocess" | "ai-style" | null>("chat");
-  const { input, setInput, messages: conversation, geoDataList, loading, error, queryGeoweaverAgent } = useGeoweaverAgent(API_BASE_URL);
+  const { input, setInput, messages: conversation, geoDataList, loading, error, queryGeoweaverAgent } =
+    useGeoweaverAgent(API_BASE_URL);
+  // useGeoweaverAgent hook provides `conversation` (messages) state, no local state needed here
   const containerRef = useRef<HTMLDivElement>(null);
   const addLayer = useLayerStore((s) => s.addLayer);
   const getLayers = useLayerStore.getState;
@@ -98,8 +94,7 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
     e.preventDefault();
     if (!input.trim()) return;
 
-    // Add user message
-    setConversation((c) => [...c, { role: "user", content: input }]);
+    // The hook (queryGeoweaverAgent) will append the human message for us
 
     if (activeTool === "search") {
       let wkt: string | undefined = undefined;
@@ -123,34 +118,17 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
 
       await queryGeoweaverAgent("search", undefined, apiOptions);
 
-      setConversation((c) => [
-        ...c,
-        { role: "agent", content: "Search complete." },
-      ]);
     }
     
     else if (activeTool === "geocode") {
       await queryGeoweaverAgent(activeTool);
-      setConversation((c) => [...c, { role: "agent", content: "Done." }]);
     } else if (activeTool === "geoprocess") {
       await queryGeoweaverAgent(activeTool);
-      setConversation((c) => [
-        ...c,
-        { role: "agent", content: `Processing: ${input}` },
-      ]);
     } else if (activeTool === "chat") {
       await queryGeoweaverAgent(activeTool);
-      setConversation((prev) => [
-        ...prev,
-        { role: "agent", content: `Processing request: ${input}` },
-      ]);
     } else if (activeTool === "ai-style") {
       // AI styling is now integrated into the main chat agent, so use "chat" endpoint
       await queryGeoweaverAgent("chat");
-      setConversation((prev) => [
-        ...prev,
-        { role: "agent", content: `Applying styling: ${input}` },
-      ]);
 
       /* TODO: Move to Backend
       // pass current layer URLs to the geoprocess endpoint
@@ -183,10 +161,6 @@ export default function AgentInterface({ onLayerSelect, conversation: conversati
 
   const handleLayerSelect = (layer: any) => {
     useLayerStore.getState().addLayer(layer);
-    setConversation((prev) => [
-      ...prev,
-      { role: "agent", content: `Layer "${layer.name}" added to the map.` },
-    ]);
   };
 
   // determine which results to show

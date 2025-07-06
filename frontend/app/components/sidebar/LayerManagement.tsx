@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
 import { useRef, useState, useEffect } from "react";
-import { useMapStore } from "../stores/mapStore";
-import { useLayerStore } from "../stores/layerStore";
+import { useMapStore } from "../../stores/mapStore";
+import { useLayerStore } from "../../stores/layerStore";
 import { Eye, EyeOff, Trash2, Search, MapPin, GripVertical, Palette } from "lucide-react";
-import { formatFileSize, isFileSizeValid } from "../utils/fileUtils";
+import { formatFileSize, isFileSizeValid } from "../../utils/fileUtils";
 
 // Funny geo and data-themed loading messages
 const FUNNY_UPLOAD_MESSAGES = [
