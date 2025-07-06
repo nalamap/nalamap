@@ -4,11 +4,7 @@ import React, { useState, useEffect } from 'react'
 import Sidebar from '../components/Sidebar'
 import {
     useSettingsStore,
-    GeoServerBackend,
-    SearchPortal,
-    SettingsSnapshot,
-    ModelSettings,
-    ToolConfig,
+    GeoServerBackend
 } from '../stores/settingsStore'
 
 export default function SettingsPage() {
@@ -31,8 +27,6 @@ export default function SettingsPage() {
     const removeToolConfig = useSettingsStore((s) => s.removeToolConfig)
     const toggleToolConfig = useSettingsStore((s) => s.toggleToolConfig)
     const setToolPromptOverride = useSettingsStore((s) => s.setToolPromptOverride)
-    const getSettings = useSettingsStore((s) => s.getSettings)
-    const setSettings = useSettingsStore((s) => s.setSettings)
     const setAvailableTools = useSettingsStore((s) => s.setAvailableTools)
     const setAvailableSearchPortals = useSettingsStore((s) => s.setAvailableSearchPortals)
     const setAvailableModelProviders = useSettingsStore((s) => s.setAvailableModelProviders)
@@ -52,9 +46,9 @@ export default function SettingsPage() {
     // mock load available options (replace with real API calls)
     useEffect(() => {
         setAvailableTools(['search', 'geocode', 'analyze'])
-        setAvailableSearchPortals(['https://portal1.example.com', 'https://portal2.example.com'])
-        setAvailableModelProviders(['openai', 'anthropic'])
-        setAvailableModelNames(['gpt-4', 'gpt-3.5', 'claude-v1'])
+        setAvailableSearchPortals(['FAO', 'MapX'])
+        setAvailableModelProviders(['openai'])
+        setAvailableModelNames(['gpt-4-nano', 'gpt-3-mini'])
     }, [])
 
     return (
