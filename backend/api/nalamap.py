@@ -13,7 +13,7 @@ from langchain_core.messages import (
 )
 
 from models.geodata import GeoDataObject, mock_geodata_objects
-from models.messages.chat_messages import GeoweaverRequest, GeoweaverResponse
+from models.messages.chat_messages import NaLaMapRequest, NaLaMapResponse
 from models.states import DataState, GeoDataAgentState
 from services.multi_agent_orch import multi_agent_executor
 from services.single_agent import single_agent
@@ -120,10 +120,10 @@ def normalize_messages(raw: Optional[List[BaseMessage]]) -> List[BaseMessage]:
 router = APIRouter()
 
 
-@router.post("/api/chatmock", tags=["geoweaver"], response_model=GeoweaverResponse)
-async def ask_geoweaver(request: GeoweaverRequest):
+@router.post("/api/chatmock", tags=["nalamap"], response_model=NaLaMapResponse)
+async def ask_nalamap(request: NaLaMapRequest):
     """
-    Ask a question to the GeoWeaver, which
+    Ask a question to the NaLaMap, which
     """
     print(request)
     # TODO: Pass information to agent
@@ -136,7 +136,7 @@ async def ask_geoweaver(request: GeoweaverRequest):
         AIMessage("I found some rivers!"),
     ]
 
-    response: GeoweaverResponse = GeoweaverResponse(
+    response: NaLaMapResponse = NaLaMapResponse(
         messages=messages,
         response="I found some rivers!",
         geodata=mock_geodata_objects(),
@@ -144,9 +144,9 @@ async def ask_geoweaver(request: GeoweaverRequest):
     return response
 
 
-@router.post("/chat2", tags=["geoweaver"], response_model=GeoweaverResponse)
-async def ask_geoweaver_orchestrator(request: GeoweaverRequest):
-    """Ask a question to the GeoWeaver Orchestrator, which uses tools to respond
+@router.post("/chat2", tags=["nalamap"], response_model=NaLaMapResponse)
+async def ask_nalamap_orchestrator(request: NaLaMapRequest):
+    """Ask a question to the NaLaMap Orchestrator, which uses tools to respond
     and analyse geospatial information."""
     messages: List[BaseMessage] = normalize_messages(request.messages)
     messages.append(HumanMessage(request.query))
@@ -161,7 +161,7 @@ async def ask_geoweaver_orchestrator(request: GeoweaverRequest):
     result_messages: List[BaseMessage] = executor_result["messages"]
     result_response: str = result_messages[-1].content
     result_geodata: List[GeoDataObject] = executor_result["geodata"]
-    response: GeoweaverResponse = GeoweaverResponse(
+    response: NaLaMapResponse = NaLaMapResponse(
         messages=result_messages,
         response=result_response,
         geodata=result_geodata,
@@ -169,9 +169,9 @@ async def ask_geoweaver_orchestrator(request: GeoweaverRequest):
     return response
 
 
-@router.post("/chat", tags=["geoweaver"], response_model=GeoweaverResponse)
-async def ask_geoweaver_agent(request: GeoweaverRequest):
-    """Ask a question to the GeoWeaver Single Agent, which uses tools to respond
+@router.post("/chat", tags=["nalamap"], response_model=NaLaMapResponse)
+async def ask_nalamap_agent(request: NaLaMapRequest):
+    """Ask a question to the NaLaMap Single Agent, which uses tools to respond
     and analyse geospatial information."""
     print("befor normalize:", request.messages)
     messages: List[BaseMessage] = normalize_messages(request.messages)
@@ -259,7 +259,7 @@ async def ask_geoweaver_agent(request: GeoweaverRequest):
         # but as a final fallback:
         result_messages = [AIMessage(content="No response content generated.")]
 
-    response: GeoweaverResponse = GeoweaverResponse(
+    response: NaLaMapResponse = NaLaMapResponse(
         messages=result_messages,
         results_title=results_title,
         geodata_results=geodata_results,

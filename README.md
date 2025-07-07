@@ -16,7 +16,7 @@ NaLaMap is an open-source platform that helps users find and analyze geospatial 
 ## Project Structure
 
 ```
-geoweaver/
+nalamap/
 ├── backend/              # Python FastAPI backend
 │   ├── api/              # API endpoints
 │   ├── core/             # Core configurations
@@ -197,7 +197,7 @@ Note: Some tests may require a running server or mock data. If you encounter con
 
 ## Contributing
 
-We welcome contributions from the community! If you're interested in helping improve GeoWeaver, please check out our [Contributing Guide](CONTRIBUTING.md) for information on how to get started.
+We welcome contributions from the community! If you're interested in helping improve NaLaMap, please check out our [Contributing Guide](CONTRIBUTING.md) for information on how to get started.
 
 Please also review our [Code of Conduct](CODE_OF_CONDUCT.md) to ensure a positive and inclusive environment for all contributors.
 

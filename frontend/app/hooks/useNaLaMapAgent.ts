@@ -1,12 +1,12 @@
-// hooks/useGeoweaver.ts
+// hooks/useNaLaMap.ts
 "use client";
 
 import { useState } from "react";
-import { ChatMessage, GeoDataObject, GeoweaverRequest, GeoweaverResponse } from "../models/geodatamodel";
+import { ChatMessage, GeoDataObject, NaLaMapRequest, NaLaMapResponse } from "../models/geodatamodel";
 import { useSettingsStore } from '../stores/settingsStore'
 import { useLayerStore } from '../stores/layerStore'
 
-export function useGeoweaverAgent(apiUrl: string) {
+export function useNaLaMapAgent(apiUrl: string) {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [geoDataList, setGeoDataList] = useState<GeoDataObject[]>([]);
@@ -31,7 +31,7 @@ export function useGeoweaverAgent(apiUrl: string) {
   };
 
 
-  async function queryGeoweaverAgent(
+  async function queryNaLaMapAgent(
     endpoint: "chat" | "search" | "geocode" | "geoprocess" | "ai-style",
     layerUrls: string[] = [],
     options?: { portal?: string; bboxWkt?: string }
@@ -56,7 +56,7 @@ export function useGeoweaverAgent(apiUrl: string) {
       if (endpoint === "geoprocess" || endpoint === "chat" || endpoint === "geocode" || endpoint === "search") {
         const selectedLayers = useLayerStore.getState().layers.filter((l) => l.selected);
         appendHumanMessage(input);
-        const payload: GeoweaverRequest = {
+        const payload: NaLaMapRequest = {
           messages: messages,
           query: input,
           geodata_last_results: geoDataList,
@@ -121,7 +121,7 @@ export function useGeoweaverAgent(apiUrl: string) {
         return;
       }
       
-      const data: GeoweaverResponse = await response.json();
+      const data: NaLaMapResponse = await response.json();
       console.log(data)
       if (!data.geodata_results) {
         throw new Error("Response was missing GeoData");
@@ -159,6 +159,6 @@ export function useGeoweaverAgent(apiUrl: string) {
     }
   }
 
-  return { input, setInput, messages, geoDataList, loading, error, queryGeoweaverAgent };
+  return { input, setInput, messages, geoDataList, loading, error, queryNaLaMapAgent };
 
 }

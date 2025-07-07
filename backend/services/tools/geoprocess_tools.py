@@ -425,7 +425,7 @@ def geoprocess_tool(
                 data_source_id="geoprocess",
                 data_type=DataType.GEOJSON,
                 data_origin=DataOrigin.TOOL,
-                data_source="GeoweaverGeoprocess",
+                data_source="NaLaMapGeoprocess",
                 data_link=url,
                 name=result_name,
                 title=result_name,
