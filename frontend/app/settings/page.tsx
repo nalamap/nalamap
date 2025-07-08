@@ -8,6 +8,7 @@ import {
     SearchPortal,
     ModelOption,
     ToolOption,
+    SettingsSnapshot,
 } from '../stores/settingsStore'
 
 export default function SettingsPage() {
@@ -52,6 +53,9 @@ export default function SettingsPage() {
     const setToolOptions = useSettingsStore(s => s.setToolOptions)
     const setModelOptions = useSettingsStore(s => s.setModelOptions)
 
+    // Get Seetings
+    const getSettings = useSettingsStore((s) => s.getSettings)
+    const setSettings = useSettingsStore((s) => s.setSettings)
     // local state
     const [newPortal, setNewPortal] = useState('')
     const [newBackend, setNewBackend] = useState<Omit<GeoServerBackend, 'enabled'>>({ url: '', username: '', password: '' })
@@ -107,7 +111,36 @@ export default function SettingsPage() {
         loadOptions()
     }, [availableTools.length, availablePortals.length, Object.keys(modelOptions).length])
 
+    /** Export JSON */
+    const exportSettings = () => {
+        const dataStr = JSON.stringify(getSettings(), null, 2)
+        const blob = new Blob([dataStr], { type: 'application/json' })
+        const href = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = href
+        link.download = 'settings.json'
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(href)
+    }
 
+    /** Import JSON */
+    const importSettings = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        const reader = new FileReader()
+        reader.onload = (evt) => {
+            try {
+                const obj = JSON.parse(evt.target?.result as string) as SettingsSnapshot
+                setSettings(obj)
+            } catch {
+                alert('Invalid settings JSON')
+            }
+        }
+        reader.readAsText(file)
+        e.target.value = ''
+    }
 
     return (
         <div className="relative h-screen w-screen overflow-hidden">
@@ -116,6 +149,24 @@ export default function SettingsPage() {
             </div>
             <main className="fixed top-0 left-[10%] right-[10%] bottom-0 w-[80%] overflow-auto p-6 space-y-8 scroll-smooth">
                 <h1 className="text-3xl font-semibold">Settings</h1>
+                {/* Export/Import Settings */}
+                <div className="flex space-x-4 mb-8">
+                    <button
+                        onClick={exportSettings}
+                        className="bg-green-600 text-white px-4 py-2 rounded"
+                    >
+                        Export Settings
+                    </button>
+                    <label className="bg-blue-600 text-white px-4 py-2 rounded cursor-pointer">
+                        Import Settings
+                        <input
+                            type="file"
+                            accept="application/json"
+                            onChange={importSettings}
+                            className="hidden"
+                        />
+                    </label>
+                </div>
 
                 {/* Model Settings */}
                 <section className="space-y-4">
