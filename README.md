@@ -44,11 +44,13 @@ geoweaver/
 
 ## Getting Started
 
-### Prerequisites
+## ⚙️ Prerequisites
 
-- Python 3.10+ (for backend)
-- Node.js 18+ (for frontend)
-- Git
+- **Git**  
+- **Python 3.10+**  
+- **Node.js 18+**  
+- **Docker & Docker Compose** (optional)  
+- **[Poetry](https://python-poetry.org/docs/) (for backend)
 
 ### Quick Setup (Recommended)
 
@@ -78,17 +80,11 @@ Edit the `backend/.env` file to include your API keys:
 # Navigate to backend directory
 cd backend
 
-# Create virtual environment
-python3 -m venv .venv
-
-# Activate virtual environment
-source .venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
+# We recommend poetry config virtualenvs.create true to manage your .venv inside the repo
+poetry install
 
 # Start the backend server
-python3 main.py
+poetry run python main.py
 ```
 
 The backend will be available at `http://localhost:8000`
@@ -154,20 +150,9 @@ docker-compose -f dev.docker-compose.yml up --build
 
 The project includes a test suite for the backend components. To run the tests:
 
-1. Navigate to the backend directory and activate your virtual environment:
+1. Navigate to the backend directory and make sure you have setup the backend before:
    ```bash
-   cd backend
-   source .venv/bin/activate
-   ```
-
-2. Install pytest (if not already installed):
-   ```bash
-   pip install pytest
-   ```
-
-3. Run the tests:
-   ```bash
-   python -m pytest tests/ -v
+   poetry run pytest tests/
    ```
 
 Note: Some tests may require a running server or mock data. If you encounter connection errors, it's likely because the test is trying to access resources that aren't available in the test environment.
@@ -180,10 +165,6 @@ Note: Some tests may require a running server or mock data. If you encounter con
 - Check if port 8000 is already in use: `lsof -i :8000`
 - Kill any existing processes: `kill <PID>`
 
-**Import errors with langgraph:**
-- Ensure you're using the virtual environment: `source backend/.venv/bin/activate`
-- Reinstall dependencies: `pip install -r requirements.txt`
-
 **OpenAI API errors:**
 - Verify your `.env` file is in the `backend/` directory
 - Check that `OPENAI_API_KEY` is set correctly
@@ -193,7 +174,7 @@ Note: Some tests may require a running server or mock data. If you encounter con
 - Clear npm cache: `npm cache clean --force`
 - Delete node_modules and reinstall: `rm -rf node_modules && npm i`
 
-> **Note**: Additional README files are available in both the `/frontend` and `/backend` directories with more specific instructions for each component.
+> **Note**: Additional README files are available in the `/frontend` directory with more specific instructions for each component.
 
 ## Contributing
 
