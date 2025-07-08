@@ -64,9 +64,16 @@ export default function SettingsPage() {
                 const res = await fetch(`${API_BASE_URL}/settings/options`)
                 if (!res.ok) throw new Error(res.statusText)
                 const opts = await res.json() as {
+                    system_prompt: string
                     tool_options: Record<string, ToolOption>
                     search_portals: string[]
                     model_options: Record<string, ModelOption[]>
+                }
+                console.log(opts);
+
+                // system prompt
+                if ((!modelSettings.system_prompt || modelSettings.system_prompt == "") && opts.system_prompt && opts.system_prompt !== "") {
+                    setSystemPrompt(opts.system_prompt)
                 }
 
                 // tools

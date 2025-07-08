@@ -16,6 +16,7 @@ class ModelOption(BaseModel):
 
 
 class SettingsOptions(BaseModel):
+    system_prompt: str
     tool_options: Dict[str, ToolOption]            # per-tool settings
     search_portals: List[str]
     model_options: Dict[str, List[ModelOption]]    # per-provider model list
@@ -53,6 +54,7 @@ async def get_settings_options():
         ],
     }
     return SettingsOptions(
+        system_prompt="You are a geospatial agent with some tools",
         tool_options=tool_options,
         search_portals=search_portals,
         model_options=model_options,
