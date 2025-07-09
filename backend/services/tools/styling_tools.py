@@ -20,7 +20,6 @@ from services.ai.automatic_styling import (
     parse_color_scheme_request,
     get_colorblind_safe_palette,
 )
-from services.ai.color_intelligence import parse_intelligent_color, parse_color_scheme, get_colorblind_safe_colors
 
 logger = logging.getLogger(__name__)
 
