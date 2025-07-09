@@ -174,7 +174,17 @@ export default function SettingsPage() {
                     <div className="grid grid-cols-2 gap-4">
                         <select
                             value={modelSettings.model_provider}
-                            onChange={(e) => setModelProvider(e.target.value)}
+                            onChange={(e) => {
+                                const prov = e.target.value;
+                                setModelProvider(prov);
+                                const models = modelOptions[prov] || [];
+                                const names = models.map((m) => m.name);
+                                setAvailableModelNames(names);
+                                if (models.length) {
+                                    setModelName(names[0]);
+                                    setMaxTokens(models[0].max_tokens);
+                                }
+                            }}
                             className="border rounded p-2"
                         >
                             {availableProviders.map((prov) => (

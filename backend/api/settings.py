@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Dict, List, Any
+from services.default_agent_settings import DEFAULT_SYSTEM_PROMPT
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -54,7 +55,7 @@ async def get_settings_options():
         ],
     }
     return SettingsOptions(
-        system_prompt="You are a geospatial agent with some tools",
+        system_prompt=DEFAULT_SYSTEM_PROMPT,
         tool_options=tool_options,
         search_portals=search_portals,
         model_options=model_options,
