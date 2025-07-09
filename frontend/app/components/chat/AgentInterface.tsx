@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import wellknown from "wellknown";
-import { useGeoweaverAgent } from "../../hooks/useGeoweaverAgent";
+import { useNaLaMapAgent } from "../../hooks/useNaLaMapAgent";
 import { ArrowUp, X, Loader2 } from "lucide-react";
 import { useLayerStore } from "../../stores/layerStore";
 import { GeoDataObject } from "../../models/geodatamodel";
@@ -59,9 +59,9 @@ function toWkt(bbox: GeoDataObject["bounding_box"]): string | undefined {
 export default function AgentInterface() {
   const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
   const [activeTool, setActiveTool] = useState<"search" | "chat" | "geocode" | "geoprocess" | "ai-style" | null>("chat");
-  const { input, setInput, messages: conversation, geoDataList, loading, error, queryGeoweaverAgent } =
-    useGeoweaverAgent(API_BASE_URL);
-  // useGeoweaverAgent hook provides `conversation` (messages) state, no local state needed here
+  const { input, setInput, messages: conversation, geoDataList, loading, error, queryNaLaMapAgent } =
+    useNaLaMapAgent(API_BASE_URL);
+  // useNaLaMapAgent hook provides `conversation` (messages) state, no local state needed here
   const containerRef = useRef<HTMLDivElement>(null);
   const addLayer = useLayerStore((s) => s.addLayer);
   const getLayers = useLayerStore.getState;
@@ -94,7 +94,7 @@ export default function AgentInterface() {
     e.preventDefault();
     if (!input.trim()) return;
 
-    // The hook (queryGeoweaverAgent) will append the human message for us
+    // The hook (queryNaLaMapAgent) will append the human message for us
 
     if (activeTool === "search") {
       let wkt: string | undefined = undefined;
@@ -116,19 +116,19 @@ export default function AgentInterface() {
         bboxWkt: wkt
       };
 
-      await queryGeoweaverAgent("search", undefined, apiOptions);
+      await queryNaLaMapAgent("search", undefined, apiOptions);
 
     }
     
     else if (activeTool === "geocode") {
-      await queryGeoweaverAgent(activeTool);
+      await queryNaLaMapAgent(activeTool);
     } else if (activeTool === "geoprocess") {
-      await queryGeoweaverAgent(activeTool);
+      await queryNaLaMapAgent(activeTool);
     } else if (activeTool === "chat") {
-      await queryGeoweaverAgent(activeTool);
+      await queryNaLaMapAgent(activeTool);
     } else if (activeTool === "ai-style") {
       // AI styling is now integrated into the main chat agent, so use "chat" endpoint
-      await queryGeoweaverAgent("chat");
+      await queryNaLaMapAgent("chat");
 
       /* TODO: Move to Backend
       // pass current layer URLs to the geoprocess endpoint

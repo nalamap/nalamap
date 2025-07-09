@@ -1,6 +1,6 @@
 # Contributing to NaLaMap
 
-Thank you for your interest in contributing to GeoWeaver! We're excited to welcome community contributions as we build this project together.
+Thank you for your interest in contributing to NaLaMap! We're excited to welcome community contributions as we build this project together.
 
 ## Getting Started
 

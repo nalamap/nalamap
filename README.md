@@ -16,7 +16,7 @@ NaLaMap is an open-source platform that helps users find and analyze geospatial 
 ## Project Structure
 
 ```
-geoweaver/
+nalamap/
 ├── backend/              # Python FastAPI backend
 │   ├── api/              # API endpoints
 │   ├── core/             # Core configurations
@@ -35,6 +35,20 @@ geoweaver/
 │   └── public/           # Static assets
 └── nginx/                # Nginx configuration for serving the application
 ```
+
+## Versioning Strategy
+
+**NaLaMap follows [Semantic Versioning](https://semver.org/) for all releases using the format `MAJOR.MINOR.PATCH`:**
+
+- **MAJOR** version increments for incompatible API changes, significant architectural changes, or breaking changes to existing functionality
+- **MINOR** version increments for new features, enhancements, or backwards-compatible functionality additions (e.g., new geospatial tools, additional data sources, UI improvements)
+- **PATCH** version increments for backwards-compatible bug fixes, security patches, and minor improvements
+
+**Release Tags:** All releases are tagged in Git using the format `v{MAJOR}.{MINOR}.{PATCH}` (e.g., `v1.0.0`, `v1.2.3`).
+
+**Pre-release versions** may use suffixes like `-alpha`, `-beta`, or `-rc` for testing purposes (e.g., `v1.1.0-beta.1`).
+
+**Current Version:** The project is currently in active development. The first stable release will be tagged as `v1.0.0` once core functionality is complete and thoroughly tested.
 
 ## Prerequisites
 
@@ -178,7 +192,7 @@ Note: Some tests may require a running server or mock data. If you encounter con
 
 ## Contributing
 
-We welcome contributions from the community! If you're interested in helping improve GeoWeaver, please check out our [Contributing Guide](CONTRIBUTING.md) for information on how to get started.
+We welcome contributions from the community! If you're interested in helping improve NaLaMap, please check out our [Contributing Guide](CONTRIBUTING.md) for information on how to get started.
 
 Please also review our [Code of Conduct](CODE_OF_CONDUCT.md) to ensure a positive and inclusive environment for all contributors.
 

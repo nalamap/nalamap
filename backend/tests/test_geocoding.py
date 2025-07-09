@@ -123,7 +123,7 @@ class TestGeocodingBasicFunctions:
             assert expected_base in call_args[0]
             assert "q=Paris" in call_args[0]
             assert "maxRows=3" in call_args[0]
-            assert "username=geoweaver" in call_args[0]
+            assert "username=nalamap" in call_args[0]
 
             # Verify result is valid JSON
             parsed_result = json.loads(result)
@@ -187,7 +187,7 @@ class TestGeocodingBasicFunctions:
 
             # Verify headers are set
             headers = call_args[1]["headers"]
-            assert headers["User-Agent"].startswith("GeoWeaver")
+            assert headers["User-Agent"].startswith("NaLaMap")
 
             # Verify result is valid JSON
             parsed_result = json.loads(result)
@@ -377,7 +377,7 @@ class TestUrlConstruction:
             # Verify f-string substitution worked correctly
             assert "q=Berlin" in url
             assert "maxRows=5" in url
-            assert "username=geoweaver" in url
+            assert "username=nalamap" in url
             # No unformatted template strings
             assert "={" not in url
             assert "}=" not in url
@@ -448,7 +448,7 @@ class TestGeocodingIntegration:
             # These assertions would fail if f-strings weren't working
             assert "q=test location" in url or "q=test%20location" in url
             assert "maxRows=3" in url
-            assert "username=geoweaver" in url
+            assert "username=nalamap" in url
 
             # Most importantly, verify no unformatted template strings
             assert "{location_name}" not in url
