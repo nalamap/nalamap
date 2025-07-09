@@ -9,8 +9,6 @@ from kml2geojson.main import convert as kml2geojson_convert
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from pydantic import BaseModel
 
-# Geo conversion
-
 from core.config import BASE_URL, LOCAL_UPLOAD_DIR
 from models.geodata import DataOrigin, DataType, GeoDataObject
 from models.messages.chat_messages import (
@@ -23,6 +21,9 @@ from services.agents.langgraph_agent import SearchState, executor
 from services.multi_agent_orch import multi_agent_executor
 from services.tools.geocoding import geocode_using_nominatim
 from utility.string_methods import clean_allow
+
+# Geo conversion
+
 
 router = APIRouter()
 

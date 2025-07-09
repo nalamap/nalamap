@@ -4,17 +4,19 @@ Automatic styling system that applies appropriate colors and styles based on lay
 
 import logging
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 try:
-    import matplotlib.pyplot as plt
     import matplotlib.colors as mcolors
+    import matplotlib.pyplot as plt
+
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
 
 try:
     import webcolors
+
     WEBCOLORS_AVAILABLE = True
 except ImportError:
     WEBCOLORS_AVAILABLE = False
@@ -28,6 +30,7 @@ logger = logging.getLogger(__name__)
 # COLOR INTELLIGENCE SYSTEM
 # =============================================================================
 
+
 def parse_intelligent_color(color_input: str) -> Optional[str]:
     """
     Intelligent color parsing that supports:
@@ -36,42 +39,57 @@ def parse_intelligent_color(color_input: str) -> Optional[str]:
     - ColorBrewer schemes (Set1, Set2, Spectral, etc.)
     - Matplotlib colormap names
     - Hex codes
-    
+
     Args:
         color_input: Color name, scheme, or hex code
-        
+
     Returns:
         Hex color code or None if not found
     """
     if not color_input:
         return None
-    
+
     color_input = color_input.strip().lower()
-    
+
     # Handle hex codes
-    if color_input.startswith('#'):
+    if color_input.startswith("#"):
         return color_input
-    
+
     # Basic color mapping
     basic_colors = {
-        "red": "#ff0000", "blue": "#0000ff", "green": "#00ff00", "yellow": "#ffff00",
-        "orange": "#ffa500", "purple": "#800080", "pink": "#ffc0cb", "brown": "#a52a2a",
-        "black": "#000000", "white": "#ffffff", "gray": "#808080", "grey": "#808080",
-        "cyan": "#00ffff", "magenta": "#ff00ff", "lime": "#00ff00", "navy": "#000080",
-        "silver": "#c0c0c0", "maroon": "#800000", "olive": "#808000", "teal": "#008080",
-        "aqua": "#00ffff"
+        "red": "#ff0000",
+        "blue": "#0000ff",
+        "green": "#00ff00",
+        "yellow": "#ffff00",
+        "orange": "#ffa500",
+        "purple": "#800080",
+        "pink": "#ffc0cb",
+        "brown": "#a52a2a",
+        "black": "#000000",
+        "white": "#ffffff",
+        "gray": "#808080",
+        "grey": "#808080",
+        "cyan": "#00ffff",
+        "magenta": "#ff00ff",
+        "lime": "#00ff00",
+        "navy": "#000080",
+        "silver": "#c0c0c0",
+        "maroon": "#800000",
+        "olive": "#808000",
+        "teal": "#008080",
+        "aqua": "#00ffff",
     }
-    
+
     if color_input in basic_colors:
         return basic_colors[color_input]
-    
+
     # Try webcolors for extended CSS color names
     if WEBCOLORS_AVAILABLE:
         try:
             return webcolors.name_to_hex(color_input)
         except ValueError:
             pass
-    
+
     # Try matplotlib colormap single color extraction
     if MATPLOTLIB_AVAILABLE:
         try:
@@ -83,41 +101,57 @@ def parse_intelligent_color(color_input: str) -> Optional[str]:
                 return mcolors.rgb2hex(rgba[:3])
         except Exception:
             pass
-    
+
     return None
 
 
 def get_colorbrewer_scheme(scheme_name: str, n_colors: int = 5) -> List[str]:
     """
     Get ColorBrewer color scheme from matplotlib.
-    
+
     Args:
         scheme_name: Name of the ColorBrewer scheme (e.g., 'Set1', 'Spectral', 'RdYlBu')
         n_colors: Number of colors to extract
-        
+
     Returns:
         List of hex color codes
     """
     if not MATPLOTLIB_AVAILABLE:
         return []
-    
+
     # Map common lowercase names to proper matplotlib names
     scheme_map = {
-        'set1': 'Set1', 'set2': 'Set2', 'set3': 'Set3',
-        'spectral': 'Spectral', 'rdylbu': 'RdYlBu', 'rdylgn': 'RdYlGn',
-        'paired': 'Paired', 'dark2': 'Dark2', 'accent': 'Accent',
-        'pastel1': 'Pastel1', 'pastel2': 'Pastel2',
-        'rdbu': 'RdBu', 'rdgy': 'RdGy', 'rdpu': 'RdPu',
-        'bugn': 'BuGn', 'bupu': 'BuPu', 'gnbu': 'GnBu',
-        'orrd': 'OrRd', 'pubugn': 'PuBuGn', 'pubu': 'PuBu',
-        'purd': 'PuRd', 'ylgn': 'YlGn', 'ylgnbu': 'YlGnBu',
-        'ylorbr': 'YlOrBr', 'ylorrd': 'YlOrRd'
+        "set1": "Set1",
+        "set2": "Set2",
+        "set3": "Set3",
+        "spectral": "Spectral",
+        "rdylbu": "RdYlBu",
+        "rdylgn": "RdYlGn",
+        "paired": "Paired",
+        "dark2": "Dark2",
+        "accent": "Accent",
+        "pastel1": "Pastel1",
+        "pastel2": "Pastel2",
+        "rdbu": "RdBu",
+        "rdgy": "RdGy",
+        "rdpu": "RdPu",
+        "bugn": "BuGn",
+        "bupu": "BuPu",
+        "gnbu": "GnBu",
+        "orrd": "OrRd",
+        "pubugn": "PuBuGn",
+        "pubu": "PuBu",
+        "purd": "PuRd",
+        "ylgn": "YlGn",
+        "ylgnbu": "YlGnBu",
+        "ylorbr": "YlOrBr",
+        "ylorrd": "YlOrRd",
     }
-    
+
     # Normalize scheme name
     scheme_lower = scheme_name.lower()
     actual_scheme = scheme_map.get(scheme_lower, scheme_name)
-    
+
     try:
         cmap = plt.get_cmap(actual_scheme)
         colors = []
@@ -133,23 +167,23 @@ def get_colorbrewer_scheme(scheme_name: str, n_colors: int = 5) -> List[str]:
 def get_colorblind_safe_palette(n_colors: int = 5) -> List[str]:
     """
     Get a colorblind-safe color palette.
-    
+
     Args:
         n_colors: Number of colors needed
-        
+
     Returns:
         List of colorblind-safe hex colors
     """
     # Use ColorBrewer Set2 which is colorblind-safe
-    colorblind_safe = get_colorbrewer_scheme('Set2', n_colors)
-    
+    colorblind_safe = get_colorbrewer_scheme("Set2", n_colors)
+
     if colorblind_safe:
         return colorblind_safe
-    
+
     # Fallback to hardcoded colorblind-safe palette
     fallback_colors = [
         "#1f77b4",  # Blue
-        "#ff7f0e",  # Orange  
+        "#ff7f0e",  # Orange
         "#2ca02c",  # Green
         "#d62728",  # Red
         "#9467bd",  # Purple
@@ -157,75 +191,81 @@ def get_colorblind_safe_palette(n_colors: int = 5) -> List[str]:
         "#e377c2",  # Pink
         "#7f7f7f",  # Gray
         "#bcbd22",  # Olive
-        "#17becf"   # Cyan
+        "#17becf",  # Cyan
     ]
-    
+
     return fallback_colors[:n_colors]
 
 
 def parse_color_scheme_request(request: str) -> Dict[str, Any]:
     """
     Parse natural language color scheme requests.
-    
+
     Args:
         request: Natural language request (e.g., "colorblind safe", "warm colors", "Set1")
-        
+
     Returns:
         Dictionary with scheme info and colors
     """
     request = request.lower().strip()
-    
+
     # Colorblind safe requests
-    if any(term in request for term in ['colorblind', 'accessible', 'safe']):
+    if any(term in request for term in ["colorblind", "accessible", "safe"]):
         colors = get_colorblind_safe_palette()
         return {
-            'type': 'colorblind_safe',
-            'name': 'Colorblind Safe',
-            'colors': colors,
-            'description': 'Colors safe for colorblind users'
+            "type": "colorblind_safe",
+            "name": "Colorblind Safe",
+            "colors": colors,
+            "description": "Colors safe for colorblind users",
         }
-    
+
     # ColorBrewer scheme requests
     colorbrewer_map = {
-        'set1': 'Set1', 'set2': 'Set2', 'set3': 'Set3',
-        'spectral': 'Spectral', 'rdylbu': 'RdYlBu', 'rdylgn': 'RdYlGn',
-        'paired': 'Paired', 'dark2': 'Dark2', 'accent': 'Accent'
+        "set1": "Set1",
+        "set2": "Set2",
+        "set3": "Set3",
+        "spectral": "Spectral",
+        "rdylbu": "RdYlBu",
+        "rdylgn": "RdYlGn",
+        "paired": "Paired",
+        "dark2": "Dark2",
+        "accent": "Accent",
     }
-    
+
     for key, scheme in colorbrewer_map.items():
         if key in request:
             colors = get_colorbrewer_scheme(key)
             return {
-                'type': 'colorbrewer',
-                'name': scheme,
-                'colors': colors,
-                'description': f'ColorBrewer {scheme} scheme'
+                "type": "colorbrewer",
+                "name": scheme,
+                "colors": colors,
+                "description": f"ColorBrewer {scheme} scheme",
             }
-    
+
     # Warm/cool color requests
-    if 'warm' in request:
+    if "warm" in request:
         warm_colors = ["#d62728", "#ff7f0e", "#ff9800", "#ffc107", "#ffeb3b"]
         return {
-            'type': 'warm',
-            'name': 'Warm Colors',
-            'colors': warm_colors,
-            'description': 'Warm color palette'
+            "type": "warm",
+            "name": "Warm Colors",
+            "colors": warm_colors,
+            "description": "Warm color palette",
         }
-    
-    if 'cool' in request:
+
+    if "cool" in request:
         cool_colors = ["#1f77b4", "#2ca02c", "#00bcd4", "#9c27b0", "#3f51b5"]
         return {
-            'type': 'cool', 
-            'name': 'Cool Colors',
-            'colors': cool_colors,
-            'description': 'Cool color palette'
+            "type": "cool",
+            "name": "Cool Colors",
+            "colors": cool_colors,
+            "description": "Cool color palette",
         }
-    
+
     return {
-        'type': 'unknown',
-        'name': 'Unknown',
-        'colors': [],
-        'description': f'Could not parse color request: {request}'
+        "type": "unknown",
+        "name": "Unknown",
+        "colors": [],
+        "description": f"Could not parse color request: {request}",
     }
 
 

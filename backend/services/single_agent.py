@@ -14,10 +14,10 @@ from services.tools.geoprocess_tools import geoprocess_tool
 from services.tools.geostate_management import describe_geodata_object, metadata_search
 from services.tools.librarian_tools import query_librarian_postgis
 from services.tools.styling_tools import (
+    apply_intelligent_color_scheme,
     auto_style_new_layers,
     check_and_auto_style_layers,
     style_map_layers,
-    apply_intelligent_color_scheme,
 )
 
 tools: List[BaseTool] = [

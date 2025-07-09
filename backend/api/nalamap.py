@@ -1,6 +1,6 @@
+import json
 from typing import Any, Dict, List, Optional
 
-import json
 import openai  # Import openai for error handling
 from fastapi import APIRouter, HTTPException
 from langchain_core.messages import (

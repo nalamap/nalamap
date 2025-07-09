@@ -14,11 +14,10 @@ from typing_extensions import Annotated
 
 from models.geodata import GeoDataObject
 from services.ai.automatic_styling import (
-    generate_automatic_style,
     detect_layer_type,
-    parse_intelligent_color,
+    generate_automatic_style,
     parse_color_scheme_request,
-    get_colorblind_safe_palette,
+    parse_intelligent_color,
 )
 
 logger = logging.getLogger(__name__)
@@ -29,18 +28,18 @@ def normalize_color(color: str) -> str:
     Normalize color input to hex format.
     Now supports a wide range of color inputs including:
     - Basic color names (red, blue, etc.)
-    - Web color names (forestgreen, dodgerblue, etc.) 
+    - Web color names (forestgreen, dodgerblue, etc.)
     - Hex codes (#FF0000, FF0000, etc.)
     - ColorBrewer palette names (returns first color)
     """
     if not color:
         return color
-    
+
     # Use the intelligent color parsing system
     parsed_color = parse_intelligent_color(color)
     if parsed_color:
         return parsed_color
-    
+
     # If not recognized, return original (for backward compatibility)
     return color
 
@@ -513,21 +512,21 @@ def apply_intelligent_color_scheme(
 ) -> Command:
     """
     Apply intelligent color schemes to layers based on natural language requests.
-    
+
     Supports:
     - "colorblind safe" or "accessible" - applies colorblind-safe palette
-    - "Set1", "Set2", "Spectral" - applies ColorBrewer schemes  
+    - "Set1", "Set2", "Spectral" - applies ColorBrewer schemes
     - "warm colors" - applies warm color palette
     - "cool colors" - applies cool color palette
-    
+
     Each layer gets a unique color from the scheme to ensure distinguishability.
-    
+
     Args:
         scheme_request: Natural language color scheme request
         layer_names: Specific layers to style (if None, styles all layers)
     """
     available_layers = state.get("geodata_layers", [])
-    
+
     if not available_layers:
         message = "No layers are currently available to apply color schemes to."
         return Command(
@@ -542,10 +541,10 @@ def apply_intelligent_color_scheme(
                 ]
             }
         )
-    
+
     # Parse the color scheme request
     scheme_info = parse_color_scheme_request(scheme_request)
-    
+
     if not scheme_info["colors"]:
         message = f"Could not understand color scheme request: '{scheme_request}'"
         return Command(
@@ -560,13 +559,13 @@ def apply_intelligent_color_scheme(
                 ]
             }
         )
-    
+
     # Determine which layers to style
     if layer_names:
         layers_to_style = [layer for layer in available_layers if layer.name in layer_names]
     else:
         layers_to_style = available_layers
-    
+
     if not layers_to_style:
         message = "No matching layers found to style."
         return Command(
@@ -581,45 +580,47 @@ def apply_intelligent_color_scheme(
                 ]
             }
         )
-    
+
     # Apply colors from the scheme to layers
     updated_layers = []
     scheme_colors = scheme_info["colors"]
     styled_layers = []
-    
+
     for i, layer in enumerate(available_layers):
         if layer in layers_to_style:
             # Get color from scheme (cycle through if more layers than colors)
             color_index = i % len(scheme_colors)
             fill_color = scheme_colors[color_index]
-            stroke_color = normalize_color(fill_color).replace('ff', 'cc')  # Darker stroke
-            
+            stroke_color = normalize_color(fill_color).replace("ff", "cc")  # Darker stroke
+
             # Apply the styling
             layer_dict = layer.model_dump()
             if not layer_dict.get("style"):
                 layer_dict["style"] = {}
-            
-            layer_dict["style"].update({
-                "fill_color": fill_color,
-                "stroke_color": stroke_color,
-                "fill_opacity": 0.6,
-                "stroke_opacity": 1.0,
-                "stroke_weight": 2,
-            })
-            
+
+            layer_dict["style"].update(
+                {
+                    "fill_color": fill_color,
+                    "stroke_color": stroke_color,
+                    "fill_opacity": 0.6,
+                    "stroke_opacity": 1.0,
+                    "stroke_weight": 2,
+                }
+            )
+
             styled_layer = GeoDataObject(**layer_dict)
             updated_layers.append(styled_layer)
             styled_layers.append(layer.name)
         else:
             updated_layers.append(layer)
-    
+
     # Create success message
     message = (
         f"Successfully applied '{scheme_info['name']}' color scheme to "
         f"{len(styled_layers)} layer(s): {', '.join(styled_layers)}. "
         f"Description: {scheme_info['description']}"
     )
-    
+
     return Command(
         update={
             "messages": [

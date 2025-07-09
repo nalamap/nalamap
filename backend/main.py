@@ -29,9 +29,9 @@ tags_metadata = [
         ),
     },
     {
-            "name": "nalamap",
-    "description": "NaLaMap API endpoints can be used to interact with the "
-    "NaLaMap answer geospatial questions.",
+        "name": "nalamap",
+        "description": "NaLaMap API endpoints can be used to interact with the "
+        "NaLaMap answer geospatial questions.",
     },
 ]
 

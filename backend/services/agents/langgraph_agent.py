@@ -87,7 +87,7 @@ async def query_postgis(state: SearchState) -> SearchState:
     state.results = [
         GeoDataObject(
             id=str(row[0]),
-                            data_source_id="nalamap.postgis",
+            data_source_id="nalamap.postgis",
             data_type=(DataType.GEOJSON if row[1].lower() == "geojson" else DataType.LAYER),
             data_origin=DataOrigin.TOOL,
             data_source=row[6] if row[6] else row[1],
