@@ -23,9 +23,12 @@ python-multipart = "*"
 shapely = "*"
 kml2geojson = "*"
 geopandas = "*"
+webcolors = "*"
+matplotlib = "*"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "*"
+pytest-asyncio = "*"
 flake8 = "*"
 flake8-pyproject = "*"
 black = "*"
