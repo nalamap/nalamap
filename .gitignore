@@ -354,8 +354,6 @@ dist
 .yarn/install-state.gz
 .pnp.*
 
-# Choose one package manager - we use yarn, so exclude npm lock
-package-lock.json
 
 ### ReactNative.macOS Stack ###
 # General
