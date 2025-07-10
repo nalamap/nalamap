@@ -225,7 +225,7 @@ def style_map_layers(
                 "stroke_color": "#3388FF",
                 "stroke_weight": 2,
                 "stroke_opacity": 0.85,  # Changed from 1.0 to 0.85 (85% opacity)
-                "fill_color": "#3388f",
+                "fill_color": "#3388FF",
                 "fill_opacity": 0.15,  # Changed from 0.3 to 0.15 for less transparency
                 "radius": 6,  # Changed from 8 to 6
                 "line_cap": "round",
