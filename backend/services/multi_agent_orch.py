@@ -10,13 +10,11 @@ from langgraph.types import Command
 
 from models.geodata import GeoDataObject, mock_geodata_objects
 from models.states import DataState
-from services.agents.geo_weaver_ai import ai_executor as geo_helper_executor
 from services.agents.langgraph_agent import SearchState
 from services.agents.langgraph_agent import executor as librarien_executor
+from services.agents.nala_map_ai import ai_executor as nala_helper_executor
 from services.agents.supervisor_agent import choose_agent
-from services.agents.supervisor_agent import (
-    supervisor_node as llm_supervisor_node,
-)
+from services.agents.supervisor_agent import supervisor_node as llm_supervisor_node
 
 
 async def supervisor_node(state: DataState) -> Command:
@@ -35,7 +33,7 @@ def convert_to_geo_input(state: DataState) -> Dict:
 
 async def geo_helper_node(state: DataState) -> Command:
     geo_input = convert_to_geo_input(state)
-    ai_state = await geo_helper_executor.ainvoke(geo_input)
+    ai_state = await nala_helper_executor.ainvoke(geo_input)
     # output = getattr(ai_state, "response", None) or "⚠️ Geo Helper returned no response."
     # new_msgs = state["messages"] + [{"role": "assistant", "content": output}]
     return Command(

@@ -1,4 +1,4 @@
-'use client'
+"use client"
 
 import { useState } from 'react';
 import Link from 'next/link';
@@ -31,7 +31,7 @@ export default function Sidebar() {
   return (
     <>
       <Head>
-        <title>GeoWeaverAI</title>
+        <title>NaLaMapAI</title>
         <meta name="description" content="geospatial insights, with ease" />
       </Head>
       {/* Top Icon Section */}

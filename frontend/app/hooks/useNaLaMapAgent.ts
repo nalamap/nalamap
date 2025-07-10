@@ -1,12 +1,12 @@
-// hooks/useGeoweaver.ts
+// hooks/useNaLaMap.ts
 "use client";
 
-import { ChatMessage, GeoweaverRequest, GeoweaverResponse } from "../models/geodatamodel";
+import { ChatMessage, GeoDataObject, NaLaMapRequest, NaLaMapResponse } from "../models/geodatamodel";
 import { useSettingsStore } from '../stores/settingsStore'
 import { useLayerStore } from '../stores/layerStore'
 import { useChatInterfaceStore } from "../stores/chatInterfaceStore";
 
-export function useGeoweaverAgent(apiUrl: string) {
+export function useNaLaMapAgent(apiUrl: string) {
   const layerStore = useLayerStore();
   const chatInterfaceStore = useChatInterfaceStore();
 
@@ -28,7 +28,7 @@ export function useGeoweaverAgent(apiUrl: string) {
   };
 
 
-  async function queryGeoweaverAgent(
+  async function queryNaLaMapAgent(
     endpoint: "chat" | "search" | "geocode" | "geoprocess" | "ai-style",
     layerUrls: string[] = [],
     options?: { portal?: string; bboxWkt?: string }
@@ -61,7 +61,7 @@ export function useGeoweaverAgent(apiUrl: string) {
       if (endpoint === "geoprocess" || endpoint === "chat" || endpoint === "geocode" || endpoint === "search") {
         const selectedLayers = useLayerStore.getState().layers.filter((l) => l.selected);
         appendHumanMessage(chatInterfaceStore.input);
-        const payload: GeoweaverRequest = {
+        const payload: NaLaMapRequest = {
           messages: chatInterfaceStore.messages,
           query: chatInterfaceStore.input,
           geodata_last_results: chatInterfaceStore.geoDataList,
@@ -125,8 +125,8 @@ export function useGeoweaverAgent(apiUrl: string) {
         // Don't update geoDataList for styling operations
         return;
       }
-
-      const data: GeoweaverResponse = await response.json();
+      
+      const data: NaLaMapResponse = await response.json();
       console.log(data)
       if (!data.geodata_results) {
         throw new Error("Response was missing GeoData");
@@ -166,6 +166,6 @@ export function useGeoweaverAgent(apiUrl: string) {
     }
   }
 
-  return { input: chatInterfaceStore.input, setInput: chatInterfaceStore.setInput, messages: chatInterfaceStore.messages, geoDataList: chatInterfaceStore.geoDataList, loading: chatInterfaceStore.loading, error: chatInterfaceStore.error, queryGeoweaverAgent };
+  return { input: chatInterfaceStore.input, setInput: chatInterfaceStore.setInput, messages: chatInterfaceStore.messages, geoDataList: chatInterfaceStore.geoDataList, loading: chatInterfaceStore.loading, error: chatInterfaceStore.error, queryNaLaMapAgent };
 
 }

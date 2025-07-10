@@ -30,10 +30,10 @@ class ChatResponse(BaseModel):
     messages: List[BaseMessage]
 
 
-# Geoweaver Messages
-class GeoweaverRequest(BaseModel):
+# NaLaMap Messages
+class NaLaMapRequest(BaseModel):
     """
-    Request of the Frontend to the Geoweaver, which contains the message history,
+    Request of the Frontend to the NaLaMap, which contains the message history,
     a request and geodata related to the query
     """
 
@@ -45,9 +45,9 @@ class GeoweaverRequest(BaseModel):
     options: Optional[Dict[str, Any]] = None
 
 
-class GeoweaverResponse(BaseModel):
+class NaLaMapResponse(BaseModel):
     """
-    Response of the Geoweaver, which contains the message history,
+    Response of the NaLaMap, which contains the message history,
     a response and geodata related to the query
     """
 

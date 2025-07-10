@@ -1,8 +1,8 @@
 # services/agents/geoprocessing_agent.py
+import json
 import logging
 import os
 import uuid
-import json
 from typing import Any, Dict, List, Optional, Union
 
 import requests
@@ -425,7 +425,7 @@ def geoprocess_tool(
                 data_source_id="geoprocess",
                 data_type=DataType.GEOJSON,
                 data_origin=DataOrigin.TOOL,
-                data_source="GeoweaverGeoprocess",
+                data_source="NaLaMapGeoprocess",
                 data_link=url,
                 name=result_name,
                 title=result_name,

@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from api import ai_style, auto_styling, data_management, debug, geoweaver, settings
+from api import ai_style, auto_styling, data_management, debug, nalamap, settings
 
 # from sqlalchemy.ext.asyncio import AsyncSession
 from core.config import LOCAL_UPLOAD_DIR
@@ -29,9 +29,9 @@ tags_metadata = [
         ),
     },
     {
-        "name": "geoweaver",
-        "description": "Geoweaver API endpoints can be used to interact with the "
-        "Geoweaver answer geospatial questions.",
+        "name": "nalamap",
+        "description": "NaLaMap API endpoints can be used to interact with the "
+        "NaLaMap answer geospatial questions.",
     },
 ]
 
@@ -46,7 +46,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="GeoWeaver API",
+    title="NaLaMap API",
     description="API for making geospatial data accessible",
     version="0.1.0",
     lifespan=lifespan,
@@ -69,7 +69,7 @@ app.mount("/uploads", StaticFiles(directory=LOCAL_UPLOAD_DIR), name="uploads")
 
 # Include API routers
 app.include_router(debug.router, prefix="/api")
-app.include_router(geoweaver.router, prefix="/api")  # Main chat functionality
+app.include_router(nalamap.router, prefix="/api")  # Main chat functionality
 app.include_router(data_management.router, prefix="/api")
 app.include_router(ai_style.router, prefix="/api")  # AI Style button functionality
 app.include_router(auto_styling.router, prefix="/api")  # Automatic styling
@@ -78,7 +78,7 @@ app.include_router(settings.router, prefix="/api")
 
 @app.get("/")
 async def root():
-    return {"message": "GeoWeaver API is running"}
+    return {"message": "NaLaMap API is running"}
 
 
 # Exception handlers

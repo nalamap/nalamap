@@ -15,8 +15,8 @@ from services.storage.file_management import store_file
 
 from .constants import AMENITY_MAPPING
 
-headers_geoweaver = {
-    "User-Agent": "GeoWeaver, github.com/geoweaveai, next generation geospatial analysis using agents"
+headers_nalamap = {
+    "User-Agent": "NaLaMap, github.com/nalamap, next generation geospatial analysis using agents"
 }
 
 
@@ -53,7 +53,7 @@ def geocode_using_geonames(location: str, maxRows: int = 3) -> str:
 
     url: str = (
         f"http://api.geonames.org/searchJSON?q={location}&maxRows={maxRows}"
-        f"&username={getenv('GEONAMES_USER', 'geoweaver')}"
+        f"&username={getenv('GEONAMES_USER', 'nalamap')}"
     )
     response = requests.get(url)
 
@@ -78,7 +78,7 @@ def geocode_using_nominatim(query: str, geojson: bool = False, maxRows: int = 3)
         f"?q={query}&format=json&polygon_kml={1 if geojson else 0}"
         f"&addressdetails=1&limit={maxRows}"
     )
-    response = requests.get(url, headers=headers_geoweaver)
+    response = requests.get(url, headers=headers_nalamap)
     if response.status_code == 200:
         data = response.json()
         if len(data):
@@ -183,7 +183,7 @@ def geocode_using_nominatim_to_geostate(
         f"?q={query}&format=json&polygon_geojson={1 if geojson else 0}"
         f"&addressdetails=0&limit={maxRows}"
     )
-    response = requests.get(url, headers=headers_geoweaver)
+    response = requests.get(url, headers=headers_nalamap)
     if response.status_code == 200:
         data = response.json()
         if len(data):
@@ -584,7 +584,7 @@ def geocode_using_overpass_to_geostate(
     search_mode_description: str = ""
 
     try:
-        nominatim_response_req = requests.get(nominatim_url, headers=headers_geoweaver, timeout=20)
+        nominatim_response_req = requests.get(nominatim_url, headers=headers_nalamap, timeout=20)
         nominatim_response_req.raise_for_status()
         location_data_list = nominatim_response_req.json()
 
@@ -755,7 +755,7 @@ def geocode_using_overpass_to_geostate(
             overpass_api_url,
             data={"data": overpass_query},
             headers={
-                **headers_geoweaver,
+                **headers_nalamap,
                 "Content-Type": "application/x-www-form-urlencoded",
             },
             timeout=timeout + 10,

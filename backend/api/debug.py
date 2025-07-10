@@ -9,13 +9,11 @@ from kml2geojson.main import convert as kml2geojson_convert
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from pydantic import BaseModel
 
-# Geo conversion
-
 from core.config import BASE_URL, LOCAL_UPLOAD_DIR
 from models.geodata import DataOrigin, DataType, GeoDataObject
 from models.messages.chat_messages import (
-    GeoweaverRequest,
-    GeoweaverResponse,
+    NaLaMapRequest,
+    NaLaMapResponse,
     OrchestratorRequest,
     OrchestratorResponse,
 )
@@ -24,11 +22,14 @@ from services.multi_agent_orch import multi_agent_executor
 from services.tools.geocoding import geocode_using_nominatim
 from utility.string_methods import clean_allow
 
+# Geo conversion
+
+
 router = APIRouter()
 
 
-@router.post("/api/search", tags=["debug"], response_model=GeoweaverResponse)
-async def search(req: GeoweaverRequest):
+@router.post("/api/search", tags=["debug"], response_model=NaLaMapResponse)
+async def search(req: NaLaMapRequest):
     state = SearchState(raw_query=req.query)
     result_state = await executor.ainvoke(state)
     numresults = result_state["num_results"]
@@ -44,7 +45,7 @@ async def search(req: GeoweaverRequest):
     # global_geodata=req.global_geodata
     # global_geodata.extend(results)
 
-    return GeoweaverResponse(
+    return NaLaMapResponse(
         messages=[*req.messages, human_msg, ai_msg],
         results_title="Search Results",
         geodata_results=results,
@@ -53,11 +54,11 @@ async def search(req: GeoweaverRequest):
     )  # , global_geodata=global_geodata)
 
 
-@router.post("/api/geocode", tags=["debug"], response_model=GeoweaverResponse)
-async def geocode(req: GeoweaverRequest) -> Dict[str, Any]:
+@router.post("/api/geocode", tags=["debug"], response_model=NaLaMapResponse)
+async def geocode(req: NaLaMapRequest) -> Dict[str, Any]:
     """Geocode the given request using the OpenStreetMap API.
     Returns and geokml some additional information."""
-    # futue input: request: GeoweaverRequest
+    # futue input: request: NaLaMapRequest
     response: str = "Geocoding results:"
     messages: List[BaseMessage] = [
         *(req.messages or []),
@@ -76,7 +77,7 @@ async def geocode(req: GeoweaverRequest) -> Dict[str, Any]:
 
     # TODO: Adapt tool to add GeoDataObject to calling state and summary or so
 
-    geocodeResponse: GeoweaverResponse = GeoweaverResponse(
+    geocodeResponse: NaLaMapResponse = NaLaMapResponse(
         results_title="Geocoding Results:",
         geodata_layers=req.geodata_layers,
         options=req.options,
@@ -191,8 +192,8 @@ class GeoProcessResponse(BaseModel):
     tools_used: Optional[List[str]] = None
 
 
-@router.post("/api/geoprocess", response_model=GeoweaverResponse)
-async def geoprocess(req: GeoweaverRequest):
+@router.post("/api/geoprocess", response_model=NaLaMapResponse)
+async def geoprocess(req: NaLaMapRequest):
     """
     Accepts a natural language query and a list of GeoJSON URLs.
     Loads the GeoJSON from local storage, delegates processing to the geoprocess executor,
@@ -276,7 +277,7 @@ async def geoprocess(req: GeoweaverRequest):
                 data_source_id="geoprocess",
                 data_type=DataType.GEOJSON,
                 data_origin=DataOrigin.TOOL,
-                data_source="GeoweaverGeoprocess",
+                data_source="NaLaMapGeoprocess",
                 data_link=out_url,
                 name=result_name,
                 title=result_name,
@@ -306,7 +307,7 @@ async def geoprocess(req: GeoweaverRequest):
 
     # Convert to common Geodatamodel
     response_str: str = "Here are the processing results, used Tools: {', '.join(tools_used)}:"
-    geodataResponse: GeoweaverResponse = GeoweaverResponse(geodata_layers=req.geodata_layers,
+    geodataResponse: NaLaMapResponse = NaLaMapResponse(geodata_layers=req.geodata_layers,
                                                            options=req.options)
     geodataResponse.geodata_results = new_geodata
     # geodataResponse.global_geodata=global_geodata

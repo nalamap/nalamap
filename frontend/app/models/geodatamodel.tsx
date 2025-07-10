@@ -65,7 +65,7 @@ export interface GeoDataObject {
     style?: LayerStyle;     // <— new style property
 }
 
-export interface GeoweaverRequest {
+export interface NaLaMapRequest {
     messages?: ChatMessage[]
     query?: string
     geodata_last_results?: GeoDataObject[]
@@ -74,7 +74,7 @@ export interface GeoweaverRequest {
     options?: Record<string, unknown[]>
 }
 
-export interface GeoweaverResponse {
+export interface NaLaMapResponse {
     messages?: ChatMessage[]
     results_title?: string
     geodata_results?: GeoDataObject[]
