@@ -383,7 +383,7 @@ export default function AgentInterface() {
           </button>
           <button
             onClick={() => setActiveTool("search")}
-            className={`px-2 py-1 rounded text-white`}
+            className={`px-2 py-1 rounded text-white hidden`}
             style={{
               backgroundColor: activeTool === "search" ? 'rgb(102, 102, 102)' : 'rgb(64, 64, 64)'
             }}
@@ -392,7 +392,7 @@ export default function AgentInterface() {
           </button>
           <button
             onClick={() => setActiveTool("geoprocess")}
-            className={`px-2 py-1 rounded text-white`}
+            className={`px-2 py-1 rounded text-white hidden`}
             style={{
               backgroundColor: activeTool === "geoprocess" ? 'rgb(102, 102, 102)' : 'rgb(64, 64, 64)'
             }}
@@ -401,7 +401,7 @@ export default function AgentInterface() {
           </button>
           <button
             onClick={() => setActiveTool("geocode")}
-            className={`px-2 py-1 rounded text-white`}
+            className={`px-2 py-1 rounded text-white hidden`}
             style={{
               backgroundColor: activeTool === "geocode" ? 'rgb(102, 102, 102)' : 'rgb(64, 64, 64)'
             }}
@@ -410,7 +410,7 @@ export default function AgentInterface() {
           </button>
           <button
             onClick={() => setActiveTool("ai-style")}
-            className={`px-2 py-1 rounded text-white`}
+            className={`px-2 py-1 rounded text-white hidden`}
             style={{
               backgroundColor: activeTool === "ai-style" ? 'rgb(102, 102, 102)' : 'rgb(64, 64, 64)'
             }}
