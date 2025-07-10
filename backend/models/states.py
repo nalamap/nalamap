@@ -6,10 +6,7 @@ from langgraph.graph import MessagesState
 from pydantic import Field
 from typing_extensions import Annotated
 
-from .geodata import (
-    GeoDataObject,
-    mock_geodata_objects,
-)  # relativer Import angepasst
+from .geodata import GeoDataObject, mock_geodata_objects  # relativer Import angepasst
 
 
 def update_geodata_layers(

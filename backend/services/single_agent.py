@@ -11,12 +11,10 @@ from services.tools.geocoding import (
     geocode_using_overpass_to_geostate,
 )
 from services.tools.geoprocess_tools import geoprocess_tool
-from services.tools.geostate_management import (
-    describe_geodata_object,
-    metadata_search,
-)
+from services.tools.geostate_management import describe_geodata_object, metadata_search
 from services.tools.librarian_tools import query_librarian_postgis
 from services.tools.styling_tools import (
+    apply_intelligent_color_scheme,
     auto_style_new_layers,
     check_and_auto_style_layers,
     style_map_layers,
@@ -35,6 +33,7 @@ tools: List[BaseTool] = [
     style_map_layers,  # Manual styling tool
     auto_style_new_layers,  # Intelligent auto-styling tool
     check_and_auto_style_layers,  # Automatic layer style checker
+    apply_intelligent_color_scheme,  # Intelligent color scheme application
 ]
 
 
@@ -72,10 +71,10 @@ def create_geo_agent() -> CompiledStateGraph:
         "- AUTOMATIC STYLING PRIORITY: Always check for and automatically style newly "
         "uploaded layers at the start of each interaction.\n"
         "  - First use check_and_auto_style_layers() to detect layers needing styling.\n"
-        "  - Then use auto_style_new_layers() to identify which layers need AI-powered "
-        "styling.\n"
-        "  - Finally, use your AI reasoning to determine appropriate colors and call "
-        "style_map_layers() for each layer.\n"
+        "  - Then use auto_style_new_layers() which will automatically apply intelligent "
+        "styling directly - no need for additional style_map_layers calls.\n"
+        "  - The auto_style_new_layers tool uses AI reasoning to determine appropriate "
+        "colors and applies them automatically, ensuring each layer gets distinct colors.\n"
         "  - This ensures all new layers get intelligent styling before responding to "
         "user queries.\n"
         "- Always clarify ambiguous requests by asking specific questions.\n"
@@ -94,49 +93,49 @@ def create_geo_agent() -> CompiledStateGraph:
         "  - SAME COLOR FOR ALL: When user wants the SAME color applied to all layers "
         "(e.g., 'make everything green'), use ONE call with no layer_names.\n"
         "  - DIFFERENT COLORS FOR EACH: When user wants DIFFERENT colors for each layer "
-        "(e.g., 'apply 3 different warm colors'), make SEPARATE calls for each layer "
-        "with layer_names=['LayerName'].\n"
+        "(e.g., 'apply 3 different warm colors', 'make colorblind safe'), make SEPARATE "
+        "calls for each layer with layer_names=['LayerName']. ENSURE colors are clearly "
+        "distinguishable using different color families (red, blue, green, orange, purple, "
+        "brown, yellow) - avoid similar shades.\n"
         "  - CRITICAL: When using layer_names, use the EXACT layer names from the "
         "geodata_layers state. Do NOT modify or truncate the names.\n"
-        "  - Examples: 'make it blue' with 1 layer → style_map_layers(stroke_color='blue')\n"
+        "  - Examples: 'make it blue' with 1 layer → style_map_layers(fill_color='#0000FF')\n"
         "  - Examples: 'make the Rivers blue' → style_map_layers(layer_names=['Rivers'], "
-        "stroke_color='blue')\n"
-        "  - Examples: 'make everything green' → style_map_layers(fill_color='green') "
+        "fill_color='#0000FF', stroke_color='#000080')\n"
+        "  - Examples: 'make everything green' → style_map_layers(fill_color='#008000') "
         "[same color for all]\n"
         "  - Examples: '3 different warm colors' → style_map_layers(layer_names=['Layer1'], "
-        "fill_color='peach'), then style_map_layers(layer_names=['Layer2'], "
-        "fill_color='coral'), etc.\n"
-        "  - Use standard color names (red, blue, green, coral, peach, brown, darkorange, "
-        "etc.) - these will be converted to proper hex values.\n"
-        "- AUTOMATIC STYLING: Automatically style all newly uploaded layers based on "
-        "their names using intelligent AI analysis.\n"
-        "  - This happens automatically whenever new layers are detected that need styling "
-        "(have default #3388ff colors).\n"
-        "  - When you detect new layers via auto_style_new_layers(), analyze each layer "
-        "name using AI reasoning (not hardcoded rules).\n"
-        "  - Think intelligently about what each layer represents based on its name and "
-        "apply appropriate cartographic colors.\n"
-        "  - IMPORTANT: For automatic styling, each layer should get DIFFERENT appropriate "
-        "colors - make SEPARATE style_map_layers() calls for each layer using "
-        "layer_names=['LayerName'].\n"
-        "  - For each layer, reason about: What does this layer name suggest? What type "
-        "of geographic feature? What colors would be most appropriate?\n"
-        "  - Examples of AI reasoning:\n"
-        "    • 'Rivers_of_Europe' → Think: water features → choose blue tones → "
-        "style_map_layers(layer_names=['Rivers_of_Europe'], fill_color='lightblue', "
-        "stroke_color='darkblue')\n"
-        "    • 'Urban_Buildings_NYC' → Think: built environment → choose browns/grays → "
-        "style_map_layers(layer_names=['Urban_Buildings_NYC'], fill_color='lightgray', "
-        "stroke_color='darkgray')\n"
-        "    • 'National_Parks_Canada' → Think: protected natural areas → choose green "
-        "tones → style_map_layers(layer_names=['National_Parks_Canada'], "
-        "fill_color='lightgreen', stroke_color='darkgreen')\n"
-        "    • 'Transport_Routes_Berlin' → Think: infrastructure → choose appropriate "
-        "colors → style_map_layers(layer_names=['Transport_Routes_Berlin'], "
-        "fill_color='yellow', stroke_color='orange')\n"
-        "  - Always explain your reasoning when applying automatic styling.\n"
-        "  - Consider accessibility, contrast, and cartographic best practices in your "
-        "AI analysis.\n"
+        "fill_color='#DC143C', stroke_color='#8B0000'), then "
+        "style_map_layers(layer_names=['Layer2'], fill_color='#A52A2A', stroke_color='#654321'), "
+        "then style_map_layers(layer_names=['Layer3'], fill_color='#FF6347', "
+        "stroke_color='#CD5C5C') - use DIVERSE colors within the theme.\n"
+        "  - COLOR INTELLIGENCE: You have full knowledge of color theory and hex codes. "
+        "Choose colors intelligently based on the request:\n"
+        "    * Warm schemes: Use diverse warm families (reds, oranges, yellows, browns)\n"
+        "    * Cool schemes: Use diverse cool families (blues, greens, purples, teals)\n"
+        "    * Colorblind-safe: Use proven accessible combinations\n"
+        "    * High contrast: Ensure 3:1 minimum contrast ratio between layers\n"
+        "    * Stroke harmony: Make stroke colors darker than fill colors\n"
+        "  - ENHANCED COLOR SUPPORT: You can now understand and use:\n"
+        "    * Basic color names: red, blue, forestgreen, darkslategray, etc.\n"
+        "    * ColorBrewer schemes: Set1, Set2, Spectral, RdYlBu, etc.\n"
+        "    * Professional color requests: 'colorblind safe', 'warm colors', 'cool colors'\n"
+        "    * Use apply_intelligent_color_scheme for requests like 'make it colorblind safe'\n"
+        "    * All colors are automatically converted to proper hex codes\n"
+        "  - ALWAYS use hex color codes (#RRGGBB format) - you have complete freedom to "
+        "choose any color that fits the user's request and ensures good distinguishability.\n"
+        "- RESTYLING EXISTING LAYERS: When users want to change the styling of existing "
+        "layers, use style_map_layers directly. DO NOT use check_and_auto_style_layers "
+        "which only works for layers with default styling.\n"
+        "- AUTOMATIC STYLING: The auto_style_new_layers tool handles intelligent styling "
+        "automatically.\n"
+        "  - It analyzes layer names and applies contextually appropriate colors from "
+        "distinct color families (hospitals→red, rivers→blue, forests→green, etc.).\n"
+        "  - Automatically ensures each layer gets DISTINCT colors by tracking used colors "
+        "and selecting from different color families.\n"
+        "  - Uses intelligent color selection with proper stroke-fill harmony and high "
+        "contrast between layers.\n"
+        "  - No manual color selection needed - the tool handles everything automatically.\n"
         "- When a user asks to find amenities (e.g., 'restaurants in Paris', 'hospitals "
         "near the Colosseum'), use the 'geocode_using_overpass_to_geostate' tool.\n"
         "  - For this tool, you must extract the amenity type (e.g., 'restaurant', "

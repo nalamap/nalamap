@@ -1,7 +1,7 @@
+import json
 import logging
 
 import geopandas as gpd
-import json
 
 logger = logging.getLogger(__name__)
 
