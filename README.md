@@ -64,7 +64,7 @@ nalamap/
 - **Python 3.10+**  
 - **Node.js 18+**  
 - **Docker & Docker Compose** (optional)  
-- **[Poetry](https://python-poetry.org/docs/) (for backend)
+- **[Poetry](https://python-poetry.org/docs/)** (for backend)
 
 ### Quick Setup (Recommended)
 
