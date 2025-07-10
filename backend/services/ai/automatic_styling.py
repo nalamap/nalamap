@@ -720,35 +720,37 @@ def detect_layer_type(layer_name: str, layer_description: str = None) -> str:
 
     # Second pass: Fuzzy matching for small misspellings
     # Extract individual words from the text to analyze
-    words = re.findall(r'\b\w+\b', text_to_analyze)
-    
+    words = re.findall(r"\b\w+\b", text_to_analyze)
+
     best_match_score = 0.0
     best_match_type = None
     best_keyword = None
-    
+
     # Threshold for fuzzy matching (0.8 means 80% similarity)
     FUZZY_THRESHOLD = 0.8
-    
+
     for word in words:
         if len(word) < 3:  # Skip very short words
             continue
-            
+
         for feature_type, keywords in FEATURE_KEYWORDS.items():
             for keyword in keywords:
                 if len(keyword) < 3:  # Skip very short keywords
                     continue
-                    
+
                 # Calculate similarity ratio
                 similarity = SequenceMatcher(None, word, keyword).ratio()
-                
+
                 if similarity >= FUZZY_THRESHOLD and similarity > best_match_score:
                     best_match_score = similarity
                     best_match_type = feature_type
                     best_keyword = keyword
 
     if best_match_type:
-        logger.debug(f"Detected layer type '{best_match_type}' from fuzzy keyword '{best_keyword}' "
-                    f"(similarity: {best_match_score:.2f})")
+        logger.debug(
+            f"Detected layer type '{best_match_type}' from fuzzy keyword '{best_keyword}' "
+            f"(similarity: {best_match_score:.2f})"
+        )
         return best_match_type
 
     logger.debug("No specific layer type detected, using default")
