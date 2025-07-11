@@ -36,7 +36,6 @@ export interface ModelSettings {
 }
 
 export interface SettingsSnapshot {
-    active_tools: string[]
     search_portals: SearchPortal[]
     geoserver_backends: GeoServerBackend[]
     model_settings: ModelSettings
@@ -89,7 +88,6 @@ interface SettingsState extends SettingsSnapshot {
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
     // initial
-    active_tools: [],
     search_portals: [],
     geoserver_backends: [],
     model_settings: {
@@ -163,7 +161,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
     // bulk
     getSettings: () => ({
-        active_tools: get().active_tools,
         search_portals: get().search_portals,
         geoserver_backends: get().geoserver_backends,
         model_settings: get().model_settings,
@@ -172,7 +169,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         model_options: get().model_options,
     }),
     setSettings: (settings) => set(() => ({
-        active_tools: settings.active_tools,
         search_portals: settings.search_portals,
         geoserver_backends: settings.geoserver_backends,
         model_settings: settings.model_settings,

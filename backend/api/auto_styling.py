@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from models.geodata import GeoDataObject
 from models.states import GeoDataAgentState
-from services.single_agent import single_agent
+from services.single_agent import create_geo_agent
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +100,9 @@ async def auto_style_layers(request: AutoStyleRequest):
             results_title="",
             geodata_results=[],
         )
+
+        # create single agent
+        single_agent = create_geo_agent()
 
         # Invoke the single agent to apply automatic styling
         result = single_agent.invoke(state, debug=False)

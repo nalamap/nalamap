@@ -1,4 +1,15 @@
-DEFAULT_SYSTEM_PROMPT = (
+from typing import Dict
+from langchain_core.tools import BaseTool
+from services.tools.geocoding import geocode_using_nominatim_to_geostate, \
+    geocode_using_overpass_to_geostate
+from services.tools.geoprocess_tools import geoprocess_tool
+from services.tools.geostate_management import metadata_search
+from services.tools.librarian_tools import query_librarian_postgis
+from services.tools.styling_tools import apply_intelligent_color_scheme, auto_style_new_layers, \
+    check_and_auto_style_layers, style_map_layers
+
+
+DEFAULT_SYSTEM_PROMPT: str = (
         "You are NaLaMap: an advanced geospatial assistant designed to help users "
         "without GIS expertise create maps and perform spatial analysis through natural "
         "language interaction.\n\n"
@@ -120,5 +131,19 @@ DEFAULT_SYSTEM_PROMPT = (
         "meaningful maps and gain insights from spatial data through natural conversation."
     )
 
-DEFAULT_AVAILABLE_TOOLS = []
+DEFAULT_AVAILABLE_TOOLS: Dict[str, BaseTool] = {
+    # set_result_list,
+    # list_global_geodata,
+    # describe_geodata_object,
+    # geocode_using_geonames, # its very simple and does not create a geojson
+    "geocode_nominatim": geocode_using_nominatim_to_geostate,
+    "geocode_overpass": geocode_using_overpass_to_geostate,
+    "search_librarian": query_librarian_postgis,
+    "geoprocess": geoprocess_tool,
+    "search_metadata": metadata_search,
+    "style_layers": style_map_layers,  # Manual styling tool
+    "autostyle_new_layers": auto_style_new_layers,  # Intelligent auto-styling tool
+    "check_and_autostyle": check_and_auto_style_layers,  # Automatic layer style checker
+    "apply_color_scheme": apply_intelligent_color_scheme,
+}
 DEFAULT_SELECTED_TOOLS = []

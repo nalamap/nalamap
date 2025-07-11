@@ -14,9 +14,10 @@ from langchain_core.messages import (
 
 from models.geodata import GeoDataObject, mock_geodata_objects
 from models.messages.chat_messages import NaLaMapRequest, NaLaMapResponse
+from models.settings_model import SettingsSnapshot
 from models.states import DataState, GeoDataAgentState
 from services.multi_agent_orch import multi_agent_executor
-from services.single_agent import single_agent
+from services.single_agent import create_geo_agent
 
 
 def normalize_messages(raw: Optional[List[BaseMessage]]) -> List[BaseMessage]:
@@ -182,7 +183,9 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
     )  # TODO: maybe remove query once message is correctly added in frontend
     print("debug messages:", messages)
 
-    options: Dict[str, Any] = request.options
+    options: SettingsSnapshot = request.options
+    # TODO: Validate options
+    print(options)
 
     state: GeoDataAgentState = GeoDataAgentState(
         messages=messages,
@@ -196,6 +199,9 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
     # state.global_geodata=request.global_geodata,
 
     try:
+        single_agent = create_geo_agent(model_settings=options.model_settings,
+                                        selected_tools=options.tools)
+
         executor_result: GeoDataAgentState = single_agent.invoke(state, debug=True)
 
         result_messages: List[BaseMessage] = executor_result.get("messages", [])
@@ -241,8 +247,9 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
         # global_geodata = state.get('global_geodata', [])
         result_options = options
 
-    except Exception:  # Catch any other unexpected errors during agent execution
+    except Exception as e:  # Catch any other unexpected errors during agent execution
         print("Unexpected error during agent execution")
+        print(e)
         error_message = (
             "An unexpected error occurred while processing your request. " "Please try again."
         )

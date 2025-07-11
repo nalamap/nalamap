@@ -6,6 +6,51 @@ import { useSettingsStore } from '../stores/settingsStore'
 import { useLayerStore } from '../stores/layerStore'
 import { useChatInterfaceStore } from "../stores/chatInterfaceStore";
 
+type Primitive = string | number | boolean | null | undefined;
+
+/**
+ * Recursively dedupe any arrays found in the value tree.
+ * - Arrays ⇒ unique values (by ===) and recurse into each element
+ * - Objects ⇒ recurse into each property
+ * - Primitives ⇒ pass through
+ */
+function dedupeDeep<T>(value: any): any {
+  if (Array.isArray(value)) {
+    // first recurse into each element
+    const inner = value.map(dedupeDeep);
+    // then dedupe by identity
+    return Array.from(new Set(inner));
+  } else if (value !== null && typeof value === "object") {
+    // shallow‐clone and recurse each prop
+    const out: Record<string, any> = {};
+    for (const [k, v] of Object.entries(value)) {
+      out[k] = dedupeDeep(v);
+    }
+    return out;
+  } else {
+    // primitive
+    return value as Primitive;
+  }
+}
+
+/**
+ * Normalize your entire settings snapshot:
+ *  - arrays ⇒ deduped arrays
+ *  - objects ⇒ fully recursed (with nested arrays deduped)
+ */
+function normalizeSettings(raw: Record<string, any>) {
+  const out: Record<string, any> = {};
+  for (const [key, val] of Object.entries(raw)) {
+    if (Array.isArray(val) || (val !== null && typeof val === "object")) {
+      out[key] = dedupeDeep(val);
+    } else {
+      out[key] = val;
+    }
+  }
+  return out;
+}
+
+
 export function useNaLaMapAgent(apiUrl: string) {
   const layerStore = useLayerStore();
   const chatInterfaceStore = useChatInterfaceStore();
@@ -37,7 +82,8 @@ export function useNaLaMapAgent(apiUrl: string) {
     chatInterfaceStore.setLoading(true);
     chatInterfaceStore.setError("");
 
-    const rawSettings = useSettingsStore.getState();
+    const rawSettings = useSettingsStore.getState().getSettings();
+    //console.log(rawSettings);
     const settingsMap = new Map<string, Set<any>>(
       Object.entries(rawSettings)
         // drop methods and any non-arrays
@@ -45,14 +91,14 @@ export function useNaLaMapAgent(apiUrl: string) {
         // for each key, convert its array into a Set
         .map(([key, value]) => [key, new Set(value as any[])] as const)
     )
-
-    const settingsObj: Record<string, unknown[]> = Object.fromEntries(
+    //console.log(settingsMap)
+    const settingsObjOld: Record<string, unknown[]> = Object.fromEntries(
       Array.from(settingsMap.entries()).map(([key, set]) => [
         key,
         Array.from(set),        // turn Set → Array
       ])
     );
-
+    const settingsObj = normalizeSettings(rawSettings)
     console.log(settingsObj)
 
     try {
@@ -125,7 +171,7 @@ export function useNaLaMapAgent(apiUrl: string) {
         // Don't update geoDataList for styling operations
         return;
       }
-      
+
       const data: NaLaMapResponse = await response.json();
       console.log(data)
       if (!data.geodata_results) {

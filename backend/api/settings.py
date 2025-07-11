@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Dict, List, Any
-from services.default_agent_settings import DEFAULT_SYSTEM_PROMPT
+from services.default_agent_settings import DEFAULT_AVAILABLE_TOOLS, DEFAULT_SYSTEM_PROMPT
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -27,18 +27,11 @@ class SettingsOptions(BaseModel):
 async def get_settings_options():
     # TODO: replace hardcoded with dynamics calls to the different tools and providers
     tool_options = {
-        "search": {
-            "default_prompt": "Search for geospatial data",
-            "settings": {"timeout": 30}
-        },
-        "geocode": {
-            "default_prompt": "Geocode this address",
-            "settings": {"region": "global"}
-        },
-        "analyze": {
-            "default_prompt": "Analyze the provided dataset",
+        available_tool_name: {
+            "default_prompt": available_tool.description,
             "settings": {}
         }
+        for available_tool_name, available_tool in DEFAULT_AVAILABLE_TOOLS.items()
     }
     search_portals = [
         "FAO",
