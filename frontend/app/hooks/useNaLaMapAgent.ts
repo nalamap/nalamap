@@ -9,39 +9,64 @@ import { useChatInterfaceStore } from "../stores/chatInterfaceStore";
 type Primitive = string | number | boolean | null | undefined;
 
 /**
- * Recursively dedupe any arrays found in the value tree.
- * - Arrays ⇒ unique values (by ===) and recurse into each element
- * - Objects ⇒ recurse into each property
- * - Primitives ⇒ pass through
+ * Recursively walk through any value and:
+ * - Convert Maps → plain objects
+ * - Convert Sets → arrays (deduped by identity)
+ * - Deduplicate Arrays
+ * - Recurse into plain Objects
  */
-function dedupeDeep<T>(value: any): any {
+function dedupeDeep(value: any): any {
+  // Handle Maps
+  if (value instanceof Map) {
+    const obj: Record<string, any> = {};
+    for (const [k, v] of value.entries()) {
+      obj[k] = dedupeDeep(v);
+    }
+    return obj;
+  }
+
+  // Handle Sets
+  if (value instanceof Set) {
+    return Array.from(value).map(dedupeDeep);
+  }
+
+  // Handle Arrays
   if (Array.isArray(value)) {
-    // first recurse into each element
+    // First, recurse into each element
     const inner = value.map(dedupeDeep);
-    // then dedupe by identity
+    // Then dedupe by identity
     return Array.from(new Set(inner));
-  } else if (value !== null && typeof value === "object") {
-    // shallow‐clone and recurse each prop
+  }
+
+  // Handle plain Objects
+  if (value !== null && typeof value === "object") {
     const out: Record<string, any> = {};
     for (const [k, v] of Object.entries(value)) {
       out[k] = dedupeDeep(v);
     }
     return out;
-  } else {
-    // primitive
-    return value as Primitive;
   }
+
+  // Primitives pass through
+  return value as Primitive;
 }
 
 /**
- * Normalize your entire settings snapshot:
- *  - arrays ⇒ deduped arrays
- *  - objects ⇒ fully recursed (with nested arrays deduped)
+ * Normalize a raw settings snapshot into JSON-serializable plain JS:
+ * - Maps → Objects
+ * - Sets/Arrays → deduped Arrays
+ * - Objects → fully recursed
  */
-function normalizeSettings(raw: Record<string, any>) {
+function normalizeSettings(raw: Record<string, any>): Record<string, any> {
   const out: Record<string, any> = {};
   for (const [key, val] of Object.entries(raw)) {
-    if (Array.isArray(val) || (val !== null && typeof val === "object")) {
+    // only transform container types; primitives stay as-is
+    if (
+      val instanceof Map ||
+      val instanceof Set ||
+      Array.isArray(val) ||
+      (val !== null && typeof val === "object")
+    ) {
       out[key] = dedupeDeep(val);
     } else {
       out[key] = val;
@@ -99,6 +124,7 @@ export function useNaLaMapAgent(apiUrl: string) {
       ])
     );
     const settingsObj = normalizeSettings(rawSettings)
+    console.log("SettingsObject:")
     console.log(settingsObj)
 
     try {
@@ -116,7 +142,8 @@ export function useNaLaMapAgent(apiUrl: string) {
           options: settingsObj
         }
         chatInterfaceStore.setInput("");
-        console.log(payload)
+        console.log("payload");
+        console.log(payload);
         response = await fetch(`${apiUrl}/${endpoint}`, {
           method: 'POST',
           headers: {
