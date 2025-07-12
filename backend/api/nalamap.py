@@ -176,14 +176,15 @@ async def ask_nalamap_orchestrator(request: NaLaMapRequest):
 async def ask_nalamap_agent(request: NaLaMapRequest):
     """Ask a question to the NaLaMap Single Agent, which uses tools to respond
     and analyse geospatial information."""
-    print("befor normalize:", request.messages)
+    # print("befor normalize:", request.messages)
     messages: List[BaseMessage] = normalize_messages(request.messages)
     messages.append(
         HumanMessage(request.query)
     )  # TODO: maybe remove query once message is correctly added in frontend
-    print("debug messages:", messages)
-
-    options: SettingsSnapshot = request.options
+    # print("debug messages:", messages)
+    options_orig: dict = request.options
+    print(options_orig)
+    options: SettingsSnapshot = SettingsSnapshot.model_validate(options_orig, strict=False)
     # TODO: Validate options
     print(options)
 
