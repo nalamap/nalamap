@@ -1,9 +1,8 @@
 # backend/app/utils/tool_configurator.py
-from typing import Callable, Dict, Any, List
+from typing import Dict, Any, List
 
 from langchain_core.tools import BaseTool
 from models.settings_model import ToolConfig
-import asyncio
 
 
 def create_configured_tools(
@@ -11,13 +10,13 @@ def create_configured_tools(
     tool_settings: List[ToolConfig]
 ) -> Dict[str, BaseTool]:
     """
-    Given a dict of BaseTool instances and ToolConfig models,
+    Given a dict of BaseTool instances and a list of ToolConfig models,
     returns enabled tools with their _run and _arun methods wrapped to inject prompt_override and extras.
     """
     configured: Dict[str, BaseTool] = {}
 
-    # Map settings by tool name
-    settings_map: Dict[str, ToolConfig] = {cfg.name: cfg for cfg in tool_settings}
+    # Map ToolConfig by tool name
+    settings_map = {cfg.name: cfg for cfg in tool_settings}
 
     for name, tool in tool_functions.items():
         cfg = settings_map.get(name)
@@ -25,37 +24,32 @@ def create_configured_tools(
             continue
 
         prompt_override = cfg.prompt_override
-        extras = {k: v for k, v in cfg.model_dump().items()
-                  if k not in ("name", "enabled", "prompt_override")}
+        extras = {
+            k: v for k, v in cfg.dict().items()
+            if k not in ('name', 'enabled', 'prompt_override')
+        }
 
-        # Create a deep copy of the tool to preserve schema & metadata
-        try:
-            wrapped_tool = tool.copy(deep=True)
-        except Exception:
-            # Fallback: instantiate a new tool of same class
-            wrapped_tool = tool.__class__(**tool.dict())  # type: ignore
+        # Wrap sync _run
+        original_run = tool._run  # type: ignore
 
-        # Wrap synchronous _run
-        original_sync = getattr(wrapped_tool, '_run')
+        def wrapped_sync(*args: Any, **kwargs: Any) -> Any:
+            local_kwargs = {**kwargs, 'prompt': prompt_override, **extras}
+            return original_run(*args, **local_kwargs)
 
-        def make_sync(fn: Callable[..., Any], prompt: str, extra_opts: Dict[str, Any]) -> Callable[..., Any]:
-            def wrapped_sync(*args: Any, **kwargs: Any) -> Any:
-                local_kwargs = {**kwargs, 'prompt': prompt, **extra_opts}
-                return fn(*args, **local_kwargs)
-            return wrapped_sync
+        # Prepare updates dict for Pydantic copy
+        updates: Dict[str, Any] = {'_run': wrapped_sync}
 
-        wrapped_tool._run = make_sync(original_sync, prompt_override, extras)  # type: ignore
-
-        # Wrap asynchronous _arun if present
-        if hasattr(wrapped_tool, '_arun'):
-            original_async = getattr(wrapped_tool, '_arun')
-
+        # Wrap async _arun if exists
+        if hasattr(tool, '_arun'):
+            original_arun = tool._arun  # type: ignore
+            
             async def wrapped_async(*args: Any, **kwargs: Any) -> Any:
                 local_kwargs = {**kwargs, 'prompt': prompt_override, **extras}
-                if asyncio.iscoroutinefunction(original_async):
-                    return await original_async(*args, **local_kwargs)
-                return original_async(*args, **local_kwargs)  # type: ignore
-            wrapped_tool._arun = wrapped_async  # type: ignore
+                return await original_arun(*args, **local_kwargs)
+            updates['_arun'] = wrapped_async
+
+        # Create a deep copy with overridden run methods
+        wrapped_tool = tool.copy(deep=True).copy(update=updates)  # type: ignore
 
         configured[name] = wrapped_tool
 

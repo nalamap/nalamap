@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from langchain_core.tools import BaseTool
 from langgraph.graph.state import CompiledStateGraph
@@ -52,8 +52,10 @@ def create_geo_agent(model_settings: Optional[ModelSettings] = None,
     else:
         system_prompt = model_settings.system_prompt
 
-    tools = create_configured_tools(DEFAULT_AVAILABLE_TOOLS, selected_tools)
-    # TODO: Map tools
+    tools_dict: Dict[str, BaseTool] = create_configured_tools(DEFAULT_AVAILABLE_TOOLS,
+                                                              selected_tools)
+    tools: List[BaseTool] = tools_dict.values()
+
     return create_react_agent(
         name="GeoAgent",
         state_schema=GeoDataAgentState,
