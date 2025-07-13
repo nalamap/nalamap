@@ -183,10 +183,8 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
     )  # TODO: maybe remove query once message is correctly added in frontend
     # print("debug messages:", messages)
     options_orig: dict = request.options
-    print(options_orig)
+
     options: SettingsSnapshot = SettingsSnapshot.model_validate(options_orig, strict=False)
-    # TODO: Validate options
-    print(options)
 
     state: GeoDataAgentState = GeoDataAgentState(
         messages=messages,

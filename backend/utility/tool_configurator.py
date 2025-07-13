@@ -1,4 +1,3 @@
-# backend/app/utils/tool_configurator.py
 from typing import Dict, Any, List
 
 from langchain_core.tools import BaseTool
@@ -11,7 +10,8 @@ def create_configured_tools(
 ) -> Dict[str, BaseTool]:
     """
     Given a dict of BaseTool instances and a list of ToolConfig models,
-    returns enabled tools with their _run and _arun methods wrapped to inject prompt_override and extras.
+    returns enabled tools with their _run and _arun methods wrapped
+    to inject prompt_override and extras.
     """
     configured: Dict[str, BaseTool] = {}
 
@@ -25,7 +25,7 @@ def create_configured_tools(
 
         prompt_override = cfg.prompt_override
         extras = {
-            k: v for k, v in cfg.dict().items()
+            k: v for k, v in cfg.model_dump().items()
             if k not in ('name', 'enabled', 'prompt_override')
         }
 
@@ -42,7 +42,7 @@ def create_configured_tools(
         # Wrap async _arun if exists
         if hasattr(tool, '_arun'):
             original_arun = tool._arun  # type: ignore
-            
+
             async def wrapped_async(*args: Any, **kwargs: Any) -> Any:
                 local_kwargs = {**kwargs, 'prompt': prompt_override, **extras}
                 return await original_arun(*args, **local_kwargs)

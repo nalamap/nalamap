@@ -1,9 +1,10 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from langchain_core.messages import BaseMessage
 from pydantic import BaseModel
 
 from models.geodata import GeoDataObject
+from models.settings_model import SettingsSnapshot
 
 # class ChatMessage(BaseModel):
 #    role: Literal["user", "assistant", "system"]
@@ -42,7 +43,7 @@ class NaLaMapRequest(BaseModel):
     geodata_last_results: Optional[List[GeoDataObject]] = None
     geodata_layers: Optional[List[GeoDataObject]] = None
     # global_geodata: Optional[List[GeoDataObject]] = None
-    options: Optional[Dict[str, Any]] = None
+    options: Optional[Union[Dict[str, Any], SettingsSnapshot]] = None
 
 
 class NaLaMapResponse(BaseModel):
@@ -56,4 +57,4 @@ class NaLaMapResponse(BaseModel):
     geodata_results: Optional[List[GeoDataObject]] = None
     geodata_layers: Optional[List[GeoDataObject]] = None  # Uncommented for styling support
     global_geodata: Optional[List[GeoDataObject]] = None
-    options: Optional[Dict[str, Any]] = None
+    options: Optional[Union[Dict[str, Any], SettingsSnapshot]] = None
