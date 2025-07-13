@@ -1,10 +1,12 @@
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 
 from langchain_core.messages import HumanMessage
 from langgraph.graph import MessagesState
 from pydantic import Field
 from typing_extensions import Annotated
+
+from models.settings_model import SettingsSnapshot
 
 from .geodata import GeoDataObject, mock_geodata_objects  # relativer Import angepasst
 
@@ -39,8 +41,8 @@ class GeoDataAgentState(MessagesState):
     geodata_layers: Annotated[List[GeoDataObject], update_geodata_layers] = Field(
         default_factory=list, exclude=False, validate_default=False
     )
-    options: Optional[Dict[str, Any]] = Field(
-        default_factory=dict, exclude=False, validate_default=False
+    options: Optional[Union[Dict[str, Any], SettingsSnapshot]] = Field(
+        default_factory=dict, exclude=True, validate_default=False
     )
 
     # Required by create_react_agent

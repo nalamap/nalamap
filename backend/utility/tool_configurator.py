@@ -1,3 +1,4 @@
+import copy
 from typing import Dict, Any, List
 
 from langchain_core.tools import BaseTool
@@ -10,8 +11,9 @@ def create_configured_tools(
 ) -> Dict[str, BaseTool]:
     """
     Given a dict of BaseTool instances and a list of ToolConfig models,
-    returns enabled tools with their _run and _arun methods wrapped
-    to inject prompt_override and extras.
+    returns enabled tools with their internal _run/_arun methods wrapped to inject prompt_override and extras.
+
+    Ensures returned objects are BaseTool instances (valid Pydantic) so the agent can register them correctly.
     """
     configured: Dict[str, BaseTool] = {}
 
@@ -29,28 +31,26 @@ def create_configured_tools(
             if k not in ('name', 'enabled', 'prompt_override')
         }
 
-        # Wrap sync _run
-        original_run = tool._run  # type: ignore
+        # Create a shallow copy to avoid mutating the original
+        new_tool: BaseTool = copy.copy(tool)
+
+        # Wrap synchronous _run
+        original_run = getattr(new_tool, '_run')
 
         def wrapped_sync(*args: Any, **kwargs: Any) -> Any:
             local_kwargs = {**kwargs, 'prompt': prompt_override, **extras}
             return original_run(*args, **local_kwargs)
+        setattr(new_tool, '_run', wrapped_sync)  # type: ignore
 
-        # Prepare updates dict for Pydantic copy
-        updates: Dict[str, Any] = {'_run': wrapped_sync}
-
-        # Wrap async _arun if exists
-        if hasattr(tool, '_arun'):
-            original_arun = tool._arun  # type: ignore
+        # Wrap asynchronous _arun if present
+        if hasattr(new_tool, '_arun'):
+            original_arun = getattr(new_tool, '_arun')
 
             async def wrapped_async(*args: Any, **kwargs: Any) -> Any:
                 local_kwargs = {**kwargs, 'prompt': prompt_override, **extras}
                 return await original_arun(*args, **local_kwargs)
-            updates['_arun'] = wrapped_async
+            setattr(new_tool, '_arun', wrapped_async)  # type: ignore
 
-        # Create a deep copy with overridden run methods
-        wrapped_tool = tool.copy(deep=True).copy(update=updates)  # type: ignore
-
-        configured[name] = wrapped_tool
+        configured[name] = new_tool
 
     return configured
