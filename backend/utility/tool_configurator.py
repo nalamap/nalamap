@@ -1,25 +1,16 @@
-import copy
+from copy import copy
 from typing import Dict, Any, List
-
-from langchain_core.tools import BaseTool
 from models.settings_model import ToolConfig
 
+from langchain_core.runnables import RunnableConfig
+from langchain_core.callbacks import AsyncCallbackManagerForToolRun, CallbackManagerForToolRun
+from langchain_core.tools import BaseTool
 
-def create_configured_tools(
-    tool_functions: Dict[str, BaseTool],
-    tool_settings: List[ToolConfig]
-) -> Dict[str, BaseTool]:
-    """
-    Given a dict of BaseTool instances and a list of ToolConfig models,
-    returns enabled tools with their internal _run/_arun methods wrapped to inject prompt_override and extras.
 
-    Ensures returned objects are BaseTool instances (valid Pydantic) so the agent can register them correctly.
-    """
+def create_configured_tools(tool_functions: Dict[str, BaseTool],
+                            tool_settings: List[ToolConfig]) -> Dict[str, BaseTool]:
     configured: Dict[str, BaseTool] = {}
-
-    # Map ToolConfig by tool name
     settings_map = {cfg.name: cfg for cfg in tool_settings}
-
     for name, tool in tool_functions.items():
         cfg = settings_map.get(name)
         if not cfg or not cfg.enabled:
@@ -31,26 +22,31 @@ def create_configured_tools(
             if k not in ('name', 'enabled', 'prompt_override')
         }
 
-        # Create a shallow copy to avoid mutating the original
-        new_tool: BaseTool = copy.copy(tool)
-
-        # Wrap synchronous _run
+        new_tool = copy(tool)  # avoid mutating the original
         original_run = getattr(new_tool, '_run')
 
-        def wrapped_sync(*args: Any, **kwargs: Any) -> Any:
-            local_kwargs = {**kwargs, 'prompt': prompt_override, **extras}
-            return original_run(*args, **local_kwargs)
-        setattr(new_tool, '_run', wrapped_sync)  # type: ignore
+        def wrapped_sync(*args: Any,
+                         config: RunnableConfig = None,
+                         run_manager: CallbackManagerForToolRun = None,
+                         **kwargs: Any) -> Any:
+            # Merge extra kwargs and override prompt
+            local_kwargs = {**kwargs, **extras, 'prompt': prompt_override}
+            # Call original _run with all arguments, including config and run_manager
+            return original_run(*args, config=config, run_manager=run_manager, **local_kwargs)
+        setattr(new_tool, '_run', wrapped_sync)
 
-        # Wrap asynchronous _arun if present
+        # If the tool supports async, wrap _arun similarly
         if hasattr(new_tool, '_arun'):
             original_arun = getattr(new_tool, '_arun')
 
-            async def wrapped_async(*args: Any, **kwargs: Any) -> Any:
-                local_kwargs = {**kwargs, 'prompt': prompt_override, **extras}
-                return await original_arun(*args, **local_kwargs)
-            setattr(new_tool, '_arun', wrapped_async)  # type: ignore
+            async def wrapped_async(*args: Any,
+                                    config: RunnableConfig = None,
+                                    run_manager: AsyncCallbackManagerForToolRun = None,
+                                    **kwargs: Any) -> Any:
+                local_kwargs = {**kwargs, **extras, 'prompt': prompt_override}
+                return await original_arun(*args, config=config, run_manager=run_manager,
+                                           **local_kwargs)
+            setattr(new_tool, '_arun', wrapped_async)
 
         configured[name] = new_tool
-
     return configured
