@@ -208,9 +208,7 @@ def test_op_sjoin_insufficient_and_intersects_join():
 def test_op_sjoin_nearest_insufficient_and_distance_column():
     # fewer than two returns original
     fc = {"type": "FeatureCollection", "features": []}
-    assert op_sjoin_nearest(
-        [fc], how="inner", max_distance=None, distance_col="dist"
-    ) == [fc]
+    assert op_sjoin_nearest([fc], how="inner", max_distance=None, distance_col="dist") == [fc]
     pt1_fc = {
         "type": "FeatureCollection",
         "features": [
@@ -231,9 +229,7 @@ def test_op_sjoin_nearest_insufficient_and_distance_column():
             }
         ],
     }
-    result = op_sjoin_nearest(
-        [pt1_fc, pt2_fc], how="inner", max_distance=None, distance_col="dist"
-    )
+    result = op_sjoin_nearest([pt1_fc, pt2_fc], how="inner", max_distance=None, distance_col="dist")
     assert len(result) == 1
     features = result[0]["features"]
     assert len(features) == 1

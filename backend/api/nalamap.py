@@ -198,8 +198,9 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
     # state.global_geodata=request.global_geodata,
 
     try:
-        single_agent = create_geo_agent(model_settings=options.model_settings,
-                                        selected_tools=options.tools)
+        single_agent = create_geo_agent(
+            model_settings=options.model_settings, selected_tools=options.tools
+        )
 
         executor_result: GeoDataAgentState = single_agent.invoke(state, debug=True)
 

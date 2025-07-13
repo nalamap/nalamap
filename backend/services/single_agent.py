@@ -41,19 +41,25 @@ tools: List[BaseTool] = [
 ]
 
 
-def create_geo_agent(model_settings: Optional[ModelSettings] = None,
-                     selected_tools: Optional[List[ToolConfig]] = None) -> CompiledStateGraph:
+def create_geo_agent(
+    model_settings: Optional[ModelSettings] = None,
+    selected_tools: Optional[List[ToolConfig]] = None,
+) -> CompiledStateGraph:
     # TODO: Create get_specific_llm to act on model_settings
     llm = get_llm()
 
-    if model_settings is None or model_settings.system_prompt is None \
-            or model_settings.system_prompt == "":
+    if (
+        model_settings is None
+        or model_settings.system_prompt is None
+        or model_settings.system_prompt == ""
+    ):
         system_prompt = DEFAULT_SYSTEM_PROMPT
     else:
         system_prompt = model_settings.system_prompt
 
-    tools_dict: Dict[str, BaseTool] = create_configured_tools(DEFAULT_AVAILABLE_TOOLS,
-                                                              selected_tools)
+    tools_dict: Dict[str, BaseTool] = create_configured_tools(
+        DEFAULT_AVAILABLE_TOOLS, selected_tools
+    )
     tools: List[BaseTool] = tools_dict.values()
 
     return create_react_agent(

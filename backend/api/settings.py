@@ -18,19 +18,16 @@ class ModelOption(BaseModel):
 
 class SettingsOptions(BaseModel):
     system_prompt: str
-    tool_options: Dict[str, ToolOption]            # per-tool settings
+    tool_options: Dict[str, ToolOption]  # per-tool settings
     search_portals: List[str]
-    model_options: Dict[str, List[ModelOption]]    # per-provider model list
+    model_options: Dict[str, List[ModelOption]]  # per-provider model list
 
 
 @router.get("/options", response_model=SettingsOptions)
 async def get_settings_options():
     # TODO: replace hardcoded with dynamics calls to the different tools and providers
     tool_options = {
-        available_tool_name: {
-            "default_prompt": available_tool.description,
-            "settings": {}
-        }
+        available_tool_name: {"default_prompt": available_tool.description, "settings": {}}
         for available_tool_name, available_tool in DEFAULT_AVAILABLE_TOOLS.items()
     }
     search_portals = [
