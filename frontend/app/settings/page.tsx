@@ -3,113 +3,61 @@
 import React, { useState, useEffect } from 'react'
 import Sidebar from '../components/sidebar/Sidebar'
 import {
-    useSettingsStore,
     GeoServerBackend,
-    SearchPortal,
-    ModelOption,
-    ToolOption,
     SettingsSnapshot,
 } from '../stores/settingsStore'
 
+import {
+    useInitializedSettingsStore
+} from '../hooks/useInitializedSettingsStore'
+
 export default function SettingsPage() {
-    // API endpont
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
-
     // store hooks
-    const portals = useSettingsStore(s => s.search_portals)
-    const addPortal = useSettingsStore(s => s.addPortal)
-    const removePortal = useSettingsStore(s => s.removePortal)
-    const togglePortal = useSettingsStore(s => s.togglePortal)
+    const portals = useInitializedSettingsStore(s => s.search_portals)
+    const addPortal = useInitializedSettingsStore(s => s.addPortal)
+    const removePortal = useInitializedSettingsStore(s => s.removePortal)
+    const togglePortal = useInitializedSettingsStore(s => s.togglePortal)
 
-    const backends = useSettingsStore(s => s.geoserver_backends)
-    const addBackend = useSettingsStore(s => s.addBackend)
-    const removeBackend = useSettingsStore(s => s.removeBackend)
-    const toggleBackend = useSettingsStore(s => s.toggleBackend)
+    const backends = useInitializedSettingsStore(s => s.geoserver_backends)
+    const addBackend = useInitializedSettingsStore(s => s.addBackend)
+    const removeBackend = useInitializedSettingsStore(s => s.removeBackend)
+    const toggleBackend = useInitializedSettingsStore(s => s.toggleBackend)
 
-    const modelSettings = useSettingsStore(s => s.model_settings)
-    const setModelProvider = useSettingsStore(s => s.setModelProvider)
-    const setModelName = useSettingsStore(s => s.setModelName)
-    const setMaxTokens = useSettingsStore(s => s.setMaxTokens)
-    const setSystemPrompt = useSettingsStore(s => s.setSystemPrompt)
+    const modelSettings = useInitializedSettingsStore(s => s.model_settings)
+    const setModelProvider = useInitializedSettingsStore(s => s.setModelProvider)
+    const setModelName = useInitializedSettingsStore(s => s.setModelName)
+    const setMaxTokens = useInitializedSettingsStore(s => s.setMaxTokens)
+    const setSystemPrompt = useInitializedSettingsStore(s => s.setSystemPrompt)
 
-    const tools = useSettingsStore(s => s.tools)
-    const addToolConfig = useSettingsStore(s => s.addToolConfig)
-    const removeToolConfig = useSettingsStore(s => s.removeToolConfig)
-    const toggleToolConfig = useSettingsStore(s => s.toggleToolConfig)
-    const setToolPromptOverride = useSettingsStore(s => s.setToolPromptOverride)
+    const tools = useInitializedSettingsStore(s => s.tools)
+    const addToolConfig = useInitializedSettingsStore(s => s.addToolConfig)
+    const removeToolConfig = useInitializedSettingsStore(s => s.removeToolConfig)
+    const toggleToolConfig = useInitializedSettingsStore(s => s.toggleToolConfig)
+    const setToolPromptOverride = useInitializedSettingsStore(s => s.setToolPromptOverride)
 
     // available & fetched options
-    const availableTools = useSettingsStore(s => s.available_tools)
-    const availablePortals = useSettingsStore(s => s.available_search_portals)
-    const availableProviders = useSettingsStore(s => s.available_model_providers)
-    const availableModelNames = useSettingsStore(s => s.available_model_names)
-    const toolOptions = useSettingsStore(s => s.tool_options)
-    const modelOptions = useSettingsStore(s => s.model_options)
+    const availableTools = useInitializedSettingsStore(s => s.available_tools)
+    const availablePortals = useInitializedSettingsStore(s => s.available_search_portals)
+    const availableProviders = useInitializedSettingsStore(s => s.available_model_providers)
+    const availableModelNames = useInitializedSettingsStore(s => s.available_model_names)
+    const toolOptions = useInitializedSettingsStore(s => s.tool_options)
+    const modelOptions = useInitializedSettingsStore(s => s.model_options)
 
-    const setAvailableTools = useSettingsStore(s => s.setAvailableTools)
-    const setAvailableSearchPortals = useSettingsStore(s => s.setAvailableSearchPortals)
-    const setAvailableModelProviders = useSettingsStore(s => s.setAvailableModelProviders)
-    const setAvailableModelNames = useSettingsStore(s => s.setAvailableModelNames)
-    const setToolOptions = useSettingsStore(s => s.setToolOptions)
-    const setModelOptions = useSettingsStore(s => s.setModelOptions)
+    const setAvailableTools = useInitializedSettingsStore(s => s.setAvailableTools)
+    const setAvailableSearchPortals = useInitializedSettingsStore(s => s.setAvailableSearchPortals)
+    const setAvailableModelProviders = useInitializedSettingsStore(s => s.setAvailableModelProviders)
+    const setAvailableModelNames = useInitializedSettingsStore(s => s.setAvailableModelNames)
+    const setToolOptions = useInitializedSettingsStore(s => s.setToolOptions)
+    const setModelOptions = useInitializedSettingsStore(s => s.setModelOptions)
 
     // Get Seetings
-    const getSettings = useSettingsStore((s) => s.getSettings)
-    const setSettings = useSettingsStore((s) => s.setSettings)
+    const getSettings = useInitializedSettingsStore((s) => s.getSettings)
+    const setSettings = useInitializedSettingsStore((s) => s.setSettings)
     // local state
     const [newPortal, setNewPortal] = useState('')
     const [newBackend, setNewBackend] = useState<Omit<GeoServerBackend, 'enabled'>>({ url: '', username: '', password: '' })
     const [newToolName, setNewToolName] = useState('')
 
-    // fetch options once
-    useEffect(() => {
-        async function loadOptions() {
-            try {
-                const res = await fetch(`${API_BASE_URL}/settings/options`)
-                if (!res.ok) throw new Error(res.statusText)
-                const opts = await res.json() as {
-                    system_prompt: string
-                    tool_options: Record<string, ToolOption>
-                    search_portals: string[]
-                    model_options: Record<string, ModelOption[]>
-                }
-                console.log(opts);
-
-                // system prompt
-                if ((!modelSettings.system_prompt || modelSettings.system_prompt == "") && opts.system_prompt && opts.system_prompt !== "") {
-                    setSystemPrompt(opts.system_prompt)
-                }
-
-                // tools
-                if (availableTools.length === 0) {
-                    const tools = Object.keys(opts.tool_options)
-                    setAvailableTools(tools)
-                    setToolOptions(opts.tool_options)
-                    tools.forEach(t => addToolConfig(t))
-                }
-
-                // portals
-                if (availablePortals.length === 0) setAvailableSearchPortals(opts.search_portals)
-
-                // models
-                if (Object.keys(modelOptions).length === 0) {
-                    setModelOptions(opts.model_options)
-                    const providers = Object.keys(opts.model_options)
-                    setAvailableModelProviders(providers)
-                    const defaultProv = providers[0]
-                    setModelProvider(defaultProv)
-                    const models = opts.model_options[defaultProv]
-                    const names = models.map(m => m.name)
-                    setAvailableModelNames(names)
-                    setModelName(names[0])
-                    setMaxTokens(models[0].max_tokens)
-                }
-            } catch (err) {
-                console.error('Failed to load settings options', err)
-            }
-        }
-        loadOptions()
-    }, [availableTools.length, availablePortals.length, Object.keys(modelOptions).length])
 
     /** Export JSON */
     const exportSettings = () => {

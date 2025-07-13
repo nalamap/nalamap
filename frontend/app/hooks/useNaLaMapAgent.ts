@@ -2,9 +2,9 @@
 "use client";
 
 import { ChatMessage, GeoDataObject, NaLaMapRequest, NaLaMapResponse } from "../models/geodatamodel";
-import { useSettingsStore } from '../stores/settingsStore'
 import { useLayerStore } from '../stores/layerStore'
 import { useChatInterfaceStore } from "../stores/chatInterfaceStore";
+import { useSettingsStore } from "../stores/settingsStore";
 
 type Primitive = string | number | boolean | null | undefined;
 
@@ -107,7 +107,8 @@ export function useNaLaMapAgent(apiUrl: string) {
     chatInterfaceStore.setLoading(true);
     chatInterfaceStore.setError("");
 
-    const rawSettings = useSettingsStore.getState().getSettings();
+    await useSettingsStore.getState().initializeIfNeeded()
+    const rawSettings = useSettingsStore.getState().getSettings()
     //console.log(rawSettings);
     const settingsMap = new Map<string, Set<any>>(
       Object.entries(rawSettings)

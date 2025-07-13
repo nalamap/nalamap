@@ -44,7 +44,17 @@ export interface SettingsSnapshot {
     model_options: Record<string, ModelOption[]>
 }
 
-interface SettingsState extends SettingsSnapshot {
+export interface SettingsState extends SettingsSnapshot {
+    // Initialization
+    initialized: boolean
+    initializeIfNeeded: () => Promise<void>
+    initializeSettingsFromRemote: (opts: {
+        system_prompt: string
+        tool_options: Record<string, ToolOption>
+        search_portals: string[]
+        model_options: Record<string, ModelOption[]>
+    }) => void
+
     // Portal & Backend actions
     addPortal: (portal: string) => void
     removePortal: (url: string) => void
@@ -87,6 +97,73 @@ interface SettingsState extends SettingsSnapshot {
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
+    // Initialization
+    initialized: false,
+
+    initializeIfNeeded: async () => {
+        const state = get()
+        if (state.initialized) return
+
+        try {
+            // API endpont
+            const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
+
+            const res = await fetch(`${API_BASE_URL}/settings/options`)
+            if (!res.ok) throw new Error(res.statusText)
+            const opts = await res.json()
+            get().initializeSettingsFromRemote(opts)
+            set({ initialized: true })
+        } catch (err) {
+            console.error('Failed to initialize settings', err)
+        }
+    },
+    initializeSettingsFromRemote: (opts) => {
+        const {
+            setSystemPrompt,
+            setAvailableTools,
+            setToolOptions,
+            addToolConfig,
+            setAvailableSearchPortals,
+            setAvailableModelProviders,
+            setModelProvider,
+            setModelOptions,
+            setAvailableModelNames,
+            setModelName,
+            setMaxTokens,
+            model_settings,
+            available_tools,
+            available_search_portals,
+            model_options
+        } = get()
+
+        if ((!model_settings.system_prompt || model_settings.system_prompt === '') && opts.system_prompt) {
+            setSystemPrompt(opts.system_prompt)
+        }
+
+        if (available_tools.length === 0) {
+            const tools = Object.keys(opts.tool_options)
+            setAvailableTools(tools)
+            setToolOptions(opts.tool_options)
+            tools.forEach(addToolConfig)
+        }
+
+        if (available_search_portals.length === 0) {
+            setAvailableSearchPortals(opts.search_portals)
+        }
+
+        if (Object.keys(model_options).length === 0) {
+            setModelOptions(opts.model_options)
+            const providers = Object.keys(opts.model_options)
+            setAvailableModelProviders(providers)
+            const defaultProvider = providers[0]
+            setModelProvider(defaultProvider)
+            const models = opts.model_options[defaultProvider]
+            const names = models.map(m => m.name)
+            setAvailableModelNames(names)
+            setModelName(names[0])
+            setMaxTokens(models[0].max_tokens)
+        }
+    },
     // initial
     search_portals: [],
     geoserver_backends: [],
