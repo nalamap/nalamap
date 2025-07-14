@@ -14,9 +14,10 @@ from langchain_core.messages import (
 
 from models.geodata import GeoDataObject, mock_geodata_objects
 from models.messages.chat_messages import NaLaMapRequest, NaLaMapResponse
+from models.settings_model import SettingsSnapshot
 from models.states import DataState, GeoDataAgentState
 from services.multi_agent_orch import multi_agent_executor
-from services.single_agent import single_agent
+from services.single_agent import create_geo_agent
 
 
 def normalize_messages(raw: Optional[List[BaseMessage]]) -> List[BaseMessage]:
@@ -140,6 +141,7 @@ async def ask_nalamap(request: NaLaMapRequest):
         messages=messages,
         response="I found some rivers!",
         geodata=mock_geodata_objects(),
+        options=request.options,
     )
     return response
 
@@ -165,6 +167,7 @@ async def ask_nalamap_orchestrator(request: NaLaMapRequest):
         messages=result_messages,
         response=result_response,
         geodata=result_geodata,
+        options=request.options,
     )
     return response
 
@@ -173,12 +176,15 @@ async def ask_nalamap_orchestrator(request: NaLaMapRequest):
 async def ask_nalamap_agent(request: NaLaMapRequest):
     """Ask a question to the NaLaMap Single Agent, which uses tools to respond
     and analyse geospatial information."""
-    print("befor normalize:", request.messages)
+    # print("befor normalize:", request.messages)
     messages: List[BaseMessage] = normalize_messages(request.messages)
     messages.append(
         HumanMessage(request.query)
     )  # TODO: maybe remove query once message is correctly added in frontend
-    print("debug messages:", messages)
+    # print("debug messages:", messages)
+    options_orig: dict = request.options
+
+    options: SettingsSnapshot = SettingsSnapshot.model_validate(options_orig, strict=False)
 
     state: GeoDataAgentState = GeoDataAgentState(
         messages=messages,
@@ -186,11 +192,16 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
         geodata_layers=request.geodata_layers,
         results_title="",
         geodata_results=[],
+        options=options,
         remaining_steps=10,  # Explicitly set remaining_steps
     )
     # state.global_geodata=request.global_geodata,
 
     try:
+        single_agent = create_geo_agent(
+            model_settings=options.model_settings, selected_tools=options.tools
+        )
+
         executor_result: GeoDataAgentState = single_agent.invoke(state, debug=True)
 
         result_messages: List[BaseMessage] = executor_result.get("messages", [])
@@ -198,6 +209,8 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
         geodata_results: List[GeoDataObject] = executor_result.get("geodata_results", [])
         geodata_layers: List[GeoDataObject] = executor_result.get("geodata_layers", [])
         # global_geodata: List[GeoDataObject] = executor_result.get('global_geodata', [])
+
+        result_options: Dict[str, Any] = executor_result.get("options", {})
 
         if not result_messages:  # Should always have messages, but safeguard
             result_messages = [
@@ -219,6 +232,7 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
         geodata_results = []
         geodata_layers = state.get("geodata_layers", [])  # Preserve existing layers
         # global_geodata = state.get('global_geodata', [])
+        result_options = options
 
     except openai.APIError:
         print("OpenAI API Error")
@@ -231,9 +245,11 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
         geodata_results = []
         geodata_layers = state.get("geodata_layers", [])
         # global_geodata = state.get('global_geodata', [])
+        result_options = options
 
-    except Exception:  # Catch any other unexpected errors during agent execution
+    except Exception as e:  # Catch any other unexpected errors during agent execution
         print("Unexpected error during agent execution")
+        print(e)
         error_message = (
             "An unexpected error occurred while processing your request. " "Please try again."
         )
@@ -242,6 +258,7 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
         geodata_results = []
         geodata_layers = state.get("geodata_layers", [])
         # global_geodata = state.get('global_geodata', [])
+        result_options = options
 
     # Ensure results_title is set if geodata_results exist but title is empty
     if (
@@ -264,6 +281,7 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
         results_title=results_title,
         geodata_results=geodata_results,
         geodata_layers=geodata_layers,
-        # global_geodata=global_geodata
+        # global_geodata=global_geodata,
+        options=result_options,
     )
     return response

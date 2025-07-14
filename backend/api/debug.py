@@ -50,6 +50,7 @@ async def search(req: NaLaMapRequest):
         results_title="Search Results",
         geodata_results=results,
         geodata_layers=req.geodata_layers,
+        options=req.options,
     )  # , global_geodata=global_geodata)
 
 
@@ -77,7 +78,9 @@ async def geocode(req: NaLaMapRequest) -> Dict[str, Any]:
     # TODO: Adapt tool to add GeoDataObject to calling state and summary or so
 
     geocodeResponse: NaLaMapResponse = NaLaMapResponse(
-        results_title="Geocoding Results:", geodata_layers=req.geodata_layers
+        results_title="Geocoding Results:",
+        geodata_layers=req.geodata_layers,
+        options=req.options,
     )
     geocodeResponse.messages = messages
 
@@ -304,7 +307,9 @@ async def geoprocess(req: NaLaMapRequest):
 
     # Convert to common Geodatamodel
     response_str: str = "Here are the processing results, used Tools: {', '.join(tools_used)}:"
-    geodataResponse: NaLaMapResponse = NaLaMapResponse(geodata_layers=req.geodata_layers)
+    geodataResponse: NaLaMapResponse = NaLaMapResponse(
+        geodata_layers=req.geodata_layers, options=req.options
+    )
     geodataResponse.geodata_results = new_geodata
     # geodataResponse.global_geodata=global_geodata
     geodataResponse.messages = [*req.messages, AIMessage(response_str)]

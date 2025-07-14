@@ -59,7 +59,7 @@ export interface GeoDataObject {
     bounding_box?: string | number[] // Can be WKT POLYGON string or array [minX, minY, maxX, maxY]
     layer_type?: string
     properties?: Record<string, string>
-    
+
     visible?: boolean
     selected?: boolean;     // <— new flag
     style?: LayerStyle;     // <— new style property
@@ -71,7 +71,7 @@ export interface NaLaMapRequest {
     geodata_last_results?: GeoDataObject[]
     geodata_layers?: GeoDataObject[]
     //global_geodata?: GeoDataObject[]
-    options?: Map<string, Set<string>>
+    options?: Record<string, unknown[]>
 }
 
 export interface NaLaMapResponse {
@@ -80,4 +80,5 @@ export interface NaLaMapResponse {
     geodata_results?: GeoDataObject[]
     geodata_layers?: GeoDataObject[]
     //global_geodata?: GeoDataObject[]
+    options?: Record<string, unknown[]>
 }

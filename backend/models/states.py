@@ -1,10 +1,12 @@
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List, Optional, Dict, Any, Union
 
 from langchain_core.messages import HumanMessage
 from langgraph.graph import MessagesState
 from pydantic import Field
 from typing_extensions import Annotated
+
+from models.settings_model import SettingsSnapshot
 
 from .geodata import GeoDataObject, mock_geodata_objects  # relativer Import angepasst
 
@@ -39,6 +41,9 @@ class GeoDataAgentState(MessagesState):
     geodata_layers: Annotated[List[GeoDataObject], update_geodata_layers] = Field(
         default_factory=list, exclude=False, validate_default=False
     )
+    options: Optional[Union[Dict[str, Any], SettingsSnapshot]] = Field(
+        default_factory=dict, exclude=True, validate_default=False
+    )
 
     # Required by create_react_agent
     remaining_steps: Optional[int] = Field(
@@ -59,6 +64,7 @@ def get_minimal_debug_state(tool_call: bool = False) -> GeoDataAgentState:
     initial_geo_state["geodata_results"] = []
     initial_geo_state["geodata_layers"] = []
     initial_geo_state["results_title"] = ""
+    initial_geo_state["options"] = {}
     if tool_call:
         initial_geo_state["is_last_step"] = False
         initial_geo_state["remaining_steps"] = 5
@@ -73,6 +79,7 @@ def get_medium_debug_state(tool_call: bool = False) -> GeoDataAgentState:
     initial_geo_state["geodata_results"] = []
     initial_geo_state["geodata_layers"] = []
     initial_geo_state["results_title"] = ""
+    initial_geo_state["options"] = {}
     if tool_call:
         initial_geo_state["is_last_step"] = False
         initial_geo_state["remaining_steps"] = 5
