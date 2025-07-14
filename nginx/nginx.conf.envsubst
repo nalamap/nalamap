@@ -1,7 +1,7 @@
 worker_processes 1;
 
 events { 
-  worker_connections 1024; 
+  worker_connections 1024;
 }
 
 http {
@@ -23,28 +23,43 @@ http {
       proxy_http_version 1.1;
       proxy_set_header Upgrade $http_upgrade;
       proxy_set_header Connection 'upgrade';
-      proxy_set_header Host $host;
+      proxy_set_header Host ${FRONTEND_URL};
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
       proxy_cache_bypass $http_upgrade;
+      proxy_ssl_verify off;
+      proxy_ssl_server_name on;
     }
 
     # Proxy API requests to the backend using env variables
     location /api/ {
-      proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL};
+      proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL}/api/;
       proxy_http_version 1.1;
       proxy_set_header Upgrade $http_upgrade;
       proxy_set_header Connection 'upgrade';
-      proxy_set_header Host $host;
+      proxy_set_header Host ${BACKEND_URL};
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
       proxy_cache_bypass $http_upgrade;
+      proxy_ssl_verify off;
+      proxy_ssl_server_name on;
     }
 
     # Proxy Upload requests to the backend using env variables
-    location /upload/ {
-      proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL};
+    location /upload {
+      proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL}/api/upload;
       proxy_http_version 1.1;
       proxy_set_header Upgrade $http_upgrade;
       proxy_set_header Connection 'upgrade';
-      proxy_set_header Host $host;
+      proxy_set_header Host ${BACKEND_URL};
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
       proxy_cache_bypass $http_upgrade;
+      proxy_ssl_verify off;
+      proxy_ssl_server_name on;
       
       # Set timeout for uploads
       proxy_read_timeout 600;

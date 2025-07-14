@@ -4,6 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Head from 'next/head';
 import { User, Maximize, RefreshCcw, Settings, Home } from 'lucide-react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faLinkedin, faDiscord } from '@fortawesome/free-brands-svg-icons';
 
 const toggleFullscreen = () => {
   const elem = document.documentElement;
@@ -67,6 +69,26 @@ export default function Sidebar() {
             <Settings className="w-6 h-6" />
           </button>
         </Link>
+
+        {/* LinkedIn Icon */}
+        <a href="http://linkedin.nalamap.org" target="_blank" rel="noopener noreferrer">
+          <button className="hover:bg-secondary-900 p-2 rounded focus:outline-none text-white" title="LinkedIn">
+            <FontAwesomeIcon 
+              icon={faLinkedin} 
+              style={{ width: '1.5rem', height: '1.5rem' }}
+            />
+          </button>
+        </a>
+
+        {/* Discord Icon */}
+        <a href="http://discord.nalamap.org" target="_blank" rel="noopener noreferrer">
+          <button className="hover:bg-secondary-900 p-2 rounded focus:outline-none text-white" title="Discord">
+            <FontAwesomeIcon 
+              icon={faDiscord} 
+              style={{ width: '1.5rem', height: '1.5rem' }}
+            />
+          </button>
+        </a>
       </div>
     </>
   );

@@ -11,6 +11,10 @@ def create_configured_tools(
     tool_functions: Dict[str, BaseTool], tool_settings: List[ToolConfig]
 ) -> Dict[str, BaseTool]:
     configured: Dict[str, BaseTool] = {}
+    
+    if tool_settings is None:
+        return tool_functions.copy()
+    
     settings_map = {cfg.name: cfg for cfg in tool_settings}
 
     for name, tool in tool_functions.items():

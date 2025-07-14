@@ -224,6 +224,7 @@ export default function LayerManagement() {
     setCurrentFileIndex(0);
 
     const API_UPLOAD_URL = process.env.NEXT_PUBLIC_API_UPLOAD_URL || "http://localhost:8000/api/upload";
+    const API_AUTO_STYLE_URL = process.env.NEXT_PUBLIC_API_AUTO_STYLE_URL || "http://localhost:8000/api/auto-style";
     const newLayers: any[] = [];
 
     try {
@@ -325,7 +326,7 @@ export default function LayerManagement() {
           // Set a funny styling message
           setFunnyMessage(getRandomMessage(FUNNY_STYLING_MESSAGES));
 
-          const styleResponse = await fetch('http://localhost:8000/api/auto-style', {
+          const styleResponse = await fetch(API_AUTO_STYLE_URL, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

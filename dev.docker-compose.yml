@@ -29,6 +29,6 @@ services:
       - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
     ports:
       - "3000:3000"
-    command: yarn dev # starts Next.js in dev mode with hot reloading
+    command: yarn dev # starts Next.js in dev mode with hot reloading (without Turbopack)
     depends_on:
       - backend
