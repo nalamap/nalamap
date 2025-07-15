@@ -50,6 +50,15 @@ nalamap/
 
 **Current Version:** The project is currently in active development. The first stable release will be tagged as `v1.0.0` once core functionality is complete and thoroughly tested.
 
+## Roadmap
+
+We use GitHub [Milestones](https://github.com/nalamap/nalamap/milestones) and a [Kanban board](https://github.com/orgs/nalamap/projects/1/) to collaborate on our Minimal Viable Product (MVP). We hope to realize this first major release (V.1.0.0) in February 2026. 
+
+Our next Milestone is V 0.2.0 scheduled for the 20th of September 2025. You can See a collection of planned improvements below. Issues describing those improvements will be added to the Kanban Board continously. 
+
+<img width="1227" height="618" alt="image" src="https://github.com/user-attachments/assets/14515f16-7311-43a8-a365-edcefb851089" />
+
+
 ## Prerequisites
 
 - Docker and Docker Compose
