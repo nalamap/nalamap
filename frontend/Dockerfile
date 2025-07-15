@@ -8,7 +8,7 @@ WORKDIR /app
 # Upgrade npm to v11 specifically to fix TailwindCSS v4 Oxide binary issues
 RUN npm install -g npm@11.4.2
 
-# Copy lockfiles & package manifests
+# Copy package.json and lockfiles
 COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* .npmrc* ./
 
 # Install via the available package manager
@@ -16,7 +16,7 @@ RUN \
   if [ -f yarn.lock ]; then yarn install --frozen-lockfile; \
   elif [ -f package-lock.json ]; then npm install; \
   elif [ -f pnpm-lock.yaml ]; then corepack enable pnpm && pnpm install --frozen-lockfile; \
-  else echo "Lockfile not found." && exit 1; \
+  else echo "No lockfile found, installing from package.json" && npm install; \
   fi
 
 
@@ -55,7 +55,7 @@ RUN \
   if [ -f yarn.lock ]; then yarn build; \
   elif [ -f package-lock.json ]; then npm run build; \
   elif [ -f pnpm-lock.yaml ]; then corepack enable pnpm && pnpm build; \
-  else echo "Lockfile not found." && exit 1; \
+  else echo "No lockfile found, building from package.json" && npm run build; \
   fi
 
 

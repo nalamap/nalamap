@@ -23,7 +23,6 @@
     "leaflet-defaulticon-compatibility": "^0.1.2",
     "leaflet-fullscreen": "^1.0.2",
     "leaflet-geosearch": "^4.2.0",
-    "lightningcss-linux-arm64-musl": "^1.30.1",
     "lucide-react": "^0.486.0",
     "maplibre-gl": "^5.1.1",
     "next": "^15.3.1",
@@ -46,9 +45,5 @@
     "postcss": "^8.5.3",
     "tailwindcss": "^4.1.10",
     "typescript": "^5"
-  },
-  "optionalDependencies": {
-    "@tailwindcss/oxide-linux-x64-gnu": "^4.1.11",
-    "lightningcss-linux-x64-gnu": "^1.30.1"
   }
 }
