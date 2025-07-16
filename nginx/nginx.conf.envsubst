@@ -13,9 +13,28 @@ http {
   # Set maximum upload size to 100MB
   client_max_body_size 100M;
 
+  # Define a map to allow multiple CORS origins
+  map $http_origin $cors_origin {
+    default "";
+    "https://nalamap.org" "https://nalamap.org";
+    "https://nalamap.com" "https://nalamap.com";
+    "https://nalamap.de" "https://nalamap.de";
+  }
+
   server {
     listen 80;
     server_name _;
+
+    # CORS preflight handling
+    if ($request_method = OPTIONS ) {
+      add_header 'Access-Control-Allow-Origin' "$cors_origin" always;
+      add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
+      add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, Accept' always;
+      add_header 'Access-Control-Max-Age' 86400 always;
+      add_header 'Content-Length' 0;
+      add_header 'Content-Type' 'text/plain';
+      return 204;
+    }
 
     # Serve static files and enable SPA routing
     location / {
@@ -30,6 +49,9 @@ http {
       proxy_cache_bypass $http_upgrade;
       proxy_ssl_verify off;
       proxy_ssl_server_name on;
+
+      add_header 'Access-Control-Allow-Origin' "$cors_origin" always;
+      add_header 'Access-Control-Allow-Credentials' 'true' always;
     }
 
     # Proxy API requests to the backend using env variables
@@ -45,6 +67,9 @@ http {
       proxy_cache_bypass $http_upgrade;
       proxy_ssl_verify off;
       proxy_ssl_server_name on;
+
+      add_header 'Access-Control-Allow-Origin' "$cors_origin" always;
+      add_header 'Access-Control-Allow-Credentials' 'true' always;
     }
 
     # Proxy Upload requests to the backend using env variables
@@ -65,6 +90,9 @@ http {
       proxy_read_timeout 600;
       proxy_connect_timeout 600;
       proxy_send_timeout 600;
+
+      add_header 'Access-Control-Allow-Origin' "$cors_origin" always;
+      add_header 'Access-Control-Allow-Credentials' 'true' always;
     }
   }
 }
