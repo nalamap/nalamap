@@ -13,6 +13,30 @@ NaLaMap is an open-source platform that helps users find and analyze geospatial 
 * Create and share GIS-AI-Applications for people without geodata expertise based on custom use-cases, processing logic and data-sources.
 * Flexible Extension Possibilities of Toolbox e.g. for including document or web-search
 
+## Roadmap
+
+We use GitHub [Milestones](https://github.com/nalamap/nalamap/milestones) and a [Kanban board](https://github.com/orgs/nalamap/projects/1/) to collaborate on our Minimal Viable Product (MVP). We hope to realize this first major release (V.1.0.0) in February 2026. 
+
+Our next Milestone is V 0.2.0 scheduled for the 20th of September 2025. You can See a collection of planned improvements below. Issues describing those improvements will be added to the Kanban Board continously. 
+
+<img width="1202" height="607" alt="image" src="https://github.com/user-attachments/assets/68bd8a33-0b43-4c1f-8b24-28196a3a07ff" />
+
+
+
+## Versioning Strategy
+
+**NaLaMap follows [Semantic Versioning](https://semver.org/) for all releases using the format `MAJOR.MINOR.PATCH`:**
+
+- **MAJOR** version increments for incompatible API changes, significant architectural changes, or breaking changes to existing functionality
+- **MINOR** version increments for new features, enhancements, or backwards-compatible functionality additions (e.g., new geospatial tools, additional data sources, UI improvements)
+- **PATCH** version increments for backwards-compatible bug fixes, security patches, and minor improvements
+
+**Release Tags:** All releases are tagged in Git using the format `v{MAJOR}.{MINOR}.{PATCH}` (e.g., `v1.0.0`, `v1.2.3`).
+
+**Pre-release versions** may use suffixes like `-alpha`, `-beta`, or `-rc` for testing purposes (e.g., `v1.1.0-beta.1`).
+
+**Current Version:** The project is currently in active development. The first stable release will be tagged as `v1.0.0` once core functionality is complete and thoroughly tested.
+
 ## Project Structure
 
 ```
@@ -35,30 +59,14 @@ nalamap/
 │   └── public/           # Static assets
 └── nginx/                # Nginx configuration for serving the application
 ```
+## Simplified Entitiy Relationship Model
+The following model was created to give you a high level overview of how NaLaMap works. It shows an example user-request to change the sytling of a vector layer in the map. 
+<img width="950" height="534" alt="image" src="https://github.com/user-attachments/assets/6a09918a-fbd0-4860-a362-a5d4f55e871a" />
 
-## Versioning Strategy
-
-**NaLaMap follows [Semantic Versioning](https://semver.org/) for all releases using the format `MAJOR.MINOR.PATCH`:**
-
-- **MAJOR** version increments for incompatible API changes, significant architectural changes, or breaking changes to existing functionality
-- **MINOR** version increments for new features, enhancements, or backwards-compatible functionality additions (e.g., new geospatial tools, additional data sources, UI improvements)
-- **PATCH** version increments for backwards-compatible bug fixes, security patches, and minor improvements
-
-**Release Tags:** All releases are tagged in Git using the format `v{MAJOR}.{MINOR}.{PATCH}` (e.g., `v1.0.0`, `v1.2.3`).
-
-**Pre-release versions** may use suffixes like `-alpha`, `-beta`, or `-rc` for testing purposes (e.g., `v1.1.0-beta.1`).
-
-**Current Version:** The project is currently in active development. The first stable release will be tagged as `v1.0.0` once core functionality is complete and thoroughly tested.
-
-## Prerequisites
-
-- Docker and Docker Compose
-- Node.js (for local frontend development)
-- Python 3.10+ (for local backend development)
 
 ## Getting Started
 
-## ⚙️ Prerequisites
+### ⚙️ Prerequisites
 
 - **Git**  
 - **Python 3.10+**  
@@ -160,7 +168,7 @@ docker-compose -f dev.docker-compose.yml up --build
 - **Docker**: Container platform
 - **Nginx**: Web server and reverse proxy
 
-## Running Tests
+## Tests
 
 The project includes a test suite for the backend components. To run the tests:
 
@@ -214,6 +222,8 @@ If you discover a security vulnerability, please send an email to [info@nalamap.
 We welcome contributions from the community! If you're interested in helping improve NaLaMap, please check out our [Contributing Guide](CONTRIBUTING.md) for information on how to get started.
 
 Please also review our [Code of Conduct](CODE_OF_CONDUCT.md) to ensure a positive and inclusive environment for all contributors.
+
+Fell also fee to join our [community channel (Discord)](http://discord.nalamap.org/) to get to know us. We have regular meetings where we discuss the roadmap, feature requirements and ongoing work. 
 
 ## License
 
