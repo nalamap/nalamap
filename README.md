@@ -119,19 +119,6 @@ npm run dev
 
 The frontend will be available at `http://localhost:3000`
 
-### Alternative: Docker Deployment
-
-If you prefer using Docker:
-
-1. Configure your environment variables as described above.
-
-2. Start the application using Docker Compose:
-   ```bash
-   docker-compose up
-   ```
-
-3. Access the application at `http://localhost:80`
-
 ### Docker Development Environment
 
 For a complete development environment with hot-reload capabilities:

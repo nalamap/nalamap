@@ -1,7 +1,7 @@
 worker_processes 1;
 
 events { 
-  worker_connections 1024; 
+  worker_connections 1024;
 }
 
 http {
@@ -13,6 +13,14 @@ http {
   # Set maximum upload size to 100MB
   client_max_body_size 100M;
 
+  # Define a map to allow multiple CORS origins
+  map $http_origin $cors_origin {
+    default "";
+    "https://nalamap.org" "https://nalamap.org";
+    "https://nalamap.com" "https://nalamap.com";
+    "https://nalamap.de" "https://nalamap.de";
+  }
+
   server {
     listen 80;
     server_name _;
@@ -23,33 +31,95 @@ http {
       proxy_http_version 1.1;
       proxy_set_header Upgrade $http_upgrade;
       proxy_set_header Connection 'upgrade';
-      proxy_set_header Host $host;
+      proxy_set_header Host ${FRONTEND_URL};
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
       proxy_cache_bypass $http_upgrade;
+      proxy_ssl_verify off;
+      proxy_ssl_server_name on;
+
+      add_header 'Access-Control-Allow-Origin' "$cors_origin" always;
+      add_header 'Access-Control-Allow-Credentials' 'true' always;
     }
 
     # Proxy API requests to the backend using env variables
     location /api/ {
-      proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL};
+      # Handle CORS preflight requests
+      if ($request_method = 'OPTIONS') {
+        add_header 'Access-Control-Allow-Origin' "$cors_origin" always;
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
+        add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, Accept' always;
+        add_header 'Access-Control-Allow-Credentials' 'true' always;
+        add_header 'Access-Control-Max-Age' 86400 always;
+        add_header 'Content-Length' 0;
+        add_header 'Content-Type' 'text/plain';
+        return 204;
+      }
+      
+      proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL}/api/;
       proxy_http_version 1.1;
       proxy_set_header Upgrade $http_upgrade;
       proxy_set_header Connection 'upgrade';
-      proxy_set_header Host $host;
+      proxy_set_header Host ${BACKEND_URL};
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
       proxy_cache_bypass $http_upgrade;
+      proxy_ssl_verify off;
+      proxy_ssl_server_name on;
+
+      # Hide backend CORS headers to prevent duplicates
+      proxy_hide_header 'Access-Control-Allow-Origin';
+      proxy_hide_header 'Access-Control-Allow-Credentials';
+      proxy_hide_header 'Access-Control-Allow-Methods';
+      proxy_hide_header 'Access-Control-Allow-Headers';
+      
+      # Add our own CORS headers
+      add_header 'Access-Control-Allow-Origin' "$cors_origin" always;
+      add_header 'Access-Control-Allow-Credentials' 'true' always;
     }
 
     # Proxy Upload requests to the backend using env variables
-    location /upload/ {
-      proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL};
+    location /upload {
+      # Handle CORS preflight requests
+      if ($request_method = 'OPTIONS') {
+        add_header 'Access-Control-Allow-Origin' "$cors_origin" always;
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
+        add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, Accept' always;
+        add_header 'Access-Control-Allow-Credentials' 'true' always;
+        add_header 'Access-Control-Max-Age' 86400 always;
+        add_header 'Content-Length' 0;
+        add_header 'Content-Type' 'text/plain';
+        return 204;
+      }
+      
+      proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL}/api/upload;
       proxy_http_version 1.1;
       proxy_set_header Upgrade $http_upgrade;
       proxy_set_header Connection 'upgrade';
-      proxy_set_header Host $host;
+      proxy_set_header Host ${BACKEND_URL};
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
       proxy_cache_bypass $http_upgrade;
+      proxy_ssl_verify off;
+      proxy_ssl_server_name on;
       
       # Set timeout for uploads
       proxy_read_timeout 600;
       proxy_connect_timeout 600;
       proxy_send_timeout 600;
+
+      # Hide backend CORS headers to prevent duplicates
+      proxy_hide_header 'Access-Control-Allow-Origin';
+      proxy_hide_header 'Access-Control-Allow-Credentials';
+      proxy_hide_header 'Access-Control-Allow-Methods';
+      proxy_hide_header 'Access-Control-Allow-Headers';
+
+      # Add our own CORS headers
+      add_header 'Access-Control-Allow-Origin' "$cors_origin" always;
+      add_header 'Access-Control-Allow-Credentials' 'true' always;
     }
   }
 }
