@@ -1,0 +1,12 @@
+# Implementation for Mistral AI
+from langchain_mistralai import ChatMistralAI
+
+
+def get_llm(max_tokens: int = 6000):
+    return ChatMistralAI(
+        model="mistral-large-latest",
+        temperature=0,
+        max_tokens=max_tokens,
+        timeout=None,
+        max_retries=3,
+    ) 

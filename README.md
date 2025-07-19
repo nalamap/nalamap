@@ -8,6 +8,7 @@ NaLaMap is an open-source platform that helps users find and analyze geospatial 
 * Geocode Locations using OSM and GeoNames (e.g. hospitals, schools etc.).
 * Find and integrate data from existing Open Data Portals or own databases.
 * Chat with AI-agent to retrieve information on data content and quality.
+* **Multi-Provider LLM Support**: Choose from OpenAI, Azure OpenAI, Anthropic Claude, Google Gemini, Mistral AI, or DeepSeek.
 * AI-assisted map and layer styling. 
 * Automated Geoprocessing using natural language (e.g buffer, centroids, intersections).
 * Create and share GIS-AI-Applications for people without geodata expertise based on custom use-cases, processing logic and data-sources.
@@ -95,16 +96,10 @@ cp .env.example .env
 **Configure your environment variables:**
 Edit the `.env` file to include your configuration. The environment file contains several categories of settings:
 
-- **AI Provider Configuration**: Choose between OpenAI, Azure OpenAI, or DeepSeek and provide the corresponding API keys
+- **AI Provider Configuration**: Choose between OpenAI, Azure OpenAI, Anthropic, Google AI, Mistral AI, or DeepSeek and provide the corresponding API keys
 - **Database Settings**: PostgreSQL connection details (a demo database is pre-configured)
 - **API Endpoints**: Backend API base URL configuration
 - **Optional Services**: LangSmith tracing for monitoring AI interactions
-
-**Key variables to configure:**
-- `OPENAI_API_KEY`: Your OpenAI API key (required for OpenAI provider)
-- `LLM_PROVIDER`: Set to "openai", "azure", or "deepseek" 
-- `DATABASE_AZURE_URL`: Database connection (demo database provided)
-- `NEXT_PUBLIC_API_BASE_URL`: Frontend-to-backend communication URL
 
 > **Note**: The `.env.example` includes a demo database connection that you can use for testing. For production use, configure your own database credentials.
 
@@ -198,9 +193,10 @@ Note: Some tests may require a running server or mock data. If you encounter con
 - Check if port 8000 is already in use: `lsof -i :8000`
 - Kill any existing processes: `kill <PID>`
 
-**OpenAI API errors:**
-- Verify your `.env` file is in the `backend/` directory
-- Check that `OPENAI_API_KEY` is set correctly
+**LLM API errors:**
+- Verify your `.env` file is in the root directory
+- Check that your provider's API key is set correctly (e.g., `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, etc.)
+- Ensure `LLM_PROVIDER` matches your chosen provider (openai, azure, anthropic, google, mistral, or deepseek)
 
 **Frontend fails to start:**
 - Ensure Node.js 18+ is installed: `node --version`
