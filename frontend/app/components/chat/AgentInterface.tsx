@@ -23,6 +23,25 @@ const getScoreStyle = (score?: number): { backgroundColor: string; color: string
   return { backgroundColor, color: textColor };
 };
 
+// Helper function to extract text content from message content
+// Handles both string content (OpenAI) and content blocks array (Anthropic)
+const extractTextContent = (content: any): string => {
+  if (typeof content === 'string') {
+    return content;
+  }
+  
+  if (Array.isArray(content)) {
+    // Extract text from Anthropic content blocks
+    return content
+      .filter(block => block.type === 'text')
+      .map(block => block.text || '')
+      .join('\n');
+  }
+  
+  // Fallback for unexpected content types
+  return String(content);
+};
+
 // helper to get a WKT string from whatever format the store has
 function toWkt(bbox: GeoDataObject["bounding_box"]): string | undefined {
   if (!bbox) return undefined;
@@ -238,10 +257,10 @@ export default function AgentInterface() {
                     }`}
                 >
                   {isHuman ? (
-                    <div className="text-sm break-words">{msg.content}</div>
+                    <div className="text-sm break-words">{extractTextContent(msg.content)}</div>
                   ) : (
                     <div className="text-sm break-words chat-markdown">
-                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                      <ReactMarkdown>{extractTextContent(msg.content)}</ReactMarkdown>
                     </div>
                   )}
                   <div className="text-xs text-gray-500 mt-1">
