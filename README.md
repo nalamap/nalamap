@@ -85,17 +85,28 @@ cd nalamap
 ```
 
 #### 2. Environment Configuration
-Create a `.env` file in the backend directory based on the provided `.env.example`:
+
+**Create your environment file:**
+Create a `.env` file in the root directory based on the provided `.env.example`:
 ```bash
-cp .env.example backend/.env
+cp .env.example .env
 ```
 
-Edit the `backend/.env` file to include your API keys:
-- OpenAI API key (required)
-- Azure OpenAI API key (if using Azure)
-- DeepSeek API key (if using DeepSeek)
-- Database connection details
-- Other service configurations
+**Configure your environment variables:**
+Edit the `.env` file to include your configuration. The environment file contains several categories of settings:
+
+- **AI Provider Configuration**: Choose between OpenAI, Azure OpenAI, or DeepSeek and provide the corresponding API keys
+- **Database Settings**: PostgreSQL connection details (a demo database is pre-configured)
+- **API Endpoints**: Backend API base URL configuration
+- **Optional Services**: LangSmith tracing for monitoring AI interactions
+
+**Key variables to configure:**
+- `OPENAI_API_KEY`: Your OpenAI API key (required for OpenAI provider)
+- `LLM_PROVIDER`: Set to "openai", "azure", or "deepseek" 
+- `DATABASE_AZURE_URL`: Database connection (demo database provided)
+- `NEXT_PUBLIC_API_BASE_URL`: Frontend-to-backend communication URL
+
+> **Note**: The `.env.example` includes a demo database connection that you can use for testing. For production use, configure your own database credentials.
 
 #### 3. Setup Backend (Python/FastAPI)
 ```bash
