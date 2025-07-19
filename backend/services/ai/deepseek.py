@@ -5,7 +5,7 @@ from langchain_openai import ChatOpenAI
 
 def get_llm(max_tokens: int = 6000):
     return ChatOpenAI(
-        model="deepseek-chat",
+        model=getenv("DEEPSEEK_MODEL", "deepseek-chat"),
         base_url="https://api.deepseek.com",
         api_key=getenv("DEEPSEEK_API_KEY"),
         temperature=0,

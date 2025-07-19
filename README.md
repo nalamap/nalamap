@@ -103,6 +103,48 @@ Edit the `.env` file to include your configuration. The environment file contain
 
 > **Note**: The `.env.example` includes a demo database connection that you can use for testing. For production use, configure your own database credentials.
 
+**⚠️ Important: Single Provider Selection**
+You can only use **ONE AI provider at a time**. The active provider is determined by the `LLM_PROVIDER` environment variable. To switch providers, change this value and restart the application.
+
+**Supported LLM_PROVIDER values and their models:**
+
+| Provider | LLM_PROVIDER Value | Default Model | Model Configuration | Additional Configuration |
+|----------|-------------------|---------------|-------------------|--------------------------|
+| OpenAI | `openai` | `gpt-4o-mini` | `OPENAI_MODEL` | `OPENAI_API_KEY` |
+| Azure OpenAI | `azure` | User-defined | `AZURE_OPENAI_DEPLOYMENT` | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_API_VERSION` |
+| Anthropic | `anthropic` | `claude-3-5-sonnet-20241022` | `ANTHROPIC_MODEL` | `ANTHROPIC_API_KEY` |
+| Google AI | `google` | `gemini-1.5-pro-latest` | `GOOGLE_MODEL` | `GOOGLE_API_KEY` |
+| Mistral AI | `mistral` | `mistral-large-latest` | `MISTRAL_MODEL` | `MISTRAL_API_KEY` |
+| DeepSeek | `deepseek` | `deepseek-chat` | `DEEPSEEK_MODEL` | `DEEPSEEK_API_KEY` |
+
+**Example configuration:**
+```bash
+# Choose your provider
+LLM_PROVIDER=anthropic
+
+# Configure the model (optional - defaults to recommended model)
+ANTHROPIC_MODEL=claude-3-5-sonnet-20241022
+
+# Add the corresponding API key
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+
+# Note: You only need to configure the provider you're using
+```
+
+**🎯 Model Selection:**
+All providers now support configurable model selection via environment variables. If you don't specify a model, NaLaMap uses cost-effective default models optimized for geospatial tasks.
+
+**⚙️ Advanced Parameter Customization:**
+To modify advanced LLM parameters (temperature, max_tokens, timeout, etc.), edit the provider files in `backend/services/ai/`:
+- `openai.py` - OpenAI configuration
+- `anthropic.py` - Anthropic configuration  
+- `google_genai.py` - Google AI configuration
+- `mistralai.py` - Mistral AI configuration
+- `deepseek.py` - DeepSeek configuration
+- `azureai.py` - Azure OpenAI configuration
+
+Each file contains a `get_llm()` function where you can adjust parameters like `temperature`, `max_tokens`, `max_retries`, etc.
+
 #### 3. Setup Backend (Python/FastAPI)
 ```bash
 # Navigate to backend directory
