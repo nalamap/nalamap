@@ -8,7 +8,7 @@ NaLaMap is an open-source platform that helps users find and analyze geospatial 
 * Geocode Locations using OSM and GeoNames (e.g. hospitals, schools etc.).
 * Find and integrate data from existing Open Data Portals or own databases.
 * Chat with AI-agent to retrieve information on data content and quality.
-* **Multi-Provider LLM Support**: Choose from OpenAI, Azure OpenAI, Anthropic Claude, Google Gemini, Mistral AI, or DeepSeek.
+* **Multi-Provider LLM Support**: Choose from OpenAI, Azure OpenAI, Google Gemini, Mistral AI, or DeepSeek.
 * AI-assisted map and layer styling. 
 * Automated Geoprocessing using natural language (e.g buffer, centroids, intersections).
 * Create and share GIS-AI-Applications for people without geodata expertise based on custom use-cases, processing logic and data-sources.
@@ -96,7 +96,7 @@ cp .env.example .env
 **Configure your environment variables:**
 Edit the `.env` file to include your configuration. The environment file contains several categories of settings:
 
-- **AI Provider Configuration**: Choose between OpenAI, Azure OpenAI, Anthropic, Google AI, Mistral AI, or DeepSeek and provide the corresponding API keys
+- **AI Provider Configuration**: Choose between OpenAI, Azure OpenAI, Google AI, Mistral AI, or DeepSeek and provide the corresponding API keys
 - **Database Settings**: PostgreSQL connection details (a demo database is pre-configured)
 - **API Endpoints**: Backend API base URL configuration
 - **Optional Services**: LangSmith tracing for monitoring AI interactions
@@ -112,7 +112,7 @@ You can only use **ONE AI provider at a time**. The active provider is determine
 |----------|-------------------|---------------|-------------------|--------------------------|
 | OpenAI | `openai` | `gpt-4o-mini` | `OPENAI_MODEL` | `OPENAI_API_KEY` |
 | Azure OpenAI | `azure` | User-defined | `AZURE_OPENAI_DEPLOYMENT` | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_API_VERSION` |
-| Anthropic | `anthropic` | `claude-3-5-sonnet-20241022` | `ANTHROPIC_MODEL` | `ANTHROPIC_API_KEY` |
+
 | Google AI | `google` | `gemini-1.5-pro-latest` | `GOOGLE_MODEL` | `GOOGLE_API_KEY` |
 | Mistral AI | `mistral` | `mistral-large-latest` | `MISTRAL_MODEL` | `MISTRAL_API_KEY` |
 | DeepSeek | `deepseek` | `deepseek-chat` | `DEEPSEEK_MODEL` | `DEEPSEEK_API_KEY` |
@@ -120,13 +120,13 @@ You can only use **ONE AI provider at a time**. The active provider is determine
 **Example configuration:**
 ```bash
 # Choose your provider
-LLM_PROVIDER=anthropic
+LLM_PROVIDER=openai
 
 # Configure the model (optional - defaults to recommended model)
-ANTHROPIC_MODEL=claude-3-5-sonnet-20241022
+OPENAI_MODEL=gpt-4o-mini
 
 # Add the corresponding API key
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
+OPENAI_API_KEY=your_openai_api_key_here
 
 # Note: You only need to configure the provider you're using
 ```
@@ -137,7 +137,6 @@ All providers now support configurable model selection via environment variables
 **⚙️ Advanced Parameter Customization:**
 To modify advanced LLM parameters (temperature, max_tokens, timeout, etc.), edit the provider files in `backend/services/ai/`:
 - `openai.py` - OpenAI configuration
-- `anthropic.py` - Anthropic configuration  
 - `google_genai.py` - Google AI configuration
 - `mistralai.py` - Mistral AI configuration
 - `deepseek.py` - DeepSeek configuration
@@ -237,8 +236,8 @@ Note: Some tests may require a running server or mock data. If you encounter con
 
 **LLM API errors:**
 - Verify your `.env` file is in the root directory
-- Check that your provider's API key is set correctly (e.g., `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, etc.)
-- Ensure `LLM_PROVIDER` matches your chosen provider (openai, azure, anthropic, google, mistral, or deepseek)
+- Check that your provider's API key is set correctly (e.g., `OPENAI_API_KEY`, `GOOGLE_API_KEY`, `MISTRAL_API_KEY`, etc.)
+- Ensure `LLM_PROVIDER` matches your chosen provider (openai, azure, google, mistral, or deepseek)
 
 **Frontend fails to start:**
 - Ensure Node.js 18+ is installed: `node --version`

@@ -24,14 +24,14 @@ const getScoreStyle = (score?: number): { backgroundColor: string; color: string
 };
 
 // Helper function to extract text content from message content
-// Handles both string content (OpenAI) and content blocks array (Anthropic)
+// Handles both string content and content blocks array formats
 const extractTextContent = (content: any): string => {
   if (typeof content === 'string') {
     return content;
   }
   
   if (Array.isArray(content)) {
-    // Extract text from Anthropic content blocks
+    // Extract text from content blocks
     return content
       .filter(block => block.type === 'text')
       .map(block => block.text || '')
