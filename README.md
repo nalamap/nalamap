@@ -157,6 +157,8 @@ poetry install
 poetry run python main.py
 ```
 
+The frontend will be available at `http://localhost:3000`
+
 The backend will be available at `http://localhost:8000`
 - API Documentation: `http://localhost:8000/docs`
 
@@ -172,8 +174,6 @@ npm i
 # Start development server
 npm run dev
 ```
-
-The frontend will be available at `http://localhost:3000`
 
 ### Alternative: Docker Deployment
 
