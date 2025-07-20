@@ -8,6 +8,7 @@ NaLaMap is an open-source platform that helps users find and analyze geospatial 
 * Geocode Locations using OSM and GeoNames (e.g. hospitals, schools etc.).
 * Find and integrate data from existing Open Data Portals or own databases.
 * Chat with AI-agent to retrieve information on data content and quality.
+* **Multi-Provider LLM Support**: Choose from OpenAI, Azure OpenAI, Google Gemini, Mistral AI, or DeepSeek.
 * AI-assisted map and layer styling. 
 * Automated Geoprocessing using natural language (e.g buffer, centroids, intersections).
 * Create and share GIS-AI-Applications for people without geodata expertise based on custom use-cases, processing logic and data-sources.
@@ -85,17 +86,63 @@ cd nalamap
 ```
 
 #### 2. Environment Configuration
-Create a `.env` file in the backend directory based on the provided `.env.example`:
+
+**Create your environment file:**
+Create a `.env` file in the root directory based on the provided `.env.example`:
 ```bash
-cp .env.example backend/.env
+cp .env.example .env
 ```
 
-Edit the `backend/.env` file to include your API keys:
-- OpenAI API key (required)
-- Azure OpenAI API key (if using Azure)
-- DeepSeek API key (if using DeepSeek)
-- Database connection details
-- Other service configurations
+**Configure your environment variables:**
+Edit the `.env` file to include your configuration. The environment file contains several categories of settings:
+
+- **AI Provider Configuration**: Choose between OpenAI, Azure OpenAI, Google AI, Mistral AI, or DeepSeek and provide the corresponding API keys
+- **Database Settings**: PostgreSQL connection details (a demo database is pre-configured)
+- **API Endpoints**: Backend API base URL configuration
+- **Optional Services**: LangSmith tracing for monitoring AI interactions
+
+> **Note**: The `.env.example` includes a demo database connection that you can use for testing. For production use, configure your own database credentials.
+
+**⚠️ Important: Single Provider Selection**
+You can only use **ONE AI provider at a time**. The active provider is determined by the `LLM_PROVIDER` environment variable. To switch providers, change this value and restart the application.
+
+**Supported LLM_PROVIDER values and their models:**
+
+| Provider | LLM_PROVIDER Value | Default Model | Model Configuration | Additional Configuration |
+|----------|-------------------|---------------|-------------------|--------------------------|
+| OpenAI | `openai` | `gpt-4o-mini` | `OPENAI_MODEL` | `OPENAI_API_KEY` |
+| Azure OpenAI | `azure` | User-defined | `AZURE_OPENAI_DEPLOYMENT` | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_API_VERSION` |
+
+| Google AI | `google` | `gemini-1.5-pro-latest` | `GOOGLE_MODEL` | `GOOGLE_API_KEY` |
+| Mistral AI | `mistral` | `mistral-large-latest` | `MISTRAL_MODEL` | `MISTRAL_API_KEY` |
+| DeepSeek | `deepseek` | `deepseek-chat` | `DEEPSEEK_MODEL` | `DEEPSEEK_API_KEY` |
+
+**Example configuration:**
+```bash
+# Choose your provider
+LLM_PROVIDER=openai
+
+# Configure the model (optional - defaults to recommended model)
+OPENAI_MODEL=gpt-4o-mini
+
+# Add the corresponding API key
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Note: You only need to configure the provider you're using
+```
+
+**🎯 Model Selection:**
+All providers now support configurable model selection via environment variables. If you don't specify a model, NaLaMap uses cost-effective default models optimized for geospatial tasks.
+
+**⚙️ Advanced Parameter Customization:**
+To modify advanced LLM parameters (temperature, max_tokens, timeout, etc.), edit the provider files in `backend/services/ai/`:
+- `openai.py` - OpenAI configuration
+- `google_genai.py` - Google AI configuration
+- `mistralai.py` - Mistral AI configuration
+- `deepseek.py` - DeepSeek configuration
+- `azureai.py` - Azure OpenAI configuration
+
+Each file contains a `get_llm()` function where you can adjust parameters like `temperature`, `max_tokens`, `max_retries`, etc.
 
 #### 3. Setup Backend (Python/FastAPI)
 ```bash
@@ -108,6 +155,8 @@ poetry install
 # Start the backend server
 poetry run python main.py
 ```
+
+The frontend will be available at `http://localhost:3000`
 
 The backend will be available at `http://localhost:8000`
 - API Documentation: `http://localhost:8000/docs`
@@ -124,8 +173,6 @@ npm i
 # Start development server
 npm run dev
 ```
-
-The frontend will be available at `http://localhost:3000`
 
 ### Alternative: Docker Deployment
 
@@ -187,9 +234,10 @@ Note: Some tests may require a running server or mock data. If you encounter con
 - Check if port 8000 is already in use: `lsof -i :8000`
 - Kill any existing processes: `kill <PID>`
 
-**OpenAI API errors:**
-- Verify your `.env` file is in the `backend/` directory
-- Check that `OPENAI_API_KEY` is set correctly
+**LLM API errors:**
+- Verify your `.env` file is in the root directory
+- Check that your provider's API key is set correctly (e.g., `OPENAI_API_KEY`, `GOOGLE_API_KEY`, `MISTRAL_API_KEY`, etc.)
+- Ensure `LLM_PROVIDER` matches your chosen provider (openai, azure, google, mistral, or deepseek)
 
 **Frontend fails to start:**
 - Ensure Node.js 18+ is installed: `node --version`

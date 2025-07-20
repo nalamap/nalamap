@@ -15,7 +15,7 @@ class SearchPortal(BaseModel):
 
 
 class ModelSettings(BaseModel):
-    model_provider: str = Field(..., description="Provider name, e.g., openai, anthropic")
+    model_provider: str = Field(..., description="Provider name, e.g., openai, google")
     model_name: str = Field(..., description="Model identifier, e.g., gpt-4")
     max_tokens: int = Field(..., ge=1, description="Maximum tokens to generate")
     system_prompt: str = Field("", description="System-level prompt override")

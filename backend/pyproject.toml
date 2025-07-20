@@ -18,6 +18,9 @@ openai = ">=1.63.0"
 psycopg = {extras = ["binary","pool"], version = ">=3.2.4"}
 langgraph = ">=0.2.73"
 langchain_openai = ">=0.3.12"
+
+langchain_google_genai = ">=2.0.5"
+langchain_mistralai = ">=0.2.2"
 azure-storage-blob = "*"
 python-multipart = "*"
 shapely = "*"
