@@ -8,6 +8,5 @@ def get_llm(max_tokens: int = 6000):
         model=getenv("MISTRAL_MODEL", "mistral-large-latest"),
         temperature=0,
         max_tokens=max_tokens,
-        timeout=None,
         max_retries=3,
     ) 
