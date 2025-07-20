@@ -32,6 +32,22 @@ Thank you for your interest in contributing to NaLaMap! We're excited to welcome
 - Use meaningful variable and function names
 - Include comments for complex logic
 
+### Linting Rules
+
+**Backend (Python):**
+- **Flake8**: Code linting with 100 character line length
+- **Black**: Code formatting with 100 character line length
+- **isort**: Import sorting
+- Run locally: `poetry run flake8 .` and `poetry run black --check .`
+
+**Frontend:**
+- Currently no enforced linting rules
+- ESLint is configured but not required for builds to pass
+
+**CI Integration:**
+- Backend linting checks run automatically on pull requests
+- Ensure your backend code passes these checks before submitting
+
 ## Commit Messages
 
 - Use clear, descriptive commit messages

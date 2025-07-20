@@ -9,4 +9,4 @@ def get_llm(max_tokens: int = 6000):
         temperature=0,
         max_tokens=max_tokens,
         max_retries=3,
-    ) 
+    )

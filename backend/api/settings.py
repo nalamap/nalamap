@@ -39,7 +39,6 @@ async def get_settings_options():
             {"name": "gpt-4-nano", "max_tokens": 50000},
             {"name": "gpt-4-mini", "max_tokens": 100000},
         ],
-
     }
     return SettingsOptions(
         system_prompt=DEFAULT_SYSTEM_PROMPT,

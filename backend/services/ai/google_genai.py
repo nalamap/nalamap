@@ -10,4 +10,4 @@ def get_llm(max_tokens: int = 6000):
         max_output_tokens=max_tokens,
         timeout=None,
         max_retries=3,
-    ) 
+    )
