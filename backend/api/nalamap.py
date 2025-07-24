@@ -184,7 +184,6 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
     )  # TODO: maybe remove query once message is correctly added in frontend
 
     # Append as a single human message
-    #messages.append(HumanMessage(content=json.dumps(payload)))
     options_orig: dict = request.options
 
     options: SettingsSnapshot = SettingsSnapshot.model_validate(options_orig, strict=False)
