@@ -12,6 +12,8 @@ from langgraph.prebuilt import InjectedState
 from langgraph.types import Command
 from typing_extensions import Annotated
 
+from services.tools.utils import match_layer_names
+
 from models.geodata import GeoDataObject
 from services.ai.automatic_styling import (
     detect_layer_type,
@@ -153,27 +155,36 @@ def style_map_layers(
     logger.info(f"Available layers: {[layer.name for layer in available_layers]}")
     logger.info(f"Requested layer_names: {layer_names}")
 
-    # Smart single-layer detection
-    if len(available_layers) == 1 and not layer_names:
+    # Determine target layers using fuzzy name matching
+    if layer_names:
+        layers_to_style = match_layer_names(available_layers, layer_names)
+        missing = len(layer_names) - len(layers_to_style)
+        if missing:
+            message = (
+                f"Could not find any layers matching the specified names. "
+                f"Available layers: {', '.join([layer.name for layer in available_layers])}"
+            )
+            return Command(
+                update={
+                    "messages": [
+                        *state["messages"],
+                        ToolMessage(
+                            name="style_map_layers",
+                            content=message,
+                            tool_call_id=tool_call_id,
+                        ),
+                    ]
+                }
+            )
+        logger.info(
+            f"Matched layers for names {layer_names}: {[layer.name for layer in layers_to_style]}"
+        )
+    elif len(available_layers) == 1:
         # Only one layer available and no specific layer names provided
-        # Automatically apply styling to the single layer
         layers_to_style = available_layers
         logger.info("Single layer auto-detection: styling the only available layer")
-    elif layer_names:
-        # Use explicitly specified layer names
-        for layer_name in layer_names:
-            matching_layers = [layer for layer in available_layers if layer.name == layer_name]
-            if matching_layers:
-                layers_to_style.extend(matching_layers)
-                logger.info(
-                    f"Found matching layer for '{layer_name}': "
-                    f"{[layer.name for layer in matching_layers]}"
-                )
-            else:
-                logger.warning(f"No matching layer found for '{layer_name}'")
     else:
         # Multiple layers available and no specific names provided
-        # Style all available layers
         layers_to_style = available_layers
         logger.info("Multiple layers: styling all available layers")
 

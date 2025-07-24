@@ -29,6 +29,7 @@ from services.tools.geoprocessing.ops.sjoin_nearest import op_sjoin_nearest
 
 # Imports of operation functions from geoprocessing ops and utils
 from services.tools.geoprocessing.utils import get_last_human_content
+from services.tools.utils import match_layer_names
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -179,7 +180,7 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
 def geoprocess_tool(
     state: Annotated[GeoDataAgentState, InjectedState],
     tool_call_id: Annotated[str, InjectedToolCallId],
-    target_layer_ids: Optional[List[str]] = None,
+    target_layer_names: Optional[List[str]] = None,
     operation: Optional[str] = None,
 ) -> Union[Dict[str, Any], Command]:
     """
@@ -212,17 +213,17 @@ def geoprocess_tool(
         )
 
     # Select layers by ID or default to first
-    if target_layer_ids:
-        selected = [layer for layer in layers if layer.id in target_layer_ids]
-        missing = set(target_layer_ids) - {layer.id for layer in selected}
+    if target_layer_names:
+        selected = match_layer_names(layers, target_layer_names)
+        missing = len(target_layer_names) - len(selected)
         if missing:
-            all_available = [{"id": layer.id, "title": layer.title} for layer in layers]
+            all_available = [{"name": layer.name, "title": layer.title} for layer in layers]
             return Command(
                 update={
                     "messages": [
                         ToolMessage(
                             name="geoprocess_tool",
-                            content=f"Error: Layer IDs not found: {missing}. Available layers: {json.dumps(all_available)}",
+                            content=f"Error: Layer Names not found: {missing}. Available layers: {json.dumps(all_available)}",
                             tool_call_id=tool_call_id,
                             status="error",
                         )

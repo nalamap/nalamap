@@ -179,16 +179,12 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
     # print("befor normalize:", request.messages)
     # Normalize incoming messages and append user query
     messages: List[BaseMessage] = normalize_messages(request.messages)
-
-    # Prepare a combined payload containing both the query and current geodata_layers
-    payload: Dict[str, Any] = {
-        "query": request.query,
-        # Serialize each layer to a dict so the model can inspect its attributes
-        "geodata_layers": [layer.dict() for layer in request.geodata_layers]
-    }
+    messages.append(
+        HumanMessage(request.query)
+    )  # TODO: maybe remove query once message is correctly added in frontend
 
     # Append as a single human message
-    messages.append(HumanMessage(content=json.dumps(payload)))
+    #messages.append(HumanMessage(content=json.dumps(payload)))
     options_orig: dict = request.options
 
     options: SettingsSnapshot = SettingsSnapshot.model_validate(options_orig, strict=False)

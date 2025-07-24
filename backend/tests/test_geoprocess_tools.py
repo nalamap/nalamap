@@ -253,7 +253,7 @@ def test_chat_buffer_line_expected_result(client, stub_requests):
         "messages": [
             {
                 "type": "human",
-                "content": "buffer the line by 500 meters of geodata_layers with id=layer2",
+                "content": "buffer the line by 500 meters of geodata_layers with name=line",
             }
         ],
         "options": {
@@ -313,7 +313,7 @@ def test_chat_buffer_line_expected_result(client, stub_requests):
                 },
             ],
         },
-        "query": "buffer the line by 500 meters of geodata_layers with id=layer2",
+        "query": "buffer the line by 500 meters of geodata_layers with name=line",
         "geodata_last_results": [],
         "geodata_layers": [
             {
@@ -323,8 +323,8 @@ def test_chat_buffer_line_expected_result(client, stub_requests):
                 "data_origin": "TOOL",
                 "data_source": "test",
                 "data_link": "http://localhost:8000/upload/line.geojson",
-                "name": "pt",
-                "title": "pt",
+                "name": "line",
+                "title": "line",
                 "description": "",
                 "llm_description": "",
                 "score": 0,
@@ -398,7 +398,7 @@ def test_chat_overlay_intersection_expected_area(client, stub_requests):
         "messages": [
             {
                 "type": "human",
-                "content": "do the operation overlay with how=intersection and crs=EPSG:3413 on both layers with id=layer3 and id=layer4, both layers are already available in your state",
+                "content": "do the operation overlay with how=intersection and crs=EPSG:3413 on both layers with name=greenland and name=aoi, both layers are already available in your state",
             }
         ],
         "options": {
@@ -458,7 +458,7 @@ def test_chat_overlay_intersection_expected_area(client, stub_requests):
                 },
             ],
         },
-        "query": "do the operation overlay with intersection and EPSG:3413 on both layers with id=layer3 and id=layer4, both layers are already available in your state",
+        "query": "do the operation overlay with intersection and EPSG:3413 on both layers with name=greenland and name=aoi, both layers are already available in your state",
         "geodata_last_results": [],
         "geodata_layers": [
             {
@@ -531,4 +531,4 @@ def test_chat_overlay_intersection_expected_area(client, stub_requests):
     expected_series = gpd.GeoSeries([expected], crs="EPSG:4326")
     # 5a) using almost_equals with decimal precision:
     #    returns a boolean Series; assert all True
-    assert actual_series.geom_equals_exact(expected_series, tolerance=100).all()
+    assert actual_series.geom_equals_exact(expected_series, tolerance=1).all()
