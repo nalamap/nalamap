@@ -11,8 +11,10 @@ if llm_provider == "openai":
     from .openai import get_llm
 elif llm_provider == "azure":
     from .azureai import get_llm
-elif llm_provider == "anthropic":
-    from .anthropic import get_llm
+elif llm_provider == "google":
+    from .google_genai import get_llm
+elif llm_provider == "mistral":
+    from .mistralai import get_llm
 elif llm_provider == "deepseek":
     from .deepseek import get_llm  # noqa: F401
 else:
