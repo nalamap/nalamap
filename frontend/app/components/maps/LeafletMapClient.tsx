@@ -334,7 +334,17 @@ function LeafletGeoJSONLayer({
     // We can detect this by checking if the layer already exists in the store
     const existingLayer = useLayerStore.getState().layers.find(l => l.data_link === url);
     if (!existingLayer || !existingLayer.style) {
-      map.fitBounds(layer.getBounds());
+      try {
+        const bounds = layer.getBounds();
+        // Check if bounds are valid (not empty/invalid)
+        if (bounds && bounds.isValid && bounds.isValid()) {
+          map.fitBounds(bounds);
+        } else {
+          console.warn("Layer has no valid bounds (likely empty GeoJSON):", url);
+        }
+      } catch (error) {
+        console.warn("Error getting bounds for layer:", url, error);
+      }
     }
   };
 

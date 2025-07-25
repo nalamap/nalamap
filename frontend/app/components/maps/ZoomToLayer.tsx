@@ -124,8 +124,13 @@ export function ZoomToSelected() {
           try {
             const geoJsonLayer = L.geoJSON(data);
             const bounds = geoJsonLayer.getBounds();
-            console.log("Got bounds from GeoJSON:", bounds.toString());
-            map.fitBounds(bounds);
+            // Check if bounds are valid (not empty/invalid)
+            if (bounds && bounds.isValid && bounds.isValid()) {
+              console.log("Got bounds from GeoJSON:", bounds.toString());
+              map.fitBounds(bounds);
+            } else {
+              console.warn("GeoJSON layer has no valid bounds (likely empty):", layer.name);
+            }
           } catch (err) {
             console.error("Error creating bounds from GeoJSON:", err);
           }
