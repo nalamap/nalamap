@@ -5,6 +5,7 @@ from services.tools.geocoding import (
     geocode_using_overpass_to_geostate,
 )
 from services.tools.geoprocess_tools import geoprocess_tool
+from services.tools.codeinterpreter_tools import geoprocess_interpreter_tool
 from services.tools.geostate_management import metadata_search
 from services.tools.librarian_tools import query_librarian_postgis
 from services.tools.styling_tools import (
@@ -145,7 +146,7 @@ DEFAULT_AVAILABLE_TOOLS: Dict[str, BaseTool] = {
     "geocode_nominatim": geocode_using_nominatim_to_geostate,
     "geocode_overpass": geocode_using_overpass_to_geostate,
     "search_librarian": query_librarian_postgis,
-    "geoprocess": geoprocess_tool,
+    "geoprocess": geoprocess_interpreter_tool,
     "search_metadata": metadata_search,
     "style_layers": style_map_layers,  # Manual styling tool
     "autostyle_new_layers": auto_style_new_layers,  # Intelligent auto-styling tool

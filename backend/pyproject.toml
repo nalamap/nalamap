@@ -28,6 +28,7 @@ kml2geojson = "*"
 geopandas = "*"
 webcolors = "*"
 matplotlib = "*"
+langchain-experimental = "^0.3.4"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "*"
