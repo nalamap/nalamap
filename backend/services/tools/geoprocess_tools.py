@@ -29,6 +29,7 @@ from services.tools.geoprocessing.ops.sjoin_nearest import op_sjoin_nearest
 
 # Imports of operation functions from geoprocessing ops and utils
 from services.tools.geoprocessing.utils import get_last_human_content
+from services.tools.utils import match_layer_names
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -84,7 +85,7 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
         "1. Examine the user's query closely: {query_json_string}."
         "2. Identify the single most appropriate geoprocessing operation from the available list: {available_operations_list_json_string}."
         "3. CRITICAL FOR BUFFER OPERATION: If the chosen operation is 'buffer', you MUST extract 'radius' (a number) and 'radius_unit' (e.g., 'meters', 'kilometers', 'miles') directly and precisely from the user's query. For example, if the user says 'buffer by 100 km', your parameters MUST be `{{\"radius\": 100, \"radius_unit\": \"kilometers\"}}`. If they say 'buffer by 50000 meters', params MUST be `{{\"radius\": 50000, \"radius_unit\": \"meters\"}}`. DO NOT use default values if the user specifies values; use exactly what the user provided."
-        "4. For other operations, extract necessary parameters as defined in their descriptions from the user's query."
+        "4. For other operations, extract necessary parameters as defined in their descriptions from the user's query. Use default values EPSG:3857 for crs if None where given."
         '5. Return a JSON object structured EXACTLY as follows: `{{"steps": [{{"operation": "chosen_operation_name", "params": {{extracted_parameters}}}}]}}`. The \'steps\' array MUST contain exactly one operation object.'
         "The execution framework handles which layer(s) are passed to the operation; you do not control this with parameters."
         "Example for a user query 'buffer the_roads by 5 kilometers':"
@@ -179,19 +180,19 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
 def geoprocess_tool(
     state: Annotated[GeoDataAgentState, InjectedState],
     tool_call_id: Annotated[str, InjectedToolCallId],
-    target_layer_ids: Optional[List[str]] = None,
+    target_layer_names: Optional[List[str]] = None,
     operation: Optional[str] = None,
 ) -> Union[Dict[str, Any], Command]:
     """
-    Tool to geoprocess a specific geospatial layer from the state.
+    Tool to geoprocess specific geospatial layers from the state.
 
     Args:
         state: The agent state containing geodata_layers
         tool_call_id: ID for this tool call
-        target_layer_id: ID of the specific layer to process. If not provided, will attempt to determine from context.
+        target_layer_ids: IDs of the specific layers to process. Try to provide and to read out from state.
         operation: Optional operation hint (buffer, overlay, etc.)
 
-    The tool will apply operations like buffer, overlay, simplify, sjoin, merge, sjoin_nearest, centroid to the specified layer.
+    The tool will apply operations like buffer, overlay, simplify, sjoin, merge, sjoin_nearest, centroid to the specified layers.
     """
     # Safely pull out the list (defaults to [] if key missing or None)
     layers = state.get("geodata_layers") or []
@@ -212,17 +213,17 @@ def geoprocess_tool(
         )
 
     # Select layers by ID or default to first
-    if target_layer_ids:
-        selected = [layer for layer in layers if layer.id in target_layer_ids]
-        missing = set(target_layer_ids) - {layer.id for layer in selected}
+    if target_layer_names:
+        selected = match_layer_names(layers, target_layer_names)
+        missing = len(target_layer_names) - len(selected)
         if missing:
-            all_available = [{"id": layer.id, "title": layer.title} for layer in layers]
+            all_available = [{"name": layer.name, "title": layer.title} for layer in layers]
             return Command(
                 update={
                     "messages": [
                         ToolMessage(
                             name="geoprocess_tool",
-                            content=f"Error: Layer IDs not found: {missing}. Available layers: {json.dumps(all_available)}",
+                            content=f"Error: Layer Names not found: {missing}. Available layers: {json.dumps(all_available)}",
                             tool_call_id=tool_call_id,
                             status="error",
                         )
@@ -230,7 +231,7 @@ def geoprocess_tool(
                 }
             )
     else:
-        selected = [layers[0]]
+        selected = layers
 
     # Name derived from input layer
     result_name = selected[0].name if selected else ""
