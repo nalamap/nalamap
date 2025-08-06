@@ -30,6 +30,7 @@ from services.tools.geoprocessing.ops.sjoin_nearest import op_sjoin_nearest
 # Imports of operation functions from geoprocessing ops and utils
 from services.tools.geoprocessing.utils import get_last_human_content
 from services.tools.utils import match_layer_names
+import re
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -44,6 +45,82 @@ TOOL_REGISTRY = {
     "sjoin": op_sjoin,
     "sjoin_nearest": op_sjoin_nearest,
 }
+
+
+# ========== Utility Functions for Enhanced Naming ==========
+def _slugify(text: str) -> str:
+    """Convert text to a clean slug format (lowercase, spaces to hyphens)."""
+    # Convert to lowercase and replace spaces/underscores with hyphens
+    slug = re.sub(r'[^\w\s-]', '', text.lower())
+    slug = re.sub(r'[-\s_]+', '-', slug)
+    return slug.strip('-')
+
+
+def _generate_layer_title(query: str, input_layer_names: List[str], operations: List[str]) -> str:
+    """Generate a user-facing title for the new layer using LLM."""
+    llm = get_llm()
+    
+    system_msg = (
+        "You are a geographic data assistant. Generate a short, descriptive title (maximum 5 words) "
+        "for a new geospatial layer based on the user's query and the operations performed. "
+        "The title should be clear, concise, and describe what the resulting layer represents."
+    )
+    
+    user_msg = (
+        f"User query: {query}\n"
+        f"Input layers: {', '.join(input_layer_names)}\n"
+        f"Operations performed: {', '.join(operations)}\n"
+        "Generate a descriptive title (max 5 words) for the resulting layer:"
+    )
+    
+    from langchain.schema import SystemMessage
+    messages = [
+        SystemMessage(content=system_msg),
+        HumanMessage(content=user_msg),
+    ]
+    
+    try:
+        response = llm.generate([messages])
+        title = response.generations[0][0].text.strip()
+        # Ensure title is within word limit
+        words = title.split()
+        if len(words) > 5:
+            title = ' '.join(words[:5])
+        return title
+    except Exception as e:
+        logger.warning(f"Failed to generate LLM title: {e}")
+        # Fallback to a simple descriptive title
+        if operations:
+            return f"{operations[0].title()} Result"
+        return "Geoprocessed Layer"
+
+
+def _create_unique_name(title: str, layer_uuid: str) -> str:
+    """Create a unique name by combining slugified title with UUID prefix."""
+    slug = _slugify(title)
+    uuid_prefix = layer_uuid[:8]
+    return f"{slug}-{uuid_prefix}"
+
+
+def _format_operation_description(title: str, input_layer_names: List[str], operations_details: List[Dict[str, Any]]) -> str:
+    """Format a comprehensive description including operations and parameters."""
+    description_parts = [f"Layer: {title}"]
+    
+    if input_layer_names:
+        description_parts.append(f"Input layers: {', '.join(input_layer_names)}")
+    
+    if operations_details:
+        description_parts.append("Operations performed:")
+        for i, op_detail in enumerate(operations_details, 1):
+            op_name = op_detail.get('operation', 'Unknown')
+            params = op_detail.get('params', {})
+            if params:
+                params_str = ', '.join([f"{k}={v}" for k, v in params.items()])
+                description_parts.append(f"  {i}. {op_name} ({params_str})")
+            else:
+                description_parts.append(f"  {i}. {op_name}")
+    
+    return '\n'.join(description_parts)
 
 
 # ========== Geoprocess Executor ==========
@@ -165,6 +242,7 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
     # 2) Execute each step on full geojson layers on full geojson layers
     result = layers
     executed_ops = []
+    operations_details = []
     for step in steps:
         op_name = step.get("operation")
         params = step.get("params", {})
@@ -172,8 +250,13 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
         if func:
             result = func(result, **params)
             executed_ops.append(op_name)
+            operations_details.append({"operation": op_name, "params": params})
 
-    return {"tool_sequence": executed_ops, "result_layers": result}
+    return {
+        "tool_sequence": executed_ops, 
+        "result_layers": result,
+        "operations_details": operations_details
+    }
 
 
 @tool
@@ -396,9 +479,10 @@ def geoprocess_tool(
     # Collect results
     result_layers = final_state.get("result_layers", [])
     tools_used = final_state.get("tool_sequence", [])
-    if tools_used:
-        tools_name = "".join(tool for tool in tools_used)
-        result_name = result_name + tools_name
+    operations_details = final_state.get("operations_details", [])
+    
+    # Get input layer names for metadata
+    input_layer_names = [layer.name for layer in selected] if selected else []
 
     # Build new GeoDataObjects
     new_geodata: List[GeoDataObject]
@@ -420,6 +504,12 @@ def geoprocess_tool(
 
         url = f"{BASE_URL}/uploads/{filename}"
         out_urls.append(url)
+        
+        # Enhanced naming and metadata
+        layer_title = _generate_layer_title(query, input_layer_names, tools_used)
+        layer_name = _create_unique_name(layer_title, out_uuid)
+        layer_description = _format_operation_description(layer_title, input_layer_names, operations_details)
+        
         new_geodata.append(
             GeoDataObject(
                 id=out_uuid,
@@ -428,10 +518,10 @@ def geoprocess_tool(
                 data_origin=DataOrigin.TOOL,
                 data_source="NaLaMapGeoprocess",
                 data_link=url,
-                name=result_name,
-                title=result_name,
-                description=result_name,
-                llm_description=result_name,
+                name=layer_name,
+                title=layer_title,
+                description=layer_description,
+                llm_description=layer_description,
                 score=0.2,
                 bounding_box=None,
                 layer_type="GeoJSON",
