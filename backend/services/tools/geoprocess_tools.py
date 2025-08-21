@@ -532,13 +532,17 @@ def geoprocess_tool(
         url = f"{BASE_URL}/uploads/{filename}"
         out_urls.append(url)
         
-        # Store operation details in the properties
-        properties = {
-            "tool_sequence": tools_used,
-            "query": operation_details.get("query", ""),
-            "steps": operation_details.get("steps", []),
-            "input_layers": operation_details.get("input_layers", []),
-        }
+        # Format the operation details for the description
+        operation_steps = "\n".join([f"- {step['operation']}: {json.dumps(step['params'])}" 
+                                   for step in operation_details.get("steps", [])])
+        
+        input_layers_str = ", ".join(operation_details.get("input_layers", []))
+        
+        # Create the full description with operation details
+        full_description = f"{llm_description}\n\nOperation Details:\n"
+        full_description += f"Query: {operation_details.get('query', '')}\n"
+        full_description += f"Input Layers: {input_layers_str}\n"
+        full_description += f"Operations:\n{operation_steps}"
         
         new_geodata.append(
             GeoDataObject(
@@ -550,12 +554,12 @@ def geoprocess_tool(
                 data_link=url,
                 name=unique_name,
                 title=display_title,
-                description=llm_description if llm_description else display_title,
+                description=full_description,
                 llm_description=llm_description if llm_description else display_title,
                 score=0.2,
                 bounding_box=None,
                 layer_type="GeoJSON",
-                properties=properties,
+                properties={},
             )
         )
 
