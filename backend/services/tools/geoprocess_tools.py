@@ -559,7 +559,7 @@ def geoprocess_tool(
                 score=0.2,
                 bounding_box=None,
                 layer_type="GeoJSON",
-                properties={},
+                properties=None,
             )
         )
 
