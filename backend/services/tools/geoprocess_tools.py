@@ -2,6 +2,7 @@
 import json
 import logging
 import os
+import re
 import uuid
 from typing import Any, Dict, List, Optional, Union
 
@@ -31,6 +32,59 @@ from services.tools.geoprocessing.ops.sjoin_nearest import op_sjoin_nearest
 from services.tools.geoprocessing.utils import get_last_human_content
 from services.tools.utils import match_layer_names
 
+
+def slugify(text: str) -> str:
+    """
+    Convert a title to a URL and filename friendly slug.
+    
+    Args:
+        text: The text to convert to a slug
+        
+    Returns:
+        A slug version of the text (lowercase, spaces to hyphens, alphanumeric and underscores only)
+    """
+    # Convert to lowercase
+    text = text.lower()
+    # Replace spaces with hyphens
+    text = text.replace(" ", "-")
+    # Remove non-alphanumeric characters (except hyphens and underscores)
+    text = re.sub(r"[^a-z0-9\-_]", "", text)
+    # Remove multiple consecutive hyphens
+    text = re.sub(r"-+", "-", text)
+    # Remove leading and trailing hyphens
+    text = text.strip("-")
+    
+    # Return a default if the slug is empty
+    return text or "geoprocessing-result"
+
+
+def ensure_unique_name(name: str, existing_names: List[str], uuid_prefix: str = "") -> str:
+    """
+    Ensure a name is unique by appending a suffix if needed.
+    
+    Args:
+        name: The base name to make unique
+        existing_names: List of existing names to check against
+        uuid_prefix: Optional UUID prefix to guarantee uniqueness
+        
+    Returns:
+        A unique name, either the original if it's unique, or with a suffix or UUID
+    """
+    # If the name is already unique, return it
+    if name not in existing_names:
+        return name
+    
+    # Try adding a numeric suffix
+    counter = 2
+    while f"{name}-{counter}" in existing_names:
+        counter += 1
+    
+    # If UUID prefix is provided, use it for extra uniqueness
+    if uuid_prefix:
+        return f"{name}-{uuid_prefix}"
+    else:
+        return f"{name}-{counter}"
+
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
@@ -55,6 +109,9 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
       - tool_sequence: List of operation names executed
       - result_layers: List of GeoJSON Feature dicts
+      - result_name: Descriptive name for the result layer
+      - result_description: Detailed description of the operation
+      - operation_details: JSON object with details of operations performed
     """
     query = state.get("query", "")
     layers: List[Dict[str, Any]] = state.get("input_layers", [])
@@ -73,6 +130,7 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
             {
                 "resource_id": props.get("resource_id"),
                 "name": props.get("name"),
+                "title": props.get("title", props.get("name")),
                 "geometry_type": gtype,
                 "bbox": bbox,
             }
@@ -81,12 +139,14 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
         # 1) Invoke LLM planner with metadata only
     llm = get_llm()
     system_msg = (
-        "You are a geospatial task execution assistant. Your sole job is to translate the user's most recent request into a single geoprocessing operation and its parameters."
+        "You are a geospatial task execution assistant. Your role is to translate the user's most recent request into a single geoprocessing operation with parameters, and provide helpful metadata about the result."
         "1. Examine the user's query closely: {query_json_string}."
         "2. Identify the single most appropriate geoprocessing operation from the available list: {available_operations_list_json_string}."
         "3. CRITICAL FOR BUFFER OPERATION: If the chosen operation is 'buffer', you MUST extract 'radius' (a number) and 'radius_unit' (e.g., 'meters', 'kilometers', 'miles') directly and precisely from the user's query. For example, if the user says 'buffer by 100 km', your parameters MUST be `{{\"radius\": 100, \"radius_unit\": \"kilometers\"}}`. If they say 'buffer by 50000 meters', params MUST be `{{\"radius\": 50000, \"radius_unit\": \"meters\"}}`. DO NOT use default values if the user specifies values; use exactly what the user provided."
         "4. For other operations, extract necessary parameters as defined in their descriptions from the user's query. Use default values EPSG:3857 for crs if None where given."
-        '5. Return a JSON object structured EXACTLY as follows: `{{"steps": [{{"operation": "chosen_operation_name", "params": {{extracted_parameters}}}}]}}`. The \'steps\' array MUST contain exactly one operation object.'
+        "5. Create a short, descriptive title (maximum 5 words) for the result layer based on the operation and the input layers."
+        "6. Write a brief description (1-2 sentences) explaining what the operation does to the input layers."
+        '7. Return a JSON object structured EXACTLY as follows: `{{"steps": [{{"operation": "chosen_operation_name", "params": {{extracted_parameters}}}}], "result_name": "Short Descriptive Title", "result_description": "Brief description of what this operation does."}}`. The \'steps\' array MUST contain exactly one operation object.'
         "The execution framework handles which layer(s) are passed to the operation; you do not control this with parameters."
         "Example for a user query 'buffer the_roads by 5 kilometers':"
         "```json\n"
@@ -96,7 +156,9 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
         '      "operation": "buffer",\n'
         '      "params": {{ "radius": 5, "radius_unit": "kilometers" }}\n'
         "    }}\n"
-        "  ]\n"
+        "  ],\n"
+        '  "result_name": "Roads 5km Buffer",\n'
+        '  "result_description": "Creates a 5 kilometer buffer zone around all road features."\n'
         "}}\n"
         "```"
         "Example for a user query 'overlay layer1 and layer2 with intersection in EPSG:3413':"
@@ -107,7 +169,9 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
         '      "operation": "overlay",\n'
         '      "params": {{ "how": intersection, "crs": "EPSG:3413" }}\n'
         "    }}\n"
-        "  ]\n"
+        "  ],\n"
+        '  "result_name": "Layer1 Layer2 Intersection",\n'
+        '  "result_description": "Shows areas where Layer1 and Layer2 overlap using EPSG:3413 coordinate system."\n'
         "}}\n"
         "```"
     ).format(
@@ -161,10 +225,13 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError(f"Failed to parse LLM response as JSON: {content}")
 
     steps = plan.get("steps", [])
+    result_name = plan.get("result_name", "")
+    result_description = plan.get("result_description", "")
 
     # 2) Execute each step on full geojson layers on full geojson layers
     result = layers
     executed_ops = []
+    executed_steps = []
     for step in steps:
         op_name = step.get("operation")
         params = step.get("params", {})
@@ -172,8 +239,22 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
         if func:
             result = func(result, **params)
             executed_ops.append(op_name)
+            executed_steps.append({"operation": op_name, "params": params})
 
-    return {"tool_sequence": executed_ops, "result_layers": result}
+    # Create a detailed record of the operation
+    operation_details = {
+        "query": query,
+        "steps": executed_steps,
+        "input_layers": [layer.get("name", "") for layer in layer_meta]
+    }
+    
+    return {
+        "tool_sequence": executed_ops, 
+        "result_layers": result,
+        "result_name": result_name,
+        "result_description": result_description,
+        "operation_details": operation_details
+    }
 
 
 @tool
@@ -396,10 +477,22 @@ def geoprocess_tool(
     # Collect results
     result_layers = final_state.get("result_layers", [])
     tools_used = final_state.get("tool_sequence", [])
-    if tools_used:
+    operation_details = final_state.get("operation_details", {})
+    
+    # Get LLM-generated title and description if available
+    llm_title = final_state.get("result_name", "")
+    llm_description = final_state.get("result_description", "")
+    
+    # Create a descriptive name (fallback if LLM doesn't provide one)
+    if not llm_title and tools_used:
         tools_name = "".join(tool for tool in tools_used)
-        result_name = result_name + tools_name
-
+        default_name = result_name + tools_name
+    else:
+        default_name = result_name or "GeoprocessedLayer"
+    
+    # Use LLM-generated title or fallback to default
+    display_title = llm_title if llm_title else default_name
+    
     # Build new GeoDataObjects
     new_geodata: List[GeoDataObject]
     if (
@@ -410,16 +503,43 @@ def geoprocess_tool(
         new_geodata = []
     else:
         new_geodata = state["geodata_results"]
+    
+    # Get existing names to ensure uniqueness
+    existing_layer_names = []
+    if "geodata_layers" in state and state["geodata_layers"]:
+        existing_layer_names.extend([layer.name for layer in state["geodata_layers"]])
+    if "geodata_results" in state and state["geodata_results"]:
+        existing_layer_names.extend([layer.name for layer in state["geodata_results"]])
+    
     out_urls: List[str] = []
     for layer in result_layers:
+        # Generate a unique ID
         out_uuid = uuid.uuid4().hex
-        filename = f"{out_uuid}_geoprocess.geojson"
+        short_uuid = out_uuid[:8]  # First 8 chars of UUID for uniqueness
+        
+        # Create a slugified name from the title and ensure uniqueness
+        slug_name = slugify(display_title)
+        unique_name = ensure_unique_name(slug_name, existing_layer_names, short_uuid)
+        existing_layer_names.append(unique_name)  # Add to list to avoid duplicates
+        
+        # Create a filename with the unique name
+        filename = f"{unique_name}_{short_uuid}.geojson"
         path = os.path.join(LOCAL_UPLOAD_DIR, filename)
         with open(path, "w", encoding="utf-8") as f:
             json.dump(layer, f)
 
+        # Generate URL
         url = f"{BASE_URL}/uploads/{filename}"
         out_urls.append(url)
+        
+        # Store operation details in the properties
+        properties = {
+            "tool_sequence": tools_used,
+            "query": operation_details.get("query", ""),
+            "steps": operation_details.get("steps", []),
+            "input_layers": operation_details.get("input_layers", []),
+        }
+        
         new_geodata.append(
             GeoDataObject(
                 id=out_uuid,
@@ -428,14 +548,14 @@ def geoprocess_tool(
                 data_origin=DataOrigin.TOOL,
                 data_source="NaLaMapGeoprocess",
                 data_link=url,
-                name=result_name,
-                title=result_name,
-                description=result_name,
-                llm_description=result_name,
+                name=unique_name,
+                title=display_title,
+                description=llm_description if llm_description else display_title,
+                llm_description=llm_description if llm_description else display_title,
                 score=0.2,
                 bounding_box=None,
                 layer_type="GeoJSON",
-                properties=None,
+                properties=properties,
             )
         )
 
