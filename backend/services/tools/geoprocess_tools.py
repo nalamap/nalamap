@@ -533,10 +533,21 @@ def geoprocess_tool(
         out_urls.append(url)
         
         # Format the operation details for the description
-        operation_steps = "\n".join([f"- {step['operation']}: {json.dumps(step['params'])}" 
-                                   for step in operation_details.get("steps", [])])
+        # Safely format operation steps, handling potential None values
+        operation_steps_list = []
+        for step in operation_details.get("steps", []):
+            if step is not None and isinstance(step, dict):
+                op = step.get('operation', 'unknown')
+                params = step.get('params', {})
+                if params is not None:
+                    operation_steps_list.append(f"- {op}: {json.dumps(params)}")
+                else:
+                    operation_steps_list.append(f"- {op}: {{}}")
+        operation_steps = "\n".join(operation_steps_list)
         
-        input_layers_str = ", ".join(operation_details.get("input_layers", []))
+        # Filter out None values to prevent TypeError
+        input_layers = [layer for layer in operation_details.get("input_layers", []) if layer is not None]
+        input_layers_str = ", ".join(input_layers)
         
         # Create the full description with operation details
         full_description = f"{llm_description}\n\nOperation Details:\n"
