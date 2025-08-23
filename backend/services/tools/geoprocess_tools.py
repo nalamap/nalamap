@@ -36,10 +36,10 @@ from services.tools.utils import match_layer_names
 def slugify(text: str) -> str:
     """
     Convert a title to a URL and filename friendly slug.
-    
+
     Args:
         text: The text to convert to a slug
-        
+
     Returns:
         A slug version of the text (lowercase, spaces to hyphens, alphanumeric and underscores only)
     """
@@ -53,7 +53,7 @@ def slugify(text: str) -> str:
     text = re.sub(r"-+", "-", text)
     # Remove leading and trailing hyphens
     text = text.strip("-")
-    
+
     # Return a default if the slug is empty
     return text or "geoprocessing-result"
 
@@ -61,29 +61,30 @@ def slugify(text: str) -> str:
 def ensure_unique_name(name: str, existing_names: List[str], uuid_prefix: str = "") -> str:
     """
     Ensure a name is unique by appending a suffix if needed.
-    
+
     Args:
         name: The base name to make unique
         existing_names: List of existing names to check against
         uuid_prefix: Optional UUID prefix to guarantee uniqueness
-        
+
     Returns:
         A unique name, either the original if it's unique, or with a suffix or UUID
     """
     # If the name is already unique, return it
     if name not in existing_names:
         return name
-    
+
     # Try adding a numeric suffix
     counter = 2
     while f"{name}-{counter}" in existing_names:
         counter += 1
-    
+
     # If UUID prefix is provided, use it for extra uniqueness
     if uuid_prefix:
         return f"{name}-{uuid_prefix}"
     else:
         return f"{name}-{counter}"
+
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -245,15 +246,15 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
     operation_details = {
         "query": query,
         "steps": executed_steps,
-        "input_layers": [layer.get("name", "") for layer in layer_meta]
+        "input_layers": [layer.get("name", "") for layer in layer_meta],
     }
-    
+
     return {
-        "tool_sequence": executed_ops, 
+        "tool_sequence": executed_ops,
         "result_layers": result,
         "result_name": result_name,
         "result_description": result_description,
-        "operation_details": operation_details
+        "operation_details": operation_details,
     }
 
 
@@ -478,21 +479,21 @@ def geoprocess_tool(
     result_layers = final_state.get("result_layers", [])
     tools_used = final_state.get("tool_sequence", [])
     operation_details = final_state.get("operation_details", {})
-    
+
     # Get LLM-generated title and description if available
     llm_title = final_state.get("result_name", "")
     llm_description = final_state.get("result_description", "")
-    
+
     # Create a descriptive name (fallback if LLM doesn't provide one)
     if not llm_title and tools_used:
         tools_name = "".join(tool for tool in tools_used)
         default_name = result_name + tools_name
     else:
         default_name = result_name or "GeoprocessedLayer"
-    
+
     # Use LLM-generated title or fallback to default
     display_title = llm_title if llm_title else default_name
-    
+
     # Build new GeoDataObjects
     new_geodata: List[GeoDataObject]
     if (
@@ -503,25 +504,25 @@ def geoprocess_tool(
         new_geodata = []
     else:
         new_geodata = state["geodata_results"]
-    
+
     # Get existing names to ensure uniqueness
     existing_layer_names = []
     if "geodata_layers" in state and state["geodata_layers"]:
         existing_layer_names.extend([layer.name for layer in state["geodata_layers"]])
     if "geodata_results" in state and state["geodata_results"]:
         existing_layer_names.extend([layer.name for layer in state["geodata_results"]])
-    
+
     out_urls: List[str] = []
     for layer in result_layers:
         # Generate a unique ID
         out_uuid = uuid.uuid4().hex
         short_uuid = out_uuid[:8]  # First 8 chars of UUID for uniqueness
-        
+
         # Create a slugified name from the title and ensure uniqueness
         slug_name = slugify(display_title)
         unique_name = ensure_unique_name(slug_name, existing_layer_names, short_uuid)
         existing_layer_names.append(unique_name)  # Add to list to avoid duplicates
-        
+
         # Create a filename with the unique name
         filename = f"{unique_name}_{short_uuid}.geojson"
         path = os.path.join(LOCAL_UPLOAD_DIR, filename)
@@ -531,30 +532,32 @@ def geoprocess_tool(
         # Generate URL
         url = f"{BASE_URL}/uploads/{filename}"
         out_urls.append(url)
-        
+
         # Format the operation details for the description
         # Safely format operation steps, handling potential None values
         operation_steps_list = []
         for step in operation_details.get("steps", []):
             if step is not None and isinstance(step, dict):
-                op = step.get('operation', 'unknown')
-                params = step.get('params', {})
+                op = step.get("operation", "unknown")
+                params = step.get("params", {})
                 if params is not None:
                     operation_steps_list.append(f"- {op}: {json.dumps(params)}")
                 else:
                     operation_steps_list.append(f"- {op}: {{}}")
         operation_steps = "\n".join(operation_steps_list)
-        
+
         # Filter out None values to prevent TypeError
-        input_layers = [layer for layer in operation_details.get("input_layers", []) if layer is not None]
+        input_layers = [
+            layer for layer in operation_details.get("input_layers", []) if layer is not None
+        ]
         input_layers_str = ", ".join(input_layers)
-        
+
         # Create the full description with operation details
         full_description = f"{llm_description}\n\nOperation Details:\n"
         full_description += f"Query: {operation_details.get('query', '')}\n"
         full_description += f"Input Layers: {input_layers_str}\n"
         full_description += f"Operations:\n{operation_steps}"
-        
+
         new_geodata.append(
             GeoDataObject(
                 id=out_uuid,
