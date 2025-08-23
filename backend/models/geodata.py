@@ -9,6 +9,7 @@ class DataType(str, Enum):
     GEOJSON = "GeoJson"
     LAYER = "Layer"
     UPLOADED = "uploaded"
+    RASTER = "Raster"
 
 
 class DataOrigin(Enum):
