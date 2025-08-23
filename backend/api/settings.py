@@ -31,10 +31,12 @@ async def get_settings_options():
         for available_tool_name, available_tool in DEFAULT_AVAILABLE_TOOLS.items()
     }
     search_portals = [
+        # TODO: check if/how to move into tools
         "FAO",
         "MapX",
     ]
     model_options = {
+        # TODO: Pull dnamically from model registered & available modle providers
         "openai": [
             {"name": "gpt-4-nano", "max_tokens": 50000},
             {"name": "gpt-4-mini", "max_tokens": 100000},
