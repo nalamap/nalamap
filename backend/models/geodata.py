@@ -82,7 +82,6 @@ class GeoDataObject(BaseModel):
     bounding_box: Optional[str] = None
     layer_type: Optional[str] = None
     properties: Optional[Dict[str, Any]] = {}
-    service_links: Optional[Dict[str, str]] = None
     visible: Optional[bool] = False
     selected: Optional[bool] = False
     style: Optional[LayerStyle] = None

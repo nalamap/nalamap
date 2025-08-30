@@ -4,9 +4,8 @@ It uses the GetCapabilities endpoint of a GeoServer to get a list of layers
 and their descriptions across WMS, WFS, WCS, and WMTS services.
 """
 
-import json
 import logging
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urlencode, urljoin
 
 from owslib.wcs import WebCoverageService
@@ -17,6 +16,7 @@ from langchain_core.messages import ToolMessage
 from langchain_core.tools import tool
 from langchain_core.tools.base import InjectedToolCallId
 from langgraph.prebuilt import InjectedState
+from pydantic import Field
 from typing_extensions import Annotated
 
 from models.geodata import DataOrigin, DataType, GeoDataObject
@@ -26,35 +26,23 @@ from models.states import GeoDataAgentState
 logger = logging.getLogger(__name__)
 
 
-def merge_layers(
-    base_layers: Dict[str, GeoDataObject], new_layers: Dict[str, GeoDataObject]
-) -> Dict[str, GeoDataObject]:
-    """Merges new layer information into a base dictionary of layers."""
-    for layer_id, new_layer in new_layers.items():
-        if layer_id in base_layers:
-            # Merge service links
-            if new_layer.service_links:
-                if base_layers[layer_id].service_links is None:
-                    base_layers[layer_id].service_links = {}
-                base_layers[layer_id].service_links.update(new_layer.service_links)
-            # Optionally, update other fields if they are empty
-            if not base_layers[layer_id].description and new_layer.description:
-                base_layers[layer_id].description = new_layer.description
-            if not base_layers[layer_id].bounding_box and new_layer.bounding_box:
-                base_layers[layer_id].bounding_box = new_layer.bounding_box
-        else:
-            base_layers[layer_id] = new_layer
-    return base_layers
-
-
 def parse_wms_capabilities(
-    wms, geoserver_url: str
-) -> Dict[str, GeoDataObject]:
-    """Parses WMS GetCapabilities and returns a dictionary of GeoDataObjects."""
-    layers: Dict[str, GeoDataObject] = {}
+    wms, geoserver_url: str, search_term: Optional[str] = None
+) -> List[GeoDataObject]:
+    """Parses WMS GetCapabilities and returns a list of GeoDataObjects."""
+    layers: List[GeoDataObject] = []
     base_url = geoserver_url.split("?")[0]
 
     for layer_name, layer in wms.contents.items():
+        title = layer.title or layer.name
+        abstract = layer.abstract or ""
+        if search_term and not (
+            search_term.lower() in title.lower()
+            or search_term.lower() in abstract.lower()
+            or search_term.lower() in layer_name.lower()
+        ):
+            continue
+
         bounding_box = None
         if layer.boundingBoxWGS84:
             min_lon, min_lat, max_lon, max_lat = layer.boundingBoxWGS84
@@ -77,34 +65,40 @@ def parse_wms_capabilities(
         data_link = f"{base_url}?{urlencode(params)}"
 
         geo_object = GeoDataObject(
-            id=layer.name,
+            id=f"wms_{layer.name}",
             data_source_id=f"geoserver_{layer.name}",
             data_type=DataType.RASTER,
             data_origin=DataOrigin.TOOL.value,
             data_source=wms.provider.contact.organization or "Unknown",
             data_link=data_link,
             name=layer.name,
-            title=layer.title or layer.name,
-            description=layer.abstract,
-            llm_description=f"WMS layer: {layer.title} from GeoServer at {geoserver_url}",
-            score=0.9,
+            title=title,
+            description=abstract,
             bounding_box=bounding_box,
             layer_type="WMS",
             properties={"srs": layer.crsOptions, "keywords": layer.keywords},
-            service_links={"WMS": data_link},
         )
-        layers[layer.name] = geo_object
+        layers.append(geo_object)
     return layers
 
 
 def parse_wfs_capabilities(
-    wfs, geoserver_url: str
-) -> Dict[str, GeoDataObject]:
-    """Parses WFS GetCapabilities and returns a dictionary of GeoDataObjects."""
-    layers: Dict[str, GeoDataObject] = {}
+    wfs, geoserver_url: str, search_term: Optional[str] = None
+) -> List[GeoDataObject]:
+    """Parses WFS GetCapabilities and returns a list of GeoDataObjects."""
+    layers: List[GeoDataObject] = []
     base_url = geoserver_url.split("?")[0]
 
     for ft_name, ft in wfs.contents.items():
+        title = ft.title or ft.id
+        abstract = ft.abstract or ""
+        if search_term and not (
+            search_term.lower() in title.lower()
+            or search_term.lower() in abstract.lower()
+            or search_term.lower() in ft_name.lower()
+        ):
+            continue
+
         bounding_box = None
         if ft.boundingBoxWGS84:
             min_lon, min_lat, max_lon, max_lat = ft.boundingBoxWGS84
@@ -123,34 +117,40 @@ def parse_wfs_capabilities(
         data_link = f"{base_url}?{urlencode(params)}"
 
         geo_object = GeoDataObject(
-            id=ft.id,
+            id=f"wfs_{ft.id}",
             data_source_id=f"geoserver_{ft.id}",
             data_type=DataType.GEOJSON,
             data_origin=DataOrigin.TOOL.value,
             data_source=wfs.provider.name or "Unknown",
             data_link=data_link,
             name=ft.id,
-            title=ft.title or ft.id,
-            description=ft.abstract,
-            llm_description=f"WFS layer: {ft.title} from GeoServer at {geoserver_url}",
-            score=0.9,
+            title=title,
+            description=abstract,
             bounding_box=bounding_box,
             layer_type="WFS",
             properties={"srs": ft.crsOptions, "keywords": ft.keywords},
-            service_links={"WFS": data_link},
         )
-        layers[ft.id] = geo_object
+        layers.append(geo_object)
     return layers
 
 
 def parse_wcs_capabilities(
-    wcs, geoserver_url: str
-) -> Dict[str, GeoDataObject]:
-    """Parses WCS GetCapabilities and returns a dictionary of GeoDataObjects."""
-    layers: Dict[str, GeoDataObject] = {}
+    wcs, geoserver_url: str, search_term: Optional[str] = None
+) -> List[GeoDataObject]:
+    """Parses WCS GetCapabilities and returns a list of GeoDataObjects."""
+    layers: List[GeoDataObject] = []
     base_url = geoserver_url.split("?")[0]
 
     for cov_id, cov in wcs.contents.items():
+        title = cov.title or cov.id
+        abstract = cov.abstract or ""
+        if search_term and not (
+            search_term.lower() in title.lower()
+            or search_term.lower() in abstract.lower()
+            or search_term.lower() in cov_id.lower()
+        ):
+            continue
+
         bounding_box = None
         if cov.boundingBoxWGS84:
             min_lon, min_lat, max_lon, max_lat = cov.boundingBoxWGS84
@@ -168,33 +168,39 @@ def parse_wcs_capabilities(
         data_link = f"{base_url}?{urlencode(params)}"
 
         geo_object = GeoDataObject(
-            id=cov.id,
+            id=f"wcs_{cov.id}",
             data_source_id=f"geoserver_{cov.id}",
             data_type=DataType.RASTER,
             data_origin=DataOrigin.TOOL.value,
             data_source=wcs.provider.name or "Unknown",
             data_link=data_link,
             name=cov.id,
-            title=cov.title or cov.id,
-            description=cov.abstract,
-            llm_description=f"WCS layer: {cov.title} from GeoServer at {geoserver_url}",
-            score=0.9,
+            title=title,
+            description=abstract,
             bounding_box=bounding_box,
             layer_type="WCS",
             properties={"supported_formats": cov.supportedFormats},
-            service_links={"WCS": data_link},
         )
-        layers[cov.id] = geo_object
+        layers.append(geo_object)
     return layers
 
 
 def parse_wmts_capabilities(
-    wmts, geoserver_url: str
-) -> Dict[str, GeoDataObject]:
-    """Parses WMTS GetCapabilities and returns a dictionary of GeoDataObjects."""
-    layers: Dict[str, GeoDataObject] = {}
+    wmts, geoserver_url: str, search_term: Optional[str] = None
+) -> List[GeoDataObject]:
+    """Parses WMTS GetCapabilities and returns a list of GeoDataObjects."""
+    layers: List[GeoDataObject] = []
 
     for layer_id, layer in wmts.contents.items():
+        title = layer.title or layer.id
+        abstract = layer.abstract or ""
+        if search_term and not (
+            search_term.lower() in title.lower()
+            or search_term.lower() in abstract.lower()
+            or search_term.lower() in layer_id.lower()
+        ):
+            continue
+
         bounding_box = None
         if layer.boundingBoxWGS84:
             min_lon, min_lat, max_lon, max_lat = layer.boundingBoxWGS84
@@ -203,47 +209,42 @@ def parse_wmts_capabilities(
                 f"{min_lon} {max_lat}, {min_lon} {min_lat}, {max_lon} {min_lat}))"
             )
 
-        # WMTS link is a template
         data_link = ""
         if layer.tilematrixsetlinks:
-            # Get the first available tile matrix link template
             first_link = list(layer.tilematrixsetlinks.values())[0]
             data_link = first_link.template.format(
                 TileMatrix="{TileMatrix}", TileRow="{TileRow}", TileCol="{TileCol}"
             )
 
         geo_object = GeoDataObject(
-            id=layer.id,
+            id=f"wmts_{layer.id}",
             data_source_id=f"geoserver_{layer.id}",
             data_type=DataType.RASTER,
             data_origin=DataOrigin.TOOL.value,
             data_source=wmts.provider.name or "Unknown",
             data_link=data_link,
             name=layer.id,
-            title=layer.title or layer.id,
-            description=layer.abstract,
-            llm_description=f"WMTS layer: {layer.title} from GeoServer at {geoserver_url}",
-            score=0.9,
+            title=title,
+            description=abstract,
             bounding_box=bounding_box,
             layer_type="WMTS",
             properties={"tile_matrix_sets": list(layer.tilematrixsetlinks.keys())},
-            service_links={"WMTS": data_link},
         )
-        layers[layer.id] = geo_object
+        layers.append(geo_object)
     return layers
 
 
 def fetch_all_service_capabilities(
-    backend: GeoServerBackend,
-) -> Dict[str, GeoDataObject]:
-    """Fetches capabilities from all services and merges them."""
+    backend: GeoServerBackend, search_term: Optional[str] = None
+) -> List[GeoDataObject]:
+    """Fetches capabilities from all services and returns a flat list."""
     if not backend.enabled:
-        return {}
+        return []
 
     base_url = backend.url
     username = backend.username
     password = backend.password
-    all_layers: Dict[str, GeoDataObject] = {}
+    all_layers: List[GeoDataObject] = []
 
     # WMS
     wms_url = urljoin(base_url, "wms")
@@ -251,8 +252,7 @@ def fetch_all_service_capabilities(
         wms = WebMapService(
             wms_url, version="1.3.0", username=username, password=password
         )
-        wms_layers = parse_wms_capabilities(wms, wms_url)
-        all_layers = merge_layers(all_layers, wms_layers)
+        all_layers.extend(parse_wms_capabilities(wms, wms_url, search_term))
     except Exception as e:
         logger.warning(f"Could not fetch WMS capabilities from {wms_url}: {e}")
 
@@ -262,8 +262,7 @@ def fetch_all_service_capabilities(
         wfs = WebFeatureService(
             wfs_url, version="2.0.0", username=username, password=password
         )
-        wfs_layers = parse_wfs_capabilities(wfs, wfs_url)
-        all_layers = merge_layers(all_layers, wfs_layers)
+        all_layers.extend(parse_wfs_capabilities(wfs, wfs_url, search_term))
     except Exception as e:
         logger.warning(f"Could not fetch WFS capabilities from {wfs_url}: {e}")
 
@@ -271,8 +270,7 @@ def fetch_all_service_capabilities(
     wcs_url = urljoin(base_url, "wcs")
     try:
         wcs = WebCoverageService(wcs_url, version="2.0.1")
-        wcs_layers = parse_wcs_capabilities(wcs, wcs_url)
-        all_layers = merge_layers(all_layers, wcs_layers)
+        all_layers.extend(parse_wcs_capabilities(wcs, wcs_url, search_term))
     except Exception as e:
         logger.warning(f"Could not fetch WCS capabilities from {wcs_url}: {e}")
 
@@ -280,104 +278,93 @@ def fetch_all_service_capabilities(
     wmts_url = urljoin(base_url, "gwc/service/wmts")
     try:
         wmts = WebMapTileService(wmts_url, username=username, password=password)
-        wmts_layers = parse_wmts_capabilities(wmts, wmts_url)
-        all_layers = merge_layers(all_layers, wmts_layers)
+        all_layers.extend(parse_wmts_capabilities(wmts, wmts_url, search_term))
     except Exception as e:
         logger.warning(f"Could not fetch WMTS capabilities from {wmts_url}: {e}")
 
     return all_layers
 
 
-@tool
-def get_custom_geoserver_data(
-    state: Annotated[GeoDataAgentState, InjectedState],
-    tool_call_id: Annotated[str, InjectedToolCallId],
+def _get_custom_geoserver_data(
+    state: GeoDataAgentState,
+    tool_call_id: str,
+    search_term: Optional[str] = None,
+    max_results: Optional[int] = 10,
 ) -> Union[Dict[str, Any], ToolMessage]:
     """
-    Use this tool to discover available data layers from pre-configured custom GeoServer instances.
-    This is useful for finding specific geospatial data that is not available through other tools
-    but might be hosted on a dedicated GeoServer.
-    The tool returns a list of available layers with their descriptions, which can then be used
-    for visualization or analysis.
+    Core logic for fetching data from GeoServer backends.
+    This function is wrapped by the @tool decorator.
     """
-    options = state.get("options")
-    backends: List[GeoServerBackend] = []
-
-    if isinstance(options, SettingsSnapshot):
-        backends = options.geoserver_backends
-    elif isinstance(options, dict) and "geoserver_backends" in options:
-        geoserver_backends_dicts = options["geoserver_backends"]
-        if geoserver_backends_dicts:
-            backends = [GeoServerBackend(**b) for b in geoserver_backends_dicts]
-
-    if not backends:
+    settings = state.get("options")
+    if (
+        not settings
+        or not isinstance(settings, SettingsSnapshot)
+        or not settings.geoserver_backends
+    ):
         return ToolMessage(
-            content="No GeoServer backends configured.", tool_call_id=tool_call_id
+            content="No GeoServer backends configured.",
+            tool_call_id=tool_call_id,
         )
 
-    enabled_backends = [b for b in backends if b.enabled]
+    enabled_backends = [
+        backend for backend in settings.geoserver_backends if backend.enabled
+    ]
     if not enabled_backends:
         return ToolMessage(
             content="All configured GeoServer backends are disabled.",
             tool_call_id=tool_call_id,
         )
 
-    all_layers_dict: Dict[str, GeoDataObject] = {}
+    all_layers: List[GeoDataObject] = []
     for backend in enabled_backends:
-        backend_layers = fetch_all_service_capabilities(backend)
-        all_layers_dict = merge_layers(all_layers_dict, backend_layers)
+        try:
+            fetched_layers = fetch_all_service_capabilities(
+                backend, search_term=search_term
+            )
+            all_layers.extend(fetched_layers)
+        except Exception as e:
+            logger.error(f"Error fetching from backend {backend.url}: {e}")
+            # Optionally, add a message to the state indicating partial failure
+            # For now, we just log and continue
+            pass
 
-    if not all_layers_dict:
-        return ToolMessage(
-            content="No layers found on any of the configured GeoServer instances.",
-            tool_call_id=tool_call_id,
-        )
+    # Enforce max_results limit
+    if max_results is not None and len(all_layers) > max_results:
+        all_layers = all_layers[:max_results]
 
-    # Update the state with the new layers
-    current_layers = state.get("geodata_layers", [])
-    # Create a dict of current layers for efficient lookup
-    current_layers_dict = {layer.id: layer for layer in current_layers}
-    
-    updated_layers_dict = merge_layers(current_layers_dict, all_layers_dict)
-    
-    return {"geodata_layers": list(updated_layers_dict.values())}
+    # Add a tool message to confirm the operation
+    tool_message = ToolMessage(
+        content=f"Found {len(all_layers)} layers.", tool_call_id=tool_call_id
+    )
 
+    current_messages = state.get("messages", [])
+    if not isinstance(current_messages, list):
+        current_messages = []
 
-def main():
-    """Main function for manual testing."""
-    logging.basicConfig(level=logging.INFO)
-    logger.info("Starting manual test for custom_geoserver tool.")
-
-    # Example GeoServer backends
-    test_backends = [
-        GeoServerBackend(
-            url="https://io.apps.fao.org/geoserver/",
-            enabled=True,
-            username=None,
-            password=None,
-        ),
-        GeoServerBackend(
-            url="https://stable.demo.geonode.org/geoserver/",
-            enabled=True,
-            username=None,
-            password=None,
-        ),
-    ]
-
-    all_geo_objects_dict: Dict[str, GeoDataObject] = {}
-    for backend in test_backends:
-        backend_layers = fetch_all_service_capabilities(backend)
-        all_geo_objects_dict = merge_layers(all_geo_objects_dict, backend_layers)
-
-    if all_geo_objects_dict:
-        logger.info(f"Successfully fetched {len(all_geo_objects_dict)} unique layers.")
-        # Print details of the first few layers as an example
-        for i, geo_obj in enumerate(list(all_geo_objects_dict.values())[:3]):
-            print(f"--- Layer {i+1} ---")
-            print(json.dumps(geo_obj.model_dump(), indent=2))
-    else:
-        logger.warning("No layers were fetched from the test GeoServers.")
+    return {
+        "geodata_layers": all_layers,
+        "messages": current_messages + [tool_message],
+    }
 
 
-if __name__ == "__main__":
-    main()
+@tool
+def get_custom_geoserver_data(
+    state: Annotated[GeoDataAgentState, InjectedState],
+    tool_call_id: Annotated[str, InjectedToolCallId],
+    search_term: Optional[str] = Field(
+        None, description="An optional search term to filter layer names, titles, and abstracts."
+    ),
+    max_results: Optional[int] = Field(
+        10, description="The maximum number of results to return."
+    ),
+) -> Union[Dict[str, Any], ToolMessage]:
+    """
+    Searches for geospatial data layers across all configured GeoServer instances.
+    It queries WMS, WFS, WCS, and WMTS services for available layers.
+    """
+    # The input to a tool is a dict, but the InjectedState logic passes the whole state
+    # We need to handle both cases. If 'state' is in the input, we use that.
+    actual_state = state.get("state", state)
+    return _get_custom_geoserver_data(
+        actual_state, tool_call_id, search_term, max_results
+    )
