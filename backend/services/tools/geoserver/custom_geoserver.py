@@ -368,3 +368,53 @@ def get_custom_geoserver_data(
     return _get_custom_geoserver_data(
         actual_state, tool_call_id, search_term, max_results
     )
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Manual tester for custom_geoserver tool."
+    )
+    parser.add_argument(
+        "base_url",
+        nargs="?",
+        default="https://development.demo.geonode.org/geoserver/",
+        help=(
+            "Base URL of the GeoServer instance. "
+            "Example: https://development.demo.geonode.org/geoserver/"
+        ),
+    )
+    parser.add_argument("--search", "-s", help="Optional search term to filter layers.")
+    parser.add_argument("--max", "-m", type=int, default=20, help="Maximum results to print.")
+
+    args = parser.parse_args()
+
+    # Build a minimal backend config
+    backend = GeoServerBackend(url=args.base_url, enabled=True, username=None, password=None)
+
+    print(f"Querying GeoServer at: {args.base_url}\n")
+
+    layers = fetch_all_service_capabilities(backend, search_term=args.search)
+
+    print(f"Found total layers: {len(layers)}\n")
+
+    # Print a summary by service
+    from collections import Counter
+
+    svc_counts = Counter(layer.layer_type for layer in layers)
+    for svc, cnt in svc_counts.items():
+        print(f"  {svc}: {cnt}")
+
+    print("\nSample layers:")
+    for layer in layers[: args.max]:
+        print(f"- [{layer.layer_type}] {layer.id} | {layer.title} | source={layer.data_source}")
+
+    # Quick verification that all four services are handled
+    expected = {"WMS", "WFS", "WCS", "WMTS"}
+    present = set(layer.layer_type for layer in layers)
+    missing = expected - present
+    if missing:
+        print(f"\nWarning: Missing expected services: {', '.join(sorted(missing))}")
+    else:
+        print("\nAll expected services found: WMS, WFS, WCS, WMTS")
