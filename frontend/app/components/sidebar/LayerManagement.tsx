@@ -560,7 +560,7 @@ export default function LayerManagement() {
                         ghostElement.style.border = '1px solid rgba(59, 130, 246, 0.5)';
                         ghostElement.style.color = '#1e40af';
                         ghostElement.style.fontWeight = 'bold';
-                        ghostElement.innerText = layer.name;
+                        ghostElement.innerText = layer.title || layer.name;
                         document.body.appendChild(ghostElement);
                         e.dataTransfer.setDragImage(ghostElement, 100, 20);
 
@@ -636,7 +636,7 @@ export default function LayerManagement() {
                         <GripVertical size={16} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="font-bold text-gray-800 truncate">{layer.name}</div>
+                        <div className="font-bold text-gray-800 whitespace-normal break-words">{layer.title || layer.name}</div>
                         <div className="text-xs text-gray-500">{layer.data_type} {layer.layer_type && ` (${layer.layer_type})`}</div>
                       </div>
                       <div className="flex items-center space-x-2 ml-2">
