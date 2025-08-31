@@ -140,6 +140,15 @@ function parseWMTSUrl(access_url: string) {
         layerName = pathParts[restIndex + 1];
       }
     }
+    // Extra heuristic: scan any path segment containing a ':' (workspace:layer)
+    if (!layerName) {
+      const colonSegment = urlObj.pathname.split('/').find(p => p.includes(':'));
+      if (colonSegment) layerName = colonSegment;
+    }
+    // Remove potential style or tile matrix set segments erroneously picked up
+    if (layerName && (layerName.toLowerCase() === 'default' || layerName.includes('{'))) {
+      layerName = '';
+    }
     
     if (!layerName) {
       console.warn('Could not extract layer name from WMTS URL:', access_url);
@@ -158,69 +167,43 @@ function parseWMTSUrl(access_url: string) {
       [workspace, finalLayerName] = layerName.split(':');
     }
     
-    // Method 1: Try WMTS GetLegendGraphic (for providers like FAO that support this non-standard extension)
-    const wmtsLegendParams = new URLSearchParams();
-    
-    // Set basic WMTS GetLegendGraphic parameters
-    wmtsLegendParams.set('service', 'WMTS');
-    wmtsLegendParams.set('version', '1.1.0'); // Use 1.1.0 as in FAO examples
-    wmtsLegendParams.set('request', 'GetLegendGraphic');
-    wmtsLegendParams.set('format', 'image/png'); // Let URLSearchParams handle the encoding
-    wmtsLegendParams.set('transparent', 'True');
-    wmtsLegendParams.set('layer', layerName); // Let URLSearchParams handle the encoding
-    
-    // Preserve dimension parameters and other custom parameters from original request
-    originalParams.forEach((value, key) => {
-      const lowerKey = key.toLowerCase();
-      // Keep dimension parameters (dim_*) and other relevant parameters
-      if (lowerKey.startsWith('dim_') || 
-          lowerKey === 'time' || 
-          lowerKey === 'elevation' ||
-          lowerKey === 'style') {
-        wmtsLegendParams.set(key, value);
-      }
-    });
-    
-    const wmtsLegendUrl = `${baseUrl}?${wmtsLegendParams.toString()}`;
-    
-    // Method 2: Fallback WMS GetLegendGraphic (standard approach for GeoServer)
-    let wmsBaseUrl = baseUrl;
-    
-    // Convert WMTS endpoint to WMS endpoint
+    // Build a valid WMS legend URL (GeoServer standard) instead of attempting WMTS GetLegendGraphic
+    // Identify GeoServer root up to '/gwc/service/wmts'
+    let wmsBaseUrl: string;
     if (baseUrl.includes('/gwc/service/wmts')) {
-      wmsBaseUrl = baseUrl.replace('/gwc/service/wmts', '/wms');
+      wmsBaseUrl = baseUrl.split('/gwc/service/wmts')[0] + '/wms';
     } else if (baseUrl.includes('/wmts')) {
-      wmsBaseUrl = baseUrl.replace('/wmts', '/wms');
-    } else if (workspace && baseUrl.includes(`/${workspace}/wmts`)) {
-      wmsBaseUrl = baseUrl.replace(`/${workspace}/wmts`, `/${workspace}/wms`);
-    }
-    
-    const wmsLegendParams = new URLSearchParams();
-    wmsLegendParams.set('service', 'WMS');
-    wmsLegendParams.set('version', '1.1.0');
-    wmsLegendParams.set('request', 'GetLegendGraphic');
-    wmsLegendParams.set('format', 'image/png');
-    wmsLegendParams.set('layer', layerName); // Don't URL encode for WMS
-    
-    // Preserve dimension parameters for WMS as well
-    originalParams.forEach((value, key) => {
-      const lowerKey = key.toLowerCase();
-      if (lowerKey.startsWith('dim_') || 
-          lowerKey === 'time' || 
-          lowerKey === 'elevation') {
-        wmsLegendParams.set(key, value);
+      wmsBaseUrl = baseUrl.split('/wmts')[0] + '/wms';
+    } else {
+      // fallback: use origin + first segment assumed geoserver + wms
+      const parts = urlObj.pathname.split('/').filter(Boolean);
+      const geoserverIdx = parts.indexOf('geoserver');
+      if (geoserverIdx !== -1) {
+        wmsBaseUrl = `${urlObj.origin}/${parts.slice(0, geoserverIdx + 1).join('/')}/wms`;
+      } else {
+        wmsBaseUrl = `${urlObj.origin}/wms`;
       }
+    }
+    const wmsLegendParams = new URLSearchParams({
+      service: 'WMS',
+      version: '1.1.0',
+      request: 'GetLegendGraphic',
+      format: 'image/png',
+      layer: layerName,
     });
-    
     const wmsLegendUrl = `${wmsBaseUrl}?${wmsLegendParams.toString()}`;
-    
+
+    // Provide a normalized tile URL now (frontend rendering can use directly)
+    const normalizedTileUrl = normalizeWMTSUrlForLeaflet(access_url, undefined);
+
     const result = {
-      wmtsLegendUrl,
+      wmtsLegendUrl: '',
       wmsLegendUrl,
       layerName: finalLayerName,
       workspace,
       fullLayerName: workspace ? `${workspace}:${finalLayerName}` : finalLayerName,
-      originalUrl: access_url
+      originalUrl: access_url,
+      normalizedTileUrl,
     };
     
     console.log('WMTS URL parsing result:', {
@@ -235,8 +218,77 @@ function parseWMTSUrl(access_url: string) {
       wmtsLegendUrl: "", 
       wmsLegendUrl: "", 
       layerName: "", 
-      originalUrl: access_url 
+      originalUrl: access_url, 
+      normalizedTileUrl: access_url
     };
+  }
+}
+
+// Normalize a WMTS template URL to something Leaflet's TileLayer can consume.
+// Replaces {TileMatrixSet} with a concrete value (first available) and maps
+// {TileMatrix}->{z}, {TileRow}->{y}, {TileCol}->{x}.
+function normalizeWMTSUrlForLeaflet(template: string, tileMatrixSets?: string[]) {
+  if (!template) return template;
+  let url = template;
+  // Choose a TileMatrixSet (typical values: EPSG:3857, GoogleMapsCompatible, WebMercatorQuad)
+  const matrixSet = tileMatrixSets && tileMatrixSets.length > 0 ? tileMatrixSets[0] : 'EPSG:3857';
+  url = url.replace('{TileMatrixSet}', matrixSet);
+  // Some servers use lowercase variants
+  url = url.replace('{tilematrixset}', matrixSet);
+  // Map WMTS placeholders to Leaflet placeholders
+  url = url.replace('{TileMatrix}', '{z}').replace('{tilematrix}', '{z}');
+  url = url.replace('{TileRow}', '{y}').replace('{tilerow}', '{y}');
+  url = url.replace('{TileCol}', '{x}').replace('{tilecol}', '{x}');
+  // Remove style placeholder if still present
+  url = url.replace('{style}', 'default');
+  // If after replacements critical placeholders remain, log for diagnostics
+  if (/{TileMatrix|{TileRow|{TileCol|{TileMatrixSet/.test(url)) {
+    console.warn('Unresolved WMTS placeholders remain after normalization:', url);
+  }
+  return url;
+}
+
+// Parse a WCS GetCoverage URL and derive a WMS GetMap base (Leaflet-friendly) + legend params
+function parseWCSUrl(access_url: string) {
+  try {
+    const urlObj = new URL(access_url);
+    const baseUrl = `${urlObj.origin}${urlObj.pathname}`; // e.g. https://server/geoserver/wcs
+    const params = urlObj.searchParams;
+    // coverageId may appear as coverageId or coverage
+    const coverageId = params.get('coverageId') || params.get('coverage') || '';
+    if (!coverageId) {
+      console.warn('Could not extract coverageId from WCS URL:', access_url);
+    }
+    // Derive WMS base by swapping trailing /wcs or /ows with /wms
+    let wmsBaseUrl = baseUrl;
+    if (wmsBaseUrl.endsWith('/wcs')) {
+      wmsBaseUrl = wmsBaseUrl.slice(0, -4) + '/wms';
+    } else if (wmsBaseUrl.endsWith('/ows')) {
+      wmsBaseUrl = wmsBaseUrl.replace(/\/ows$/, '/wms');
+    } else if (!wmsBaseUrl.endsWith('/wms')) {
+      // Best-effort: append /wms if neither present
+      wmsBaseUrl = wmsBaseUrl + '/wms';
+    }
+    // Build legend URL (standard WMS GetLegendGraphic)
+    const legendParams = new URLSearchParams({
+      service: 'WMS',
+      request: 'GetLegendGraphic',
+      version: '1.1.0',
+      format: 'image/png',
+      layer: coverageId,
+    });
+    const legendUrl = `${wmsBaseUrl}?${legendParams.toString()}`;
+    return {
+      baseUrl: wmsBaseUrl,
+      layers: coverageId,
+      format: 'image/png',
+      transparent: true,
+      legendUrl,
+      originalUrl: access_url,
+    };
+  } catch (err) {
+    console.error('Error parsing WCS URL:', err);
+    return { baseUrl: access_url, layers: '', format: 'image/png', transparent: true, legendUrl: '', originalUrl: access_url };
   }
 }
 
@@ -664,7 +716,8 @@ export default function LeafletMapComponent() {
     (layer) =>
       layer.visible &&
       (layer.layer_type?.toUpperCase() === "WMS" ||
-        layer.layer_type?.toUpperCase() === "WMTS")
+        layer.layer_type?.toUpperCase() === "WMTS" ||
+        layer.layer_type?.toUpperCase() === "WCS")
   );
   
   // Memoize legend components to prevent unnecessary re-renders
@@ -676,6 +729,15 @@ export default function LeafletMapComponent() {
           <Legend
             key={`wms-${layer.id}`}
             wmsLayer={wmsLayerParsed}
+            title={layer.title || layer.name}
+          />
+        );
+      } else if (layer.layer_type?.toUpperCase() === 'WCS') {
+        const wcsParsed = parseWCSUrl(layer.data_link);
+        return (
+          <Legend
+            key={`wcs-${layer.id}`}
+            wmsLayer={{ baseUrl: wcsParsed.baseUrl, layers: wcsParsed.layers, format: wcsParsed.format, transparent: wcsParsed.transparent }}
             title={layer.title || layer.name}
           />
         );
@@ -727,14 +789,29 @@ export default function LeafletMapComponent() {
                     zIndex={10}
                   />
                 );
+              }
+              else if (layer.layer_type?.toUpperCase() === 'WCS') {
+                const parsed = parseWCSUrl(layer.data_link);
+                return (
+                  <WMSTileLayer
+                    key={layer.id}
+                    url={parsed.baseUrl}
+                    layers={parsed.layers}
+                    format={parsed.format}
+                    transparent={parsed.transparent}
+                    zIndex={10}
+                  />
+                );
               } 
               else if (
                 layer.layer_type?.toUpperCase() === "WMTS" 
               ) {
+        const parsed = parseWMTSUrl(layer.data_link);
+        const normalizedUrl = parsed.normalizedTileUrl || layer.data_link;
                 return (
                   <TileLayer
                     key={layer.id}
-                    url={layer.data_link}
+          url={normalizedUrl}
                     attribution={layer.title}
                   />
                 );

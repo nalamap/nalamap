@@ -346,6 +346,14 @@ def parse_wmts_capabilities(
         except Exception:
             logger.debug("Unexpected WMTS link structure; skipping tile template extraction.")
 
+        # Post-process template for frontend safety: remove unsupported {style} placeholder
+        if data_link:
+            if "{style}" in data_link:
+                data_link = data_link.replace("{style}", "default")
+            # Prefer image/png over utfgrid JSON for rendering base tiles
+            if "application/json;type=utfgrid" in data_link:
+                data_link = data_link.replace("application/json;type=utfgrid", "image/png")
+
         geo_object = GeoDataObject(
             id=f"wmts_{layer.id}",
             data_source_id=f"geoserver_{layer.id}",

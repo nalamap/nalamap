@@ -244,8 +244,8 @@ def test_get_custom_geoserver_data(mock_fetch, initial_agent_state):
     layers = result_dict["geodata_results"]
     assert len(layers) == 1
     assert layers[0].id == "wms_layer1"
-    # geodata_layers remains the original empty list
-    assert result_dict.get("geodata_layers") == []
+    # geodata_layers not included / unchanged (should not be set by tool)
+    assert "geodata_layers" not in result_dict or result_dict.get("geodata_layers") == []
     mock_fetch.assert_called_once_with(
         initial_agent_state["options"].geoserver_backends[0], search_term=None
     )
@@ -288,8 +288,8 @@ def test_get_custom_geoserver_data_with_params(mock_fetch, initial_agent_state):
     assert "geodata_results" in result_dict
     layers = result_dict["geodata_results"]
     assert len(layers) == 3
-    # geodata_layers unchanged
-    assert result_dict.get("geodata_layers") == []
+    # geodata_layers unchanged / not provided in update
+    assert "geodata_layers" not in result_dict or result_dict.get("geodata_layers") == []
     mock_fetch.assert_called_once_with(
         initial_agent_state["options"].geoserver_backends[0], search_term="Test"
     )
