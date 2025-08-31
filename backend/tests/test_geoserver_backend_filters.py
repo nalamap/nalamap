@@ -24,6 +24,17 @@ class _StubBackendFetcher:
         # generate two layers per backend with backend url embedded so assertions can check
         layers: List[GeoDataObject] = []
         for i in range(2):
+            # Assign a bounding box: first backend near origin, second far away
+            if "alt.example" in backend.url:
+                # Far away bbox (200,10 to 210,20)
+                bbox_wkt = (
+                    "POLYGON((210 10, 210 20, 200 20, 200 10, 210 10))"
+                )
+            else:
+                # Near origin (-5,-5 to 5,5)
+                bbox_wkt = (
+                    "POLYGON((5 -5, 5 5, -5 5, -5 -5, 5 -5))"
+                )
             layers.append(
                 GeoDataObject(
                     id=f"wms_layer_{i}_{backend.url[-5:]}",
@@ -35,6 +46,7 @@ class _StubBackendFetcher:
                     name=f"layer_{i}",
                     title=f"Layer {i}",
                     description="",
+                    bounding_box=bbox_wkt,
                     layer_type="WMS",
                     properties={"srs": ["EPSG:4326"]},
                 )
@@ -169,3 +181,38 @@ def test_no_filter_queries_all(monkeypatch, settings_snapshot):
         "https://example.com/geoserver/",
         "https://alt.example.com/geoserver/",
     }
+
+
+def test_bounding_box_filter_includes_only_intersecting(monkeypatch, settings_snapshot):
+    stub = _StubBackendFetcher()
+    from services.tools.geoserver import custom_geoserver as cg
+    monkeypatch.setattr(cg, "fetch_all_service_capabilities", stub)
+
+    state = _base_state(settings_snapshot)
+    # Bounding box near origin should include only primary backend layers
+    result = get_custom_geoserver_data.invoke({
+        "state": state,
+        "tool_call_id": "test_call",
+        "bounding_box": "-6,-6,6,6",
+    })
+    update = result.update if hasattr(result, "update") else result
+    layers = update.get("geodata_results", [])
+    assert len(layers) == 2
+    for lyr in layers:
+        assert lyr.properties.get("_backend_url") == "https://example.com/geoserver/"
+
+
+def test_invalid_bounding_box(monkeypatch, settings_snapshot):
+    stub = _StubBackendFetcher()
+    from services.tools.geoserver import custom_geoserver as cg
+    monkeypatch.setattr(cg, "fetch_all_service_capabilities", stub)
+    state = _base_state(settings_snapshot)
+    result = get_custom_geoserver_data.invoke({
+        "state": state,
+        "tool_call_id": "test_call",
+        "bounding_box": "bad_box",
+    })
+    # Expect ToolMessage with error content
+    from langchain_core.messages import ToolMessage
+    assert isinstance(result, ToolMessage)
+    assert "Invalid bounding_box format" in result.content

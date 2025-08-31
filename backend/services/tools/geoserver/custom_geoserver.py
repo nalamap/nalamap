@@ -432,6 +432,7 @@ def _get_custom_geoserver_data(
     max_results: Optional[int] = 10,
     backend_name: Optional[str] = None,
     backend_url: Optional[str] = None,
+    bounding_box: Optional[str] = None,
 ) -> Union[Dict[str, Any], ToolMessage, Command]:
     """
     Core logic for fetching data from GeoServer backends.
@@ -491,6 +492,49 @@ def _get_custom_geoserver_data(
             # Optionally, add a message to the state indicating partial failure
             # For now, we just log and continue
             pass
+
+    # Optional bounding box filtering (WGS84 lon/lat)
+    bbox_filter = None
+    if bounding_box:
+        try:
+            parts = [float(p.strip()) for p in bounding_box.split(",")]
+            if len(parts) != 4:
+                raise ValueError
+            minx, miny, maxx, maxy = parts
+            if not (minx < maxx and miny < maxy):  # simple validity check
+                raise ValueError
+            bbox_filter = (minx, miny, maxx, maxy)
+        except Exception:
+            return ToolMessage(
+                content=(
+                    "Invalid bounding_box format. Expected 'min_lon,min_lat,max_lon,max_lat' "
+                    "with valid floats."
+                ),
+                tool_call_id=tool_call_id,
+            )
+
+    if bbox_filter:
+        def _parse_layer_bbox(wkt: Optional[str]):
+            if not wkt or "POLYGON" not in wkt.upper():
+                return None
+            import re
+            nums = re.findall(r"[-+]?[0-9]*\.?[0-9]+", wkt)
+            if len(nums) < 8:
+                return None
+            coords = list(map(float, nums))
+            lons = coords[0::2]
+            lats = coords[1::2]
+            return (min(lons), min(lats), max(lons), max(lats))
+
+        def _intersects(a, b):
+            return not (a[0] > b[2] or a[2] < b[0] or a[1] > b[3] or a[3] < b[1])
+
+        filtered = []
+        for lyr in all_layers:
+            lyr_bbox = _parse_layer_bbox(getattr(lyr, "bounding_box", None))
+            if not lyr_bbox or _intersects(lyr_bbox, bbox_filter):
+                filtered.append(lyr)
+        all_layers = filtered
 
     # Enforce max_results limit
     if max_results is not None and len(all_layers) > max_results:
@@ -560,10 +604,21 @@ def get_custom_geoserver_data(
             "Optional exact URL of a configured GeoServer backend to query only that backend."
         ),
     ),
+    bounding_box: Optional[str] = Field(
+        None,
+        description=(
+            "Optional WGS84 bounding box filter as 'min_lon,min_lat,max_lon,max_lat'. "
+            "Only layers whose WGS84 extent intersects this box are returned."
+        ),
+    ),
 ) -> Union[Dict[str, Any], ToolMessage, Command]:
     """
-    Searches for geospatial data layers across all configured GeoServer instances.
-    It queries WMS, WFS, WCS, and WMTS services for available layers.
+    Searches for geospatial data layers across configured GeoServer instances (WMS, WFS, WCS, WMTS).
+    Optional filters:
+      - search_term: case-insensitive substring match on layer name/title/abstract.
+      - backend_name/backend_url: restrict to a specific configured backend.
+            - bounding_box: WGS84 'min_lon,min_lat,max_lon,max_lat' – returns layers whose WGS84
+                extent intersects it.
     """
     # The input to a tool is a dict, but the InjectedState logic passes the whole state
     # We need to handle both cases. If 'state' is in the input, we use that.
@@ -580,6 +635,8 @@ def get_custom_geoserver_data(
         backend_name = backend_name.default
     if isinstance(backend_url, FieldInfo):  # type: ignore[unreachable]
         backend_url = backend_url.default
+    if isinstance(bounding_box, FieldInfo):  # type: ignore[unreachable]
+        bounding_box = bounding_box.default
 
     return _get_custom_geoserver_data(
         actual_state,
@@ -587,7 +644,8 @@ def get_custom_geoserver_data(
         search_term,
         max_results,
         backend_name,
-        backend_url,
+    backend_url,
+    bounding_box,
     )
 
 
