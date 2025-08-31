@@ -4,6 +4,8 @@ from pydantic import BaseModel, Field
 
 class GeoServerBackend(BaseModel):
     url: str = Field(..., description="GeoServer endpoint URL")
+    name: Optional[str] = Field(None, description="Human-friendly name for this backend")
+    description: Optional[str] = Field(None, description="Optional description / purpose notes")
     username: Optional[str] = Field(None, description="Basic auth username")
     password: Optional[str] = Field(None, description="Basic auth password")
     enabled: bool = Field(True, description="Enable or disable this backend")

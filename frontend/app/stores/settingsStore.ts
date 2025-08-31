@@ -2,6 +2,8 @@ import { create } from 'zustand'
 
 export interface GeoServerBackend {
     url: string
+    name?: string
+    description?: string
     username?: string
     password?: string
     enabled: boolean

@@ -430,6 +430,8 @@ def _get_custom_geoserver_data(
     tool_call_id: str,
     search_term: Optional[str] = None,
     max_results: Optional[int] = 10,
+    backend_name: Optional[str] = None,
+    backend_url: Optional[str] = None,
 ) -> Union[Dict[str, Any], ToolMessage, Command]:
     """
     Core logic for fetching data from GeoServer backends.
@@ -446,9 +448,19 @@ def _get_custom_geoserver_data(
             tool_call_id=tool_call_id,
         )
 
-    enabled_backends = [
-        backend for backend in settings.geoserver_backends if backend.enabled
-    ]
+    enabled_backends = [backend for backend in settings.geoserver_backends if backend.enabled]
+    if backend_name:
+        enabled_backends = [
+            b
+            for b in enabled_backends
+            if (b.name or "").lower() == backend_name.lower()
+        ]
+    if backend_url:
+        enabled_backends = [
+            b
+            for b in enabled_backends
+            if b.url.rstrip("/") == backend_url.rstrip("/")
+        ]
     if not enabled_backends:
         return ToolMessage(
             content="All configured GeoServer backends are disabled.",
@@ -461,6 +473,18 @@ def _get_custom_geoserver_data(
             fetched_layers = fetch_all_service_capabilities(
                 backend, search_term=search_term
             )
+            # annotate with backend metadata (non-invasive; add to properties if dict-like)
+            for lyr in fetched_layers:
+                try:
+                    props = getattr(lyr, 'properties', None)
+                    if isinstance(props, dict):
+                        props.setdefault('_backend_url', backend.url)
+                        if backend.name:
+                            props.setdefault('_backend_name', backend.name)
+                        if backend.description:
+                            props.setdefault('_backend_description', backend.description)
+                except Exception:
+                    pass
             all_layers.extend(fetched_layers)
         except Exception as e:
             logger.error(f"Error fetching from backend {backend.url}: {e}")
@@ -524,6 +548,18 @@ def get_custom_geoserver_data(
     max_results: Optional[int] = Field(
         10, description="The maximum number of results to return."
     ),
+    backend_name: Optional[str] = Field(
+        None,
+        description=(
+            "Optional exact name of a configured GeoServer backend to query only that backend."
+        ),
+    ),
+    backend_url: Optional[str] = Field(
+        None,
+        description=(
+            "Optional exact URL of a configured GeoServer backend to query only that backend."
+        ),
+    ),
 ) -> Union[Dict[str, Any], ToolMessage, Command]:
     """
     Searches for geospatial data layers across all configured GeoServer instances.
@@ -539,8 +575,20 @@ def get_custom_geoserver_data(
         max_results = max_results.default
     if isinstance(search_term, FieldInfo):
         search_term = search_term.default
+    # Newly added optional filters may also arrive as FieldInfo objects
+    if isinstance(backend_name, FieldInfo):  # type: ignore[unreachable]
+        backend_name = backend_name.default
+    if isinstance(backend_url, FieldInfo):  # type: ignore[unreachable]
+        backend_url = backend_url.default
 
-    return _get_custom_geoserver_data(actual_state, tool_call_id, search_term, max_results)
+    return _get_custom_geoserver_data(
+        actual_state,
+        tool_call_id,
+        search_term,
+        max_results,
+        backend_name,
+        backend_url,
+    )
 
 
 if __name__ == "__main__":
@@ -564,7 +612,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Build a minimal backend config and settings snapshot to pass into the tool
-    backend = GeoServerBackend(url=args.base_url, enabled=True, username=None, password=None)
+    backend = GeoServerBackend(
+        url=args.base_url,
+        name="CLI Backend",
+        description="Ad-hoc CLI invocation",
+        enabled=True,
+        username=None,
+        password=None,
+    )
 
     settings_snapshot = SettingsSnapshot(
         search_portals=[SearchPortal(url=args.base_url, enabled=True)],

@@ -55,7 +55,7 @@ export default function SettingsPage() {
     const setSettings = useInitializedSettingsStore((s) => s.setSettings)
     // local state
     const [newPortal, setNewPortal] = useState('')
-    const [newBackend, setNewBackend] = useState<Omit<GeoServerBackend, 'enabled'>>({ url: '', username: '', password: '' })
+    const [newBackend, setNewBackend] = useState<Omit<GeoServerBackend, 'enabled'>>({ url: '', name: '', description: '', username: '', password: '' })
     const [newToolName, setNewToolName] = useState('')
 
 
@@ -265,6 +265,18 @@ export default function SettingsPage() {
                             className="border rounded p-2 w-full"
                         />
                         <input
+                            value={newBackend.name}
+                            onChange={(e) => setNewBackend({ ...newBackend, name: e.target.value })}
+                            placeholder="Name (optional)"
+                            className="border rounded p-2 w-full"
+                        />
+                        <textarea
+                            value={newBackend.description}
+                            onChange={(e) => setNewBackend({ ...newBackend, description: e.target.value })}
+                            placeholder="Description (optional)"
+                            className="border rounded p-2 w-full h-20"
+                        />
+                        <input
                             value={newBackend.username}
                             onChange={(e) => setNewBackend({ ...newBackend, username: e.target.value })}
                             placeholder="Username (optional)"
@@ -278,7 +290,7 @@ export default function SettingsPage() {
                             className="border rounded p-2 w-full"
                         />
                         <button
-                            onClick={() => { addBackend(newBackend); setNewBackend({ url: '', username: '', password: '' }) }}
+                            onClick={() => { addBackend(newBackend); setNewBackend({ url: '', name: '', description: '', username: '', password: '' }) }}
                             className="bg-blue-600 text-white px-4 py-2 rounded"
                         >
                             Add Backend
@@ -295,7 +307,8 @@ export default function SettingsPage() {
                                         className="form-checkbox h-5 w-5 text-green-600"
                                     />
                                     <div>
-                                        <p className={`${b.enabled ? 'text-gray-900' : 'text-gray-400'}`}><strong>URL:</strong> {b.url}</p>
+                                        <p className={`${b.enabled ? 'text-gray-900' : 'text-gray-400'}`}><strong>{b.name || 'URL'}:</strong> {b.url}</p>
+                                        {b.description && <p className={`${b.enabled ? 'text-gray-700' : 'text-gray-400'} text-sm`}>{b.description}</p>}
                                         {b.username && <p className={`${b.enabled ? 'text-gray-900' : 'text-gray-400'}`}><strong>Username:</strong> {b.username}</p>}
                                     </div>
                                 </label>
