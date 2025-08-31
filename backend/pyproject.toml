@@ -93,6 +93,9 @@ filterwarnings = [
     "ignore::PendingDeprecationWarning"
 ]
   # timeout removed: keep pytest config compatible with environments without pytest-timeout plugin
+  # If you want to enable test timeouts, install pytest-timeout and add, for example:
+  #   "--timeout=30"
+  # to the addopts list above (original value was 30 seconds).
 
 [tool.black]
 line-length = 100
