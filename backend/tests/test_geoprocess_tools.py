@@ -54,7 +54,9 @@ TESTDATA_DIR = os.path.join(os.path.dirname(__file__), "testdata")
 with open(os.path.join(TESTDATA_DIR, "testcases.json")) as f:
     TESTCASES = json.load(f)
 
-@pytest.mark.parametrize("case", TESTCASES)
+@pytest.mark.parametrize(  "case",
+    TESTCASES,
+    ids=lambda c: c.get("name", "case"))
 def test_chat_geoprocess_expected_result(client, stub_requests, case):
     """
     Parametrized integration test for various geoprocessing operations.
