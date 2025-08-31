@@ -20,6 +20,7 @@ from services.tools.geoserver.custom_geoserver import (
     parse_wms_capabilities,
     parse_wmts_capabilities,
 )
+from langgraph.types import Command
 
 # Mock URLs
 MOCK_GEOSERVER_URL = "http://mockgeoserver.com/"
@@ -232,8 +233,14 @@ def test_get_custom_geoserver_data(mock_fetch, initial_agent_state):
     result = _get_custom_geoserver_data(state=initial_agent_state, tool_call_id=tool_call_id)
 
     assert not isinstance(result, ToolMessage)
-    assert "geodata_layers" in result
-    layers = result["geodata_layers"]
+    # support tools returning a Command(update=...) or a plain dict
+    if isinstance(result, Command):
+        result_dict = result.update
+    else:
+        result_dict = result
+
+    assert "geodata_layers" in result_dict
+    layers = result_dict["geodata_layers"]
     assert len(layers) == 1
     assert layers[0].id == "wms_layer1"
     mock_fetch.assert_called_once_with(
@@ -269,8 +276,14 @@ def test_get_custom_geoserver_data_with_params(mock_fetch, initial_agent_state):
     )
 
     assert not isinstance(result, ToolMessage)
-    assert "geodata_layers" in result
-    layers = result["geodata_layers"]
+    # support tools returning a Command(update=...) or a plain dict
+    if isinstance(result, Command):
+        result_dict = result.update
+    else:
+        result_dict = result
+
+    assert "geodata_layers" in result_dict
+    layers = result_dict["geodata_layers"]
     assert len(layers) == 3
     mock_fetch.assert_called_once_with(
         initial_agent_state["options"].geoserver_backends[0], search_term="Test"

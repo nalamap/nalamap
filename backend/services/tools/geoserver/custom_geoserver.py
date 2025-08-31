@@ -18,9 +18,16 @@ from langchain_core.tools.base import InjectedToolCallId
 from langgraph.prebuilt import InjectedState
 from pydantic import Field
 from typing_extensions import Annotated
+from langgraph.types import Command
 
 from models.geodata import DataOrigin, DataType, GeoDataObject
-from models.settings_model import GeoServerBackend, SettingsSnapshot
+from models.settings_model import (
+    GeoServerBackend,
+    SettingsSnapshot,
+    SearchPortal,
+    ModelSettings,
+    ToolConfig,
+)
 from models.states import GeoDataAgentState
 
 logger = logging.getLogger(__name__)
@@ -209,12 +216,48 @@ def parse_wmts_capabilities(
                 f"{min_lon} {max_lat}, {min_lon} {min_lat}, {max_lon} {min_lat}))"
             )
 
+        # Be defensive: different WMTS responses may expose link templates in
+        # different attributes (resourceURLs, TileMatrixSetLink objects, href, etc.).
         data_link = ""
-        if layer.tilematrixsetlinks:
-            first_link = list(layer.tilematrixsetlinks.values())[0]
-            data_link = first_link.template.format(
-                TileMatrix="{TileMatrix}", TileRow="{TileRow}", TileCol="{TileCol}"
-            )
+        try:
+            # resourceURLs (preferred if present)
+            if hasattr(layer, "resourceURLs") and layer.resourceURLs:
+                rr = layer.resourceURLs[0]
+                # rr might be a dict or an object
+                tmpl = None
+                if isinstance(rr, dict):
+                    tmpl = rr.get("template") or rr.get("href")
+                else:
+                    tmpl = getattr(rr, "template", None) or getattr(rr, "href", None)
+                if tmpl:
+                    data_link = tmpl if isinstance(tmpl, str) else str(tmpl)
+            # fall back to tilematrixsetlinks
+            if not data_link and getattr(layer, "tilematrixsetlinks", None):
+                first_link = next(iter(layer.tilematrixsetlinks.values()))
+                tmpl = getattr(first_link, "template", None) or getattr(first_link, "href", None)
+                # Some objects may wrap resource info in dict-like attrs
+                if isinstance(tmpl, dict):
+                    tmpl = tmpl.get("template") or tmpl.get("href")
+                if tmpl:
+                    # Work with a string representation
+                    tmpl_str = tmpl if isinstance(tmpl, str) else str(tmpl)
+                    # If the template contains placeholders, keep them formatted
+                    if (
+                        "{TileMatrix}" in tmpl_str
+                        or "{TileRow}" in tmpl_str
+                        or "{TileCol}" in tmpl_str
+                    ):
+                        data_link = tmpl_str
+                    else:
+                        # try naive formatting if it's a python-style template
+                        try:
+                            data_link = tmpl_str.format(
+                                TileMatrix="{TileMatrix}", TileRow="{TileRow}", TileCol="{TileCol}"
+                            )
+                        except Exception:
+                            data_link = tmpl_str
+        except Exception:
+            logger.debug("Unexpected WMTS link structure; skipping tile template extraction.")
 
         geo_object = GeoDataObject(
             id=f"wmts_{layer.id}",
@@ -228,7 +271,9 @@ def parse_wmts_capabilities(
             description=abstract,
             bounding_box=bounding_box,
             layer_type="WMTS",
-            properties={"tile_matrix_sets": list(layer.tilematrixsetlinks.keys())},
+            properties={
+                "tile_matrix_sets": list(getattr(layer, "tilematrixsetlinks", {}).keys())
+            },
         )
         layers.append(geo_object)
     return layers
@@ -290,7 +335,7 @@ def _get_custom_geoserver_data(
     tool_call_id: str,
     search_term: Optional[str] = None,
     max_results: Optional[int] = 10,
-) -> Union[Dict[str, Any], ToolMessage]:
+) -> Union[Dict[str, Any], ToolMessage, Command]:
     """
     Core logic for fetching data from GeoServer backends.
     This function is wrapped by the @tool decorator.
@@ -341,10 +386,19 @@ def _get_custom_geoserver_data(
     if not isinstance(current_messages, list):
         current_messages = []
 
-    return {
-        "geodata_layers": all_layers,
-        "messages": current_messages + [tool_message],
-    }
+    # Write results back into the state so callers see updated state
+    state["geodata_last_results"] = all_layers
+    state["geodata_layers"] = all_layers
+    state["messages"] = current_messages + [tool_message]
+
+    # Return a Command that updates the agent state (consistent with other tools)
+    return Command(
+        update={
+            "messages": state["messages"],
+            "geodata_results": state.get("geodata_results", []),
+            "geodata_layers": all_layers,
+        }
+    )
 
 
 @tool
@@ -357,7 +411,7 @@ def get_custom_geoserver_data(
     max_results: Optional[int] = Field(
         10, description="The maximum number of results to return."
     ),
-) -> Union[Dict[str, Any], ToolMessage]:
+) -> Union[Dict[str, Any], ToolMessage, Command]:
     """
     Searches for geospatial data layers across all configured GeoServer instances.
     It queries WMS, WFS, WCS, and WMTS services for available layers.
@@ -390,31 +444,78 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Build a minimal backend config
+    # Build a minimal backend config and settings snapshot to pass into the tool
     backend = GeoServerBackend(url=args.base_url, enabled=True, username=None, password=None)
 
-    print(f"Querying GeoServer at: {args.base_url}\n")
+    settings_snapshot = SettingsSnapshot(
+        search_portals=[SearchPortal(url=args.base_url, enabled=True)],
+        geoserver_backends=[backend],
+        model_settings=ModelSettings(
+            model_provider="local",
+            model_name="none",
+            max_tokens=1,
+            system_prompt="",
+        ),
+        tools=[ToolConfig(name="get_custom_geoserver_data", enabled=True, prompt_override="")],
+    )
 
-    layers = fetch_all_service_capabilities(backend, search_term=args.search)
+    initial_state = {
+        "options": settings_snapshot,
+        "geodata_layers": [],
+        "messages": [],
+        "results_title": "",
+        "geodata_last_results": [],
+        "geodata_results": [],
+        "remaining_steps": 0,
+    }
 
-    print(f"Found total layers: {len(layers)}\n")
+    print(f"Querying GeoServer at: {args.base_url} using the tool wrapper\n")
 
-    # Print a summary by service
-    from collections import Counter
+    # Call the LangChain tool wrapper via its invoke method
+    tool_call_id = "cli_call"
+    result = get_custom_geoserver_data.invoke(
+        {
+            "state": initial_state,
+            "tool_call_id": tool_call_id,
+            "search_term": args.search,
+            "max_results": args.max,
+        }
+    )
 
-    svc_counts = Counter(layer.layer_type for layer in layers)
-    for svc, cnt in svc_counts.items():
-        print(f"  {svc}: {cnt}")
-
-    print("\nSample layers:")
-    for layer in layers[: args.max]:
-        print(f"- [{layer.layer_type}] {layer.id} | {layer.title} | source={layer.data_source}")
-
-    # Quick verification that all four services are handled
-    expected = {"WMS", "WFS", "WCS", "WMTS"}
-    present = set(layer.layer_type for layer in layers)
-    missing = expected - present
-    if missing:
-        print(f"\nWarning: Missing expected services: {', '.join(sorted(missing))}")
+    # Handle ToolMessage (error/info) vs successful dict or Command(update=...) result
+    if isinstance(result, ToolMessage):
+        print(f"Tool message: {result.content}\n")
+        print("No layers returned from tool.")
     else:
-        print("\nAll expected services found: WMS, WFS, WCS, WMTS")
+        # Support Command(update=...) or plain dict
+        if hasattr(result, "update") and isinstance(result.update, dict):
+            result_dict = result.update
+        else:
+            result_dict = result
+
+        layers = result_dict.get("geodata_layers", []) or []
+        print(f"Found total layers: {len(layers)}\n")
+
+        # Print a summary by service
+        from collections import Counter
+
+        svc_counts = Counter(getattr(layer, "layer_type", "UNKNOWN") for layer in layers)
+        for svc, cnt in svc_counts.items():
+            print(f"  {svc}: {cnt}")
+
+        print("\nSample layers:")
+        for layer in layers[: args.max]:
+            lid = getattr(layer, "id", repr(layer))
+            ltitle = getattr(layer, "title", "")
+            lsource = getattr(layer, "data_source", getattr(layer, "data_source_id", ""))
+            ltype = getattr(layer, "layer_type", "")
+            print(f"- [{ltype}] {lid} | {ltitle} | source={lsource}")
+
+        # Quick verification that all four services are handled
+        expected = {"WMS", "WFS", "WCS", "WMTS"}
+        present = set(getattr(layer, "layer_type", "UNKNOWN") for layer in layers)
+        missing = expected - present
+        if missing:
+            print(f"\nWarning: Missing expected services: {', '.join(sorted(missing))}")
+        else:
+            print("\nAll expected services found: WMS, WFS, WCS, WMTS")
