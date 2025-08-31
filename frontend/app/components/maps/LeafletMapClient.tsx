@@ -198,7 +198,7 @@ function parseWMTSUrl(access_url: string) {
     return result;
   } catch (err) {
     console.error("Error parsing WMTS URL:", err);
-  return { wmtsLegendUrl: '', wmsLegendUrl: '', layerName: '', originalUrl: access_url };
+    return { wmtsLegendUrl: '', wmsLegendUrl: '', layerName: '', originalUrl: access_url };
   }
 }
 
