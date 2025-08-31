@@ -115,9 +115,7 @@ def mock_settings_snapshot() -> SettingsSnapshot:
     return SettingsSnapshot(
         search_portals=[SearchPortal(url="http://mockportal.com", enabled=True)],
         geoserver_backends=[
-            GeoServerBackend(
-                url=MOCK_GEOSERVER_URL, enabled=True, username=None, password=None
-            )
+            GeoServerBackend(url=MOCK_GEOSERVER_URL, enabled=True, username=None, password=None)
         ],
         model_settings=ModelSettings(
             model_provider="mock",
@@ -202,9 +200,7 @@ def test_fetch_all_service_capabilities(
     mock_wcs_constructor.return_value = mock_wcs_service
     mock_wmts_constructor.return_value = mock_wmts_service
 
-    backend = GeoServerBackend(
-        url=MOCK_GEOSERVER_URL, enabled=True, username="user", password="pw"
-    )
+    backend = GeoServerBackend(url=MOCK_GEOSERVER_URL, enabled=True, username="user", password="pw")
     layers = fetch_all_service_capabilities(backend)
 
     assert len(layers) == 5  # 2 from WMS, 1 from each of the others

@@ -63,6 +63,7 @@ def _attach_extras(tool: BaseTool, extras: Dict[str, Any]):
             is_coroutine = False
 
         if is_coroutine:
+
             @functools.wraps(arun_attr)
             async def patched_arun_async(*args, **kwargs):
                 for k, v in extras.items():
@@ -74,9 +75,10 @@ def _attach_extras(tool: BaseTool, extras: Dict[str, Any]):
                 tool._arun = patched_arun_async  # type: ignore
             except Exception:
                 logger.debug(
-                    "Could not patch coroutine _arun for tool %s", getattr(tool, 'name', 'unknown')
+                    "Could not patch coroutine _arun for tool %s", getattr(tool, "name", "unknown")
                 )
         else:  # Graceful: treat as sync fallback executed in async context
+
             @functools.wraps(arun_attr)
             async def patched_arun_sync_wrapper(*args, **kwargs):  # type: ignore
                 for k, v in extras.items():
@@ -88,7 +90,8 @@ def _attach_extras(tool: BaseTool, extras: Dict[str, Any]):
                 tool._arun = patched_arun_sync_wrapper  # type: ignore
             except Exception:
                 logger.debug(
-                    "Could not patch sync-as-async _arun for tool %s", getattr(tool, 'name', 'unknown')
+                    "Could not patch sync-as-async _arun for tool %s",
+                    getattr(tool, "name", "unknown"),
                 )
 
     # Keep a reference for debugging

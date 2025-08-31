@@ -1,5 +1,8 @@
 import types
-from services.tools.geoserver.custom_geoserver import _sanitize_crs_list, _sanitize_properties
+from services.tools.geoserver.custom_geoserver import (
+    _sanitize_crs_list,
+    _sanitize_properties,
+)
 
 
 def test_sanitize_crs_list_basic():
@@ -7,6 +10,7 @@ def test_sanitize_crs_list_basic():
         def __init__(self, code, proj4=None):
             self.code = code
             self.proj4 = proj4
+
     crs_items = [
         FakeCrs("EPSG:4326"),
         "EPSG:3857",

@@ -90,6 +90,7 @@ def _sanitize_properties(obj: Any, _depth: int = 0, _max_depth: int = 5) -> Any:
     # Enums
     try:  # pragma: no cover - defensive
         from enum import Enum
+
         if isinstance(obj, Enum):
             return obj.value
     except Exception:  # pragma: no cover
@@ -97,14 +98,13 @@ def _sanitize_properties(obj: Any, _depth: int = 0, _max_depth: int = 5) -> Any:
     # Containers
     if isinstance(obj, dict):
         return {
-            str(_sanitize_properties(k, _depth + 1, _max_depth)):
-            _sanitize_properties(v, _depth + 1, _max_depth)
+            str(_sanitize_properties(k, _depth + 1, _max_depth)): _sanitize_properties(
+                v, _depth + 1, _max_depth
+            )
             for k, v in obj.items()
         }
     if isinstance(obj, (list, tuple, set)):
-        return [
-            _sanitize_properties(v, _depth + 1, _max_depth) for v in obj
-        ]
+        return [_sanitize_properties(v, _depth + 1, _max_depth) for v in obj]
     # Fallback: best-effort string
     try:
         return str(obj)
@@ -162,10 +162,12 @@ def parse_wms_capabilities(
             description=abstract,
             bounding_box=bounding_box,
             layer_type="WMS",
-            properties=_sanitize_properties({
-                "srs": _sanitize_crs_list(getattr(layer, "crsOptions", None)),
-                "keywords": list(getattr(layer, "keywords", []) or []),
-            }),
+            properties=_sanitize_properties(
+                {
+                    "srs": _sanitize_crs_list(getattr(layer, "crsOptions", None)),
+                    "keywords": list(getattr(layer, "keywords", []) or []),
+                }
+            ),
         )
         layers.append(geo_object)
     return layers
@@ -217,10 +219,12 @@ def parse_wfs_capabilities(
             description=abstract,
             bounding_box=bounding_box,
             layer_type="WFS",
-            properties=_sanitize_properties({
-                "srs": _sanitize_crs_list(getattr(ft, "crsOptions", None)),
-                "keywords": list(getattr(ft, "keywords", []) or []),
-            }),
+            properties=_sanitize_properties(
+                {
+                    "srs": _sanitize_crs_list(getattr(ft, "crsOptions", None)),
+                    "keywords": list(getattr(ft, "keywords", []) or []),
+                }
+            ),
         )
         layers.append(geo_object)
     return layers
@@ -366,9 +370,9 @@ def parse_wmts_capabilities(
             description=abstract,
             bounding_box=bounding_box,
             layer_type="WMTS",
-            properties=_sanitize_properties({
-                "tile_matrix_sets": list(getattr(layer, "tilematrixsetlinks", {}).keys())
-            }),
+            properties=_sanitize_properties(
+                {"tile_matrix_sets": list(getattr(layer, "tilematrixsetlinks", {}).keys())}
+            ),
         )
         layers.append(geo_object)
     return layers
@@ -389,9 +393,7 @@ def fetch_all_service_capabilities(
     # WMS
     wms_url = urljoin(base_url, "wms")
     try:
-        wms = WebMapService(
-            wms_url, version="1.3.0", username=username, password=password
-        )
+        wms = WebMapService(wms_url, version="1.3.0", username=username, password=password)
         all_layers.extend(parse_wms_capabilities(wms, wms_url, search_term))
     except Exception as e:
         logger.warning(f"Could not fetch WMS capabilities from {wms_url}: {e}")
@@ -399,9 +401,7 @@ def fetch_all_service_capabilities(
     # WFS
     wfs_url = urljoin(base_url, "wfs")
     try:
-        wfs = WebFeatureService(
-            wfs_url, version="2.0.0", username=username, password=password
-        )
+        wfs = WebFeatureService(wfs_url, version="2.0.0", username=username, password=password)
         all_layers.extend(parse_wfs_capabilities(wfs, wfs_url, search_term))
     except Exception as e:
         logger.warning(f"Could not fetch WFS capabilities from {wfs_url}: {e}")
@@ -452,15 +452,11 @@ def _get_custom_geoserver_data(
     enabled_backends = [backend for backend in settings.geoserver_backends if backend.enabled]
     if backend_name:
         enabled_backends = [
-            b
-            for b in enabled_backends
-            if (b.name or "").lower() == backend_name.lower()
+            b for b in enabled_backends if (b.name or "").lower() == backend_name.lower()
         ]
     if backend_url:
         enabled_backends = [
-            b
-            for b in enabled_backends
-            if b.url.rstrip("/") == backend_url.rstrip("/")
+            b for b in enabled_backends if b.url.rstrip("/") == backend_url.rstrip("/")
         ]
     if not enabled_backends:
         return ToolMessage(
@@ -471,19 +467,17 @@ def _get_custom_geoserver_data(
     all_layers: List[GeoDataObject] = []
     for backend in enabled_backends:
         try:
-            fetched_layers = fetch_all_service_capabilities(
-                backend, search_term=search_term
-            )
+            fetched_layers = fetch_all_service_capabilities(backend, search_term=search_term)
             # annotate with backend metadata (non-invasive; add to properties if dict-like)
             for lyr in fetched_layers:
                 try:
-                    props = getattr(lyr, 'properties', None)
+                    props = getattr(lyr, "properties", None)
                     if isinstance(props, dict):
-                        props.setdefault('_backend_url', backend.url)
+                        props.setdefault("_backend_url", backend.url)
                         if backend.name:
-                            props.setdefault('_backend_name', backend.name)
+                            props.setdefault("_backend_name", backend.name)
                         if backend.description:
-                            props.setdefault('_backend_description', backend.description)
+                            props.setdefault("_backend_description", backend.description)
                 except Exception:
                     pass
             all_layers.extend(fetched_layers)
@@ -514,10 +508,12 @@ def _get_custom_geoserver_data(
             )
 
     if bbox_filter:
+
         def _parse_layer_bbox(wkt: Optional[str]):
             if not wkt or "POLYGON" not in wkt.upper():
                 return None
             import re
+
             nums = re.findall(r"[-+]?[0-9]*\.?[0-9]+", wkt)
             if len(nums) < 8:
                 return None
@@ -589,9 +585,7 @@ def get_custom_geoserver_data(
     search_term: Optional[str] = Field(
         None, description="An optional search term to filter layer names, titles, and abstracts."
     ),
-    max_results: Optional[int] = Field(
-        10, description="The maximum number of results to return."
-    ),
+    max_results: Optional[int] = Field(10, description="The maximum number of results to return."),
     backend_name: Optional[str] = Field(
         None,
         description=(
@@ -644,17 +638,15 @@ def get_custom_geoserver_data(
         search_term,
         max_results,
         backend_name,
-    backend_url,
-    bounding_box,
+        backend_url,
+        bounding_box,
     )
 
 
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="Manual tester for custom_geoserver tool."
-    )
+    parser = argparse.ArgumentParser(description="Manual tester for custom_geoserver tool.")
     parser.add_argument(
         "base_url",
         nargs="?",

@@ -18,8 +18,10 @@ class _MockLayer:
         ]
         self.tilematrixsetlinks = {}
 
+
 class _MockProvider:
     name = "Mock WMTS Org"
+
 
 class _MockWMTS:
     def __init__(self):
