@@ -235,14 +235,17 @@ def test_get_custom_geoserver_data(mock_fetch, initial_agent_state):
     assert not isinstance(result, ToolMessage)
     # support tools returning a Command(update=...) or a plain dict
     if isinstance(result, Command):
-        result_dict = result.update
+        result_dict = result.update or {}
     else:
         result_dict = result
 
-    assert "geodata_layers" in result_dict
-    layers = result_dict["geodata_layers"]
+    # Tool should NOT modify geodata_layers; results go to geodata_results
+    assert "geodata_results" in result_dict
+    layers = result_dict["geodata_results"]
     assert len(layers) == 1
     assert layers[0].id == "wms_layer1"
+    # geodata_layers remains the original empty list
+    assert result_dict.get("geodata_layers") == []
     mock_fetch.assert_called_once_with(
         initial_agent_state["options"].geoserver_backends[0], search_term=None
     )
@@ -278,13 +281,15 @@ def test_get_custom_geoserver_data_with_params(mock_fetch, initial_agent_state):
     assert not isinstance(result, ToolMessage)
     # support tools returning a Command(update=...) or a plain dict
     if isinstance(result, Command):
-        result_dict = result.update
+        result_dict = result.update or {}
     else:
         result_dict = result
 
-    assert "geodata_layers" in result_dict
-    layers = result_dict["geodata_layers"]
+    assert "geodata_results" in result_dict
+    layers = result_dict["geodata_results"]
     assert len(layers) == 3
+    # geodata_layers unchanged
+    assert result_dict.get("geodata_layers") == []
     mock_fetch.assert_called_once_with(
         initial_agent_state["options"].geoserver_backends[0], search_term="Test"
     )

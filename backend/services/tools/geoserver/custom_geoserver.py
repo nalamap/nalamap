@@ -17,6 +17,7 @@ from langchain_core.tools import tool
 from langchain_core.tools.base import InjectedToolCallId
 from langgraph.prebuilt import InjectedState
 from pydantic import Field
+from pydantic.fields import FieldInfo
 from typing_extensions import Annotated
 from langgraph.types import Command
 
@@ -31,6 +32,84 @@ from models.settings_model import (
 from models.states import GeoDataAgentState
 
 logger = logging.getLogger(__name__)
+
+
+def _sanitize_crs_list(crs_options: Any) -> List[str]:
+    """Return a list of stringifiable CRS identifiers.
+
+    owslib may return a heterogeneous container (set/list) including
+    owslib.crs.Crs objects which FastAPI/Pydantic cannot serialize directly.
+    We defensively cast each entry to a readable string, preferring an explicit
+    code attribute when present.
+    """
+    sanitized: List[str] = []
+    if not crs_options:
+        return sanitized
+    try:  # pragma: no cover - optional import safety
+        from owslib.crs import Crs  # noqa: F401
+    except Exception:  # pragma: no cover - ignore import failures
+        pass
+
+    def _one(item: Any) -> str:
+        try:
+            if hasattr(item, "code") and getattr(item, "code"):
+                return str(getattr(item, "code"))
+            # Some Crs objects expose proj4 / urn / srs codes via attributes
+            for attr in ("srs", "urn", "proj4", "id"):
+                if hasattr(item, attr) and getattr(item, attr):
+                    return str(getattr(item, attr))
+        except Exception:
+            pass
+        try:
+            return str(item)
+        except Exception:
+            return repr(item)
+
+    # Normalize iterable
+    if isinstance(crs_options, (list, tuple, set)):
+        for c in crs_options:
+            sanitized.append(_one(c))
+    else:
+        sanitized.append(_one(crs_options))
+    return sanitized
+
+
+def _sanitize_properties(obj: Any, _depth: int = 0, _max_depth: int = 5) -> Any:
+    """Recursively sanitize a properties structure for JSON/Pydantic serialization.
+
+    - Basic JSON-compatible scalars are returned as-is.
+    - Enums are converted to their value.
+    - Objects without a simple representation are converted via str().
+    - Depth is limited to avoid pathological recursion.
+    """
+    if _depth > _max_depth:
+        return str(obj)
+    # Primitives
+    if obj is None or isinstance(obj, (int, float, bool, str)):
+        return obj
+    # Enums
+    try:  # pragma: no cover - defensive
+        from enum import Enum
+        if isinstance(obj, Enum):
+            return obj.value
+    except Exception:  # pragma: no cover
+        pass
+    # Containers
+    if isinstance(obj, dict):
+        return {
+            str(_sanitize_properties(k, _depth + 1, _max_depth)):
+            _sanitize_properties(v, _depth + 1, _max_depth)
+            for k, v in obj.items()
+        }
+    if isinstance(obj, (list, tuple, set)):
+        return [
+            _sanitize_properties(v, _depth + 1, _max_depth) for v in obj
+        ]
+    # Fallback: best-effort string
+    try:
+        return str(obj)
+    except Exception:  # pragma: no cover
+        return repr(obj)
 
 
 def parse_wms_capabilities(
@@ -83,7 +162,10 @@ def parse_wms_capabilities(
             description=abstract,
             bounding_box=bounding_box,
             layer_type="WMS",
-            properties={"srs": layer.crsOptions, "keywords": layer.keywords},
+            properties=_sanitize_properties({
+                "srs": _sanitize_crs_list(getattr(layer, "crsOptions", None)),
+                "keywords": list(getattr(layer, "keywords", []) or []),
+            }),
         )
         layers.append(geo_object)
     return layers
@@ -135,7 +217,10 @@ def parse_wfs_capabilities(
             description=abstract,
             bounding_box=bounding_box,
             layer_type="WFS",
-            properties={"srs": ft.crsOptions, "keywords": ft.keywords},
+            properties=_sanitize_properties({
+                "srs": _sanitize_crs_list(getattr(ft, "crsOptions", None)),
+                "keywords": list(getattr(ft, "keywords", []) or []),
+            }),
         )
         layers.append(geo_object)
     return layers
@@ -186,7 +271,9 @@ def parse_wcs_capabilities(
             description=abstract,
             bounding_box=bounding_box,
             layer_type="WCS",
-            properties={"supported_formats": cov.supportedFormats},
+            properties=_sanitize_properties(
+                {"supported_formats": getattr(cov, "supportedFormats", [])}
+            ),
         )
         layers.append(geo_object)
     return layers
@@ -271,9 +358,9 @@ def parse_wmts_capabilities(
             description=abstract,
             bounding_box=bounding_box,
             layer_type="WMTS",
-            properties={
+            properties=_sanitize_properties({
                 "tile_matrix_sets": list(getattr(layer, "tilematrixsetlinks", {}).keys())
-            },
+            }),
         )
         layers.append(geo_object)
     return layers
@@ -377,26 +464,44 @@ def _get_custom_geoserver_data(
     if max_results is not None and len(all_layers) > max_results:
         all_layers = all_layers[:max_results]
 
-    # Add a tool message to confirm the operation
+    # Summarize distinct CRS codes across collected layers (if available)
+    crs_codes = []
+    for lyr in all_layers:
+        try:
+            props = getattr(lyr, "properties", {}) or {}
+            if isinstance(props, dict):
+                srs_list = props.get("srs")
+                if isinstance(srs_list, (list, tuple, set)):
+                    for c in srs_list:
+                        if isinstance(c, str):
+                            crs_codes.append(c)
+        except Exception:
+            pass
+    distinct_crs = sorted({c for c in crs_codes if c})
+    crs_summary = ""
+    if distinct_crs:
+        crs_summary = f" Distinct CRS: {', '.join(distinct_crs[:6])}"
+        if len(distinct_crs) > 6:
+            crs_summary += f" (+{len(distinct_crs)-6} more)"
+
     tool_message = ToolMessage(
-        content=f"Found {len(all_layers)} layers.", tool_call_id=tool_call_id
+        content=f"Found {len(all_layers)} layers.{crs_summary}", tool_call_id=tool_call_id
     )
 
     current_messages = state.get("messages", [])
     if not isinstance(current_messages, list):
         current_messages = []
 
-    # Write results back into the state so callers see updated state
-    state["geodata_last_results"] = all_layers
-    state["geodata_layers"] = all_layers
+    # Update messages; DO NOT overwrite geodata_layers or geodata_last_results here.
     state["messages"] = current_messages + [tool_message]
 
-    # Return a Command that updates the agent state (consistent with other tools)
+    # Prepare new geodata_results (replace previous search results with current set)
+    new_results = all_layers
+
     return Command(
         update={
             "messages": state["messages"],
-            "geodata_results": state.get("geodata_results", []),
-            "geodata_layers": all_layers,
+            "geodata_results": new_results,
         }
     )
 
@@ -419,9 +524,15 @@ def get_custom_geoserver_data(
     # The input to a tool is a dict, but the InjectedState logic passes the whole state
     # We need to handle both cases. If 'state' is in the input, we use that.
     actual_state = state.get("state", state)
-    return _get_custom_geoserver_data(
-        actual_state, tool_call_id, search_term, max_results
-    )
+    # Tool runners may pass the pydantic Field objects (FieldInfo) as defaults
+    # when args are not provided. Coerce FieldInfo to their default values so
+    # downstream code receives plain Python types (e.g., int or None).
+    if isinstance(max_results, FieldInfo):
+        max_results = max_results.default
+    if isinstance(search_term, FieldInfo):
+        search_term = search_term.default
+
+    return _get_custom_geoserver_data(actual_state, tool_call_id, search_term, max_results)
 
 
 if __name__ == "__main__":
