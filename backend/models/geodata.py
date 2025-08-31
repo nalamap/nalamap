@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, NamedTuple, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class DataType(str, Enum):
@@ -86,11 +86,11 @@ class GeoDataObject(BaseModel):
     selected: Optional[bool] = False
     style: Optional[LayerStyle] = None
 
-    class Config:
-        # Allow Enum values to be output as raw values
-        use_enum_values = True
-        # Any extra fields in input will be ignored
-        extra = "ignore"
+    # Pydantic v2: use `model_config` with ConfigDict instead of class Config
+    model_config = ConfigDict(
+        use_enum_values=True,
+        extra="ignore",
+    )
 
 
 def mock_geodata_objects() -> List[GeoDataObject]:

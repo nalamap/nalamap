@@ -92,7 +92,7 @@ filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning"
 ]
-timeout = 300
+  # timeout removed: keep pytest config compatible with environments without pytest-timeout plugin
 
 [tool.black]
 line-length = 100
