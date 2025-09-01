@@ -56,7 +56,7 @@ function useZoomToLayer(layers: GeoDataObject[]) {
     layers.forEach(async (layer) => {
       if (!layer.visible || zoomedLayers.current.has(layer.id)) return;
 
-      if (layer.layer_type?.toUpperCase() === "WMS") {
+  if (layer.layer_type?.toUpperCase() === "WMS" || layer.layer_type?.toUpperCase() === "WFS") {
         // Handle bounding box from layer store
         if (layer.bounding_box) {
           let bounds = null;
@@ -140,6 +140,15 @@ function parseWMTSUrl(access_url: string) {
         layerName = pathParts[restIndex + 1];
       }
     }
+    // Extra heuristic: scan any path segment containing a ':' (workspace:layer)
+    if (!layerName) {
+      const colonSegment = urlObj.pathname.split('/').find(p => p.includes(':'));
+      if (colonSegment) layerName = colonSegment;
+    }
+    // Remove potential style or tile matrix set segments erroneously picked up
+    if (layerName && (layerName.toLowerCase() === 'default' || layerName.includes('{'))) {
+      layerName = '';
+    }
     
     if (!layerName) {
       console.warn('Could not extract layer name from WMTS URL:', access_url);
@@ -158,69 +167,27 @@ function parseWMTSUrl(access_url: string) {
       [workspace, finalLayerName] = layerName.split(':');
     }
     
-    // Method 1: Try WMTS GetLegendGraphic (for providers like FAO that support this non-standard extension)
-    const wmtsLegendParams = new URLSearchParams();
-    
-    // Set basic WMTS GetLegendGraphic parameters
-    wmtsLegendParams.set('service', 'WMTS');
-    wmtsLegendParams.set('version', '1.1.0'); // Use 1.1.0 as in FAO examples
-    wmtsLegendParams.set('request', 'GetLegendGraphic');
-    wmtsLegendParams.set('format', 'image/png'); // Let URLSearchParams handle the encoding
-    wmtsLegendParams.set('transparent', 'True');
-    wmtsLegendParams.set('layer', layerName); // Let URLSearchParams handle the encoding
-    
-    // Preserve dimension parameters and other custom parameters from original request
-    originalParams.forEach((value, key) => {
-      const lowerKey = key.toLowerCase();
-      // Keep dimension parameters (dim_*) and other relevant parameters
-      if (lowerKey.startsWith('dim_') || 
-          lowerKey === 'time' || 
-          lowerKey === 'elevation' ||
-          lowerKey === 'style') {
-        wmtsLegendParams.set(key, value);
-      }
+    // Derive GeoServer base (up to /geoserver)
+    const pathParts = urlObj.pathname.split('/').filter(Boolean);
+    const geoserverIdx = pathParts.indexOf('geoserver');
+    const geoserverBase = geoserverIdx !== -1 ? `${urlObj.origin}/${pathParts.slice(0, geoserverIdx + 1).join('/')}` : `${urlObj.origin}`;
+    // Standard WMTS KVP endpoint
+    const wmtsKvpBase = `${geoserverBase}/gwc/service/wmts`;
+    // Build WMS legend base for same layer
+    const wmsBaseUrl = `${geoserverBase}/wms`;
+    const wmsLegendParams = new URLSearchParams({
+      service: 'WMS', version: '1.1.0', request: 'GetLegendGraphic', format: 'image/png', layer: layerName,
     });
-    
-    const wmtsLegendUrl = `${baseUrl}?${wmtsLegendParams.toString()}`;
-    
-    // Method 2: Fallback WMS GetLegendGraphic (standard approach for GeoServer)
-    let wmsBaseUrl = baseUrl;
-    
-    // Convert WMTS endpoint to WMS endpoint
-    if (baseUrl.includes('/gwc/service/wmts')) {
-      wmsBaseUrl = baseUrl.replace('/gwc/service/wmts', '/wms');
-    } else if (baseUrl.includes('/wmts')) {
-      wmsBaseUrl = baseUrl.replace('/wmts', '/wms');
-    } else if (workspace && baseUrl.includes(`/${workspace}/wmts`)) {
-      wmsBaseUrl = baseUrl.replace(`/${workspace}/wmts`, `/${workspace}/wms`);
-    }
-    
-    const wmsLegendParams = new URLSearchParams();
-    wmsLegendParams.set('service', 'WMS');
-    wmsLegendParams.set('version', '1.1.0');
-    wmsLegendParams.set('request', 'GetLegendGraphic');
-    wmsLegendParams.set('format', 'image/png');
-    wmsLegendParams.set('layer', layerName); // Don't URL encode for WMS
-    
-    // Preserve dimension parameters for WMS as well
-    originalParams.forEach((value, key) => {
-      const lowerKey = key.toLowerCase();
-      if (lowerKey.startsWith('dim_') || 
-          lowerKey === 'time' || 
-          lowerKey === 'elevation') {
-        wmsLegendParams.set(key, value);
-      }
-    });
-    
     const wmsLegendUrl = `${wmsBaseUrl}?${wmsLegendParams.toString()}`;
-    
+
     const result = {
-      wmtsLegendUrl,
+      wmtsLegendUrl: '', // not using non-standard WMTS legend
       wmsLegendUrl,
       layerName: finalLayerName,
       workspace,
       fullLayerName: workspace ? `${workspace}:${finalLayerName}` : finalLayerName,
-      originalUrl: access_url
+      originalUrl: access_url,
+      wmtsKvpBase,
     };
     
     console.log('WMTS URL parsing result:', {
@@ -231,12 +198,57 @@ function parseWMTSUrl(access_url: string) {
     return result;
   } catch (err) {
     console.error("Error parsing WMTS URL:", err);
-    return { 
-      wmtsLegendUrl: "", 
-      wmsLegendUrl: "", 
-      layerName: "", 
-      originalUrl: access_url 
+    return { wmtsLegendUrl: '', wmsLegendUrl: '', layerName: '', originalUrl: access_url };
+  }
+}
+
+// Build a WMTS KVP tile URL template mapping Leaflet z/x/y to WMTS parameters
+function buildWMTSKvpTemplate(base: string, fullLayerName: string, tileMatrixSet: string, format: string = 'image/png') {
+  // GeoServer expects tilematrix like EPSG:3857:Z
+  return `${base}?service=WMTS&version=1.0.0&request=GetTile&layer=${encodeURIComponent(fullLayerName)}&style=&tilematrixset=${encodeURIComponent(tileMatrixSet)}&format=${encodeURIComponent(format)}&tilematrix=${encodeURIComponent(tileMatrixSet)}:{z}&tilerow={y}&tilecol={x}`;
+}
+
+// Parse a WCS GetCoverage URL and derive a WMS GetMap base (Leaflet-friendly) + legend params
+function parseWCSUrl(access_url: string) {
+  try {
+    const urlObj = new URL(access_url);
+    const baseUrl = `${urlObj.origin}${urlObj.pathname}`; // e.g. https://server/geoserver/wcs
+    const params = urlObj.searchParams;
+    // coverageId may appear as coverageId or coverage
+    const coverageId = params.get('coverageId') || params.get('coverage') || '';
+    if (!coverageId) {
+      console.warn('Could not extract coverageId from WCS URL:', access_url);
+    }
+    // Derive WMS base by swapping trailing /wcs or /ows with /wms
+    let wmsBaseUrl = baseUrl;
+    if (wmsBaseUrl.endsWith('/wcs')) {
+      wmsBaseUrl = wmsBaseUrl.slice(0, -4) + '/wms';
+    } else if (wmsBaseUrl.endsWith('/ows')) {
+      wmsBaseUrl = wmsBaseUrl.replace(/\/ows$/, '/wms');
+    } else if (!wmsBaseUrl.endsWith('/wms')) {
+      // Best-effort: append /wms if neither present
+      wmsBaseUrl = wmsBaseUrl + '/wms';
+    }
+    // Build legend URL (standard WMS GetLegendGraphic)
+    const legendParams = new URLSearchParams({
+      service: 'WMS',
+      request: 'GetLegendGraphic',
+      version: '1.1.0',
+      format: 'image/png',
+      layer: coverageId,
+    });
+    const legendUrl = `${wmsBaseUrl}?${legendParams.toString()}`;
+    return {
+      baseUrl: wmsBaseUrl,
+      layers: coverageId,
+      format: 'image/png',
+      transparent: true,
+      legendUrl,
+      originalUrl: access_url,
     };
+  } catch (err) {
+    console.error('Error parsing WCS URL:', err);
+    return { baseUrl: access_url, layers: '', format: 'image/png', transparent: true, legendUrl: '', originalUrl: access_url };
   }
 }
 
@@ -261,11 +273,135 @@ function LeafletGeoJSONLayer({
   const canvasRenderer = L.canvas();
 
   useEffect(() => {
-    fetch(url)
-      .then((res) => res.json())
-      .then((json) => setData(json))
-      .catch((err) => console.error("Error fetching GeoJSON:", err));
-  }, [url]); // Only re-fetch when URL changes, not when style changes
+    let cancelled = false;
+    (async () => {
+      try {
+        console.log('Fetching GeoJSON/WFS layer:', url);
+        // If this is a WFS request and lacks srsName, prefer EPSG:4326 for Leaflet
+        let requestUrl = url;
+        try {
+          const testU = new URL(url);
+          if ((/wfs/i.test(testU.search) || testU.searchParams.get('service')?.toUpperCase() === 'WFS') && !testU.searchParams.get('srsName')) {
+            testU.searchParams.set('srsName', 'EPSG:4326');
+            requestUrl = testU.toString();
+          }
+        } catch (e) { /* ignore */ }
+
+        let res = await fetch(requestUrl, { headers: { 'Accept': 'application/json, application/geo+json, */*;q=0.1' } });
+        if (!res.ok && requestUrl !== url) {
+          // fallback to original URL if srsName caused failure
+            res = await fetch(url, { headers: { 'Accept': 'application/json, application/geo+json, */*;q=0.1' } });
+        }
+        const contentType = res.headers.get('content-type') || '';
+        let json: any = null;
+        if (contentType.includes('application/json') || contentType.includes('geo+json')) {
+          json = await res.json();
+        } else {
+          // Fallback: try to parse text if server mislabels
+          const text = await res.text();
+            try { json = JSON.parse(text); } catch (e) { console.warn('Non-JSON WFS response, cannot render', { url, snippet: text.slice(0,200) }); }
+        }
+        if (!cancelled) {
+          if (json && json.type && (json.type === 'FeatureCollection' || json.features)) {
+            // Detect CRS from GeoJSON 'crs' if present
+            let declaredCrs: string | null = null;
+            try { declaredCrs = json.crs?.properties?.name || json.crs?.name || null; } catch { /* ignore */ }
+            // Extract first numeric coordinate pair recursively
+            const extractFirstXY = (geom: any): [number, number] | null => {
+              if (!geom) return null;
+              const coords = geom.coordinates;
+              if (!coords) return null;
+              const dive = (c: any): any => Array.isArray(c) && typeof c[0] !== 'number' ? dive(c[0]) : c;
+              const first = dive(coords);
+              if (Array.isArray(first) && typeof first[0] === 'number' && typeof first[1] === 'number') return [first[0], first[1]];
+              return null;
+            };
+            const firstFeature = json.features?.[0];
+            const firstXY = firstFeature ? extractFirstXY(firstFeature.geometry) : null;
+            const looksLike3857 = (() => {
+              if (!firstXY) return false;
+              const [x,y] = firstXY;
+              // WebMercator world bounds (slightly padded)
+              const max = 20050000; 
+              const plausibleMerc = Math.abs(x) <= max && Math.abs(y) <= max && (Math.abs(x) > 180 || Math.abs(y) > 90);
+              if (declaredCrs) {
+                if (/3857|900913/i.test(declaredCrs)) return true;
+                if (/4326/i.test(declaredCrs)) return false;
+              }
+              return plausibleMerc;
+            })();
+
+            const toLonLat = (x: number, y: number) => {
+              const R = 6378137;
+              const lon = (x / R) * 180 / Math.PI;
+              const lat = (2 * Math.atan(Math.exp(y / R)) - Math.PI / 2) * 180 / Math.PI;
+              return [lon, lat];
+            };
+            const reprojectGeometry = (geom: any): any => {
+              if (!geom || !geom.type) return geom;
+              const mapCoords = (arr: any): any => Array.isArray(arr[0]) ? arr.map(mapCoords) : (() => {
+                const [x,y] = arr;
+                const [lon,lat] = toLonLat(x,y);
+                return [lon, lat];
+              })();
+              switch (geom.type) {
+                case 'Point': return { type: 'Point', coordinates: toLonLat(geom.coordinates[0], geom.coordinates[1]) };
+                case 'MultiPoint': return { type: 'MultiPoint', coordinates: geom.coordinates.map((c: any) => toLonLat(c[0], c[1])) };
+                case 'LineString': return { type: 'LineString', coordinates: geom.coordinates.map((c: any) => toLonLat(c[0], c[1])) };
+                case 'MultiLineString': return { type: 'MultiLineString', coordinates: geom.coordinates.map((l: any) => l.map((c: any) => toLonLat(c[0], c[1]))) };
+                case 'Polygon': return { type: 'Polygon', coordinates: geom.coordinates.map((r: any) => r.map((c: any) => toLonLat(c[0], c[1]))) };
+                case 'MultiPolygon': return { type: 'MultiPolygon', coordinates: geom.coordinates.map((p: any) => p.map((r: any) => r.map((c: any) => toLonLat(c[0], c[1])))) };
+                default: return geom;
+              }
+            };
+            if (looksLike3857) {
+              console.log('Reprojecting WFS geometry from EPSG:3857 -> EPSG:4326');
+              json = { ...json, features: json.features.map((f: any) => ({ ...f, geometry: reprojectGeometry(f.geometry) })) };
+              json.crs = { type: 'name', properties: { name: 'EPSG:4326' } };
+            }
+            // Validate resulting coords fall within lat/lon plausible ranges; if not, revert to original
+            const validateLatLon = (fc: any) => {
+              try {
+                for (const f of fc.features.slice(0, 5)) {
+                  const flat: number[] = [];
+                  const walk = (arr: any) => {
+                    if (typeof arr[0] === 'number') { flat.push(arr[0], arr[1]); return; }
+                    for (const c of arr) walk(c);
+                  };
+                  walk(f.geometry.coordinates);
+                  for (let i=0;i<flat.length;i+=2){
+                    const lon=flat[i], lat=flat[i+1];
+                    if (Math.abs(lon)>180 || Math.abs(lat)>90) return false;
+                  }
+                }
+                return true;
+              } catch { return true; }
+            };
+            if (!validateLatLon(json) && looksLike3857) {
+              console.warn('Reprojected coordinates invalid for lat/lon; falling back to original geometry.');
+              // refetch original without reprojection
+              setData(null);
+              setTimeout(() => fetch(url).then(r=>r.json()).then(orig => setData(orig)).catch(()=>{}), 0);
+              return;
+            }
+            setData(json);
+            // Auto-fit bounds from data if possible
+            try {
+              const bounds = L.geoJSON(json).getBounds();
+              if (bounds.isValid()) {
+                map.fitBounds(bounds.pad(0.05));
+              }
+            } catch (e) { /* ignore */ }
+          } else {
+            console.warn('Fetched data is not valid GeoJSON FeatureCollection', { url, json });
+          }
+        }
+      } catch (err) {
+        if (!cancelled) console.error('Error fetching GeoJSON/WFS:', url, err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [url]); // Only re-fetch when URL changes
 
   const onEachFeature = (feature: any, layer: L.Layer) => {
     const props = feature.properties;
@@ -664,7 +800,8 @@ export default function LeafletMapComponent() {
     (layer) =>
       layer.visible &&
       (layer.layer_type?.toUpperCase() === "WMS" ||
-        layer.layer_type?.toUpperCase() === "WMTS")
+        layer.layer_type?.toUpperCase() === "WMTS" ||
+        layer.layer_type?.toUpperCase() === "WCS")
   );
   
   // Memoize legend components to prevent unnecessary re-renders
@@ -676,6 +813,15 @@ export default function LeafletMapComponent() {
           <Legend
             key={`wms-${layer.id}`}
             wmsLayer={wmsLayerParsed}
+            title={layer.title || layer.name}
+          />
+        );
+      } else if (layer.layer_type?.toUpperCase() === 'WCS') {
+        const wcsParsed = parseWCSUrl(layer.data_link);
+        return (
+          <Legend
+            key={`wcs-${layer.id}`}
+            wmsLayer={{ baseUrl: wcsParsed.baseUrl, layers: wcsParsed.layers, format: wcsParsed.format, transparent: wcsParsed.transparent }}
             title={layer.title || layer.name}
           />
         );
@@ -727,14 +873,37 @@ export default function LeafletMapComponent() {
                     zIndex={10}
                   />
                 );
+              }
+              else if (layer.layer_type?.toUpperCase() === 'WCS') {
+                const parsed = parseWCSUrl(layer.data_link);
+                return (
+                  <WMSTileLayer
+                    key={layer.id}
+                    url={parsed.baseUrl}
+                    layers={parsed.layers}
+                    format={parsed.format}
+                    transparent={parsed.transparent}
+                    zIndex={10}
+                  />
+                );
               } 
-              else if (
-                layer.layer_type?.toUpperCase() === "WMTS" 
-              ) {
+              else if (layer.layer_type?.toUpperCase() === "WMTS") {
+                const parsed = parseWMTSUrl(layer.data_link);
+                // Prefer tile matrix sets from backend properties if present
+                const propMatrixSets = (layer as any).properties?.tile_matrix_sets as string[] | undefined;
+                const candidateSets = propMatrixSets && propMatrixSets.length ? propMatrixSets : ['EPSG:3857','GoogleMapsCompatible','WebMercatorQuad'];
+                const chosenSet = candidateSets.find(s => /3857|google|mercator/i.test(s)) || candidateSets[0];
+                const anyParsed: any = parsed as any;
+                const tileUrlTemplate = buildWMTSKvpTemplate(
+                  anyParsed.wmtsKvpBase || '',
+                  anyParsed.fullLayerName || anyParsed.layerName,
+                  chosenSet,
+                  'image/png'
+                );
                 return (
                   <TileLayer
                     key={layer.id}
-                    url={layer.data_link}
+                    url={tileUrlTemplate}
                     attribution={layer.title}
                   />
                 );

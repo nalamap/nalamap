@@ -18,6 +18,8 @@ openai = ">=1.63.0"
 psycopg = {extras = ["binary","pool"], version = ">=3.2.4"}
 langgraph = ">=0.2.73"
 langchain_openai = ">=0.3.12"
+owslib = "*"
+httpx = "*"
 
 langchain_google_genai = ">=2.0.5"
 langchain_mistralai = ">=0.2.2"
@@ -90,7 +92,10 @@ filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning"
 ]
-timeout = 300
+  # timeout removed: keep pytest config compatible with environments without pytest-timeout plugin
+  # If you want to enable test timeouts, install pytest-timeout and add, for example:
+  #   "--timeout=30"
+  # to the addopts list above (original value was 30 seconds).
 
 [tool.black]
 line-length = 100

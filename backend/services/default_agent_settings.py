@@ -1,5 +1,6 @@
 from typing import Dict
 from langchain_core.tools import BaseTool
+from services.tools.geoserver.custom_geoserver import get_custom_geoserver_data
 from services.tools.geocoding import (
     geocode_using_nominatim_to_geostate,
     geocode_using_overpass_to_geostate,
@@ -151,5 +152,6 @@ DEFAULT_AVAILABLE_TOOLS: Dict[str, BaseTool] = {
     "autostyle_new_layers": auto_style_new_layers,  # Intelligent auto-styling tool
     "check_and_autostyle": check_and_auto_style_layers,  # Automatic layer style checker
     "apply_color_scheme": apply_intelligent_color_scheme,
+    "get_custom_geoserver_data": get_custom_geoserver_data,
 }
 DEFAULT_SELECTED_TOOLS = []
