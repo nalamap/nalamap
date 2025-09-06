@@ -14,6 +14,7 @@ from main import app  # wherever your FastAPI instance lives
 # ensure LOCAL_UPLOAD_DIR exists for test
 os.makedirs(LOCAL_UPLOAD_DIR, exist_ok=True)
 
+
 @pytest.fixture
 def client():
     """
@@ -23,6 +24,7 @@ def client():
         fastapi.testclient.TestClient: Client configured for the application.
     """
     return TestClient(app)
+
 
 @pytest.fixture(autouse=True)
 def stub_requests(monkeypatch):
@@ -37,6 +39,7 @@ def stub_requests(monkeypatch):
     Yields:
         function: A helper to configure URL->GeoJSON stubs for each test case.
     """
+
     def _stub(mapping: dict[str, dict], status_code: int = 200):
         def fake_get(url, timeout=10):
             for key, sample in mapping.items():
@@ -46,17 +49,19 @@ def stub_requests(monkeypatch):
                         json=lambda sample=sample: sample,
                     )
             raise RuntimeError(f"No stub defined for URL: {url!r}")
+
         monkeypatch.setattr(requests, "get", fake_get)
+
     return _stub
+
 
 # Load test cases definitions from testdata/testcases.json
 TESTDATA_DIR = os.path.join(os.path.dirname(__file__), "testdata")
 with open(os.path.join(TESTDATA_DIR, "testcases.json")) as f:
     TESTCASES = json.load(f)
 
-@pytest.mark.parametrize(  "case",
-    TESTCASES,
-    ids=lambda c: c.get("name", "case"))
+
+@pytest.mark.parametrize("case", TESTCASES, ids=lambda c: c.get("name", "case"))
 def test_chat_geoprocess_expected_result(client, stub_requests, case):
     """
     Parametrized integration test for various geoprocessing operations.
@@ -120,5 +125,6 @@ def test_chat_geoprocess_expected_result(client, stub_requests, case):
     actual_series = gpd.GeoSeries([actual_geom], crs="EPSG:4326")
     expected_series = gpd.GeoSeries([expected_geom], crs="EPSG:4326")
     tolerance = case.get("geom_tolerance", 0)
-    assert actual_series.geom_equals_exact(expected_series, tolerance=tolerance).all(), \
-        f"Geometries do not match within tolerance {tolerance}"
+    assert actual_series.geom_equals_exact(
+        expected_series, tolerance=tolerance
+    ).all(), f"Geometries do not match within tolerance {tolerance}"
