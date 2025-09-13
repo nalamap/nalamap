@@ -2,9 +2,9 @@
 
 This repo publishes three Docker images to GitHub Container Registry (GHCR):
 
-- geoweaver-frontend: Next.js frontend
-- geoweaver-backend: FastAPI backend
-- geoweaver-nginx: Reverse proxy
+- nalamap-frontend: Next.js frontend
+- nalamap-backend: FastAPI backend
+- nalamap-nginx: Reverse proxy
 
 Images are located under ghcr.io/<owner>/<image> where <owner> is the GitHub org or user.
 
@@ -22,9 +22,9 @@ The workflow creates tags automatically:
 
 Replace <owner> with your GitHub organization/user:
 
-- ghcr.io/<owner>/geoweaver-frontend:latest
-- ghcr.io/<owner>/geoweaver-backend:latest
-- ghcr.io/<owner>/geoweaver-nginx:latest
+- ghcr.io/<owner>/nalamap-frontend:latest
+- ghcr.io/<owner>/nalamap-backend:latest
+- ghcr.io/<owner>/nalamap-nginx:latest
 
 To pull:
 
@@ -32,7 +32,7 @@ To pull:
 # optional: authenticate if images are private
 # echo $GHCR_TOKEN | docker login ghcr.io -u <username> --password-stdin
 
-docker pull ghcr.io/<owner>/geoweaver-frontend:latest
+docker pull ghcr.io/<owner>/nalamap-frontend:latest
 ```
 
 ## Pushing manually
@@ -40,6 +40,6 @@ docker pull ghcr.io/<owner>/geoweaver-frontend:latest
 Normally CI pushes on merge. If pushing locally, make sure you are logged in and then:
 
 ```
-docker build -t ghcr.io/<owner>/geoweaver-backend:dev ./backend
-docker push ghcr.io/<owner>/geoweaver-backend:dev
+docker build -t ghcr.io/<owner>/nalamap-backend:dev ./backend
+docker push ghcr.io/<owner>/nalamap-backend:dev
 ```
