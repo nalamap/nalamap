@@ -28,15 +28,15 @@ jobs:
           - name: frontend
             context: ./frontend
             dockerfile: ./frontend/Dockerfile
-            image: geoweaver-frontend
+            image: nalamap-frontend
           - name: backend
             context: ./backend
             dockerfile: ./backend/Dockerfile
-            image: geoweaver-backend
+            image: nalamap-backend
           - name: nginx
             context: ./nginx
             dockerfile: ./nginx/Dockerfile
-            image: geoweaver-nginx
+            image: nalamap-nginx
 
     steps:
       - name: Checkout repository
