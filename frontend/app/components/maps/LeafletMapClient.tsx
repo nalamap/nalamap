@@ -208,6 +208,22 @@ function buildWMTSKvpTemplate(base: string, fullLayerName: string, tileMatrixSet
   return `${base}?service=WMTS&version=1.0.0&request=GetTile&layer=${encodeURIComponent(fullLayerName)}&style=&tilematrixset=${encodeURIComponent(tileMatrixSet)}&format=${encodeURIComponent(format)}&tilematrix=${encodeURIComponent(tileMatrixSet)}:{z}&tilerow={y}&tilecol={x}`;
 }
 
+// Accept only WebMercator variants for WMTS (EPSG:3857 family)
+function isWebMercatorMatrixSet(name: string | undefined | null): boolean {
+  if (!name) return false;
+  return /3857|900913|googlemapscompatible|google|web ?mercator|mercatorquad/i.test(name);
+}
+
+function pickWebMercatorMatrixSet(candidateSets: string[]): string | undefined {
+  if (!candidateSets || !candidateSets.length) return undefined;
+  // First pass: direct EPSG:3857 style codes
+  let chosen = candidateSets.find(s => /3857/.test(s));
+  if (chosen) return chosen;
+  // Second: common aliases
+  chosen = candidateSets.find(s => /900913|google|mercator/i.test(s));
+  return chosen;
+}
+
 // Parse a WCS GetCoverage URL and derive a WMS GetMap base (Leaflet-friendly) + legend params
 function parseWCSUrl(access_url: string) {
   try {
@@ -827,6 +843,15 @@ export default function LeafletMapComponent() {
         );
       } else if (layer.layer_type?.toUpperCase() === "WMTS") {
         const wmtsLayerParsed = parseWMTSUrl(layer.data_link);
+        // Determine acceptable matrix sets before adding legend
+        const propMatrixSets = (layer as any).properties?.tile_matrix_sets as string[] | undefined;
+        const candidateSetsRaw = propMatrixSets && propMatrixSets.length ? propMatrixSets : ['EPSG:3857','GoogleMapsCompatible','WebMercatorQuad'];
+        const candidateSets = candidateSetsRaw.filter(s => isWebMercatorMatrixSet(s));
+        const chosen = pickWebMercatorMatrixSet(candidateSets) || pickWebMercatorMatrixSet(candidateSetsRaw) || candidateSetsRaw[0];
+        if (!chosen || !isWebMercatorMatrixSet(chosen)) {
+          console.warn('Skipping WMTS legend (no WebMercator matrix set):', layer.id, candidateSetsRaw);
+          return null;
+        }
         return (
           <Legend 
             key={`wmts-${layer.id}`}
@@ -891,8 +916,13 @@ export default function LeafletMapComponent() {
                 const parsed = parseWMTSUrl(layer.data_link);
                 // Prefer tile matrix sets from backend properties if present
                 const propMatrixSets = (layer as any).properties?.tile_matrix_sets as string[] | undefined;
-                const candidateSets = propMatrixSets && propMatrixSets.length ? propMatrixSets : ['EPSG:3857','GoogleMapsCompatible','WebMercatorQuad'];
-                const chosenSet = candidateSets.find(s => /3857|google|mercator/i.test(s)) || candidateSets[0];
+                const candidateSetsRaw = propMatrixSets && propMatrixSets.length ? propMatrixSets : ['EPSG:3857','GoogleMapsCompatible','WebMercatorQuad'];
+                const candidateSets = candidateSetsRaw.filter(s => isWebMercatorMatrixSet(s));
+                const chosenSet = pickWebMercatorMatrixSet(candidateSets) || pickWebMercatorMatrixSet(candidateSetsRaw) || candidateSetsRaw[0];
+                if (!chosenSet || !isWebMercatorMatrixSet(chosenSet)) {
+                  console.warn('Skipping WMTS layer without WebMercator matrix set (only EPSG:3857 supported currently):', layer.id, candidateSetsRaw);
+                  return null; // do not render layer
+                }
                 const anyParsed: any = parsed as any;
                 const tileUrlTemplate = buildWMTSKvpTemplate(
                   anyParsed.wmtsKvpBase || '',
