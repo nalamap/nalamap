@@ -21,13 +21,13 @@ describe('Chat Interface', () => {
     }).as('chatRequest')
 
     cy.visit('/')
-    cy.wait('@getSettingsOptions')
 
     cy.contains('h2', 'Map Assistant').should('be.visible')
 
     cy.get('textarea[placeholder*="Type a chat command"]').type(message)
     cy.get('button[title="Send"]').click()
 
+    cy.wait('@getSettingsOptions')
     cy.wait('@chatRequest')
 
     cy.contains('.text-sm', message).should('be.visible')
