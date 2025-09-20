@@ -1799,20 +1799,20 @@ tenacity = ">=8.1.0,<8.4.0 || >8.4.0,<10"
 
 [[package]]
 name = "langchain-core"
-version = "0.3.68"
+version = "0.3.76"
 description = "Building applications with LLMs through composability"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "langchain_core-0.3.68-py3-none-any.whl", hash = "sha256:5e5c1fbef419590537c91b8c2d86af896fbcbaf0d5ed7fdcdd77f7d8f3467ba0"},
-    {file = "langchain_core-0.3.68.tar.gz", hash = "sha256:312e1932ac9aa2eaf111b70fdc171776fa571d1a86c1f873dcac88a094b19c6f"},
+    {file = "langchain_core-0.3.76-py3-none-any.whl", hash = "sha256:46e0eb48c7ac532432d51f8ca1ece1804c82afe9ae3dcf027b867edadf82b3ec"},
+    {file = "langchain_core-0.3.76.tar.gz", hash = "sha256:71136a122dd1abae2c289c5809d035cf12b5f2bb682d8a4c1078cd94feae7419"},
 ]
 
 [package.dependencies]
 jsonpatch = ">=1.33,<2.0"
 langsmith = ">=0.3.45"
-packaging = ">=23.2,<25"
+packaging = ">=23.2"
 pydantic = ">=2.7.4"
 PyYAML = ">=5.3"
 tenacity = ">=8.1.0,<8.4.0 || >8.4.0,<10.0.0"
