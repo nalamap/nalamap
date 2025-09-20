@@ -14,6 +14,11 @@ from services.tools.geoserver.custom_geoserver import get_custom_geoserver_data
 from models.states import GeoDataAgentState
 
 
+def _create_tool_call(tool_name: str, args: dict, call_id: str) -> dict:
+    """Create a proper ToolCall format for invoking tools with InjectedToolCallId."""
+    return {"name": tool_name, "args": args, "id": call_id, "type": "tool_call"}
+
+
 class _StubBackendFetcher:
     """Helper to monkeypatch fetch_all_service_capabilities returning canned layers."""
 
@@ -109,13 +114,15 @@ def test_backend_name_filter(monkeypatch, settings_snapshot):
     monkeypatch.setattr(cg, "fetch_all_service_capabilities", stub)
 
     state = _base_state(settings_snapshot)
-    result = get_custom_geoserver_data.invoke(
+    tool_call = _create_tool_call(
+        "get_custom_geoserver_data",
         {
             "state": state,
-            "tool_call_id": "test_call",
             "backend_name": "Primary",
-        }
+        },
+        "test_call",
     )
+    result = get_custom_geoserver_data.invoke(tool_call)
     # unwrap Command update
     if hasattr(result, "update"):
         update = result.update
@@ -138,13 +145,15 @@ def test_backend_url_filter(monkeypatch, settings_snapshot):
     monkeypatch.setattr(cg, "fetch_all_service_capabilities", stub)
 
     state = _base_state(settings_snapshot)
-    result = get_custom_geoserver_data.invoke(
+    tool_call = _create_tool_call(
+        "get_custom_geoserver_data",
         {
             "state": state,
-            "tool_call_id": "test_call",
             "backend_url": "https://alt.example.com/geoserver/",
-        }
+        },
+        "test_call",
     )
+    result = get_custom_geoserver_data.invoke(tool_call)
     if hasattr(result, "update"):
         update = result.update
     else:
@@ -165,12 +174,14 @@ def test_no_filter_queries_all(monkeypatch, settings_snapshot):
     monkeypatch.setattr(cg, "fetch_all_service_capabilities", stub)
 
     state = _base_state(settings_snapshot)
-    result = get_custom_geoserver_data.invoke(
+    tool_call = _create_tool_call(
+        "get_custom_geoserver_data",
         {
             "state": state,
-            "tool_call_id": "test_call",
-        }
+        },
+        "test_call",
     )
+    result = get_custom_geoserver_data.invoke(tool_call)
     if hasattr(result, "update"):
         update = result.update
     else:
@@ -197,13 +208,15 @@ def test_bounding_box_filter_includes_only_intersecting(monkeypatch, settings_sn
 
     state = _base_state(settings_snapshot)
     # Bounding box near origin should include only primary backend layers
-    result = get_custom_geoserver_data.invoke(
+    tool_call = _create_tool_call(
+        "get_custom_geoserver_data",
         {
             "state": state,
-            "tool_call_id": "test_call",
             "bounding_box": "-6,-6,6,6",
-        }
+        },
+        "test_call",
     )
+    result = get_custom_geoserver_data.invoke(tool_call)
     update = result.update if hasattr(result, "update") else result
     layers = update.get("geodata_results", [])
     assert len(layers) == 2
@@ -217,13 +230,15 @@ def test_invalid_bounding_box(monkeypatch, settings_snapshot):
 
     monkeypatch.setattr(cg, "fetch_all_service_capabilities", stub)
     state = _base_state(settings_snapshot)
-    result = get_custom_geoserver_data.invoke(
+    tool_call = _create_tool_call(
+        "get_custom_geoserver_data",
         {
             "state": state,
-            "tool_call_id": "test_call",
             "bounding_box": "bad_box",
-        }
+        },
+        "test_call",
     )
+    result = get_custom_geoserver_data.invoke(tool_call)
     # Expect ToolMessage with error content
     from langchain_core.messages import ToolMessage
 
