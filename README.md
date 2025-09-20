@@ -101,6 +101,18 @@ Edit the `.env` file to include your configuration. The environment file contain
 - **API Endpoints**: Backend API base URL configuration
 - **Optional Services**: LangSmith tracing for monitoring AI interactions
 
+**Map / WMTS Projection Safety**:
+
+To avoid rendering projection-mismatched WMTS layers, the backend filters out any WMTS layer that lacks a WebMercator (EPSG:3857 family) TileMatrixSet by default.
+
+Environment variable to control this behavior:
+
+`NALAMAP_FILTER_NON_WEBMERCATOR_WMTS` (default: `true`)
+
+Set to `false` to allow all WMTS layers (may lead to visual misalignment unless tiles are in WebMercator).
+
+Details: see `docs/wmts.md`.
+
 > **Note**: The `.env.example` includes a demo database connection that you can use for testing. For production use, configure your own database credentials.
 
 **⚠️ Important: Single Provider Selection**

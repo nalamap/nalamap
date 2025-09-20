@@ -1,3 +1,4 @@
+import os
 from services.tools.geoserver.custom_geoserver import parse_wmts_capabilities
 
 
@@ -30,6 +31,8 @@ class _MockWMTS:
 
 
 def test_wmts_template_sanitized():
+    # Ensure filtering disabled so layer without WebMercator matrix set is not skipped
+    os.environ["NALAMAP_FILTER_NON_WEBMERCATOR_WMTS"] = "false"
     wmts = _MockWMTS()
     layers = parse_wmts_capabilities(wmts, "http://example.com/gwc/service/wmts")
     assert len(layers) == 1
