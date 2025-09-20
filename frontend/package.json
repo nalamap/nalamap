@@ -29,7 +29,7 @@
     "react-map-gl": "^8.0.1",
     "react-markdown": "^10.1.0",
     "wellknown": "^0.5.0",
-    "zustand": "^5.0.3"
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
