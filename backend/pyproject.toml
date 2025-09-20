@@ -12,18 +12,18 @@ package-mode = false
 python = "^3.11"
 fastapi = ">=0.115.8"
 uvicorn = {extras = ["standard"], version = ">=0.34.0"}
-langchain = ">=0.3.18"
-langchain-core = "0.3.68"
-langchain_community = ">=0.3.17"
-openai = ">=1.63.0"
-psycopg = {extras = ["binary","pool"], version = ">=3.2.4"}
-langgraph = ">=0.2.73"
-langchain_openai = ">=0.3.12"
+langchain = ">=0.3.27"
+langchain-core = ">=0.3.76"
+langchain_community = ">=0.3.29"
+openai = ">=1.108.1"
+psycopg = {extras = ["binary","pool"], version = ">=3.2.10"}
+langgraph = ">=0.6.7"
+langchain_openai = ">=0.3.33"
 owslib = "*"
 httpx = "*"
 
-langchain_google_genai = ">=2.0.5"
-langchain_mistralai = ">=0.2.2"
+langchain_google_genai = ">=2.1.12"
+langchain_mistralai = ">=0.2.12"
 azure-storage-blob = "*"
 python-multipart = "*"
 shapely = "*"
