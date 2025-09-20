@@ -6,7 +6,9 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:e2e": "start-server-and-test dev http://localhost:3000 cy:run",
+    "cy:run": "cypress install --force && cypress run"
   },
   "dependencies": {
     "@ai-sdk/react": "^1.1.19",
@@ -39,7 +41,9 @@
     "@types/react-dom": "^19",
     "@types/wellknown": "^0.5.8",
     "autoprefixer": "^10.4.20",
+    "cypress": "^15.2.0",
     "postcss": "^8.5.3",
+    "start-server-and-test": "^2.1.2",
     "tailwindcss": "^4.0.9",
     "typescript": "^5"
   },
