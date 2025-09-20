@@ -97,7 +97,15 @@ jobs:
       - name: Install Cypress system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb libgtk2.0-0 libgtk-3-0 libgbm-dev libnotify-dev libgconf-2-4 libnss3 libxss1 libasound2
+          sudo apt-get install -y \
+            xvfb \
+            libgtk2.0-0 \
+            libgtk-3-0 \
+            libgbm-dev \
+            libnotify-dev \
+            libnss3 \
+            libxss1
+          sudo apt-get install -y libasound2 || sudo apt-get install -y libasound2t64
 
       - name: Install npm dependencies
         run: npm ci
