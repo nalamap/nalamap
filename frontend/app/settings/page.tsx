@@ -121,6 +121,7 @@ export default function SettingsPage() {
                     <h2 className="text-2xl">Model Settings</h2>
                     <div className="grid grid-cols-2 gap-4">
                         <select
+                            data-cy="model-provider-select"
                             value={modelSettings.model_provider}
                             onChange={(e) => {
                                 const prov = e.target.value;
@@ -140,6 +141,7 @@ export default function SettingsPage() {
                             ))}
                         </select>
                         <select
+                            data-cy="model-name-select"
                             value={modelSettings.model_name}
                             onChange={(e) => setModelName(e.target.value)}
                             className="border rounded p-2"
@@ -156,6 +158,7 @@ export default function SettingsPage() {
                             className="border rounded p-2"
                         />
                         <textarea
+                            data-cy="system-prompt"
                             value={modelSettings.system_prompt}
                             onChange={(e) => setSystemPrompt(e.target.value)}
                             placeholder="System Prompt"
@@ -169,6 +172,7 @@ export default function SettingsPage() {
                     <h2 className="text-2xl">Tools Configuration</h2>
                     <div className="flex space-x-2 mb-4">
                         <select
+                            data-cy="tool-add-select"
                             value={newToolName}
                             onChange={(e) => setNewToolName(e.target.value)}
                             className="border rounded p-2 flex-grow"
@@ -187,7 +191,7 @@ export default function SettingsPage() {
                     </div>
                     <ul className="space-y-3">
                         {tools.map((t, i) => (
-                            <li key={i} className="border rounded p-4 space-y-2">
+                            <li key={i} className="border rounded p-4 space-y-2" data-cy="tool-item">
                                 <div className="flex justify-between items-center">
                                     <label className="flex items-center space-x-2">
                                         <input
@@ -218,6 +222,7 @@ export default function SettingsPage() {
                     <h2 className="text-2xl">Geodata Portals</h2>
                     <div className="flex space-x-2 mb-4">
                         <select
+                            data-cy="portal-add-select"
                             value={newPortal}
                             onChange={(e) => setNewPortal(e.target.value)}
                             className="border rounded p-2 flex-grow"
@@ -236,7 +241,7 @@ export default function SettingsPage() {
                     </div>
                     <ul className="space-y-3">
                         {portals.map((p, i) => (
-                            <li key={i} className="flex justify-between items-center border rounded p-4">
+                            <li key={i} className="flex justify-between items-center border rounded p-4" data-cy="portal-item">
                                 <label className="flex items-center space-x-2">
                                     <input
                                         type="checkbox"
@@ -298,7 +303,7 @@ export default function SettingsPage() {
                     </div>
                     <ul className="space-y-3">
                         {backends.map((b, i) => (
-                            <li key={i} className="flex justify-between items-center border rounded p-4">
+                            <li key={i} className="flex justify-between items-center border rounded p-4" data-cy="backend-item">
                                 <label className="flex items-center space-x-2">
                                     <input
                                         type="checkbox"

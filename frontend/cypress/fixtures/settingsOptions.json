@@ -1,0 +1,35 @@
+{
+  "system_prompt": "You are NaLaMap, a helpful assistant.",
+  "tool_options": {
+    "chat": {
+      "default_prompt": "Respond conversationally.",
+      "settings": {}
+    },
+    "search": {
+      "default_prompt": "Search for geospatial data.",
+      "settings": {}
+    }
+  },
+  "search_portals": [
+    "https://data.example.com",
+    "https://open.example.org"
+  ],
+  "model_options": {
+    "openai": [
+      {
+        "name": "gpt-4o",
+        "max_tokens": 4096
+      },
+      {
+        "name": "gpt-4o-mini",
+        "max_tokens": 8192
+      }
+    ],
+    "anthropic": [
+      {
+        "name": "claude-sonnet",
+        "max_tokens": 4096
+      }
+    ]
+  }
+}
