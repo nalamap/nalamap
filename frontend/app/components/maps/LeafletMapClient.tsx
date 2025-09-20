@@ -129,6 +129,10 @@ function parseWMTSUrl(access_url: string) {
     // Extract all parameters from the original WMTS URL
     const originalParams = urlObj.searchParams;
     
+    // Detect version if provided (common param names: version / VERSION)
+    const versionParam = originalParams.get('version') || originalParams.get('VERSION') || '';
+    let version = versionParam; // may be empty; we'll fallback later
+    
     // Get layer name from parameters
     let layerName = originalParams.get("layer") || originalParams.get("LAYER");
     
@@ -156,7 +160,8 @@ function parseWMTSUrl(access_url: string) {
         wmtsLegendUrl: "", 
         wmsLegendUrl: "", 
         layerName: "", 
-        originalUrl: access_url 
+        originalUrl: access_url,
+        version: version || undefined,
       };
     }
     
@@ -188,6 +193,7 @@ function parseWMTSUrl(access_url: string) {
       fullLayerName: workspace ? `${workspace}:${finalLayerName}` : finalLayerName,
       originalUrl: access_url,
       wmtsKvpBase,
+      version: version || undefined,
     };
     
     console.log('WMTS URL parsing result:', {
@@ -203,9 +209,9 @@ function parseWMTSUrl(access_url: string) {
 }
 
 // Build a WMTS KVP tile URL template mapping Leaflet z/x/y to WMTS parameters
-function buildWMTSKvpTemplate(base: string, fullLayerName: string, tileMatrixSet: string, format: string = 'image/png') {
+function buildWMTSKvpTemplate(base: string, fullLayerName: string, tileMatrixSet: string, format: string = 'image/png', version: string = '1.0.0') {
   // GeoServer expects tilematrix like EPSG:3857:Z
-  return `${base}?service=WMTS&version=1.0.0&request=GetTile&layer=${encodeURIComponent(fullLayerName)}&style=&tilematrixset=${encodeURIComponent(tileMatrixSet)}&format=${encodeURIComponent(format)}&tilematrix=${encodeURIComponent(tileMatrixSet)}:{z}&tilerow={y}&tilecol={x}`;
+  return `${base}?service=WMTS&version=${encodeURIComponent(version)}&request=GetTile&layer=${encodeURIComponent(fullLayerName)}&style=&tilematrixset=${encodeURIComponent(tileMatrixSet)}&format=${encodeURIComponent(format)}&tilematrix=${encodeURIComponent(tileMatrixSet)}:{z}&tilerow={y}&tilecol={x}`;
 }
 
 // Accept only WebMercator variants for WMTS (EPSG:3857 family)
@@ -924,11 +930,24 @@ export default function LeafletMapComponent() {
                   return null; // do not render layer
                 }
                 const anyParsed: any = parsed as any;
+
+                // Lightweight capability version probe (sync effect via stateful wrapper)
+                // We'll build an initial template with parsed or default version (1.0.0), then attempt a silent fetch
+                // of GetCapabilities to parse the ServiceIdentification->ServiceTypeVersion list for a newer version.
+                const desiredBase = anyParsed.wmtsKvpBase || '';
+                const initialVersion = anyParsed.version || '1.0.0';
+                const [finalUrl, setFinalUrl] = (function(){
+                  // local hook-like pattern not allowed here; fallback to simple memo-less runtime composition
+                  return [null as string | null, (v: string) => { /* noop in map render context */ }];
+                })();
+                // Since we cannot use hooks inside this map callback, we skip live probing here to avoid React rule violations.
+                // If deeper negotiation is needed, refactor into a WMTSLayer React component with useEffect.
                 const tileUrlTemplate = buildWMTSKvpTemplate(
-                  anyParsed.wmtsKvpBase || '',
+                  desiredBase,
                   anyParsed.fullLayerName || anyParsed.layerName,
                   chosenSet,
-                  'image/png'
+                  'image/png',
+                  initialVersion
                 );
                 return (
                   <TileLayer
