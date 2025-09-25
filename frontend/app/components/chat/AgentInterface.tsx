@@ -8,6 +8,7 @@ import { useLayerStore } from "../../stores/layerStore";
 import { GeoDataObject } from "../../models/geodatamodel";
 import { hashString } from "../../utils/hashUtil";
 import ReactMarkdown from "react-markdown";
+import { getApiBase } from "../../utils/apiBase";
 
 // Helper function to determine score color and appropriate text color
 const getScoreStyle = (score?: number): { backgroundColor: string; color: string } => {
@@ -76,7 +77,7 @@ function toWkt(bbox: GeoDataObject["bounding_box"]): string | undefined {
 }
 
 export default function AgentInterface() {
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
+  const API_BASE_URL = getApiBase();
   const [activeTool, setActiveTool] = useState<"search" | "chat" | "geocode" | "geoprocess" | "ai-style" | null>("chat");
   const { input, setInput, messages: conversation, geoDataList, loading, error, queryNaLaMapAgent } =
     useNaLaMapAgent(API_BASE_URL);
