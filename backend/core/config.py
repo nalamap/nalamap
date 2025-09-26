@@ -26,3 +26,30 @@ MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB in bytes
 
 # Database connection URL
 DATABASE_URL = os.getenv("DATABASE_AZURE_URL")
+
+# ----------------------------------------------------------------------------
+# Mapping / Geospatial Service Flags
+# ----------------------------------------------------------------------------
+
+
+def _env_bool(name: str, default: str = "false") -> bool:
+    """Parse a boolean-like environment variable.
+
+    Accepts a broad set of truthy values to be user-friendly.
+    """
+    return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "on", "y"}
+
+
+# Whether to hide (filter out) WMTS layers that do not offer a WebMercator
+# (EPSG:3857 or common aliases) TileMatrixSet.
+# Default: True to align with production mapping assumptions (WebMercator frontend).
+FILTER_NON_WEBMERCATOR_WMTS = _env_bool("NALAMAP_FILTER_NON_WEBMERCATOR_WMTS", default="true")
+
+
+def get_filter_non_webmercator_wmts() -> bool:
+    """Return current setting for WMTS WebMercator filtering.
+
+    Exposed as a function so tests can override the environment at runtime
+    and re-query the value without needing to reload this module.
+    """
+    return _env_bool("NALAMAP_FILTER_NON_WEBMERCATOR_WMTS", default="true")

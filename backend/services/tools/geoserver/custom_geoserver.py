@@ -12,6 +12,7 @@ from owslib.wcs import WebCoverageService
 from owslib.wfs import WebFeatureService
 from owslib.wms import WebMapService
 from owslib.wmts import WebMapTileService
+from core.config import get_filter_non_webmercator_wmts
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import tool
 from langchain_core.tools.base import InjectedToolCallId
@@ -288,6 +289,31 @@ def parse_wmts_capabilities(
 ) -> List[GeoDataObject]:
     """Parses WMTS GetCapabilities and returns a list of GeoDataObjects."""
     layers: List[GeoDataObject] = []
+    filter_non_webmerc = get_filter_non_webmercator_wmts()
+
+    def _is_webmerc(name: Optional[str]) -> bool:
+        if not name:
+            return False
+        import re
+
+        pattern = r"3857|900913|googlemapscompatible|google|web ?mercator|mercatorquad"
+        return bool(re.search(pattern, name, flags=re.IGNORECASE))
+
+    def _pick_webmerc(candidates: List[str]) -> Optional[str]:
+        if not candidates:
+            return None
+        # Prefer explicit EPSG:3857 first
+        for pref in candidates:
+            if "3857" in pref:
+                return pref
+        # Then other common aliases
+        import re
+
+        alias_pattern = r"900913|google|mercator"
+        for pref in candidates:
+            if re.search(alias_pattern, pref, flags=re.IGNORECASE):
+                return pref
+        return candidates[0]
 
     for layer_id, layer in wmts.contents.items():
         title = layer.title or layer.id
@@ -307,54 +333,75 @@ def parse_wmts_capabilities(
                 f"{min_lon} {max_lat}, {min_lon} {min_lat}, {max_lon} {min_lat}))"
             )
 
-        # Be defensive: different WMTS responses may expose link templates in
-        # different attributes (resourceURLs, TileMatrixSetLink objects, href, etc.).
-        data_link = ""
-        try:
-            # resourceURLs (preferred if present)
-            if hasattr(layer, "resourceURLs") and layer.resourceURLs:
-                rr = layer.resourceURLs[0]
-                # rr might be a dict or an object
-                tmpl = None
-                if isinstance(rr, dict):
-                    tmpl = rr.get("template") or rr.get("href")
-                else:
-                    tmpl = getattr(rr, "template", None) or getattr(rr, "href", None)
-                if tmpl:
-                    data_link = tmpl if isinstance(tmpl, str) else str(tmpl)
-            # fall back to tilematrixsetlinks
-            if not data_link and getattr(layer, "tilematrixsetlinks", None):
-                first_link = next(iter(layer.tilematrixsetlinks.values()))
-                tmpl = getattr(first_link, "template", None) or getattr(first_link, "href", None)
-                # Some objects may wrap resource info in dict-like attrs
-                if isinstance(tmpl, dict):
-                    tmpl = tmpl.get("template") or tmpl.get("href")
-                if tmpl:
-                    # Work with a string representation
-                    tmpl_str = tmpl if isinstance(tmpl, str) else str(tmpl)
-                    # If the template contains placeholders, keep them formatted
-                    if (
-                        "{TileMatrix}" in tmpl_str
-                        or "{TileRow}" in tmpl_str
-                        or "{TileCol}" in tmpl_str
-                    ):
-                        data_link = tmpl_str
-                    else:
-                        # try naive formatting if it's a python-style template
-                        try:
-                            data_link = tmpl_str.format(
-                                TileMatrix="{TileMatrix}", TileRow="{TileRow}", TileCol="{TileCol}"
-                            )
-                        except Exception:
-                            data_link = tmpl_str
-        except Exception:
-            logger.debug("Unexpected WMTS link structure; skipping tile template extraction.")
+        # Determine available TileMatrixSets and pick a preferred WebMercator one
+        tile_matrix_sets = list(getattr(layer, "tilematrixsetlinks", {}).keys())
+        webmerc_sets = [s for s in tile_matrix_sets if _is_webmerc(s)]
+        preferred_webmerc = _pick_webmerc(webmerc_sets)
 
-        # Post-process template for frontend safety: remove unsupported {style} placeholder
+        # Attempt to construct a KVP GetTile template if we have a preferred WebMercator matrix set
+        data_link = ""
+        if preferred_webmerc:
+            # Derive base GeoServer endpoint (strip trailing path after /gwc/service/wmts)
+            # geoserver_url is expected like https://host/geoserver/gwc/service/wmts
+            base_root = geoserver_url.split("/gwc/")[0].rstrip("/")
+            # Standard KVP endpoint
+            kvp_base = f"{base_root}/gwc/service/wmts"
+            # Use style placeholder blank and image/png by default
+            data_link = (
+                f"{kvp_base}?service=WMTS&version=1.0.0&request=GetTile&layer={layer.id}"
+                f"&style=&tilematrixset={preferred_webmerc}&format=image/png"
+                f"&tilematrix={preferred_webmerc}:{{z}}&tilerow={{y}}&tilecol={{x}}"
+            )
+        else:
+            # If filtering is enabled and there is no WebMercator matrix set,
+            # skip this layer entirely
+            if filter_non_webmerc:
+                logger.debug(
+                    "Skipping WMTS layer without WebMercator matrix set due to env filter: %s",
+                    layer_id,
+                )
+                continue
+            # Fallback to existing discovery logic for non-WebMercator sets
+            try:
+                if hasattr(layer, "resourceURLs") and layer.resourceURLs:
+                    rr = layer.resourceURLs[0]
+                    tmpl = None
+                    if isinstance(rr, dict):
+                        tmpl = rr.get("template") or rr.get("href")
+                    else:
+                        tmpl = getattr(rr, "template", None) or getattr(rr, "href", None)
+                    if tmpl:
+                        data_link = tmpl if isinstance(tmpl, str) else str(tmpl)
+                if not data_link and getattr(layer, "tilematrixsetlinks", None):
+                    first_link = next(iter(layer.tilematrixsetlinks.values()))
+                    tmpl = getattr(first_link, "template", None) or getattr(
+                        first_link, "href", None
+                    )
+                    if isinstance(tmpl, dict):
+                        tmpl = tmpl.get("template") or tmpl.get("href")
+                    if tmpl:
+                        tmpl_str = tmpl if isinstance(tmpl, str) else str(tmpl)
+                        if (
+                            "{TileMatrix}" in tmpl_str
+                            or "{TileRow}" in tmpl_str
+                            or "{TileCol}" in tmpl_str
+                        ):
+                            data_link = tmpl_str
+                        else:
+                            try:
+                                data_link = tmpl_str.format(
+                                    TileMatrix="{TileMatrix}",
+                                    TileRow="{TileRow}",
+                                    TileCol="{TileCol}",
+                                )
+                            except Exception:
+                                data_link = tmpl_str
+            except Exception:
+                logger.debug("Unexpected WMTS link structure; skipping tile template extraction.")
+
         if data_link:
             if "{style}" in data_link:
                 data_link = data_link.replace("{style}", "default")
-            # Prefer image/png over utfgrid JSON for rendering base tiles
             if "application/json;type=utfgrid" in data_link:
                 data_link = data_link.replace("application/json;type=utfgrid", "image/png")
 
@@ -371,7 +418,12 @@ def parse_wmts_capabilities(
             bounding_box=bounding_box,
             layer_type="WMTS",
             properties=_sanitize_properties(
-                {"tile_matrix_sets": list(getattr(layer, "tilematrixsetlinks", {}).keys())}
+                {
+                    "tile_matrix_sets": tile_matrix_sets,
+                    "webmercator_matrix_sets": webmerc_sets,
+                    "preferred_matrix_set": preferred_webmerc,
+                    "has_webmercator": bool(preferred_webmerc),
+                }
             ),
         )
         layers.append(geo_object)
