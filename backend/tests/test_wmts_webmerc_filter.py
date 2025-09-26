@@ -16,9 +16,7 @@ class _MockLayer:
         self.boundingBoxWGS84 = (-1, -1, 1, 1)
         self.tilematrixsetlinks = {
             ms: SimpleNamespace(
-                template=(
-                    f"http://mock/{ms}/{{TileMatrix}}/{{TileRow}}/{{TileCol}}"
-                )
+                template=(f"http://mock/{ms}/{{TileMatrix}}/{{TileRow}}/{{TileCol}}")
             )
             for ms in matrix_sets
         }
@@ -67,8 +65,7 @@ def test_filter_includes_webmercator():
     assert isinstance(props, dict)
     assert props.get("has_webmercator") is True
     assert (
-        "tilematrixset=EPSG:3857" in lyr.data_link
-        or "tilematrixset=EPSG%3A3857" in lyr.data_link
+        "tilematrixset=EPSG:3857" in lyr.data_link or "tilematrixset=EPSG%3A3857" in lyr.data_link
     )
 
 

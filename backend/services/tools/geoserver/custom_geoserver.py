@@ -296,9 +296,7 @@ def parse_wmts_capabilities(
             return False
         import re
 
-        pattern = (
-            r"3857|900913|googlemapscompatible|google|web ?mercator|mercatorquad"
-        )
+        pattern = r"3857|900913|googlemapscompatible|google|web ?mercator|mercatorquad"
         return bool(re.search(pattern, name, flags=re.IGNORECASE))
 
     def _pick_webmerc(candidates: List[str]) -> Optional[str]:
@@ -340,7 +338,7 @@ def parse_wmts_capabilities(
         webmerc_sets = [s for s in tile_matrix_sets if _is_webmerc(s)]
         preferred_webmerc = _pick_webmerc(webmerc_sets)
 
-    # Attempt to construct a KVP GetTile template if we have a preferred WebMercator matrix set
+        # Attempt to construct a KVP GetTile template if we have a preferred WebMercator matrix set
         data_link = ""
         if preferred_webmerc:
             # Derive base GeoServer endpoint (strip trailing path after /gwc/service/wmts)
@@ -376,9 +374,8 @@ def parse_wmts_capabilities(
                         data_link = tmpl if isinstance(tmpl, str) else str(tmpl)
                 if not data_link and getattr(layer, "tilematrixsetlinks", None):
                     first_link = next(iter(layer.tilematrixsetlinks.values()))
-                    tmpl = (
-                        getattr(first_link, "template", None)
-                        or getattr(first_link, "href", None)
+                    tmpl = getattr(first_link, "template", None) or getattr(
+                        first_link, "href", None
                     )
                     if isinstance(tmpl, dict):
                         tmpl = tmpl.get("template") or tmpl.get("href")
