@@ -36,3 +36,10 @@ class SettingsSnapshot(BaseModel):
     )
     model_settings: ModelSettings = Field(..., description="Configuration for LLM model usage")
     tools: List[ToolConfig] = Field(..., description="Per-tool configuration overrides")
+    session_id: Optional[str] = Field(
+        None,
+        description=(
+            "Server-issued identifier used to scope cached resources such as prefetched"
+            " GeoServer layers."
+        ),
+    )

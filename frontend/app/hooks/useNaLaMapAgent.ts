@@ -150,6 +150,7 @@ export function useNaLaMapAgent(apiUrl: string) {
           headers: {
             'Content-Type': 'application/json',
           },
+          credentials: 'include',
           body: JSON.stringify(payload),
         });
       } else if (endpoint === "ai-style") {
@@ -168,6 +169,7 @@ export function useNaLaMapAgent(apiUrl: string) {
           headers: {
             'Content-Type': 'application/json',
           },
+          credentials: 'include',
           body: JSON.stringify(payload),
         });
       } else {
