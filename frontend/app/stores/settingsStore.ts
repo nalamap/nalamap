@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { getApiBase } from '../utils/apiBase'
 
 export interface GeoServerBackend {
     url: string
@@ -107,8 +108,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         if (state.initialized) return
 
         try {
-            // API endpont
-            const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
+            // API endpoint via shared resolver
+            const API_BASE_URL = getApiBase();
 
             const res = await fetch(`${API_BASE_URL}/settings/options`)
             if (!res.ok) throw new Error(res.statusText)
