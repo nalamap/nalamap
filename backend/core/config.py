@@ -41,9 +41,8 @@ def _env_bool(name: str, default: str = "false") -> bool:
 
 
 # Whether to hide (filter out) WMTS layers that do not offer a WebMercator
-# (EPSG:3857 or common aliases) TileMatrixSet. Default: True for safety so
-# the frontend map (assumed WebMercator) does not attempt to render
-# incompatible projections.
+# (EPSG:3857 or common aliases) TileMatrixSet.
+# Default: True to align with production mapping assumptions (WebMercator frontend).
 FILTER_NON_WEBMERCATOR_WMTS = _env_bool("NALAMAP_FILTER_NON_WEBMERCATOR_WMTS", default="true")
 
 
