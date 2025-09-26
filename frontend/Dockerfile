@@ -64,8 +64,12 @@ COPY --from=builder /app/.next/static ./.next/static
 # Optional: copy next.config.js if you rely on it at runtime
 # COPY next.config.js ./
 
+COPY entrypoint.sh /entrypoint.sh
+RUN chown nextjs:nodejs /entrypoint.sh && chmod +x /entrypoint.sh
+
 USER nextjs
 
 EXPOSE 3000
 
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["node", "server.js"]
