@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import Sidebar from '../components/sidebar/Sidebar'
 import {
     GeoServerBackend,
@@ -10,6 +10,9 @@ import {
 import {
     useInitializedSettingsStore
 } from '../hooks/useInitializedSettingsStore'
+import { getApiBase } from '../utils/apiBase'
+
+type BackendPrefetchInput = Omit<GeoServerBackend, 'enabled'> & { enabled?: boolean }
 
 export default function SettingsPage() {
     // store hooks
@@ -50,6 +53,8 @@ export default function SettingsPage() {
     const setToolOptions = useInitializedSettingsStore(s => s.setToolOptions)
     const setModelOptions = useInitializedSettingsStore(s => s.setModelOptions)
 
+    const setSessionId = useInitializedSettingsStore(s => s.setSessionId)
+
     // Get Seetings
     const getSettings = useInitializedSettingsStore((s) => s.getSettings)
     const setSettings = useInitializedSettingsStore((s) => s.setSettings)
@@ -57,6 +62,142 @@ export default function SettingsPage() {
     const [newPortal, setNewPortal] = useState('')
     const [newBackend, setNewBackend] = useState<Omit<GeoServerBackend, 'enabled'>>({ url: '', name: '', description: '', username: '', password: '' })
     const [newToolName, setNewToolName] = useState('')
+    const [backendError, setBackendError] = useState<string | null>(null)
+    const [backendSuccess, setBackendSuccess] = useState<string | null>(null)
+    const [backendLoading, setBackendLoading] = useState(false)
+    const [importingBackends, setImportingBackends] = useState(false)
+
+    const API_BASE_URL = getApiBase()
+
+    const normalizeBackend = (backend: BackendPrefetchInput): GeoServerBackend => ({
+        url: backend.url.trim(),
+        name: backend.name?.trim() || backend.name || undefined,
+        description: backend.description,
+        username: backend.username,
+        password: backend.password,
+        enabled: backend.enabled ?? true,
+    })
+
+    const prefetchBackend = async (
+        backend: BackendPrefetchInput,
+    ): Promise<{ backend: GeoServerBackend; totalLayers: number }> => {
+        const normalized = normalizeBackend(backend)
+        if (!normalized.url) {
+            throw new Error('Please provide a GeoServer URL.')
+        }
+
+        let responseJson: any = null
+        try {
+            const res = await fetch(`${API_BASE_URL}/settings/geoserver/preload`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    backend: normalized,
+                    session_id: getSettings().session_id || undefined,
+                }),
+            })
+
+            try {
+                responseJson = await res.json()
+            } catch {
+                responseJson = null
+            }
+
+            if (!res.ok) {
+                let message = res.statusText || 'Failed to contact GeoServer backend.'
+                if (responseJson?.detail) {
+                    message = responseJson.detail
+                }
+                throw new Error(message)
+            }
+        } catch (err) {
+            if (err instanceof Error) {
+                throw err
+            }
+            throw new Error('Failed to preload GeoServer backend.')
+        }
+
+        if (responseJson?.session_id) {
+            setSessionId(responseJson.session_id)
+        }
+
+        return {
+            backend: normalized,
+            totalLayers: typeof responseJson?.total_layers === 'number' ? responseJson.total_layers : 0,
+        }
+    }
+
+    const applyImportedSettings = async (snapshot: SettingsSnapshot) => {
+        setBackendError(null)
+        setBackendSuccess(null)
+
+        const sanitized: SettingsSnapshot = {
+            ...snapshot,
+            geoserver_backends: [],
+            session_id: undefined,
+        }
+        setSettings(sanitized)
+
+        const importedBackends = snapshot.geoserver_backends || []
+        if (importedBackends.length === 0) {
+            setBackendSuccess('Settings imported successfully.')
+            return
+        }
+
+        setBackendLoading(true)
+        setImportingBackends(true)
+        try {
+            const failures: string[] = []
+            let successCount = 0
+
+            for (const backend of importedBackends) {
+                try {
+                    const result = await prefetchBackend(backend)
+                    addBackend(result.backend)
+                    successCount += 1
+                } catch (err) {
+                    console.error('Failed to preload imported GeoServer backend', err)
+                    failures.push(backend.url)
+                }
+            }
+
+            if (successCount > 0) {
+                setBackendSuccess(
+                    `Prefetched ${successCount} imported backend${successCount === 1 ? '' : 's'} successfully.`,
+                )
+            } else {
+                setBackendSuccess('Settings imported. Unable to preload any GeoServer backends.')
+            }
+
+            if (failures.length > 0) {
+                setBackendError(`Failed to preload: ${failures.join(', ')}`)
+            }
+        } finally {
+            setBackendLoading(false)
+            setImportingBackends(false)
+        }
+    }
+
+    const handleAddBackend = async () => {
+        setBackendError(null)
+        setBackendSuccess(null)
+
+        setBackendLoading(true)
+        setImportingBackends(false)
+        try {
+            const { backend, totalLayers } = await prefetchBackend(newBackend)
+            addBackend(backend)
+            setBackendSuccess(`Prefetched ${totalLayers} layer${totalLayers === 1 ? '' : 's'} successfully.`)
+            setNewBackend({ url: '', name: '', description: '', username: '', password: '' })
+        } catch (err: any) {
+            setBackendError(err?.message || 'Failed to preload GeoServer backend.')
+        } finally {
+            setBackendLoading(false)
+        }
+    }
 
 
     /** Export JSON */
@@ -79,12 +220,28 @@ export default function SettingsPage() {
         if (!file) return
         const reader = new FileReader()
         reader.onload = (evt) => {
+            const content = evt.target?.result
+            if (typeof content !== 'string') {
+                alert('Invalid settings JSON')
+                return
+            }
+
+            let parsed: SettingsSnapshot
             try {
-                const obj = JSON.parse(evt.target?.result as string) as SettingsSnapshot
-                setSettings(obj)
+                parsed = JSON.parse(content) as SettingsSnapshot
             } catch {
                 alert('Invalid settings JSON')
+                return
             }
+
+            void (async () => {
+                try {
+                    await applyImportedSettings(parsed)
+                } catch (err) {
+                    console.error('Failed to import settings', err)
+                    alert('Failed to import settings')
+                }
+            })()
         }
         reader.readAsText(file)
         e.target.value = ''
@@ -290,11 +447,19 @@ export default function SettingsPage() {
                             className="border rounded p-2 w-full"
                         />
                         <button
-                            onClick={() => { addBackend(newBackend); setNewBackend({ url: '', name: '', description: '', username: '', password: '' }) }}
-                            className="bg-blue-600 text-white px-4 py-2 rounded"
+                            onClick={handleAddBackend}
+                            disabled={backendLoading}
+                            className={`bg-blue-600 text-white px-4 py-2 rounded ${backendLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
-                            Add Backend
+                            {backendLoading ? (importingBackends ? 'Prefetching…' : 'Checking…') : 'Add Backend'}
                         </button>
+                        {backendLoading && (
+                            <div className="w-full mt-2 h-2 bg-gray-200 rounded">
+                                <div className="h-2 bg-blue-500 rounded animate-pulse w-full" />
+                            </div>
+                        )}
+                        {backendError && <p className="text-red-600 text-sm">{backendError}</p>}
+                        {backendSuccess && <p className="text-green-600 text-sm">{backendSuccess}</p>}
                     </div>
                     <ul className="space-y-3">
                         {backends.map((b, i) => (

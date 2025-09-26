@@ -10,7 +10,10 @@ from models.settings_model import (
     ModelSettings,
     ToolConfig,
 )
-from services.tools.geoserver.custom_geoserver import get_custom_geoserver_data
+from services.tools.geoserver.custom_geoserver import (
+    get_custom_geoserver_data,
+    preload_backend_layers,
+)
 from models.states import GeoDataAgentState
 
 
@@ -53,7 +56,7 @@ class _StubBackendFetcher:
                     properties={"srs": ["EPSG:4326"]},
                 )
             )
-        return layers
+        return layers, {"WMS": True, "WFS": False, "WCS": False, "WMTS": False}
 
 
 @pytest.fixture
@@ -92,6 +95,7 @@ def settings_snapshot():
                 prompt_override="",
             )
         ],
+        session_id="backend-filter-session",
     )
 
 
@@ -111,8 +115,12 @@ def test_backend_name_filter(monkeypatch, settings_snapshot):
     stub = _StubBackendFetcher()
     from services.tools.geoserver import custom_geoserver as cg
 
-    monkeypatch.setattr(cg, "fetch_all_service_capabilities", stub)
-
+    monkeypatch.setattr(
+        cg,
+        "fetch_all_service_capabilities_with_status",
+        stub,
+    )
+    preload_backend_layers(settings_snapshot.session_id, settings_snapshot.geoserver_backends[0])
     state = _base_state(settings_snapshot)
     tool_call = _create_tool_call(
         "get_custom_geoserver_data",
@@ -133,7 +141,7 @@ def test_backend_name_filter(monkeypatch, settings_snapshot):
     assert stub.calls == ["https://example.com/geoserver/"]
     # metadata annotation
     for lyr in layers:
-        assert lyr.properties.get("_backend_url") == "https://example.com/geoserver/"
+        assert lyr.properties.get("_backend_url") == "https://example.com/geoserver"
         assert lyr.properties.get("_backend_name") == "Primary"
         assert lyr.properties.get("_backend_description") == "First"
 
@@ -142,8 +150,12 @@ def test_backend_url_filter(monkeypatch, settings_snapshot):
     stub = _StubBackendFetcher()
     from services.tools.geoserver import custom_geoserver as cg
 
-    monkeypatch.setattr(cg, "fetch_all_service_capabilities", stub)
-
+    monkeypatch.setattr(
+        cg,
+        "fetch_all_service_capabilities_with_status",
+        stub,
+    )
+    preload_backend_layers(settings_snapshot.session_id, settings_snapshot.geoserver_backends[1])
     state = _base_state(settings_snapshot)
     tool_call = _create_tool_call(
         "get_custom_geoserver_data",
@@ -162,7 +174,7 @@ def test_backend_url_filter(monkeypatch, settings_snapshot):
     assert len(layers) == 2
     assert stub.calls == ["https://alt.example.com/geoserver/"]
     for lyr in layers:
-        assert lyr.properties.get("_backend_url") == "https://alt.example.com/geoserver/"
+        assert lyr.properties.get("_backend_url") == "https://alt.example.com/geoserver"
         assert lyr.properties.get("_backend_name") == "Secondary"
         assert lyr.properties.get("_backend_description") == "Second"
 
@@ -171,8 +183,13 @@ def test_no_filter_queries_all(monkeypatch, settings_snapshot):
     stub = _StubBackendFetcher()
     from services.tools.geoserver import custom_geoserver as cg
 
-    monkeypatch.setattr(cg, "fetch_all_service_capabilities", stub)
-
+    monkeypatch.setattr(
+        cg,
+        "fetch_all_service_capabilities_with_status",
+        stub,
+    )
+    for backend in settings_snapshot.geoserver_backends:
+        preload_backend_layers(settings_snapshot.session_id, backend)
     state = _base_state(settings_snapshot)
     tool_call = _create_tool_call(
         "get_custom_geoserver_data",
@@ -195,8 +212,8 @@ def test_no_filter_queries_all(monkeypatch, settings_snapshot):
     # ensure each layer carries metadata
     urls = {layer.properties.get("_backend_url") for layer in layers}
     assert urls == {
-        "https://example.com/geoserver/",
-        "https://alt.example.com/geoserver/",
+        "https://example.com/geoserver",
+        "https://alt.example.com/geoserver",
     }
 
 
@@ -204,8 +221,13 @@ def test_bounding_box_filter_includes_only_intersecting(monkeypatch, settings_sn
     stub = _StubBackendFetcher()
     from services.tools.geoserver import custom_geoserver as cg
 
-    monkeypatch.setattr(cg, "fetch_all_service_capabilities", stub)
-
+    monkeypatch.setattr(
+        cg,
+        "fetch_all_service_capabilities_with_status",
+        stub,
+    )
+    for backend in settings_snapshot.geoserver_backends:
+        preload_backend_layers(settings_snapshot.session_id, backend)
     state = _base_state(settings_snapshot)
     # Bounding box near origin should include only primary backend layers
     tool_call = _create_tool_call(
@@ -221,14 +243,20 @@ def test_bounding_box_filter_includes_only_intersecting(monkeypatch, settings_sn
     layers = update.get("geodata_results", [])
     assert len(layers) == 2
     for lyr in layers:
-        assert lyr.properties.get("_backend_url") == "https://example.com/geoserver/"
+        assert lyr.properties.get("_backend_url") == "https://example.com/geoserver"
 
 
 def test_invalid_bounding_box(monkeypatch, settings_snapshot):
     stub = _StubBackendFetcher()
     from services.tools.geoserver import custom_geoserver as cg
 
-    monkeypatch.setattr(cg, "fetch_all_service_capabilities", stub)
+    monkeypatch.setattr(
+        cg,
+        "fetch_all_service_capabilities_with_status",
+        stub,
+    )
+    for backend in settings_snapshot.geoserver_backends:
+        preload_backend_layers(settings_snapshot.session_id, backend)
     state = _base_state(settings_snapshot)
     tool_call = _create_tool_call(
         "get_custom_geoserver_data",

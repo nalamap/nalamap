@@ -5,7 +5,8 @@ and their descriptions across WMS, WFS, WCS, and WMTS services.
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Union
+from collections import Counter
+from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.parse import urlencode, urljoin
 
 from owslib.wcs import WebCoverageService
@@ -31,6 +32,13 @@ from models.settings_model import (
     ToolConfig,
 )
 from models.states import GeoDataAgentState
+from services.tools.geoserver.vector_store import (
+    delete_layers,
+    has_layers,
+    list_layers as vector_list_layers,
+    similarity_search as vector_similarity_search,
+    store_layers,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -430,51 +438,117 @@ def parse_wmts_capabilities(
     return layers
 
 
-def fetch_all_service_capabilities(
+def fetch_all_service_capabilities_with_status(
     backend: GeoServerBackend, search_term: Optional[str] = None
-) -> List[GeoDataObject]:
-    """Fetches capabilities from all services and returns a flat list."""
+) -> Tuple[List[GeoDataObject], Dict[str, bool]]:
+    """Fetch capabilities from all services and capture per-service success flags."""
+
     if not backend.enabled:
-        return []
+        return [], {}
 
     base_url = backend.url
     username = backend.username
     password = backend.password
     all_layers: List[GeoDataObject] = []
+    service_status: Dict[str, bool] = {}
 
     # WMS
     wms_url = urljoin(base_url, "wms")
     try:
         wms = WebMapService(wms_url, version="1.3.0", username=username, password=password)
         all_layers.extend(parse_wms_capabilities(wms, wms_url, search_term))
+        service_status["WMS"] = True
     except Exception as e:
         logger.warning(f"Could not fetch WMS capabilities from {wms_url}: {e}")
+        service_status["WMS"] = False
 
     # WFS
     wfs_url = urljoin(base_url, "wfs")
     try:
         wfs = WebFeatureService(wfs_url, version="2.0.0", username=username, password=password)
         all_layers.extend(parse_wfs_capabilities(wfs, wfs_url, search_term))
+        service_status["WFS"] = True
     except Exception as e:
         logger.warning(f"Could not fetch WFS capabilities from {wfs_url}: {e}")
+        service_status["WFS"] = False
 
     # WCS
     wcs_url = urljoin(base_url, "wcs")
     try:
         wcs = WebCoverageService(wcs_url, version="2.0.1")
         all_layers.extend(parse_wcs_capabilities(wcs, wcs_url, search_term))
+        service_status["WCS"] = True
     except Exception as e:
         logger.warning(f"Could not fetch WCS capabilities from {wcs_url}: {e}")
+        service_status["WCS"] = False
 
     # WMTS
     wmts_url = urljoin(base_url, "gwc/service/wmts")
     try:
         wmts = WebMapTileService(wmts_url, username=username, password=password)
         all_layers.extend(parse_wmts_capabilities(wmts, wmts_url, search_term))
+        service_status["WMTS"] = True
     except Exception as e:
         logger.warning(f"Could not fetch WMTS capabilities from {wmts_url}: {e}")
+        service_status["WMTS"] = False
 
-    return all_layers
+    return all_layers, service_status
+
+
+def fetch_all_service_capabilities(
+    backend: GeoServerBackend, search_term: Optional[str] = None
+) -> List[GeoDataObject]:
+    """Fetches capabilities from all services and returns a flat list."""
+
+    layers, _ = fetch_all_service_capabilities_with_status(backend, search_term=search_term)
+    return layers
+
+
+def _annotate_layers_with_backend(
+    layers: List[GeoDataObject], backend: GeoServerBackend
+) -> List[GeoDataObject]:
+    """Attach backend metadata to the layer properties so it survives persistence."""
+
+    normalized_url = backend.url.rstrip("/")
+    for layer in layers:
+        props = layer.properties if isinstance(layer.properties, dict) else {}
+        if not isinstance(props, dict):
+            props = {}
+        props.setdefault("_backend_url", normalized_url)
+        if backend.name:
+            props.setdefault("_backend_name", backend.name)
+        if backend.description:
+            props.setdefault("_backend_description", backend.description)
+        layer.properties = props
+    return layers
+
+
+def preload_backend_layers(
+    session_id: str, backend: GeoServerBackend, search_term: Optional[str] = None
+) -> Dict[str, Any]:
+    """Fetch and persist layers for a backend into the session-scoped vector store."""
+
+    if not backend.enabled:
+        raise ValueError("Backend must be enabled before preloading layers.")
+
+    layers, status = fetch_all_service_capabilities_with_status(backend, search_term=search_term)
+    if not any(status.values()):
+        raise ConnectionError(
+            "Unable to reach the GeoServer backend. All capability requests failed."
+        )
+
+    annotated_layers = _annotate_layers_with_backend(layers, backend)
+    delete_layers(session_id, [backend.url])
+    stored_count = store_layers(session_id, backend.url, backend.name, annotated_layers)
+    service_counts = Counter(layer.layer_type or "UNKNOWN" for layer in annotated_layers)
+    return {
+        "session_id": session_id,
+        "backend_url": backend.url.rstrip("/"),
+        "backend_name": backend.name,
+        "total_layers": stored_count,
+        "service_status": status,
+        "service_counts": dict(service_counts),
+    }
 
 
 def _get_custom_geoserver_data(
@@ -491,17 +565,31 @@ def _get_custom_geoserver_data(
     This function is wrapped by the @tool decorator.
     """
     settings = state.get("options")
-    if (
-        not settings
-        or not isinstance(settings, SettingsSnapshot)
-        or not settings.geoserver_backends
-    ):
+    snapshot: Optional[SettingsSnapshot] = None
+    if isinstance(settings, SettingsSnapshot):
+        snapshot = settings
+    elif isinstance(settings, dict):
+        try:
+            snapshot = SettingsSnapshot.model_validate(settings, strict=False)
+        except Exception:
+            snapshot = None
+
+    if not snapshot or not snapshot.geoserver_backends:
         return ToolMessage(
             content="No GeoServer backends configured.",
             tool_call_id=tool_call_id,
         )
 
-    enabled_backends = [backend for backend in settings.geoserver_backends if backend.enabled]
+    session_id = snapshot.session_id
+    if not session_id:
+        return ToolMessage(
+            content=(
+                "Missing session identifier. Please reload the settings page to establish a session."
+            ),
+            tool_call_id=tool_call_id,
+        )
+
+    enabled_backends = [backend for backend in snapshot.geoserver_backends if backend.enabled]
     if backend_name:
         enabled_backends = [
             b for b in enabled_backends if (b.name or "").lower() == backend_name.lower()
@@ -516,28 +604,40 @@ def _get_custom_geoserver_data(
             tool_call_id=tool_call_id,
         )
 
-    all_layers: List[GeoDataObject] = []
-    for backend in enabled_backends:
-        try:
-            fetched_layers = fetch_all_service_capabilities(backend, search_term=search_term)
-            # annotate with backend metadata (non-invasive; add to properties if dict-like)
-            for lyr in fetched_layers:
-                try:
-                    props = getattr(lyr, "properties", None)
-                    if isinstance(props, dict):
-                        props.setdefault("_backend_url", backend.url)
-                        if backend.name:
-                            props.setdefault("_backend_name", backend.name)
-                        if backend.description:
-                            props.setdefault("_backend_description", backend.description)
-                except Exception:
-                    pass
-            all_layers.extend(fetched_layers)
-        except Exception as e:
-            logger.error(f"Error fetching from backend {backend.url}: {e}")
-            # Optionally, add a message to the state indicating partial failure
-            # For now, we just log and continue
-            pass
+    backend_urls = [backend.url.rstrip("/") for backend in enabled_backends]
+    if not has_layers(session_id, backend_urls):
+        return ToolMessage(
+            content=(
+                "No prefetched GeoServer layers found for this session. Please preload the"
+                " backend via the settings page before querying."
+            ),
+            tool_call_id=tool_call_id,
+        )
+
+    limit = max_results or 10
+    fetch_limit = max(limit * 5, limit)
+    if search_term:
+        search_hits = vector_similarity_search(
+            session_id=session_id,
+            backend_urls=backend_urls,
+            query=search_term,
+            limit=fetch_limit,
+        )
+        candidate_layers = [layer for layer, _distance in search_hits]
+    else:
+        candidate_layers = vector_list_layers(
+            session_id=session_id,
+            backend_urls=backend_urls,
+            limit=fetch_limit,
+        )
+
+    if not candidate_layers:
+        return ToolMessage(
+            content="No matching layers found for the provided filters.",
+            tool_call_id=tool_call_id,
+        )
+
+    all_layers: List[GeoDataObject] = candidate_layers
 
     # Optional bounding box filtering (WGS84 lon/lat)
     bbox_filter = None
@@ -585,8 +685,9 @@ def _get_custom_geoserver_data(
         all_layers = filtered
 
     # Enforce max_results limit
-    if max_results is not None and len(all_layers) > max_results:
-        all_layers = all_layers[:max_results]
+    trim_limit = limit if max_results is not None else len(all_layers)
+    if trim_limit is not None and len(all_layers) > trim_limit:
+        all_layers = all_layers[:trim_limit]
 
     # Summarize distinct CRS codes across collected layers (if available)
     crs_codes = []

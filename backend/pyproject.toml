@@ -21,6 +21,7 @@ langgraph = ">=0.6.7"
 langchain_openai = ">=0.3.33"
 owslib = "*"
 httpx = "*"
+sqlite-vec = ">=0.1.5"
 
 langchain_google_genai = ">=2.1.12"
 langchain_mistralai = ">=0.2.12"

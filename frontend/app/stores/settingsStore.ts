@@ -45,6 +45,7 @@ export interface SettingsSnapshot {
     tools: ToolConfig[]
     tool_options: Record<string, ToolOption>
     model_options: Record<string, ModelOption[]>
+    session_id?: string
 }
 
 export interface SettingsState extends SettingsSnapshot {
@@ -56,13 +57,14 @@ export interface SettingsState extends SettingsSnapshot {
         tool_options: Record<string, ToolOption>
         search_portals: string[]
         model_options: Record<string, ModelOption[]>
+        session_id: string
     }) => void
 
     // Portal & Backend actions
     addPortal: (portal: string) => void
     removePortal: (url: string) => void
     togglePortal: (url: string) => void
-    addBackend: (backend: Omit<GeoServerBackend, 'enabled'>) => void
+    addBackend: (backend: Omit<GeoServerBackend, 'enabled'> & { enabled?: boolean }) => void
     removeBackend: (url: string) => void
     toggleBackend: (url: string) => void
 
@@ -97,6 +99,9 @@ export interface SettingsState extends SettingsSnapshot {
     // Bulk
     getSettings: () => SettingsSnapshot
     setSettings: (settings: SettingsSnapshot) => void
+
+    // Session
+    setSessionId: (id?: string | null) => void
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -111,7 +116,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
             // API endpoint via shared resolver
             const API_BASE_URL = getApiBase();
 
-            const res = await fetch(`${API_BASE_URL}/settings/options`)
+            const res = await fetch(`${API_BASE_URL}/settings/options`, {
+                credentials: 'include'
+            })
             if (!res.ok) throw new Error(res.statusText)
             const opts = await res.json()
             get().initializeSettingsFromRemote(opts)
@@ -136,8 +143,13 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
             model_settings,
             available_tools,
             available_search_portals,
-            model_options
+            model_options,
+            setSessionId
         } = get()
+
+        if (opts.session_id) {
+            setSessionId(opts.session_id)
+        }
 
         if ((!model_settings.system_prompt || model_settings.system_prompt === '') && opts.system_prompt) {
             setSystemPrompt(opts.system_prompt)
@@ -178,6 +190,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     },
     tools: [],
 
+    session_id: undefined,
+    setSessionId: (id) => set({ session_id: id ?? undefined }),
+
     // available
     available_tools: [],
     available_search_portals: [],
@@ -199,11 +214,28 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         search_portals: state.search_portals.map(p => p.url === url ? { ...p, enabled: !p.enabled } : p)
     })),
 
-    addBackend: (backend) => set(state => ({
-        geoserver_backends: state.geoserver_backends.some(b => b.url === backend.url)
-            ? state.geoserver_backends
-            : [...state.geoserver_backends, { ...backend, enabled: true }]
-    })),
+    addBackend: (backend) => set(state => {
+        const existingIndex = state.geoserver_backends.findIndex(b => b.url === backend.url)
+        if (existingIndex >= 0) {
+            const next = [...state.geoserver_backends]
+            const previous = next[existingIndex]
+            next[existingIndex] = {
+                ...previous,
+                ...backend,
+                enabled: backend.enabled ?? previous.enabled,
+            }
+            return { geoserver_backends: next }
+        }
+        return {
+            geoserver_backends: [
+                ...state.geoserver_backends,
+                {
+                    ...backend,
+                    enabled: backend.enabled ?? true,
+                },
+            ],
+        }
+    }),
     removeBackend: (url) => set(state => ({ geoserver_backends: state.geoserver_backends.filter(b => b.url !== url) })),
     toggleBackend: (url) => set(state => ({
         geoserver_backends: state.geoserver_backends.map(b => b.url === url ? { ...b, enabled: !b.enabled } : b)
@@ -247,13 +279,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         tools: get().tools,
         tool_options: get().tool_options,
         model_options: get().model_options,
+        session_id: get().session_id,
     }),
-    setSettings: (settings) => set(() => ({
+    setSettings: (settings) => set((state) => ({
         search_portals: settings.search_portals,
         geoserver_backends: settings.geoserver_backends,
         model_settings: settings.model_settings,
         tools: settings.tools,
         tool_options: settings.tool_options,
         model_options: settings.model_options,
+        session_id: state.session_id,
     })),
 }))
