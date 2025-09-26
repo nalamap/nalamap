@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@ai-sdk/react": "^1.1.19",
@@ -22,16 +23,17 @@
     "leaflet-geosearch": "^4.2.0",
     "lucide-react": "^0.486.0",
     "maplibre-gl": "^5.1.1",
-    "next": "^15.3.1",
+    "next": "^15.5.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-leaflet": "^5.0.0",
     "react-map-gl": "^8.0.1",
     "react-markdown": "^10.1.0",
     "wellknown": "^0.5.0",
-    "zustand": "^5.0.3"
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.0",
     "@tailwindcss/postcss": "^4",
     "@tailwindcss/typography": "^0.5.16",
     "@types/node": "^20",
@@ -44,7 +46,7 @@
     "typescript": "^5"
   },
   "optionalDependencies": {
-    "@tailwindcss/oxide-linux-x64-gnu": "^4.0.1",
+    "@tailwindcss/oxide-linux-x64-gnu": "^4.1.13",
     "lightningcss-linux-x64-gnu": "^1.29.1"
   }
 }
