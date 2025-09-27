@@ -1,9 +1,10 @@
 name: CI
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
-    paths:
-      - 'backend/**'
 
 jobs:
   test:
@@ -65,5 +66,31 @@ jobs:
         run: |
           poetry run flake8 .
           poetry run black --check .
+
+  frontend-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps
+
+      - name: Run frontend end-to-end tests
+        run: npm run test:e2e
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+          CI: 'true'
 
       

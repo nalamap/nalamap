@@ -172,12 +172,21 @@ def test_parse_wcs_capabilities(mock_wcs_service):
     assert layers[0].id == "wcs_workspace:layer1"
 
 
-def test_parse_wmts_capabilities(mock_wmts_service):
+def test_parse_wmts_capabilities(monkeypatch, mock_wmts_service):
     """Test parsing of WMTS capabilities."""
+    # Ensure filtering is disabled for this test so layer is included
+    monkeypatch.setenv("NALAMAP_FILTER_NON_WEBMERCATOR_WMTS", "false")
     layers = parse_wmts_capabilities(mock_wmts_service, MOCK_WMTS_URL)
     assert len(layers) == 1
     assert layers[0].layer_type == "WMTS"
     assert layers[0].id == "wmts_workspace:layer1"
+
+
+def test_parse_wmts_capabilities_filtered(monkeypatch, mock_wmts_service):
+    """When filtering is enabled and no WebMercator set exists, no layers are returned."""
+    monkeypatch.setenv("NALAMAP_FILTER_NON_WEBMERCATOR_WMTS", "true")
+    layers = parse_wmts_capabilities(mock_wmts_service, MOCK_WMTS_URL)
+    assert len(layers) == 0
 
 
 @patch("services.tools.geoserver.custom_geoserver.WebMapService")
@@ -193,8 +202,11 @@ def test_fetch_all_service_capabilities(
     mock_wfs_service,
     mock_wcs_service,
     mock_wmts_service,
+    monkeypatch,
 ):
     """Test fetching from all services and getting a flat list."""
+    # Disable WMTS filtering for this test so WMTS layer is included
+    monkeypatch.setenv("NALAMAP_FILTER_NON_WEBMERCATOR_WMTS", "false")
     mock_wms_constructor.return_value = mock_wms_service
     mock_wfs_constructor.return_value = mock_wfs_service
     mock_wcs_constructor.return_value = mock_wcs_service

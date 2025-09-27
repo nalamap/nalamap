@@ -211,7 +211,7 @@ async def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
 
     # Use LangChain chat generate methods since AzureChatOpenAI doesn't
     # have .chat()
-    from langchain.schema import HumanMessage, SystemMessage
+    from langchain_core.messages import HumanMessage, SystemMessage
 
     messages = [
         SystemMessage(content=system_msg),

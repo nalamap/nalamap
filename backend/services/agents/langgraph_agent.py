@@ -1,7 +1,7 @@
 import json
 from typing import List, Optional
 
-from langchain.schema import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import START, StateGraph
 from pydantic import BaseModel, Field
 
