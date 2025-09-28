@@ -6,6 +6,7 @@ from services.tools.geocoding import (
     geocode_using_overpass_to_geostate,
 )
 from services.tools.geoprocess_tools import geoprocess_tool
+from services.tools.attribute_tools import attribute_tool
 from services.tools.geostate_management import metadata_search
 from services.tools.librarian_tools import query_librarian_postgis
 from services.tools.styling_tools import (
@@ -31,7 +32,11 @@ DEFAULT_SYSTEM_PROMPT: str = (
     "- You can style map layers based on natural language descriptions (e.g., "
     "'make the rivers blue', 'thick red borders', 'transparent fill').\n"
     "- You're designed to be proactive, guiding users through the map creation "
-    "process and suggesting potential next steps.\n\n"
+    "process and suggesting potential next steps.\n"
+    "You can inspect and query attribute tables of GeoJSON layers "
+    "(list fields, summarize numeric columns, list unique values, " 
+    "sort, select columns, and filter rows using a safe CQL-lite predicate language). "
+    "Use the attribute_tool for these operations.\n\n"
     "# STATE INFORMATION\n"
     "- The public state contains 'geodata_last_results' (previous results) and "
     "'geodata_layers' (geodata selected by the user).\n"
@@ -153,5 +158,6 @@ DEFAULT_AVAILABLE_TOOLS: Dict[str, BaseTool] = {
     "check_and_autostyle": check_and_auto_style_layers,  # Automatic layer style checker
     "apply_color_scheme": apply_intelligent_color_scheme,
     "get_custom_geoserver_data": get_custom_geoserver_data,
+    "attribute_tool": attribute_tool,
 }
 DEFAULT_SELECTED_TOOLS = []

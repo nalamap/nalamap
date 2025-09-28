@@ -61,15 +61,16 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
-# Optional: copy next.config.js if you rely on it at runtime
-# COPY next.config.js ./
-
+# Entrypoint
 COPY entrypoint.sh /entrypoint.sh
-RUN chown nextjs:nodejs /entrypoint.sh && chmod +x /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# 🔧 Make sure the runtime user can write the file your entrypoint creates
+RUN mkdir -p /app/public && chown -R nextjs:nodejs /app
 
 USER nextjs
 
 EXPOSE 3000
-
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["node", "server.js"]
+
