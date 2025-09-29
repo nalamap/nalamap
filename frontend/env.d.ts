@@ -6,6 +6,7 @@ declare global {
   interface Window {
     __RUNTIME_CONFIG__?: {
       NEXT_PUBLIC_API_BASE_URL?: string;
+      NEXT_PUBLIC_API_UPLOAD_URL?: string;
       NEXT_PUBLIC_BACKEND_URL?: string;
     };
   }

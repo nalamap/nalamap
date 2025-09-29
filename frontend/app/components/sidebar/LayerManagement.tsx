@@ -5,6 +5,7 @@ import { useMapStore } from "../../stores/mapStore";
 import { useLayerStore } from "../../stores/layerStore";
 import { Eye, EyeOff, Trash2, Search, MapPin, GripVertical, Palette } from "lucide-react";
 import { formatFileSize, isFileSizeValid } from "../../utils/fileUtils";
+import { getUploadUrl } from "../../utils/apiBase";
 
 // Funny geo and data-themed loading messages
 const FUNNY_UPLOAD_MESSAGES = [
@@ -223,7 +224,7 @@ export default function LayerManagement() {
     setTotalFiles(files.length);
     setCurrentFileIndex(0);
 
-    const API_UPLOAD_URL = process.env.NEXT_PUBLIC_API_UPLOAD_URL || "http://localhost:8000/api/upload";
+    const API_UPLOAD_URL = getUploadUrl();
     const newLayers: any[] = [];
 
     try {
