@@ -24,7 +24,15 @@ http {
       proxy_set_header Upgrade $http_upgrade;
       proxy_set_header Connection 'upgrade';
       proxy_set_header Host $host;
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
       proxy_cache_bypass $http_upgrade;
+      
+      # Add timeouts for Azure Container Apps
+      proxy_connect_timeout 30s;
+      proxy_send_timeout 30s;
+      proxy_read_timeout 30s;
     }
 
     # Proxy API requests to the backend using env variables
@@ -34,7 +42,15 @@ http {
       proxy_set_header Upgrade $http_upgrade;
       proxy_set_header Connection 'upgrade';
       proxy_set_header Host $host;
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
       proxy_cache_bypass $http_upgrade;
+      
+      # Add timeouts for Azure Container Apps
+      proxy_connect_timeout 30s;
+      proxy_send_timeout 30s;
+      proxy_read_timeout 30s;
     }
 
     # Proxy Upload requests to the backend using env variables
@@ -44,9 +60,12 @@ http {
       proxy_set_header Upgrade $http_upgrade;
       proxy_set_header Connection 'upgrade';
       proxy_set_header Host $host;
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
       proxy_cache_bypass $http_upgrade;
       
-      # Set timeout for uploads
+      # Set timeout for uploads (extended for large files)
       proxy_read_timeout 600;
       proxy_connect_timeout 600;
       proxy_send_timeout 600;

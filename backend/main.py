@@ -81,6 +81,11 @@ async def root():
     return {"message": "NaLaMap API is running"}
 
 
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "message": "NaLaMap API is running"}
+
+
 # Exception handlers
 
 
