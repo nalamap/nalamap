@@ -27,6 +27,8 @@ services:
       - BACKEND_PROTOCOL=http
       - BACKEND_URL=backend:8000
       - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
+      - NEXT_PUBLIC_API_UPLOAD_URL=${NEXT_PUBLIC_API_UPLOAD_URL}
+      - RUNTIME_ENV_PATH=/app/runtime-env/runtime-env.js
     ports:
       - "3000:3000"
     command: yarn dev # starts Next.js in dev mode with hot reloading
