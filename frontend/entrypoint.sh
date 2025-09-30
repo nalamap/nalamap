@@ -28,10 +28,10 @@ window.__RUNTIME_CONFIG__ = {
 };
 EOF
 
-# If we wrote to a custom location, create a symlink in the public directory for backward compatibility
+# If we wrote to a custom location, inform about the API route fallback
 if [ "$RUNTIME_ENV_FILE" != "/app/public/runtime-env.js" ]; then
-  ln -sf "$RUNTIME_ENV_FILE" /app/public/runtime-env.js
-  echo "[entrypoint] Created symlink from /app/public/runtime-env.js to $RUNTIME_ENV_FILE"
+  echo "[entrypoint] Runtime config written to: $RUNTIME_ENV_FILE"
+  echo "[entrypoint] API route /runtime-env.js will serve the configuration"
 fi
 
 # Optional: log for debugging (will show in container logs, safe values only)
