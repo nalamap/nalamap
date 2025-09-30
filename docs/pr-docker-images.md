@@ -9,15 +9,25 @@ The CI/CD pipeline now builds and pushes Docker images for pull requests, allowi
 When you create a pull request, the pipeline will build and push images with the following naming pattern:
 
 ```
-ghcr.io/geoweaveai/nalamap-frontend:pr-{PR_NUMBER}-{SHORT_SHA}
-ghcr.io/geoweaveai/nalamap-backend:pr-{PR_NUMBER}-{SHORT_SHA}
-ghcr.io/geoweaveai/nalamap-nginx:pr-{PR_NUMBER}-{SHORT_SHA}
+ghcr.io/geoweaveai/nalamap-frontend:pr-{PR_NUMBER}
+ghcr.io/geoweaveai/nalamap-backend:pr-{PR_NUMBER}
+ghcr.io/geoweaveai/nalamap-nginx:pr-{PR_NUMBER}
+```
+
+Additionally, each build gets a SHA-based tag:
+```
+ghcr.io/geoweaveai/nalamap-frontend:sha-{SHORT_SHA}
+ghcr.io/geoweaveai/nalamap-backend:sha-{SHORT_SHA}
+ghcr.io/geoweaveai/nalamap-nginx:sha-{SHORT_SHA}
 ```
 
 For example, if your PR is #123 and the commit SHA starts with `abc1234`, the images would be:
-- `ghcr.io/geoweaveai/nalamap-frontend:pr-123-abc1234`
-- `ghcr.io/geoweaveai/nalamap-backend:pr-123-abc1234`
-- `ghcr.io/geoweaveai/nalamap-nginx:pr-123-abc1234`
+- `ghcr.io/geoweaveai/nalamap-frontend:pr-123`
+- `ghcr.io/geoweaveai/nalamap-backend:pr-123`
+- `ghcr.io/geoweaveai/nalamap-nginx:pr-123`
+- `ghcr.io/geoweaveai/nalamap-frontend:sha-abc1234`
+- `ghcr.io/geoweaveai/nalamap-backend:sha-abc1234`
+- `ghcr.io/geoweaveai/nalamap-nginx:sha-abc1234`
 
 ## Using PR Images
 
@@ -26,13 +36,13 @@ For example, if your PR is #123 and the commit SHA starts with `abc1234`, the im
 ```yaml
 services:
   frontend:
-    image: ghcr.io/geoweaveai/nalamap-frontend:pr-123-abc1234
+    image: ghcr.io/geoweaveai/nalamap-frontend:pr-123
     # remove build section when using pre-built image
   backend:
-    image: ghcr.io/geoweaveai/nalamap-backend:pr-123-abc1234
+    image: ghcr.io/geoweaveai/nalamap-backend:pr-123
     # remove build section when using pre-built image
   nginx:
-    image: ghcr.io/geoweaveai/nalamap-nginx:pr-123-abc1234
+    image: ghcr.io/geoweaveai/nalamap-nginx:pr-123
     # remove build section when using pre-built image
 ```
 
@@ -43,7 +53,7 @@ Create `docker-compose.pr.yml`:
 version: '3.8'
 services:
   frontend:
-    image: ghcr.io/geoweaveai/nalamap-frontend:pr-123-abc1234
+    image: ghcr.io/geoweaveai/nalamap-frontend:pr-123
     environment:
       - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
       - NEXT_PUBLIC_API_UPLOAD_URL=${NEXT_PUBLIC_API_UPLOAD_URL}
@@ -52,7 +62,7 @@ services:
       - "3000:3000"
 
   backend:
-    image: ghcr.io/geoweaveai/nalamap-backend:pr-123-abc1234
+    image: ghcr.io/geoweaveai/nalamap-backend:pr-123
     environment:
       - DATABASE_AZURE_URL=${DATABASE_AZURE_URL}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
@@ -65,7 +75,7 @@ services:
       - "8000:8000"
 
   nginx:
-    image: ghcr.io/geoweaveai/nalamap-nginx:pr-123-abc1234
+    image: ghcr.io/geoweaveai/nalamap-nginx:pr-123
     environment:
       - BACKEND_PROTOCOL=http
       - BACKEND_URL=backend:8000
@@ -84,14 +94,14 @@ Then run: `docker-compose -f docker-compose.pr.yml up -d`
 
 ```bash
 # Pull the images
-docker pull ghcr.io/geoweaveai/nalamap-frontend:pr-123-abc1234
-docker pull ghcr.io/geoweaveai/nalamap-backend:pr-123-abc1234
-docker pull ghcr.io/geoweaveai/nalamap-nginx:pr-123-abc1234
+docker pull ghcr.io/geoweaveai/nalamap-frontend:pr-123
+docker pull ghcr.io/geoweaveai/nalamap-backend:pr-123
+docker pull ghcr.io/geoweaveai/nalamap-nginx:pr-123
 
 # Run containers
-docker run -d --name test-frontend -p 3000:3000 ghcr.io/geoweaveai/nalamap-frontend:pr-123-abc1234
-docker run -d --name test-backend -p 8000:8000 ghcr.io/geoweaveai/nalamap-backend:pr-123-abc1234
-docker run -d --name test-nginx -p 80:80 ghcr.io/geoweaveai/nalamap-nginx:pr-123-abc1234
+docker run -d --name test-frontend -p 3000:3000 ghcr.io/geoweaveai/nalamap-frontend:pr-123
+docker run -d --name test-backend -p 8000:8000 ghcr.io/geoweaveai/nalamap-backend:pr-123
+docker run -d --name test-nginx -p 80:80 ghcr.io/geoweaveai/nalamap-nginx:pr-123
 ```
 
 ## Finding Your Image Tags

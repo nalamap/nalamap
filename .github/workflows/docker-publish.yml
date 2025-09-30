@@ -3,8 +3,9 @@ name: Build and push Docker images
 # This workflow:
 # - Builds images on all pushes and pull requests
 # - Pushes images to GHCR for main branch, tags, AND pull requests
-# - Tags PR images with "pr-{number}-" prefix for easy identification
-# - Tags branch images with "{branch}-" prefix
+# - Tags PR images as "pr-{number}" for easy identification
+# - Tags branch images as "{branch-name}" 
+# - Tags all builds with "sha-{short-sha}"
 # - Only tags "latest" for main branch and version tags
 
 on:
@@ -68,8 +69,6 @@ jobs:
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}
           flavor: |
             latest=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/') }}
-            prefix={{branch}}-,onbranch=true
-            prefix=pr-{{number}}-,onevent=pr
           tags: |
             type=ref,event=branch
             type=ref,event=pr
