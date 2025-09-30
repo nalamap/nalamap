@@ -1,5 +1,12 @@
 name: Build and push Docker images
 
+# This workflow:
+# - Builds images on all pushes and pull requests
+# - Pushes images to GHCR for main branch, tags, AND pull requests
+# - Tags PR images with "pr-{number}-" prefix for easy identification
+# - Tags branch images with "{branch}-" prefix
+# - Only tags "latest" for main branch and version tags
+
 on:
   push:
     branches: ["**"]
@@ -46,7 +53,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
-        if: github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/'))
+        if: github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/')) || github.event_name == 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -61,6 +68,8 @@ jobs:
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}
           flavor: |
             latest=${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/') }}
+            prefix={{branch}}-,onbranch=true
+            prefix=pr-{{number}}-,onevent=pr
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -68,13 +77,18 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=sha
 
+      - name: Show generated tags
+        run: |
+          echo "Generated tags for ${{ matrix.name }}:"
+          echo "${{ steps.meta.outputs.tags }}"
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
-          push: ${{ github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/')) }}
+          push: ${{ github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/')) || github.event_name == 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
