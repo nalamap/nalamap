@@ -1,3 +1,6 @@
+# Test docker-compose configuration demonstrating cloud environment setup
+# This shows how to mount the runtime-env directory for write permissions
+
 services:
 
   nginx:
@@ -11,6 +14,9 @@ services:
       - FRONTEND_URL=frontend:3000
     ports:
       - "80:80"
+    depends_on:
+      - backend
+      - frontend
 
   backend:
     build:
@@ -24,16 +30,31 @@ services:
       - AZURE_OPENAI_DEPLOYMENT=${AZURE_OPENAI_DEPLOYMENT}
       - AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION}
       - LLM_PROVIDER=${LLM_PROVIDER}
+    command: uvicorn main:app --reload --host 0.0.0.0 --port 8000
     ports:
       - "8000:8000"
   
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      # Mount a writable directory for runtime environment files
+      # This simulates the cloud environment volume mount
+      - runtime-env-data:/app/runtime-env
     environment:
+      - BACKEND_PROTOCOL=http
+      - BACKEND_URL=backend:8000
       - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
       - NEXT_PUBLIC_API_UPLOAD_URL=${NEXT_PUBLIC_API_UPLOAD_URL}
       - RUNTIME_ENV_PATH=/app/runtime-env/runtime-env.js
     ports:
       - "3000:3000"
+    command: yarn dev
+    depends_on:
+      - backend
+
+volumes:
+  runtime-env-data:
