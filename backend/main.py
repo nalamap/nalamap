@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from api import ai_style, auto_styling, data_management, debug, nalamap, settings
 
 # from sqlalchemy.ext.asyncio import AsyncSession
-from core.config import LOCAL_UPLOAD_DIR
+from core.config import LOCAL_UPLOAD_DIR, ALLOWED_CORS_ORIGINS
 from services.database.database import close_db, init_db
 
 # Configure logging to show info level messages for debugging
@@ -54,13 +54,23 @@ app = FastAPI(
 )
 
 # CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+if ALLOWED_CORS_ORIGINS:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=ALLOWED_CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    # Fallback: allow all origins but disable credentials to satisfy CORS spec
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # Local upload directory and base URL
 # Serve local uploads
