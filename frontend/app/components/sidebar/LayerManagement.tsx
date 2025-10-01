@@ -6,6 +6,7 @@ import { useLayerStore } from "../../stores/layerStore";
 import { Eye, EyeOff, Trash2, Search, MapPin, GripVertical, Palette } from "lucide-react";
 import { formatFileSize, isFileSizeValid } from "../../utils/fileUtils";
 import { getUploadUrl } from "../../utils/apiBase";
+import { getApiBase } from "../../utils/apiBase";
 
 // Funny geo and data-themed loading messages
 const FUNNY_UPLOAD_MESSAGES = [
@@ -326,7 +327,8 @@ export default function LayerManagement() {
           // Set a funny styling message
           setFunnyMessage(getRandomMessage(FUNNY_STYLING_MESSAGES));
 
-          const styleResponse = await fetch('http://localhost:8000/api/auto-style', {
+          const API_BASE_URL = getApiBase();
+          const styleResponse = await fetch(`${API_BASE_URL}/ai-style`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

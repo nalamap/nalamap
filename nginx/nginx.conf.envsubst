@@ -8,61 +8,103 @@ http {
   include       mime.types;
   default_type  application/octet-stream;
   sendfile      on;
-  keepalive_timeout 65;
-  
-  # Set maximum upload size to 100MB
-  client_max_body_size 100M;
+  worker_processes 1;
 
-  server {
-    listen 80;
-    server_name _;
+  events {
+    worker_connections 1024;
+  }
 
-    # Serve static files and enable SPA routing
-    location / {
-      proxy_pass ${FRONTEND_PROTOCOL}://${FRONTEND_URL};
-      proxy_http_version 1.1;
-      proxy_set_header Upgrade $http_upgrade;
-      proxy_set_header Connection 'upgrade';
-      proxy_set_header Host $host;
-      proxy_set_header X-Real-IP $remote_addr;
-      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-      proxy_set_header X-Forwarded-Proto $scheme;
-      proxy_cache_bypass $http_upgrade;
-      
-      # Add timeouts for Azure Container Apps
-      proxy_connect_timeout 30s;
-      proxy_send_timeout 30s;
-      proxy_read_timeout 30s;
+  http {
+    include       mime.types;
+    default_type  application/octet-stream;
+    sendfile      on;
+    tcp_nodelay   on;
+    keepalive_timeout 65s;
+    keepalive_requests 1000;
+
+    # Azure DNS resolver (verify inside container with /etc/resolv.conf)
+    resolver 168.63.129.16 valid=30s ipv6=off;
+    resolver_timeout 5s;
+
+    # Logging to stdout/stderr (container friendly)
+    log_format timed '$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent '
+                     '"$http_referer" "$http_user_agent" rt=$request_time urt=$upstream_response_time';
+    access_log /dev/stdout timed;
+    error_log  /dev/stderr warn;
+
+    # Set maximum upload size to 100MB
+    client_max_body_size 100M;
+    server_tokens off;
+
+    # Proper Connection header only when upgrading to WS
+    map $http_upgrade $connection_upgrade {
+      default upgrade;
+      ''      close;
     }
 
-    # Proxy API requests to the backend using env variables
-    location /api/ {
-      proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL};
-      proxy_http_version 1.1;
-      proxy_set_header Upgrade $http_upgrade;
-      proxy_set_header Connection 'upgrade';
-      proxy_set_header Host $host;
-      proxy_set_header X-Real-IP $remote_addr;
-      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-      proxy_set_header X-Forwarded-Proto $scheme;
-      proxy_cache_bypass $http_upgrade;
-      
-      # CORS headers and preflight handling
-      # Reflect the origin (Azure assigns different hostnames per app)
-      add_header 'Access-Control-Allow-Origin' "$http_origin" always;
-      add_header 'Access-Control-Allow-Credentials' 'true' always;
-      add_header 'Vary' 'Origin' always;
+    # Enable SNI for HTTPS upstreams
+    proxy_ssl_server_name on;
 
-      if ($request_method = OPTIONS) {
-        add_header 'Access-Control-Allow-Origin' "$http_origin" always;
-        add_header 'Access-Control-Allow-Credentials' 'true' always;
-        add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS' always;
-        add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, X-Requested-With' always;
-        add_header 'Access-Control-Max-Age' 86400 always;
-        return 204;
+    server {
+      listen 80;
+      server_name _;
+
+      # Frontend (SPA)
+      location / {
+        proxy_http_version 1.1;
+        proxy_set_header Host               $host;
+        proxy_set_header X-Forwarded-Proto  $scheme;
+        proxy_set_header X-Forwarded-Host   $host;
+        proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
+
+        proxy_set_header Upgrade            $http_upgrade;
+        proxy_set_header Connection         $connection_upgrade;
+
+        proxy_pass ${FRONTEND_PROTOCOL}://${FRONTEND_URL};
+
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_buffering off;
       }
-      
-      # Add timeouts for Azure Container Apps
+
+      # API -> backend
+      location /api/ {
+        proxy_http_version 1.1;
+        proxy_set_header Host               $host;
+        proxy_set_header X-Forwarded-Proto  $scheme;
+        proxy_set_header X-Forwarded-Host   $host;
+        proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
+
+        proxy_set_header Upgrade            $http_upgrade;
+        proxy_set_header Connection         $connection_upgrade;
+
+        proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL};
+
+        proxy_read_timeout 600s;
+        proxy_send_timeout 600s;
+        proxy_buffering off;
+      }
+
+      # Static uploads served by backend FastAPI at /uploads
+      location /uploads/ {
+        proxy_http_version 1.1;
+        proxy_set_header Host               $host;
+        proxy_set_header X-Forwarded-Proto  $scheme;
+        proxy_set_header X-Forwarded-Host   $host;
+        proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
+
+        proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL};
+
+        proxy_connect_timeout 600s;
+        proxy_read_timeout    600s;
+        proxy_send_timeout    600s;
+
+        proxy_request_buffering off;
+        proxy_max_temp_file_size 0;
+        add_header X-Accel-Buffering no;
+      }
+    }
+  }
       proxy_connect_timeout 30s;
       proxy_send_timeout 30s;
       proxy_read_timeout 30s;
