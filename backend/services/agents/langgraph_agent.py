@@ -64,7 +64,7 @@ async def query_postgis(state: SearchState) -> SearchState:
     if not is_database_available():
         state.results = []
         return state
-    
+
     rows = []
     try:
         async for cur in get_db():

@@ -30,7 +30,7 @@ async def init_db():
                 )
                 db_initialization_failed = True
                 return
-                
+
             if not DATABASE_URL:
                 logger.warning(
                     "DATABASE_AZURE_URL environment variable is not set. "
@@ -38,11 +38,11 @@ async def init_db():
                 )
                 db_initialization_failed = True
                 return
-            
+
             # Type guard to ensure AsyncConnectionPool is available
             if AsyncConnectionPool is None:
                 raise RuntimeError("AsyncConnectionPool is not available")
-                
+
             db_pool = AsyncConnectionPool(conninfo=DATABASE_URL, min_size=1, max_size=10)
             await db_pool.open()  # Ensure the pool is open
             logger.info("Database connection pool initialized successfully")
@@ -63,7 +63,6 @@ async def close_db():
 # Dependency function for FastAPI
 async def get_db():
     """Provide an async database connection."""
-    global db_initialization_failed
     if db_initialization_failed:
         raise RuntimeError(
             "Database is not available. Please check your DATABASE_AZURE_URL environment variable "

@@ -55,7 +55,7 @@ def query_librarian_postgis(
                 ),
                 "total_results": 0
             }
-        
+
         rows = []
         try:
             async for cur in get_db():
