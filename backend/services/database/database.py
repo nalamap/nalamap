@@ -5,6 +5,7 @@ from core.config import DATABASE_URL
 # Try to import psycopg_pool, handle missing dependency gracefully
 try:
     from psycopg_pool import AsyncConnectionPool
+
     PSYCOPG_AVAILABLE = True
 except ImportError:
     AsyncConnectionPool = None

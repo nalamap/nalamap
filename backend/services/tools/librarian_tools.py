@@ -53,7 +53,7 @@ def query_librarian_postgis(
                     "Database is currently unavailable. Cannot search for geospatial datasets. "
                     "Please check database configuration or try again later."
                 ),
-                "total_results": 0
+                "total_results": 0,
             }
 
         rows = []
@@ -85,7 +85,7 @@ def query_librarian_postgis(
             return {
                 "results": [],
                 "message": f"Database query failed: {str(e)}",
-                "total_results": 0
+                "total_results": 0,
             }
 
         results = [
