@@ -54,7 +54,9 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
-        if: github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/')) || github.event_name == 'pull_request'
+        if: >-
+          ${{ (github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/'))) 
+           || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -88,7 +90,9 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
-          push: ${{ github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/')) || github.event_name == 'pull_request' }}
+          push: >-
+            ${{ (github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/'))) 
+             || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -133,8 +137,10 @@ jobs:
       - name: Download image metadata
         uses: actions/download-artifact@v4
         with:
-          # Download all artifacts from matrix jobs
+          # Download only our image metadata artifacts from matrix jobs
+          pattern: image-metadata-*
           path: image-metadata
+          merge-multiple: true
 
       - name: Build payload and dispatch to infra
         uses: actions/github-script@v7
