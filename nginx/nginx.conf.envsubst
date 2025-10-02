@@ -12,7 +12,10 @@ http {
   keepalive_timeout 65s;
   keepalive_requests 1000;
 
-  # Name resolution uses container's /etc/hosts and DNS; proxy_pass targets are static after envsubst
+  # DNS resolver for variable proxy_pass targets (required in Azure ACA when using FQDNs)
+  # Default can be overridden via DNS_RESOLVER (e.g., 168.63.129.16 for Azure).
+  resolver ${DNS_RESOLVER} valid=30s ipv6=off;
+  resolver_timeout 5s;
 
   # Logging to stdout/stderr (container friendly)
   log_format timed '$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent '
@@ -37,8 +40,8 @@ http {
     listen 80;
     server_name _;
 
-    # Backend health check passthrough
-    # FastAPI exposes /health at the backend root; proxy it here for quick ops checks
+  # Backend health check passthrough
+  # FastAPI exposes /health at the backend root; proxy it here for quick ops checks
       # Nginx self health
       location = /health/nginx {
         default_type application/json;
@@ -48,7 +51,7 @@ http {
       # Backend health check passthrough (explicit)
       # FastAPI exposes /health at the backend root; proxy it here for quick ops checks
       location = /health/backend {
-      proxy_set_header Host               $host;
+      proxy_set_header Host               $proxy_host;
       proxy_set_header X-Forwarded-Proto  $scheme;
       proxy_set_header X-Forwarded-Host   $host;
       proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
@@ -57,7 +60,7 @@ http {
 
       # Frontend health: fetch runtime-env.js as a simple readiness probe
       location = /health/frontend {
-        proxy_set_header Host               $host;
+        proxy_set_header Host               $proxy_host;
         proxy_set_header X-Forwarded-Proto  $scheme;
         proxy_set_header X-Forwarded-Host   $host;
         proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
@@ -68,7 +71,7 @@ http {
     # Frontend (SPA)
     location / {
       proxy_http_version 1.1;
-      proxy_set_header Host               $host;
+  proxy_set_header Host               $proxy_host;
       proxy_set_header X-Forwarded-Proto  $scheme;
       proxy_set_header X-Forwarded-Host   $host;
       proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
@@ -86,7 +89,7 @@ http {
     # API -> backend
     location /api/ {
       proxy_http_version 1.1;
-      proxy_set_header Host               $host;
+  proxy_set_header Host               $proxy_host;
       proxy_set_header X-Forwarded-Proto  $scheme;
       proxy_set_header X-Forwarded-Host   $host;
       proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
@@ -104,7 +107,7 @@ http {
     # Static uploads served by backend FastAPI at /uploads
     location /uploads/ {
       proxy_http_version 1.1;
-      proxy_set_header Host               $host;
+  proxy_set_header Host               $proxy_host;
       proxy_set_header X-Forwarded-Proto  $scheme;
       proxy_set_header X-Forwarded-Host   $host;
       proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
@@ -127,7 +130,7 @@ http {
       proxy_http_version 1.1;
       proxy_set_header Upgrade $http_upgrade;
       proxy_set_header Connection $connection_upgrade;
-      proxy_set_header Host $host;
+  proxy_set_header Host $proxy_host;
       proxy_set_header X-Real-IP $remote_addr;
       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
       proxy_set_header X-Forwarded-Proto $scheme;
