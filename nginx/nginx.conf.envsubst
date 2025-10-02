@@ -39,13 +39,31 @@ http {
 
     # Backend health check passthrough
     # FastAPI exposes /health at the backend root; proxy it here for quick ops checks
-    location = /health {
+      # Nginx self health
+      location = /health/nginx {
+        default_type application/json;
+        return 200 '{"status":"ok","service":"nginx"}';
+      }
+
+      # Backend health check passthrough (explicit)
+      # FastAPI exposes /health at the backend root; proxy it here for quick ops checks
+      location = /health/backend {
       proxy_set_header Host               $host;
       proxy_set_header X-Forwarded-Proto  $scheme;
       proxy_set_header X-Forwarded-Host   $host;
       proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
-      proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL};
+        proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL}/health;
     }
+
+      # Frontend health: fetch runtime-env.js as a simple readiness probe
+      location = /health/frontend {
+        proxy_set_header Host               $host;
+        proxy_set_header X-Forwarded-Proto  $scheme;
+        proxy_set_header X-Forwarded-Host   $host;
+        proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
+        proxy_pass ${FRONTEND_PROTOCOL}://${FRONTEND_URL}/runtime-env.js;
+      }
+
 
     # Frontend (SPA)
     location / {
