@@ -4,7 +4,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from core.config import MAX_FILE_SIZE
-from services.storage.file_management import store_file
+from services.storage.file_management import store_file_stream
 
 
 # Helper function for formatting file size
@@ -40,34 +40,24 @@ async def update_layer_style_endpoint(layer_id: str, style_data: Dict[str, Any])
 # Upload endpoint
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...)) -> Dict[str, str]:
-    """Uploads a file either to Azure Blob Storage or local disk.
+    """Uploads a file to Azure Blob Storage or local disk, streaming the payload.
 
     Returns its public URL and unique ID. File size is limited to 100MB.
     """
-    # Check file size before reading content - FastAPI can access content_length from header
-    content_length = getattr(file, "size", None)
-    if content_length is None:
-        # If file.size is not available, we'll check after reading
-        content = await file.read()
-        content_length = len(content)
-        if content_length > MAX_FILE_SIZE:
+    try:
+        # Prefer server-provided size (if multipart header contains it) for a fast pre-check
+        content_length = getattr(file, "size", None)
+        if content_length is not None and content_length > MAX_FILE_SIZE:
             raise HTTPException(
-                status_code=413,  # Request Entity Too Large
+                status_code=413,
                 detail=(
-                    f"File size ({format_file_size(content_length)}) "
-                    f"exceeds the limit of 100MB."
+                    f"File size ({format_file_size(content_length)}) exceeds the limit of 100MB."
                 ),
             )
-    elif content_length > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=413,  # Request Entity Too Large
-            detail=f"File size ({format_file_size(content_length)}) exceeds the limit of 100MB.",
-        )
 
-    # Read the file content if not already read
-    if "content" not in locals():
-        content = await file.read()
-
-    url, unique_name = store_file(file.filename, content)
-
-    return {"url": url, "id": unique_name}
+        # Stream to storage without loading into memory
+        # UploadFile.file is a SpooledTemporaryFile (BinaryIO)
+        url, unique_name = store_file_stream(file.filename, file.file)
+        return {"url": url, "id": unique_name}
+    finally:
+        await file.close()
