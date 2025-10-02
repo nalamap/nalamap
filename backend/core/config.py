@@ -1,4 +1,6 @@
 import os
+from pathlib import Path
+from typing import Optional
 
 from dotenv import load_dotenv
 
@@ -53,3 +55,27 @@ def get_filter_non_webmercator_wmts() -> bool:
     and re-query the value without needing to reload this module.
     """
     return _env_bool("NALAMAP_FILTER_NON_WEBMERCATOR_WMTS", default="true")
+
+
+# GeoServer vector store configuration -------------------------------------------------
+
+
+GEOSERVER_VECTOR_DB_ENV = "NALAMAP_GEOSERVER_VECTOR_DB"
+GEOSERVER_EMBEDDING_FACTORY_ENV = "NALAMAP_GEOSERVER_EMBEDDING_FACTORY"
+DEFAULT_GEOSERVER_VECTOR_DB_PATH = Path("data/geoserver_vectors.db")
+
+
+def get_geoserver_vector_db_path() -> Path:
+    """Return the configured GeoServer vector database path."""
+
+    custom = os.getenv(GEOSERVER_VECTOR_DB_ENV)
+    if custom:
+        return Path(custom)
+    return DEFAULT_GEOSERVER_VECTOR_DB_PATH
+
+
+def get_geoserver_embedding_factory_path() -> Optional[str]:
+    """Return the dotted path to a custom GeoServer embedding factory, if set."""
+
+    value = os.getenv(GEOSERVER_EMBEDDING_FACTORY_ENV)
+    return value or None
