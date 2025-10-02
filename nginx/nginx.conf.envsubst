@@ -8,9 +8,12 @@ http {
   include       /etc/nginx/mime.types;
   default_type  application/octet-stream;
   sendfile      on;
+  tcp_nopush    on;
   tcp_nodelay   on;
+  aio           on;
   keepalive_timeout 65s;
   keepalive_requests 1000;
+  send_timeout 300s;
 
   # DNS resolver for variable proxy_pass targets (required in Azure ACA when using FQDNs)
   # Default can be overridden via DNS_RESOLVER (e.g., 168.63.129.16 for Azure).
@@ -18,14 +21,19 @@ http {
   resolver_timeout 5s;
 
   # Logging to stdout/stderr (container friendly)
-  log_format timed '$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent '
-                   '"$http_referer" "$http_user_agent" rt=$request_time urt=$upstream_response_time';
-  access_log /dev/stdout timed;
+  log_format timings '$remote_addr - $request rt=$request_time urt=$upstream_response_time ub=$upstream_bytes_received sb=$bytes_sent rl=$request_length';
+  access_log /dev/stdout timings;
   error_log  /dev/stderr warn;
 
-  # Set maximum upload size to 100MB
-  client_max_body_size 100M;
+  # Allow large uploads and tune timeouts
+  client_max_body_size 2g;
+  client_body_timeout 300s;
   server_tokens off;
+
+  # Compression (text only)
+  gzip on;
+  gzip_min_length 1024;
+  gzip_types text/plain text/css application/javascript application/json application/xml;
 
   # Proper Connection header only when upgrading to WS
   map $http_upgrade $connection_upgrade {
@@ -73,7 +81,7 @@ http {
     # Frontend (SPA)
     location / {
       proxy_http_version 1.1;
-  proxy_set_header Host               $proxy_host;
+      proxy_set_header Host               $proxy_host;
       proxy_set_header X-Forwarded-Proto  $scheme;
       proxy_set_header X-Forwarded-Host   $host;
       proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
@@ -83,9 +91,13 @@ http {
 
       proxy_pass ${FRONTEND_PROTOCOL}://${FRONTEND_URL};
 
+      # Streaming-friendly timeouts and buffering
       proxy_read_timeout 300s;
       proxy_send_timeout 300s;
-      proxy_buffering off;
+      # Leave buffering enabled for small HTML/JSON by default
+      proxy_buffers 32 64k;
+      proxy_buffer_size 64k;
+      proxy_busy_buffers_size 128k;
     }
 
     # API -> backend
@@ -101,9 +113,13 @@ http {
 
       proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL};
 
+      # Streaming-friendly API defaults
       proxy_read_timeout 600s;
       proxy_send_timeout 600s;
-      proxy_buffering off;
+      # Generally keep buffering on for API JSON to improve performance
+      proxy_buffers 32 64k;
+      proxy_buffer_size 64k;
+      proxy_busy_buffers_size 128k;
     }
 
     # Static uploads served by backend FastAPI at /uploads
@@ -119,10 +135,8 @@ http {
       proxy_connect_timeout 600s;
       proxy_read_timeout    600s;
       proxy_send_timeout    600s;
-
-      proxy_request_buffering off;
-      proxy_max_temp_file_size 0;
-      add_header X-Accel-Buffering no;
+      # Stream large downloads without response buffering
+      proxy_buffering off;
     }
 
     # Upload POST endpoint proxy (CORS + long timeouts)
@@ -152,7 +166,11 @@ http {
         return 204;
       }
 
-      # Set timeout for uploads (extended for large files)
+      # Stream uploads directly to backend
+      proxy_request_buffering off;
+      proxy_max_temp_file_size 0;
+      add_header X-Accel-Buffering no;
+      # Extended timeouts for large uploads
       proxy_read_timeout 600s;
       proxy_connect_timeout 600s;
       proxy_send_timeout 600s;
