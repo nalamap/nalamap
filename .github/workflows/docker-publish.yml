@@ -151,7 +151,6 @@ jobs:
           script: |
             const fs = require('fs').promises;
             const path = require('path');
-            const core = require('@actions/core');
 
             async function collectImages(rootDir) {
               const images = [];
