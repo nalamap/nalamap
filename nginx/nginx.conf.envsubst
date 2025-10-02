@@ -35,6 +35,8 @@ http {
 
   # Enable SNI for HTTPS upstreams
   proxy_ssl_server_name on;
+  # Ensure SNI uses the logical upstream host
+  proxy_ssl_name $proxy_host;
 
   server {
     listen 80;
