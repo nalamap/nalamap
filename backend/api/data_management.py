@@ -1,13 +1,12 @@
+import hashlib
+from pathlib import Path
 from typing import Any, Dict
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from core.config import MAX_FILE_SIZE
+from core.config import LOCAL_UPLOAD_DIR, MAX_FILE_SIZE
 from services.storage.file_management import store_file_stream
-from core.config import LOCAL_UPLOAD_DIR
-import os
-import hashlib
 
 
 # Helper function for formatting file size
@@ -24,6 +23,25 @@ class StyleUpdateRequest(BaseModel):
 
 
 router = APIRouter()
+
+
+UPLOADS_ROOT = Path(LOCAL_UPLOAD_DIR).resolve()
+
+
+def _resolve_upload_path(file_id: str) -> Path:
+    try:
+        candidate = (UPLOADS_ROOT / file_id).resolve(strict=False)
+    except RuntimeError as err:
+        # Raised if resolution cycles; treat as invalid input
+        raise HTTPException(status_code=400, detail="Invalid file identifier") from err
+
+    if not candidate.is_relative_to(UPLOADS_ROOT):
+        raise HTTPException(status_code=400, detail="Invalid file identifier")
+
+    if not candidate.exists() or not candidate.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+
+    return candidate
 
 
 # Layer styling endpoint
@@ -68,16 +86,14 @@ async def upload_file(file: UploadFile = File(...)) -> Dict[str, str]:
 
 
 # Debug/ops: fetch file metadata (size, sha256) to verify integrity end-to-end
-@router.get("/uploads/meta/{file_id}")
+@router.get("/uploads/meta/{file_id:path}")
 async def get_upload_meta(file_id: str) -> Dict[str, str]:
     """Return file size and SHA256 for a stored upload by its ID (filename)."""
-    path = os.path.join(LOCAL_UPLOAD_DIR, file_id)
-    if not os.path.exists(path) or not os.path.isfile(path):
-        raise HTTPException(status_code=404, detail="File not found")
+    path = _resolve_upload_path(file_id)
 
     sha256 = hashlib.sha256()
     size = 0
-    with open(path, "rb") as f:
+    with path.open("rb") as f:
         for chunk in iter(lambda: f.read(1024 * 1024), b""):
             size += len(chunk)
             sha256.update(chunk)

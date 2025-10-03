@@ -1,8 +1,9 @@
 import io
 import os
 import sys
-from pathlib import Path
 import importlib
+from pathlib import Path
+from urllib.parse import quote
 
 import pytest
 from fastapi import FastAPI
@@ -86,3 +87,35 @@ def test_oversize_upload_rejected(tmp_path, monkeypatch):
     assert resp.status_code == 413
     body = resp.json()
     assert "File" in body.get("detail", "")
+
+
+def test_get_upload_meta_allows_nested_path(client):
+    from core.config import LOCAL_UPLOAD_DIR as CFG_UPLOADS  # type: ignore
+
+    uploads_dir = Path(CFG_UPLOADS)
+    nested = uploads_dir / "nested"
+    nested.mkdir(parents=True, exist_ok=True)
+    file_path = nested / "data.txt"
+    file_path.write_bytes(b"abc")
+
+    encoded = quote("nested/data.txt", safe="")
+    resp = client.get(f"/api/uploads/meta/{encoded}")
+    assert resp.status_code == 200, resp.text
+    payload = resp.json()
+    assert payload["id"] == "nested/data.txt"
+    assert payload["size"] == "3"
+
+
+def test_get_upload_meta_rejects_traversal(client, tmp_path):
+    secret = tmp_path / "secret.txt"
+    secret.write_text("classified")
+
+    resp = client.get("/api/uploads/meta/..%2Fsecret.txt")
+    assert resp.status_code == 400
+    body = resp.json()
+    assert "invalid" in body.get("detail", "").lower()
+
+
+def test_get_upload_meta_missing_file(client):
+    resp = client.get("/api/uploads/meta/missing.txt")
+    assert resp.status_code == 404
