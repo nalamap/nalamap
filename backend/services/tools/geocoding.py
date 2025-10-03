@@ -1,4 +1,5 @@
 import json
+import hashlib
 from typing import Any, Dict, List, Optional, Union
 
 import requests
@@ -103,7 +104,10 @@ def create_geodata_object_from_geojson(
         "geometry": nominatim_response["geojson"],
     }
 
-    url, unique_id = store_file(f"{place_id}_{name}.json", json.dumps(geojson).encode())
+    content_bytes = json.dumps(geojson).encode()
+    url, unique_id = store_file(f"{place_id}_{name}.json", content_bytes)
+    sha256_hex = hashlib.sha256(content_bytes).hexdigest()
+    size_bytes = len(content_bytes)
     # Copy selected properties
     properties: Dict[str, Any] = dict()
     for prop in [
@@ -151,6 +155,8 @@ def create_geodata_object_from_geojson(
         bounding_box=bounding_box,
         layer_type="GeoJSON",
         properties=properties,
+        sha256=sha256_hex,
+        size=size_bytes,
     )
 
     return geoobject
@@ -444,7 +450,10 @@ def create_collection_geodata_object(
         f"overpass_{safe_amenity_name}_{collection_type_name.lower()}_{safe_location_for_file}.json"
     )
 
-    data_url, unique_id = store_file(file_name, json.dumps(feature_collection).encode())
+    content_bytes = json.dumps(feature_collection).encode()
+    data_url, unique_id = store_file(file_name, content_bytes)
+    sha256_hex = hashlib.sha256(content_bytes).hexdigest()
+    size_bytes = len(content_bytes)
 
     # Calculate combined bounding box for the FeatureCollection
     all_lons: List[float] = []
@@ -518,6 +527,8 @@ def create_collection_geodata_object(
         bounding_box=bounding_box_str,
         layer_type="GeoJSON",  # Could be "GeoJSON Points", "GeoJSON Polygons" etc. if FE can use it
         properties=collection_properties,
+        sha256=sha256_hex,
+        size=size_bytes,
     )
     return geo_object
 

@@ -5,6 +5,9 @@ from pydantic import BaseModel
 
 from core.config import MAX_FILE_SIZE
 from services.storage.file_management import store_file_stream
+from core.config import LOCAL_UPLOAD_DIR
+import os
+import hashlib
 
 
 # Helper function for formatting file size
@@ -57,7 +60,26 @@ async def upload_file(file: UploadFile = File(...)) -> Dict[str, str]:
 
         # Stream to storage without loading into memory
         # UploadFile.file is a SpooledTemporaryFile (BinaryIO)
-        url, unique_name = store_file_stream(file.filename, file.file)
+        safe_name = file.filename or "upload.bin"
+        url, unique_name = store_file_stream(safe_name, file.file)
         return {"url": url, "id": unique_name}
     finally:
         await file.close()
+
+
+# Debug/ops: fetch file metadata (size, sha256) to verify integrity end-to-end
+@router.get("/uploads/meta/{file_id}")
+async def get_upload_meta(file_id: str) -> Dict[str, str]:
+    """Return file size and SHA256 for a stored upload by its ID (filename)."""
+    path = os.path.join(LOCAL_UPLOAD_DIR, file_id)
+    if not os.path.exists(path) or not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail="File not found")
+
+    sha256 = hashlib.sha256()
+    size = 0
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            size += len(chunk)
+            sha256.update(chunk)
+
+    return {"id": file_id, "size": str(size), "sha256": sha256.hexdigest()}

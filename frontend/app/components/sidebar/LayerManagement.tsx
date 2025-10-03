@@ -7,6 +7,7 @@ import { Eye, EyeOff, Trash2, Search, MapPin, GripVertical, Palette } from "luci
 import { formatFileSize, isFileSizeValid } from "../../utils/fileUtils";
 import { getUploadUrl } from "../../utils/apiBase";
 import { getApiBase } from "../../utils/apiBase";
+import { sha256OfFile } from "../../utils/hashUtil";
 
 // Funny geo and data-themed loading messages
 const FUNNY_UPLOAD_MESSAGES = [
@@ -225,7 +226,8 @@ export default function LayerManagement() {
     setTotalFiles(files.length);
     setCurrentFileIndex(0);
 
-    const API_UPLOAD_URL = getUploadUrl();
+  const API_UPLOAD_URL = getUploadUrl();
+  const API_BASE_URL = getApiBase();
     const newLayers: any[] = [];
 
     try {
@@ -255,6 +257,9 @@ export default function LayerManagement() {
         formData.append("file", file);
 
         // Upload the file
+        // Compute SHA-256 locally before upload for integrity verification
+        const localSha256 = await sha256OfFile(file);
+
         const { url, id } = await new Promise<{ url: string, id: string }>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhrRef.current = xhr;
@@ -298,6 +303,30 @@ export default function LayerManagement() {
         const uploadCompleteProgress = baseProgress + (70 / files.length);
         setUploadProgress(Math.round(uploadCompleteProgress));
 
+        // Verify integrity against backend-reported hash/size
+        try {
+          const metaRes = await fetch(`${API_BASE_URL}/uploads/meta/${encodeURIComponent(id)}`);
+          if (metaRes.ok) {
+            const meta = await metaRes.json();
+            if (meta?.sha256 && typeof meta.sha256 === 'string') {
+              if (meta.sha256.toLowerCase() !== localSha256.toLowerCase()) {
+                throw new Error(`Integrity check failed for ${file.name}. Expected ${localSha256.slice(0,8)}…, got ${String(meta.sha256).slice(0,8)}…`);
+              }
+            }
+            if (meta?.size && Number.isFinite(Number(meta.size))) {
+              const serverSize = Number(meta.size);
+              if (serverSize !== file.size) {
+                throw new Error(`Size mismatch for ${file.name}. Local ${file.size} bytes vs server ${serverSize} bytes`);
+              }
+            }
+          } else {
+            console.warn('Upload meta endpoint returned', metaRes.status, metaRes.statusText);
+          }
+        } catch (verifyErr) {
+          // Surface integrity failure to the user and abort processing this file
+          throw verifyErr instanceof Error ? verifyErr : new Error(String(verifyErr));
+        }
+
         // Create the new layer
         const newLayer = {
           id: id,
@@ -327,7 +356,6 @@ export default function LayerManagement() {
           // Set a funny styling message
           setFunnyMessage(getRandomMessage(FUNNY_STYLING_MESSAGES));
 
-          const API_BASE_URL = getApiBase();
           const styleResponse = await fetch(`${API_BASE_URL}/ai-style`, {
             method: 'POST',
             headers: {
