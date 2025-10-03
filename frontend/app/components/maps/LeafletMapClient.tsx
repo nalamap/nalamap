@@ -315,13 +315,26 @@ function LeafletGeoJSONLayer({
             res = await fetch(url, { headers: { 'Accept': 'application/json, application/geo+json, */*;q=0.1' } });
         }
         const contentType = res.headers.get('content-type') || '';
+        const contentLengthHeader = res.headers.get('content-length');
         let json: any = null;
         if (contentType.includes('application/json') || contentType.includes('geo+json')) {
           json = await res.json();
         } else {
           // Fallback: try to parse text if server mislabels
           const text = await res.text();
-            try { json = JSON.parse(text); } catch (e) { console.warn('Non-JSON WFS response, cannot render', { url, snippet: text.slice(0,200) }); }
+          const expectedBytes = contentLengthHeader ? parseInt(contentLengthHeader, 10) : null;
+          const receivedBytes = typeof TextEncoder !== 'undefined' ? new TextEncoder().encode(text).length : text.length;
+            try { json = JSON.parse(text); } catch (e) {
+              console.warn('Non-JSON WFS response, cannot render', {
+                url,
+                snippet: text.slice(0,200),
+                expectedBytes,
+                receivedBytes,
+              });
+              if (expectedBytes !== null && receivedBytes < expectedBytes) {
+                throw new Error(`GeoJSON response truncated (${receivedBytes}/${expectedBytes} bytes)`);
+              }
+            }
         }
         if (!cancelled) {
           if (json && json.type && (json.type === 'FeatureCollection' || json.features)) {
