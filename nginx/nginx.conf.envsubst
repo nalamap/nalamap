@@ -137,6 +137,17 @@ http {
       proxy_send_timeout    600s;
       # Stream large downloads without response buffering
       proxy_buffering off;
+      # Avoid any compression side-effects for large JSON/GeoJSON streams
+      gzip off;
+      # Ensure upstream sends uncompressed bytes; we'll forward as-is
+      proxy_set_header Accept-Encoding "";
+      # Preserve partial content semantics if clients request ranges
+      proxy_set_header Range $http_range;
+      proxy_set_header If-Range $http_if_range;
+      # Prefer chunked transfer when Content-Length is unknown
+      chunked_transfer_encoding on;
+      # Hint downstream proxies not to buffer
+      add_header X-Accel-Buffering no;
     }
 
     # Upload POST endpoint proxy (CORS + long timeouts)
