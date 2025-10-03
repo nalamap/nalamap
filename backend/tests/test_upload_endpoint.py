@@ -59,10 +59,8 @@ def test_small_file_upload_success(client, tmp_path):
 
 
 def test_upload_preserves_extension(client):
-    json_payload = b"{\"type\":\"FeatureCollection\",\"features\":[]}"
-    data = {
-        "file": ("My.Place.GeoJSON", io.BytesIO(json_payload), "application/geo+json")
-    }
+    json_payload = b'{"type":"FeatureCollection","features":[]}'
+    data = {"file": ("My.Place.GeoJSON", io.BytesIO(json_payload), "application/geo+json")}
     resp = client.post("/api/upload", files=data)
     assert resp.status_code == 200, resp.text
     payload = resp.json()
