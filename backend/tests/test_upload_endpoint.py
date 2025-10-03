@@ -58,6 +58,23 @@ def test_small_file_upload_success(client, tmp_path):
     assert stored.read_bytes() == b"hello world"
 
 
+def test_upload_preserves_extension(client):
+    json_payload = b"{\"type\":\"FeatureCollection\",\"features\":[]}"
+    data = {
+        "file": ("My.Place.GeoJSON", io.BytesIO(json_payload), "application/geo+json")
+    }
+    resp = client.post("/api/upload", files=data)
+    assert resp.status_code == 200, resp.text
+    payload = resp.json()
+
+    from core.config import LOCAL_UPLOAD_DIR as CFG_UPLOADS  # type: ignore
+
+    stored = Path(CFG_UPLOADS) / payload["id"]
+    assert stored.exists()
+    assert stored.suffix == ".geojson"
+    assert stored.read_bytes() == json_payload
+
+
 def test_oversize_upload_rejected(tmp_path, monkeypatch):
     # Build app
     client = build_minimal_app(tmp_path)

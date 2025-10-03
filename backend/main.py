@@ -1,4 +1,5 @@
 import logging
+import mimetypes
 import os
 from contextlib import asynccontextmanager
 
@@ -74,6 +75,9 @@ else:
 
 # Local upload directory and base URL
 # Serve local uploads
+# Ensure GeoJSON files are served with an explicit media type
+mimetypes.add_type("application/geo+json", ".geojson")
+
 os.makedirs(LOCAL_UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=LOCAL_UPLOAD_DIR), name="uploads")
 
