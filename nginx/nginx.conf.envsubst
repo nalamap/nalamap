@@ -148,6 +148,8 @@ http {
       # Preserve partial content semantics if clients request ranges
       proxy_set_header Range $http_range;
       proxy_set_header If-Range $http_if_range;
+      # Fallback to disk buffering when response exceeds memory buffers
+      proxy_max_temp_file_size 512m;
       # Hint downstream proxies not to buffer
       add_header X-Accel-Buffering no;
     }
