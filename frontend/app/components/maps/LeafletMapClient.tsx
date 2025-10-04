@@ -282,6 +282,7 @@ function LeafletGeoJSONLayer({
   layerStyle?: LayerStyle;
 }) {
   const [data, setData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const map = useMap();
   
   // Force component to re-mount when layerStyle changes significantly
@@ -296,6 +297,7 @@ function LeafletGeoJSONLayer({
 
   useEffect(() => {
     let cancelled = false;
+    setIsLoading(true);
 
     const geometryTypes = new Set([
       'Point',
@@ -552,23 +554,24 @@ function LeafletGeoJSONLayer({
               return;
             }
             setData(processedCollection);
-            // Auto-fit bounds from data if possible
-            try {
-              const bounds = L.geoJSON(processedCollection).getBounds();
-              if (bounds.isValid()) {
-                map.fitBounds(bounds.pad(0.05));
-              }
-            } catch (e) { /* ignore */ }
+            setIsLoading(false);
           } else {
             console.warn('Fetched data is not valid GeoJSON FeatureCollection', { url, json });
             setData(null);
+            setIsLoading(false);
           }
         }
       } catch (err) {
-        if (!cancelled) console.error('Error fetching GeoJSON/WFS:', url, err);
+        if (!cancelled) {
+          console.error('Error fetching GeoJSON/WFS:', url, err);
+          setIsLoading(false);
+        }
       }
     })();
-    return () => { cancelled = true; };
+    return () => { 
+      cancelled = true;
+      setIsLoading(false);
+    };
   }, [url]); // Only re-fetch when URL changes
 
   const onEachFeature = (feature: any, layer: L.Layer) => {
@@ -631,24 +634,18 @@ function LeafletGeoJSONLayer({
 
   let geojsonRef: L.GeoJSON | null = null;
 
-  const handleGeoJsonRef = (layer: L.GeoJSON) => {
+  const handleGeoJsonRef = (layer: L.GeoJSON | null) => {
     if (!layer) return;
     geojsonRef = layer;
-    // Only zoom to bounds for new layers, not styling updates
-    // We can detect this by checking if the layer already exists in the store
-    const existingLayer = useLayerStore.getState().layers.find(l => l.data_link === url);
-    if (!existingLayer || !existingLayer.style) {
-      try {
-        const bounds = layer.getBounds();
-        // Check if bounds are valid (not empty/invalid)
-        if (bounds && bounds.isValid && bounds.isValid()) {
-          map.fitBounds(bounds);
-        } else {
-          console.warn("Layer has no valid bounds (likely empty GeoJSON):", url);
-        }
-      } catch (error) {
-        console.warn("Error getting bounds for layer:", url, error);
+    
+    // Always fit bounds for newly added layers
+    try {
+      const bounds = layer.getBounds();
+      if (bounds && bounds.isValid && bounds.isValid()) {
+        map.fitBounds(bounds.pad(0.05));
       }
+    } catch (error) {
+      console.warn("Error fitting bounds for layer:", url, error);
     }
   };
 
@@ -704,7 +701,7 @@ function LeafletGeoJSONLayer({
     return baseStyle;
   };
 
-  return data ? (
+  return data && !isLoading ? (
     <GeoJSON
       key={`geojson-${forceUpdate}`}
       data={data}
