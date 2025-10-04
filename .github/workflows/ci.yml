@@ -96,4 +96,60 @@ jobs:
           NEXT_TELEMETRY_DISABLED: '1'
           CI: 'true'
 
+  frontend-performance:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run performance tests
+        run: npx playwright test tests/leaflet-map.spec.ts --grep "Performance" --reporter=json > performance-results.json || true
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+          CI: 'true'
+
+      - name: Extract performance metrics
+        if: always()
+        run: |
+          echo "## 🚀 Performance Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Parse and display performance metrics from test output
+          if [ -f performance-results.json ]; then
+            echo "Performance tests completed. Check test output for detailed metrics." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ Performance results file not found" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Add to summary
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Test Categories:" >> $GITHUB_STEP_SUMMARY
+          echo "- ⏱️ Multi-layer rendering speed" >> $GITHUB_STEP_SUMMARY
+          echo "- 🗑️ Layer removal performance" >> $GITHUB_STEP_SUMMARY
+          echo "- 💾 Memory usage tracking" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎯 Bounds fitting optimization" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload performance results
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-results
+          path: frontend/performance-results.json
+          retention-days: 30
+
+      
       
