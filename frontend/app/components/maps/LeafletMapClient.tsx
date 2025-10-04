@@ -961,7 +961,11 @@ function Legend({
 export default function LeafletMapComponent() {
   const basemap = useMapStore((state) => state.basemap);
   const layers = useLayerStore((state) => state.layers);
-  const layerOrderKey = layers.map((l) => l.id).join("-");
+  
+  // Use a stable key derived from the VISIBLE layer order so React knows when to recreate
+  // the layer list. This ensures proper cleanup and reinitialization of layers
+  // when their order changes. Only include visible layers since those are the only ones rendered.
+  const layerOrderKey = layers.filter(l => l.visible).map((l) => l.id).join("-");
 
   // Get the first WMS layer from the layers array (if any) for GetFeatureInfo.
   const wmsLayerData = layers.find(
