@@ -147,3 +147,9 @@ export const useLayerStore = create<LayerStore>()(
       return { globalGeodata };
     }),
 }));
+
+// Expose store to window for E2E testing
+if (typeof window !== 'undefined') {
+  (window as any).useLayerStore = useLayerStore;
+  console.log('[LayerStore] Exposed to window for testing');
+}

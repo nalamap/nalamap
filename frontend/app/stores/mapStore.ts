@@ -18,3 +18,9 @@ export const useMapStore = create<MapState>((set) => ({
   },
   setBasemap: (basemap) => set({ basemap }),
 }));
+
+// Expose store to window for E2E testing
+if (typeof window !== 'undefined') {
+  (window as any).useMapStore = useMapStore;
+  console.log('[MapStore] Exposed to window for testing');
+}

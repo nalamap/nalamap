@@ -258,3 +258,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         model_options: settings.model_options,
     })),
 }))
+
+// Expose store to window for E2E testing
+if (typeof window !== 'undefined') {
+  (window as any).useSettingsStore = useSettingsStore;
+  console.log('[SettingsStore] Exposed to window for testing');
+}
