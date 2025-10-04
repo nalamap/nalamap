@@ -296,6 +296,7 @@ function LeafletGeoJSONLayer({
   useEffect(() => {
     let cancelled = false;
     setIsLoading(true);
+    Logger.log(`[LeafletGeoJSONLayer] Starting fetch for ${url}`);
 
     const geometryTypes = new Set([
       'Point',
@@ -547,10 +548,17 @@ function LeafletGeoJSONLayer({
                         const normalized = normalizeToFeatureCollection(orig);
                         if (normalized) {
                           setData(normalized);
+                          setIsLoading(false);
+                        } else {
+                          setIsLoading(false);
                         }
                       }
                     })
-                    .catch(() => {});
+                    .catch(() => {
+                      if (!cancelled) {
+                        setIsLoading(false);
+                      }
+                    });
                 }
               }, 0);
               // Store timeout ID for cleanup
@@ -559,6 +567,7 @@ function LeafletGeoJSONLayer({
             }
             setData(processedCollection);
             setIsLoading(false);
+            Logger.log(`[LeafletGeoJSONLayer] Successfully loaded data for ${url}, features:`, processedCollection.features?.length);
           } else {
             Logger.warn('Fetched data is not valid GeoJSON FeatureCollection', { url, json });
             setData(null);
@@ -710,6 +719,8 @@ function LeafletGeoJSONLayer({
     return baseStyle;
   };
 
+  Logger.log(`[LeafletGeoJSONLayer] Render: url=${url}, hasData=${!!data}, isLoading=${isLoading}, features=${data?.features?.length || 0}`);
+
   return data && !isLoading ? (
     <GeoJSON
       key={`${url}-${styleKey}`}
@@ -719,7 +730,13 @@ function LeafletGeoJSONLayer({
       ref={handleGeoJsonRef}
       style={getFeatureStyle}
     />
-  ) : null;
+  ) : (
+    <>
+      {isLoading && Logger.log(`[LeafletGeoJSONLayer] Still loading ${url}`)}
+      {!data && !isLoading && Logger.log(`[LeafletGeoJSONLayer] No data for ${url}`)}
+      {null}
+    </>
+  );
 }
 
 // Component to add the fullscreen control to the map
