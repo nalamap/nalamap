@@ -1,4 +1,5 @@
 import hashlib
+import os
 import re
 from pathlib import Path
 from typing import Any, Dict
@@ -34,29 +35,28 @@ def _resolve_upload_path(file_id: str) -> Path:
     if not file_id or not file_id.strip():
         raise HTTPException(status_code=400, detail="Invalid file identifier")
 
-    relative = Path(file_id)
-    if relative.is_absolute():
+    normalized = os.path.normpath(file_id)
+    relative = Path(normalized)
+
+    if relative.is_absolute() or normalized.startswith(".."):
         raise HTTPException(status_code=400, detail="Invalid file identifier")
 
     if any(
-        part in {"..", ""}
-        or part.startswith(".")
-        or not SAFE_SEGMENT.match(part)
+        part in {"..", ""} or part.startswith(".") or not SAFE_SEGMENT.match(part)
         for part in relative.parts
     ):
         raise HTTPException(status_code=400, detail="Invalid file identifier")
 
     uploads_root = Path(core_config.LOCAL_UPLOAD_DIR).resolve()
-    try:
-        candidate = (uploads_root / relative).resolve(strict=False)
-    except RuntimeError as err:
-        # Raised if resolution cycles; treat as invalid input
-        raise HTTPException(status_code=400, detail="Invalid file identifier") from err
+    candidate_str = os.path.normpath(os.path.join(uploads_root, normalized))
 
-    try:
-        candidate.relative_to(uploads_root)
-    except ValueError:
+    uploads_root_str = str(uploads_root)
+    common = os.path.commonpath([uploads_root_str, candidate_str])
+    if common != uploads_root_str:
         raise HTTPException(status_code=400, detail="Invalid file identifier")
+
+    candidate = Path(candidate_str)
+
     if candidate == uploads_root:
         raise HTTPException(status_code=400, detail="Invalid file identifier")
 
