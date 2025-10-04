@@ -52,13 +52,25 @@ async function setupBackendMocks(page: Page) {
  * Helper to add a layer to the map via the layer store
  */
 async function addLayerViaStore(page: Page, layer: any) {
-  await page.evaluate((layerData) => {
-    // Access Zustand store directly
+  const result = await page.evaluate((layerData) => {
+    // Access Zustand store directly from window
     const { useLayerStore } = window as any;
-    if (useLayerStore) {
+    if (!useLayerStore) {
+      return { success: false, error: 'useLayerStore not found on window' };
+    }
+    try {
       useLayerStore.getState().addLayer(layerData);
+      const layers = useLayerStore.getState().layers;
+      return { success: true, layerCount: layers.length };
+    } catch (error: any) {
+      return { success: false, error: error.message };
     }
   }, layer);
+  
+  if (!result.success) {
+    throw new Error(`Failed to add layer: ${result.error}`);
+  }
+  return result;
 }
 
 /**
@@ -67,6 +79,16 @@ async function addLayerViaStore(page: Page, layer: any) {
 async function waitForMapReady(page: Page) {
   // Wait for Leaflet map container
   await page.waitForSelector('.leaflet-container', { timeout: 10000 });
+  
+  // Try to wait for the store to be available on window, but don't fail if it times out
+  try {
+    await page.waitForFunction(() => {
+      return typeof (window as any).useLayerStore !== 'undefined';
+    }, { timeout: 5000 });
+  } catch (error) {
+    console.log('Store not available on window yet, continuing anyway...');
+  }
+  
   // Wait for tiles to start loading
   await page.waitForTimeout(1000);
 }
