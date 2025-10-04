@@ -119,3 +119,14 @@ def test_get_upload_meta_rejects_traversal(client, tmp_path):
 def test_get_upload_meta_missing_file(client):
     resp = client.get("/api/uploads/meta/missing.txt")
     assert resp.status_code == 404
+
+
+def test_get_upload_meta_rejects_absolute_path(client):
+    # Leading slash encoded as %2F
+    resp = client.get("/api/uploads/meta/%2Fetc%2Fpasswd")
+    assert resp.status_code == 400
+
+
+def test_get_upload_meta_rejects_hidden_segment(client):
+    resp = client.get("/api/uploads/meta/nested/.hidden")
+    assert resp.status_code == 400

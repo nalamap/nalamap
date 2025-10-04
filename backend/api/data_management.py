@@ -1,11 +1,13 @@
 import hashlib
+import re
 from pathlib import Path
 from typing import Any, Dict
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from core.config import LOCAL_UPLOAD_DIR, MAX_FILE_SIZE
+import core.config as core_config
+from core.config import MAX_FILE_SIZE
 from services.storage.file_management import store_file_stream
 
 
@@ -25,21 +27,37 @@ class StyleUpdateRequest(BaseModel):
 router = APIRouter()
 
 
-UPLOADS_ROOT = Path(LOCAL_UPLOAD_DIR).resolve()
+SAFE_SEGMENT = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
 def _resolve_upload_path(file_id: str) -> Path:
+    if not file_id or not file_id.strip():
+        raise HTTPException(status_code=400, detail="Invalid file identifier")
+
+    relative = Path(file_id)
+    if relative.is_absolute():
+        raise HTTPException(status_code=400, detail="Invalid file identifier")
+
+    if any(
+        part in {"..", ""}
+        or part.startswith(".")
+        or not SAFE_SEGMENT.match(part)
+        for part in relative.parts
+    ):
+        raise HTTPException(status_code=400, detail="Invalid file identifier")
+
+    uploads_root = Path(core_config.LOCAL_UPLOAD_DIR).resolve()
     try:
-        candidate = (UPLOADS_ROOT / file_id).resolve(strict=False)
+        candidate = (uploads_root / relative).resolve(strict=False)
     except RuntimeError as err:
         # Raised if resolution cycles; treat as invalid input
         raise HTTPException(status_code=400, detail="Invalid file identifier") from err
 
     try:
-        rel = candidate.relative_to(UPLOADS_ROOT)
+        candidate.relative_to(uploads_root)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid file identifier")
-    if candidate == UPLOADS_ROOT:
+    if candidate == uploads_root:
         raise HTTPException(status_code=400, detail="Invalid file identifier")
 
     if not candidate.exists() or not candidate.is_file():
