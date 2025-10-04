@@ -1,7 +1,6 @@
 import hashlib
 import os
 import re
-from pathlib import Path
 from typing import Any, Dict
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
@@ -31,39 +30,40 @@ router = APIRouter()
 SAFE_SEGMENT = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
-def _resolve_upload_path(file_id: str) -> Path:
+def _resolve_upload_path(file_id: str) -> str:
+    """Safely resolve upload file path within uploads directory.
+
+    Returns the validated absolute path as a string to satisfy CodeQL analysis.
+    """
     if not file_id or not file_id.strip():
         raise HTTPException(status_code=400, detail="Invalid file identifier")
 
+    # Normalize and validate segments before joining
     normalized = os.path.normpath(file_id)
-    relative = Path(normalized)
 
-    if relative.is_absolute() or normalized.startswith(".."):
+    # Reject absolute paths and parent directory traversal
+    if os.path.isabs(normalized) or normalized.startswith(".."):
         raise HTTPException(status_code=400, detail="Invalid file identifier")
 
-    if any(
-        part in {"..", ""} or part.startswith(".") or not SAFE_SEGMENT.match(part)
-        for part in relative.parts
-    ):
+    # Additional segment validation
+    segments = normalized.split(os.sep)
+    for part in segments:
+        if part in {"..", ""} or part.startswith(".") or not SAFE_SEGMENT.match(part):
+            raise HTTPException(status_code=400, detail="Invalid file identifier")
+
+    # Build full path and normalize
+    uploads_root = os.path.abspath(core_config.LOCAL_UPLOAD_DIR)
+    fullpath = os.path.normpath(os.path.join(uploads_root, normalized))
+
+    # Verify the normalized path is within uploads_root (CodeQL-approved pattern)
+    if not fullpath.startswith(uploads_root + os.sep):
         raise HTTPException(status_code=400, detail="Invalid file identifier")
 
-    uploads_root = Path(core_config.LOCAL_UPLOAD_DIR).resolve()
-    candidate_str = os.path.normpath(os.path.join(uploads_root, normalized))
-
-    uploads_root_str = str(uploads_root)
-    common = os.path.commonpath([uploads_root_str, candidate_str])
-    if common != uploads_root_str:
-        raise HTTPException(status_code=400, detail="Invalid file identifier")
-
-    candidate = Path(candidate_str)
-
-    if candidate == uploads_root:
-        raise HTTPException(status_code=400, detail="Invalid file identifier")
-
-    if not candidate.exists() or not candidate.is_file():
+    # Check file exists and is a file
+    if not os.path.exists(fullpath) or not os.path.isfile(fullpath):
         raise HTTPException(status_code=404, detail="File not found")
 
-    return candidate
+    return fullpath
 
 
 # Layer styling endpoint
@@ -111,11 +111,11 @@ async def upload_file(file: UploadFile = File(...)) -> Dict[str, str]:
 @router.get("/uploads/meta/{file_id:path}")
 async def get_upload_meta(file_id: str) -> Dict[str, str]:
     """Return file size and SHA256 for a stored upload by its ID (filename)."""
-    path = _resolve_upload_path(file_id)
+    fullpath = _resolve_upload_path(file_id)
 
     sha256 = hashlib.sha256()
     size = 0
-    with path.open("rb") as f:
+    with open(fullpath, "rb") as f:
         for chunk in iter(lambda: f.read(1024 * 1024), b""):
             size += len(chunk)
             sha256.update(chunk)
