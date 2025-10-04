@@ -1,4 +1,5 @@
 import logging
+import mimetypes
 import os
 from contextlib import asynccontextmanager
 
@@ -11,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from api import ai_style, auto_styling, data_management, debug, nalamap, settings
 
 # from sqlalchemy.ext.asyncio import AsyncSession
-from core.config import LOCAL_UPLOAD_DIR
+from core.config import LOCAL_UPLOAD_DIR, ALLOWED_CORS_ORIGINS
 from services.database.database import close_db, init_db
 
 # Configure logging to show info level messages for debugging
@@ -54,16 +55,29 @@ app = FastAPI(
 )
 
 # CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+if ALLOWED_CORS_ORIGINS:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=ALLOWED_CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    # Fallback: allow all origins but disable credentials to satisfy CORS spec
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # Local upload directory and base URL
 # Serve local uploads
+# Ensure GeoJSON files are served with an explicit media type
+mimetypes.add_type("application/geo+json", ".geojson")
+
 os.makedirs(LOCAL_UPLOAD_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=LOCAL_UPLOAD_DIR), name="uploads")
 
@@ -79,6 +93,11 @@ app.include_router(settings.router, prefix="/api")
 @app.get("/")
 async def root():
     return {"message": "NaLaMap API is running"}
+
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "message": "NaLaMap API is running"}
 
 
 # Exception handlers

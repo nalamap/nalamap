@@ -121,7 +121,7 @@ def normalize_messages(raw: Optional[List[BaseMessage]]) -> List[BaseMessage]:
 router = APIRouter()
 
 
-@router.post("/api/chatmock", tags=["nalamap"], response_model=NaLaMapResponse)
+@router.post("/chatmock", tags=["nalamap"], response_model=NaLaMapResponse)
 async def ask_nalamap(request: NaLaMapRequest):
     """
     Ask a question to the NaLaMap, which

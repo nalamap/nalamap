@@ -63,6 +63,9 @@ export interface GeoDataObject {
     visible?: boolean
     selected?: boolean;     // <— new flag
     style?: LayerStyle;     // <— new style property
+    // Optional integrity metadata for locally stored files
+    sha256?: string
+    size?: number
 }
 
 export interface NaLaMapRequest {

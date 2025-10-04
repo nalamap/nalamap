@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from models.geodata import DataOrigin, DataType, GeoDataObject
 from services.ai.llm_config import get_llm
-from services.database.database import get_db
+from services.database.database import get_db, is_database_available
 
 # 1) System prompt now instructs the LLM to output JSON with exactly these keys.
 system_msg = """
@@ -60,29 +60,40 @@ async def parse_llm(state: SearchState) -> SearchState:
 
 # 4) Node #2: hit PostGIS, pushing the score‐filter into SQL
 async def query_postgis(state: SearchState) -> SearchState:
-    async for cur in get_db():
-        await cur.execute(
-            """
-            SELECT
-              resource_id, source_type, name, title, description,
-              access_url, portal, llm_description,
-              ST_AsText(bounding_box) AS bbox_wkt, score
-            FROM dataset_resources_search(
-              %s,     -- searchquery
-              %s,     -- num_results
-              %s,     -- portal_filter
-              ST_GeomFromText(%s,4326)  -- search_bbox
+    # Check if database is available
+    if not is_database_available():
+        state.results = []
+        return state
+
+    rows = []
+    try:
+        async for cur in get_db():
+            await cur.execute(
+                """
+                SELECT
+                  resource_id, source_type, name, title, description,
+                  access_url, portal, llm_description,
+                  ST_AsText(bounding_box) AS bbox_wkt, score
+                FROM dataset_resources_search(
+                  %s,     -- searchquery
+                  %s,     -- num_results
+                  %s,     -- portal_filter
+                  ST_GeomFromText(%s,4326)  -- search_bbox
+                )
+                WHERE score <= 0.25
+                """,
+                (
+                    state.searchquery,
+                    state.num_results,
+                    state.portal,
+                    state.bbox_wkt,
+                ),
             )
-            WHERE score <= 0.25
-            """,
-            (
-                state.searchquery,
-                state.num_results,
-                state.portal,
-                state.bbox_wkt,
-            ),
-        )
-        rows = await cur.fetchall()
+            rows = await cur.fetchall()
+    except Exception:
+        # If database query fails, return empty results
+        state.results = []
+        return state
 
     state.results = [
         GeoDataObject(

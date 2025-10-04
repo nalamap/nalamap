@@ -28,7 +28,7 @@ from utility.string_methods import clean_allow
 router = APIRouter()
 
 
-@router.post("/api/search", tags=["debug"], response_model=NaLaMapResponse)
+@router.post("/search", tags=["debug"], response_model=NaLaMapResponse)
 async def search(req: NaLaMapRequest):
     state = SearchState(raw_query=req.query)
     result_state = await executor.ainvoke(state)
@@ -54,7 +54,7 @@ async def search(req: NaLaMapRequest):
     )  # , global_geodata=global_geodata)
 
 
-@router.post("/api/geocode", tags=["debug"], response_model=NaLaMapResponse)
+@router.post("/geocode", tags=["debug"], response_model=NaLaMapResponse)
 async def geocode(req: NaLaMapRequest) -> Dict[str, Any]:
     """Geocode the given request using the OpenStreetMap API.
     Returns and geokml some additional information."""
@@ -173,7 +173,7 @@ async def geocode(req: NaLaMapRequest) -> Dict[str, Any]:
     return geocodeResponse
 
 
-@router.post("/api/orchestrate", tags=["debug"], response_model=OrchestratorResponse)
+@router.post("/orchestrate", tags=["debug"], response_model=OrchestratorResponse)
 async def orchestrate(req: OrchestratorRequest):
     state = {"messages": [m.dict() for m in req.messages], "next": ""}
     final_state = await multi_agent_executor.ainvoke(state)
@@ -192,7 +192,7 @@ class GeoProcessResponse(BaseModel):
     tools_used: Optional[List[str]] = None
 
 
-@router.post("/api/geoprocess", response_model=NaLaMapResponse)
+@router.post("/geoprocess", response_model=NaLaMapResponse)
 async def geoprocess(req: NaLaMapRequest):
     """
     Accepts a natural language query and a list of GeoJSON URLs.
