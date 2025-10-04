@@ -14,18 +14,25 @@ test('check if stores are exposed', async ({ page }) => {
 
   await page.goto('/');
   
-  console.log('Page loaded, waiting for Next.js hydration...');
+  console.log('Page loaded, waiting for app to be ready...');
   
-  // Wait for Next.js to hydrate by checking for __NEXT_DATA__
+  // Wait for the app to be ready by checking for stores or React hydration
+  // Try multiple indicators to be more robust across environments
   await page.waitForFunction(() => {
-    return !!(window as any).__NEXT_DATA__;
-  }, { timeout: 30000 });
+    const hasStores = !!(window as any).useLayerStore || !!(window as any).useMapStore;
+    const hasNextData = !!(window as any).__NEXT_DATA__;
+    const nextRoot = document.querySelector('#__next');
+    const hasReactRoot = nextRoot && nextRoot.children.length > 0;
+    // Consider ready if we have stores OR Next.js data OR React root with content
+    return hasStores || hasNextData || hasReactRoot;
+  }, { timeout: 60000 }); // Increased timeout for CI
   
-  console.log('Next.js hydrated!');
+  console.log('App ready!');
   
-  // Wait for hydration
-  await page.waitForLoadState('networkidle');
-  await page.waitForTimeout(3000);
+  // Wait for network to settle
+  await page.waitForLoadState('networkidle', { timeout: 30000 });
+  // Give stores time to initialize
+  await page.waitForTimeout(2000);
   
   // Check if the page has loaded properly
   const pageContent = await page.evaluate(() => {
