@@ -46,6 +46,14 @@ http {
   # Ensure SNI uses the logical upstream host
   proxy_ssl_name $proxy_host;
 
+  # Map for allowed CORS origins including Azure Blob Storage
+  # Azure Blob domain can be configured via AZURE_BLOB_DOMAIN env var (e.g., stnalamapdev.blob.core.windows.net)
+  map $http_origin $cors_allowed {
+    default "";
+    "~^https?://${AZURE_BLOB_DOMAIN}$" "$http_origin";
+    "~^https?://[^/]+\.blob\.core\.windows\.net$" "$http_origin";
+  }
+
   server {
     listen 80;
     server_name _;
