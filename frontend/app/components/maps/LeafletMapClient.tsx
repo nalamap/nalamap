@@ -296,6 +296,120 @@ function LeafletGeoJSONLayer({
 
   useEffect(() => {
     let cancelled = false;
+
+    const geometryTypes = new Set([
+      'Point',
+      'MultiPoint',
+      'LineString',
+      'MultiLineString',
+      'Polygon',
+      'MultiPolygon',
+    ]);
+
+    const normalizeToFeatureCollection = (input: any): any | null => {
+      if (!input) return null;
+
+      if (Array.isArray(input)) {
+        const features = input
+          .map((item: any, idx: number) => {
+            if (!item) return null;
+            if (item.type === 'Feature' && item.geometry) return item;
+            if (geometryTypes.has(item.type) && item.coordinates) {
+              const props = item.properties && typeof item.properties === 'object' ? { ...item.properties } : {};
+              if (!Object.keys(props).length) {
+                if (item.id !== undefined) props.id = item.id;
+                else props.id = idx + 1;
+              }
+              return {
+                type: 'Feature',
+                properties: props,
+                geometry: { type: item.type, coordinates: item.coordinates },
+              };
+            }
+            return null;
+          })
+          .filter(Boolean);
+        if (!features.length) return null;
+        return { type: 'FeatureCollection', features };
+      }
+
+      if (typeof input !== 'object') return null;
+
+      if (input.type === 'FeatureCollection' && Array.isArray(input.features)) {
+        return input;
+      }
+
+      if (input.type === 'Feature' && input.geometry) {
+        const fc: any = {
+          type: 'FeatureCollection',
+          features: [input],
+        };
+        if (input.crs) fc.crs = input.crs;
+        if (input.bbox) fc.bbox = input.bbox;
+        return fc;
+      }
+
+      if (input.type === 'GeometryCollection' && Array.isArray(input.geometries)) {
+        const features = input.geometries
+          .map((geom: any, idx: number) => {
+            if (!geom?.type) return null;
+            return {
+              type: 'Feature',
+              properties: { id: idx, ...(input.properties || {}) },
+              geometry: geom,
+            };
+          })
+          .filter(Boolean);
+        if (!features.length) return null;
+        const fc: any = { type: 'FeatureCollection', features };
+        if (input.crs) fc.crs = input.crs;
+        if (input.bbox) fc.bbox = input.bbox;
+        return fc;
+      }
+
+      if (geometryTypes.has(input.type) && input.coordinates) {
+        const props = input.properties && typeof input.properties === 'object' ? { ...input.properties } : {};
+        if (!Object.keys(props).length) {
+          if (input.id !== undefined) props.id = input.id;
+          else props.id = 1;
+        }
+        const fc: any = {
+          type: 'FeatureCollection',
+          features: [
+            {
+              type: 'Feature',
+              properties: props,
+              geometry: { type: input.type, coordinates: input.coordinates },
+            },
+          ],
+        };
+        if (input.crs) fc.crs = input.crs;
+        if (input.bbox) fc.bbox = input.bbox;
+        return fc;
+      }
+
+      if (Array.isArray(input.features)) {
+        return { ...input, type: input.type || 'FeatureCollection' };
+      }
+
+      return null;
+    };
+
+    const extractDeclaredCrs = (candidate: any): string | null => {
+      if (!candidate || typeof candidate !== 'object') return null;
+      try {
+        return (
+          candidate.crs?.properties?.name ||
+          candidate.crs?.name ||
+          candidate.features?.[0]?.crs?.properties?.name ||
+          candidate.features?.[0]?.crs?.name ||
+          null
+        );
+      } catch {
+        return null;
+      }
+    };
+
     (async () => {
       try {
         console.log('Fetching GeoJSON/WFS layer:', url);
@@ -337,10 +451,10 @@ function LeafletGeoJSONLayer({
             }
         }
         if (!cancelled) {
-          if (json && json.type && (json.type === 'FeatureCollection' || json.features)) {
+          const featureCollection = normalizeToFeatureCollection(json);
+          if (featureCollection) {
             // Detect CRS from GeoJSON 'crs' if present
-            let declaredCrs: string | null = null;
-            try { declaredCrs = json.crs?.properties?.name || json.crs?.name || null; } catch { /* ignore */ }
+            const declaredCrs = extractDeclaredCrs(json) || extractDeclaredCrs(featureCollection);
             // Extract first numeric coordinate pair recursively
             const extractFirstXY = (geom: any): [number, number] | null => {
               if (!geom) return null;
@@ -351,7 +465,7 @@ function LeafletGeoJSONLayer({
               if (Array.isArray(first) && typeof first[0] === 'number' && typeof first[1] === 'number') return [first[0], first[1]];
               return null;
             };
-            const firstFeature = json.features?.[0];
+            const firstFeature = featureCollection.features?.[0];
             const firstXY = firstFeature ? extractFirstXY(firstFeature.geometry) : null;
             const looksLike3857 = (() => {
               if (!firstXY) return false;
@@ -389,10 +503,18 @@ function LeafletGeoJSONLayer({
                 default: return geom;
               }
             };
+            let processedCollection = featureCollection;
+
             if (looksLike3857) {
               console.log('Reprojecting WFS geometry from EPSG:3857 -> EPSG:4326');
-              json = { ...json, features: json.features.map((f: any) => ({ ...f, geometry: reprojectGeometry(f.geometry) })) };
-              json.crs = { type: 'name', properties: { name: 'EPSG:4326' } };
+              processedCollection = {
+                ...featureCollection,
+                features: featureCollection.features.map((f: any) => ({
+                  ...f,
+                  geometry: reprojectGeometry(f.geometry),
+                })),
+                crs: { type: 'name', properties: { name: 'EPSG:4326' } },
+              };
             }
             // Validate resulting coords fall within lat/lon plausible ranges; if not, revert to original
             const validateLatLon = (fc: any) => {
@@ -412,23 +534,34 @@ function LeafletGeoJSONLayer({
                 return true;
               } catch { return true; }
             };
-            if (!validateLatLon(json) && looksLike3857) {
+            if (!validateLatLon(processedCollection) && looksLike3857) {
               console.warn('Reprojected coordinates invalid for lat/lon; falling back to original geometry.');
               // refetch original without reprojection
               setData(null);
-              setTimeout(() => fetch(url).then(r=>r.json()).then(orig => setData(orig)).catch(()=>{}), 0);
+              setTimeout(() => {
+                fetch(url)
+                  .then(r => r.json())
+                  .then(orig => {
+                    const normalized = normalizeToFeatureCollection(orig);
+                    if (normalized) {
+                      setData(normalized);
+                    }
+                  })
+                  .catch(() => {});
+              }, 0);
               return;
             }
-            setData(json);
+            setData(processedCollection);
             // Auto-fit bounds from data if possible
             try {
-              const bounds = L.geoJSON(json).getBounds();
+              const bounds = L.geoJSON(processedCollection).getBounds();
               if (bounds.isValid()) {
                 map.fitBounds(bounds.pad(0.05));
               }
             } catch (e) { /* ignore */ }
           } else {
             console.warn('Fetched data is not valid GeoJSON FeatureCollection', { url, json });
+            setData(null);
           }
         }
       } catch (err) {
