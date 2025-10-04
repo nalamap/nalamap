@@ -104,7 +104,21 @@ def create_geodata_object_from_geojson(
         "geometry": nominatim_response["geojson"],
     }
 
-    content_bytes = json.dumps(geojson).encode()
+    # Use ensure_ascii=False for proper UTF-8 encoding and separators for compact output
+    try:
+        content_bytes = json.dumps(
+            geojson,
+            ensure_ascii=False,
+            separators=(',', ':')
+        ).encode('utf-8')
+        
+        # Validate the JSON is complete by attempting to parse it
+        json.loads(content_bytes.decode('utf-8'))
+        
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        print(f"Error encoding/validating GeoJSON for {place_id}_{name}.json: {e}")
+        return None
+    
     url, unique_id = store_file(f"{place_id}_{name}.json", content_bytes)
     sha256_hex = hashlib.sha256(content_bytes).hexdigest()
     size_bytes = len(content_bytes)
@@ -450,7 +464,22 @@ def create_collection_geodata_object(
         f"overpass_{safe_amenity_name}_{collection_type_name.lower()}_{safe_location_for_file}.json"
     )
 
-    content_bytes = json.dumps(feature_collection).encode()
+    # Use ensure_ascii=False for proper UTF-8 encoding and separators for compact output
+    # This prevents unicode escape sequences and ensures clean JSON
+    try:
+        content_bytes = json.dumps(
+            feature_collection,
+            ensure_ascii=False,
+            separators=(',', ':')
+        ).encode('utf-8')
+
+        # Validate the JSON is complete by attempting to parse it
+        json.loads(content_bytes.decode('utf-8'))
+
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        print(f"Error encoding/validating GeoJSON for {file_name}: {e}")
+        return None
+
     data_url, unique_id = store_file(file_name, content_bytes)
     sha256_hex = hashlib.sha256(content_bytes).hexdigest()
     size_bytes = len(content_bytes)
