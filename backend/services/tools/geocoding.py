@@ -121,7 +121,7 @@ def create_geodata_object_from_geojson(
         )
         print(error_msg)
         return None
-    
+
     url, unique_id = store_file(f"{place_id}_{name}.json", content_bytes)
     sha256_hex = hashlib.sha256(content_bytes).hexdigest()
     size_bytes = len(content_bytes)
