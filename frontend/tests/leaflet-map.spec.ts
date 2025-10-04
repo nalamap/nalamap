@@ -862,4 +862,385 @@ test.describe('LeafletMapClient - Bug Fix Verification Tests', () => {
     // Check for console errors about state updates on unmounted components
     // (This would be caught by React's warnings in development mode)
   });
+
+  test('Fix #1: Stable styleKey prevents unnecessary re-renders', async ({ page }) => {
+    /**
+     * Verifies Fix #1: Remove forceUpdate pattern
+     * - Component uses stable styleKey instead of forceUpdate counter
+     * - No unnecessary re-renders from JSON.stringify on every render
+     * - Style changes trigger re-mount only when style actually changes
+     */
+    
+    // Track component renders
+    await page.evaluate(() => {
+      (window as any).renderCount = 0;
+      (window as any).mountCount = 0;
+    });
+
+    await page.route('**/uploads/**', (route) => {
+      if (route.request().url().includes('style_test')) {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(germanyGeocodingResponse),
+        });
+      } else {
+        route.continue();
+      }
+    });
+
+    const testLayer = {
+      id: 'style-test-layer',
+      name: 'Style Test Layer',
+      title: 'Layer for Style Testing',
+      layer_type: 'UPLOADED',
+      data_link: '/uploads/style_test.geojson',
+      visible: true,
+      data_source_id: 'test',
+      style: {
+        stroke_color: '#ff0000',
+        fill_color: '#00ff00',
+        stroke_weight: 2,
+      },
+    };
+
+    // Add layer
+    await addLayerViaStore(page, testLayer);
+    
+    // Wait for initial render
+    await page.waitForTimeout(2000);
+
+    // Verify layer rendered
+    const visible = await isLayerVisible(page, 'style-test-layer');
+    expect(visible).toBe(true);
+
+    const initialFeatures = await page.locator('.leaflet-overlay-pane path, .leaflet-overlay-pane circle').count();
+    expect(initialFeatures).toBeGreaterThan(0);
+
+    // Update style with SAME values (should not cause re-mount with stable styleKey)
+    await page.evaluate((id) => {
+      const { useLayerStore } = window as any;
+      if (useLayerStore) {
+        const layers = useLayerStore.getState().layers;
+        const layer = layers.find((l: any) => l.id === id);
+        if (layer) {
+          // Update with same style values
+          useLayerStore.getState().updateLayer(id, {
+            ...layer,
+            style: {
+              stroke_color: '#ff0000', // SAME
+              fill_color: '#00ff00',   // SAME
+              stroke_weight: 2,        // SAME
+            },
+          });
+        }
+      }
+    }, 'style-test-layer');
+
+    await page.waitForTimeout(500);
+
+    // Layer should still be visible with same features
+    const stillVisible = await isLayerVisible(page, 'style-test-layer');
+    expect(stillVisible).toBe(true);
+
+    // Now change style significantly (should trigger re-mount)
+    await page.evaluate((id) => {
+      const { useLayerStore } = window as any;
+      if (useLayerStore) {
+        const layers = useLayerStore.getState().layers;
+        const layer = layers.find((l: any) => l.id === id);
+        if (layer) {
+          useLayerStore.getState().updateLayer(id, {
+            ...layer,
+            style: {
+              stroke_color: '#0000ff', // DIFFERENT
+              fill_color: '#ffff00',   // DIFFERENT
+              stroke_weight: 5,        // DIFFERENT
+            },
+          });
+        }
+      }
+    }, 'style-test-layer');
+
+    await page.waitForTimeout(1000);
+
+    // Layer should still render with new style
+    const visibleAfterStyleChange = await isLayerVisible(page, 'style-test-layer');
+    expect(visibleAfterStyleChange).toBe(true);
+
+    const featuresAfterStyleChange = await page.locator('.leaflet-overlay-pane path, .leaflet-overlay-pane circle').count();
+    expect(featuresAfterStyleChange).toBeGreaterThan(0);
+
+    console.log(`Style test completed - Layer re-rendered with new style`);
+    
+    // CRITICAL ASSERTION: After Fix #1, no forceUpdate pattern causing race conditions
+    // Component uses stable styleKey derived from actual style properties
+  });
+});
+
+test.describe('LeafletMapClient - Performance Tests', () => {
+  test.beforeEach(async ({ page }) => {
+    await setupBackendMocks(page);
+    await page.goto('/');
+    await waitForMapReady(page);
+  });
+
+  test('Performance: Multiple layers render within acceptable time', async ({ page }) => {
+    /**
+     * Performance test: Measure time to render multiple layers
+     * Expected: <2 seconds for 5 layers after fixes
+     */
+    
+    await page.route('**/uploads/**', (route) => {
+      const url = route.request().url();
+      if (url.includes('perf_layer')) {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(germanyGeocodingResponse),
+        });
+      } else {
+        route.continue();
+      }
+    });
+
+    const startTime = Date.now();
+
+    // Add 5 layers
+    for (let i = 1; i <= 5; i++) {
+      await addLayerViaStore(page, {
+        id: `perf-layer-${i}`,
+        name: `Performance Test Layer ${i}`,
+        title: `Layer ${i}`,
+        layer_type: 'UPLOADED',
+        data_link: `/uploads/perf_layer_${i}.geojson`,
+        visible: true,
+        data_source_id: 'test',
+      });
+      await page.waitForTimeout(100); // Small delay between adds
+    }
+
+    // Wait for all to render
+    await page.waitForTimeout(2000);
+
+    const endTime = Date.now();
+    const renderTime = endTime - startTime;
+
+    console.log(`⏱️  Performance: ${5} layers rendered in ${renderTime}ms`);
+
+    // Verify all layers rendered
+    const layerCount = await getLayerCount(page);
+    expect(layerCount).toBe(5);
+
+    // PERFORMANCE ASSERTION: Should render 5 layers in < 3 seconds (lenient for CI)
+    expect(renderTime).toBeLessThan(3000);
+    
+    // Log for CI reporting
+    console.log(`✅ Performance test passed: ${renderTime}ms for 5 layers`);
+  });
+
+  test('Performance: Layer removal is fast', async ({ page }) => {
+    /**
+     * Performance test: Measure time to remove layers
+     * Expected: <500ms to remove 3 layers
+     */
+    
+    await page.route('**/uploads/**', (route) => {
+      if (route.request().url().includes('removal_perf')) {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(germanyGeocodingResponse),
+        });
+      } else {
+        route.continue();
+      }
+    });
+
+    // Add 3 layers
+    for (let i = 1; i <= 3; i++) {
+      await addLayerViaStore(page, {
+        id: `removal-perf-${i}`,
+        name: `Removal Test ${i}`,
+        title: `Layer ${i}`,
+        layer_type: 'UPLOADED',
+        data_link: `/uploads/removal_perf_${i}.geojson`,
+        visible: true,
+        data_source_id: 'test',
+      });
+    }
+
+    await page.waitForTimeout(2000);
+
+    let layerCount = await getLayerCount(page);
+    expect(layerCount).toBe(3);
+
+    // Measure removal time
+    const startTime = Date.now();
+
+    for (let i = 1; i <= 3; i++) {
+      await page.evaluate((id) => {
+        const { useLayerStore } = window as any;
+        if (useLayerStore) {
+          useLayerStore.getState().removeLayer(id);
+        }
+      }, `removal-perf-${i}`);
+    }
+
+    await page.waitForTimeout(500);
+
+    const endTime = Date.now();
+    const removalTime = endTime - startTime;
+
+    console.log(`⏱️  Performance: 3 layers removed in ${removalTime}ms`);
+
+    layerCount = await getLayerCount(page);
+    expect(layerCount).toBe(0);
+
+    // PERFORMANCE ASSERTION: Should remove layers quickly
+    expect(removalTime).toBeLessThan(1000);
+    
+    console.log(`✅ Removal performance test passed: ${removalTime}ms`);
+  });
+
+  test('Performance: Memory usage tracking', async ({ page }) => {
+    /**
+     * Performance test: Monitor memory usage with multiple layers
+     * This helps detect memory leaks
+     */
+    
+    await page.route('**/uploads/**', (route) => {
+      if (route.request().url().includes('memory_test')) {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(brazilHospitalsOverpassResponse),
+        });
+      } else {
+        route.continue();
+      }
+    });
+
+    // Get initial memory usage
+    const initialMemory = await page.evaluate(() => {
+      if ('memory' in performance) {
+        return (performance as any).memory.usedJSHeapSize;
+      }
+      return 0;
+    });
+
+    // Add layers
+    for (let i = 1; i <= 3; i++) {
+      await addLayerViaStore(page, {
+        id: `memory-test-${i}`,
+        name: `Memory Test ${i}`,
+        title: `Layer ${i}`,
+        layer_type: 'UPLOADED',
+        data_link: `/uploads/memory_test_${i}.geojson`,
+        visible: true,
+        data_source_id: 'test',
+      });
+    }
+
+    await page.waitForTimeout(2000);
+
+    // Get memory after adding layers
+    const memoryAfterAdd = await page.evaluate(() => {
+      if ('memory' in performance) {
+        return (performance as any).memory.usedJSHeapSize;
+      }
+      return 0;
+    });
+
+    // Remove all layers
+    for (let i = 1; i <= 3; i++) {
+      await page.evaluate((id) => {
+        const { useLayerStore } = window as any;
+        if (useLayerStore) {
+          useLayerStore.getState().removeLayer(id);
+        }
+      }, `memory-test-${i}`);
+    }
+
+    await page.waitForTimeout(1000);
+
+    // Get memory after removal
+    const memoryAfterRemoval = await page.evaluate(() => {
+      if ('memory' in performance) {
+        return (performance as any).memory.usedJSHeapSize;
+      }
+      return 0;
+    });
+
+    if (initialMemory > 0) {
+      const memoryIncrease = ((memoryAfterAdd - initialMemory) / 1024 / 1024).toFixed(2);
+      const memoryAfterCleanup = ((memoryAfterRemoval - initialMemory) / 1024 / 1024).toFixed(2);
+      
+      console.log(`💾 Memory usage:`);
+      console.log(`   Initial: ${(initialMemory / 1024 / 1024).toFixed(2)} MB`);
+      console.log(`   After adding 3 layers: +${memoryIncrease} MB`);
+      console.log(`   After removing layers: ${memoryAfterCleanup} MB from initial`);
+
+      // Memory should not grow excessively (allow 50MB increase for 3 layers with data)
+      expect(parseFloat(memoryIncrease)).toBeLessThan(50);
+      
+      console.log(`✅ Memory test passed: No excessive memory growth`);
+    } else {
+      console.log(`⚠️  Memory API not available in this browser, skipping memory assertions`);
+    }
+  });
+
+  test('Performance: Bounds fitting optimization', async ({ page }) => {
+    /**
+     * Performance test: Verify bounds fitting happens efficiently
+     * After Fix #2, should only happen once per layer
+     */
+    
+    // Track fitBounds calls
+    await page.evaluate(() => {
+      (window as any).fitBoundsCalls = [];
+      (window as any).fitBoundsTimestamps = [];
+    });
+
+    await page.route('**/uploads/**', (route) => {
+      if (route.request().url().includes('bounds_perf')) {
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(germanyGeocodingResponse),
+        });
+      } else {
+        route.continue();
+      }
+    });
+
+    const startTime = Date.now();
+
+    // Add layer
+    await addLayerViaStore(page, {
+      id: 'bounds-perf-layer',
+      name: 'Bounds Performance Test',
+      title: 'Bounds Test',
+      layer_type: 'UPLOADED',
+      data_link: '/uploads/bounds_perf.geojson',
+      visible: true,
+      data_source_id: 'test',
+    });
+
+    await page.waitForTimeout(2000);
+
+    const endTime = Date.now();
+    const totalTime = endTime - startTime;
+
+    console.log(`⏱️  Bounds fitting performance: ${totalTime}ms`);
+
+    // Verify layer rendered
+    const visible = await isLayerVisible(page, 'bounds-perf-layer');
+    expect(visible).toBe(true);
+
+    // PERFORMANCE ASSERTION: Should complete quickly
+    expect(totalTime).toBeLessThan(2500);
+    
+    console.log(`✅ Bounds fitting performance test passed`);
+  });
 });

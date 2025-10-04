@@ -285,12 +285,12 @@ function LeafletGeoJSONLayer({
   const [isLoading, setIsLoading] = useState(false);
   const map = useMap();
   
-  // Force component to re-mount when layerStyle changes significantly
-  const [forceUpdate, setForceUpdate] = useState(0);
-  
-  useEffect(() => {
-    setForceUpdate(prev => prev + 1);
-  }, [JSON.stringify(layerStyle)]);
+  // Create stable key from style to trigger re-mount only when style actually changes
+  const styleKey = useMemo(() => {
+    if (!layerStyle) return 'default';
+    // Create a stable key from style properties that affect rendering
+    return `${layerStyle.stroke_color || 'default'}-${layerStyle.fill_color || 'default'}-${layerStyle.stroke_weight || 2}`;
+  }, [layerStyle]);
 
   // Create a canvas renderer instance
   const canvasRenderer = L.canvas();
@@ -703,7 +703,7 @@ function LeafletGeoJSONLayer({
 
   return data && !isLoading ? (
     <GeoJSON
-      key={`geojson-${forceUpdate}`}
+      key={`${url}-${styleKey}`}
       data={data}
       onEachFeature={onEachFeature}
       pointToLayer={pointToLayer}
