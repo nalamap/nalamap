@@ -77,18 +77,23 @@ test('simple layer rendering test', async ({ page }) => {
     return {
       center: map.getCenter(),
       zoom: map.getZoom(),
-      bounds: map.getBounds()
+      bounds: map.getBounds(),
+      preferCanvas: map.options.preferCanvas
     };
   });
   console.log('Map info:', mapInfo);
   
-  // Check if marker/path exists
+  // Check if marker/path exists (both SVG and Canvas)
   const markerCount = await page.locator('.leaflet-overlay-pane path, .leaflet-overlay-pane circle, .leaflet-marker-pane img').count();
-  console.log('Marker count:', markerCount);
+  console.log('SVG Marker count:', markerCount);
+  
+  // Check canvas elements
+  const canvasCount = await page.locator('.leaflet-overlay-pane canvas').count();
+  console.log('Canvas count:', canvasCount);
   
   // Also check the actual DOM
   const overlayPaneHTML = await page.locator('.leaflet-overlay-pane').innerHTML();
-  console.log('Overlay pane HTML (first 500 chars):', overlayPaneHTML.substring(0, 500));
+  console.log('Overlay pane HTML (first 1000 chars):', overlayPaneHTML.substring(0, 1000));
   
   // Check if the layer is in the store
   const layerInStore = await page.evaluate(() => {

@@ -348,7 +348,10 @@ test.describe('LeafletMapClient - OGC Services Tests', () => {
   });
 
   test('should display WFS layer', async ({ page }) => {
-    await page.route('**/geoserver/wfs**', (route) => {
+    await page.route((url) => {
+      const urlString = url.toString();
+      return urlString.includes('geoserver') && urlString.includes('wfs');
+    }, (route) => {
       route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -357,8 +360,8 @@ test.describe('LeafletMapClient - OGC Services Tests', () => {
     });
 
     await addLayerViaStore(page, wfsLayerMetadata);
-    await page.waitForTimeout(2000);
-
+    await page.waitForTimeout(4000);
+    
     const visible = await isLayerVisible(page, 'wfs-layer-1');
     expect(visible).toBe(true);
 

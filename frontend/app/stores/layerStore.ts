@@ -16,6 +16,7 @@ type LayerStore = {
   selectLayerForSearch: (resource_id: string | number) => void;
   reorderLayers: (from: number, to: number) => void;
   // Layer styling
+  updateLayer: (resource_id: string | number, updates: Partial<GeoDataObject>) => void;
   updateLayerStyle: (resource_id: string | number, style: LayerStyle) => void;
   // Backend State Sync method
   synchronizeLayersFromBackend: (backend_layers: GeoDataObject[]) => void;
@@ -84,6 +85,14 @@ export const useLayerStore = create<LayerStore>()(
       return { layers };
     }),
   // Layer styling
+  updateLayer: (resource_id: string | number, updates: Partial<GeoDataObject>) =>
+    set((state: LayerStore) => ({
+      layers: state.layers.map((layer: GeoDataObject) =>
+        layer.id === resource_id
+          ? { ...layer, ...updates }
+          : layer
+      ),
+    })),
   updateLayerStyle: (resource_id: string | number, style: LayerStyle) =>
     set((state: LayerStore) => ({
       layers: state.layers.map((layer: GeoDataObject) =>

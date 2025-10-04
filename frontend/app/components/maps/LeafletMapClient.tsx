@@ -286,6 +286,15 @@ function LeafletGeoJSONLayer({
   const [isLoading, setIsLoading] = useState(false);
   const map = useMap();
   
+  // Debug: Check if map is available
+  useEffect(() => {
+    if (map) {
+      Logger.log(`[LeafletGeoJSONLayer] Map context available for ${url}, map center:`, map.getCenter());
+    } else {
+      Logger.error(`[LeafletGeoJSONLayer] NO MAP CONTEXT for ${url}`);
+    }
+  }, [map, url]);
+  
   // Create stable key from style to trigger re-mount only when style actually changes
   const styleKey = useMemo(() => {
     if (!layerStyle) return 'default';
@@ -721,22 +730,23 @@ function LeafletGeoJSONLayer({
 
   Logger.log(`[LeafletGeoJSONLayer] Render: url=${url}, hasData=${!!data}, isLoading=${isLoading}, features=${data?.features?.length || 0}`);
 
-  return data && !isLoading ? (
-    <GeoJSON
-      key={`${url}-${styleKey}`}
-      data={data}
-      onEachFeature={onEachFeature}
-      pointToLayer={pointToLayer}
-      ref={handleGeoJsonRef}
-      style={getFeatureStyle}
-    />
-  ) : (
-    <>
-      {isLoading && Logger.log(`[LeafletGeoJSONLayer] Still loading ${url}`)}
-      {!data && !isLoading && Logger.log(`[LeafletGeoJSONLayer] No data for ${url}`)}
-      {null}
-    </>
-  );
+  if (data && !isLoading) {
+    Logger.log(`[LeafletGeoJSONLayer] Returning <GeoJSON> component for ${url} with ${data.features?.length} features`);
+    return (
+      <GeoJSON
+        key={`${url}-${styleKey}`}
+        data={data}
+        onEachFeature={onEachFeature}
+        pointToLayer={pointToLayer}
+        ref={handleGeoJsonRef}
+        style={getFeatureStyle}
+      />
+    );
+  } else {
+    if (isLoading) Logger.log(`[LeafletGeoJSONLayer] Still loading ${url}`);
+    if (!data && !isLoading) Logger.log(`[LeafletGeoJSONLayer] No data for ${url}`);
+    return null;
+  }
 }
 
 // Component to add the fullscreen control to the map
@@ -1051,7 +1061,7 @@ export default function LeafletMapComponent() {
           zoom={2} 
           style={{ height: "100%", width: "100%" }} 
           fullscreenControl={true}
-          preferCanvas={true}
+          preferCanvas={false}
         >
           {/* Add the fullscreen control */}
           <FullscreenControl />
