@@ -107,18 +107,15 @@ def create_geodata_object_from_geojson(
     # Use ensure_ascii=False for proper UTF-8 encoding
     # and separators for compact output
     try:
-        content_bytes = json.dumps(
-            geojson, ensure_ascii=False, separators=(',', ':')
-        ).encode('utf-8')
+        content_bytes = json.dumps(geojson, ensure_ascii=False, separators=(",", ":")).encode(
+            "utf-8"
+        )
 
         # Validate the JSON is complete by attempting to parse it
-        json.loads(content_bytes.decode('utf-8'))
+        json.loads(content_bytes.decode("utf-8"))
 
     except (json.JSONDecodeError, UnicodeDecodeError) as e:
-        error_msg = (
-            f"Error encoding/validating GeoJSON for "
-            f"{place_id}_{name}.json: {e}"
-        )
+        error_msg = f"Error encoding/validating GeoJSON for " f"{place_id}_{name}.json: {e}"
         print(error_msg)
         return None
 
@@ -472,11 +469,11 @@ def create_collection_geodata_object(
     # This prevents unicode escape sequences and ensures clean JSON
     try:
         content_bytes = json.dumps(
-            feature_collection, ensure_ascii=False, separators=(',', ':')
-        ).encode('utf-8')
+            feature_collection, ensure_ascii=False, separators=(",", ":")
+        ).encode("utf-8")
 
         # Validate the JSON is complete by attempting to parse it
-        json.loads(content_bytes.decode('utf-8'))
+        json.loads(content_bytes.decode("utf-8"))
 
     except (json.JSONDecodeError, UnicodeDecodeError) as e:
         print(f"Error encoding/validating GeoJSON for {file_name}: {e}")
