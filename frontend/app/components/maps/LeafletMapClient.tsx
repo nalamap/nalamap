@@ -11,6 +11,7 @@ import "leaflet-fullscreen";
 import { useMapStore } from "../../stores/mapStore";
 import { useLayerStore } from "../../stores/layerStore";
 import { ZoomToSelected } from "./ZoomToLayer";
+import Logger from "../../utils/logger";
 
 
 import { GeoDataObject, LayerStyle } from "../../models/geodatamodel";
@@ -115,7 +116,7 @@ function parseWMSUrl(access_url: string) {
         : true,
     };
   } catch (err) {
-    console.error("Error parsing WMS URL:", err);
+    Logger.error("Error parsing WMS URL:", err);
     return { baseUrl: access_url, layers: "", format: "image/png", transparent: true };
   }
 }
@@ -155,7 +156,7 @@ function parseWMTSUrl(access_url: string) {
     }
     
     if (!layerName) {
-      console.warn('Could not extract layer name from WMTS URL:', access_url);
+      Logger.warn('Could not extract layer name from WMTS URL:', access_url);
       return { 
         wmtsLegendUrl: "", 
         wmsLegendUrl: "", 
@@ -196,14 +197,14 @@ function parseWMTSUrl(access_url: string) {
       version: version || undefined,
     };
     
-    console.log('WMTS URL parsing result:', {
+    Logger.log('WMTS URL parsing result:', {
       originalUrl: access_url,
       parsed: result
     });
     
     return result;
   } catch (err) {
-    console.error("Error parsing WMTS URL:", err);
+    Logger.error("Error parsing WMTS URL:", err);
     return { wmtsLegendUrl: '', wmsLegendUrl: '', layerName: '', originalUrl: access_url };
   }
 }
@@ -239,7 +240,7 @@ function parseWCSUrl(access_url: string) {
     // coverageId may appear as coverageId or coverage
     const coverageId = params.get('coverageId') || params.get('coverage') || '';
     if (!coverageId) {
-      console.warn('Could not extract coverageId from WCS URL:', access_url);
+      Logger.warn('Could not extract coverageId from WCS URL:', access_url);
     }
     // Derive WMS base by swapping trailing /wcs or /ows with /wms
     let wmsBaseUrl = baseUrl;
@@ -269,7 +270,7 @@ function parseWCSUrl(access_url: string) {
       originalUrl: access_url,
     };
   } catch (err) {
-    console.error('Error parsing WCS URL:', err);
+    Logger.error('Error parsing WCS URL:', err);
     return { baseUrl: access_url, layers: '', format: 'image/png', transparent: true, legendUrl: '', originalUrl: access_url };
   }
 }
@@ -291,9 +292,6 @@ function LeafletGeoJSONLayer({
     // Create a stable key from style properties that affect rendering
     return `${layerStyle.stroke_color || 'default'}-${layerStyle.fill_color || 'default'}-${layerStyle.stroke_weight || 2}`;
   }, [layerStyle]);
-
-  // Create a canvas renderer instance
-  const canvasRenderer = L.canvas();
 
   useEffect(() => {
     let cancelled = false;
@@ -414,7 +412,7 @@ function LeafletGeoJSONLayer({
 
     (async () => {
       try {
-        console.log('Fetching GeoJSON/WFS layer:', url);
+        Logger.log('Fetching GeoJSON/WFS layer:', url);
         // If this is a WFS request and lacks srsName, prefer EPSG:4326 for Leaflet
         let requestUrl = url;
         try {
@@ -441,7 +439,7 @@ function LeafletGeoJSONLayer({
           const expectedBytes = contentLengthHeader ? parseInt(contentLengthHeader, 10) : null;
           const receivedBytes = typeof TextEncoder !== 'undefined' ? new TextEncoder().encode(text).length : text.length;
             try { json = JSON.parse(text); } catch (e) {
-              console.warn('Non-JSON WFS response, cannot render', {
+              Logger.warn('Non-JSON WFS response, cannot render', {
                 url,
                 snippet: text.slice(0,200),
                 expectedBytes,
@@ -508,7 +506,7 @@ function LeafletGeoJSONLayer({
             let processedCollection = featureCollection;
 
             if (looksLike3857) {
-              console.log('Reprojecting WFS geometry from EPSG:3857 -> EPSG:4326');
+              Logger.log('Reprojecting WFS geometry from EPSG:3857 -> EPSG:4326');
               processedCollection = {
                 ...featureCollection,
                 features: featureCollection.features.map((f: any) => ({
@@ -537,33 +535,39 @@ function LeafletGeoJSONLayer({
               } catch { return true; }
             };
             if (!validateLatLon(processedCollection) && looksLike3857) {
-              console.warn('Reprojected coordinates invalid for lat/lon; falling back to original geometry.');
+              Logger.warn('Reprojected coordinates invalid for lat/lon; falling back to original geometry.');
               // refetch original without reprojection
               setData(null);
-              setTimeout(() => {
-                fetch(url)
-                  .then(r => r.json())
-                  .then(orig => {
-                    const normalized = normalizeToFeatureCollection(orig);
-                    if (normalized) {
-                      setData(normalized);
-                    }
-                  })
-                  .catch(() => {});
+              const timeoutId = setTimeout(() => {
+                if (!cancelled) {
+                  fetch(url)
+                    .then(r => r.json())
+                    .then(orig => {
+                      if (!cancelled) {
+                        const normalized = normalizeToFeatureCollection(orig);
+                        if (normalized) {
+                          setData(normalized);
+                        }
+                      }
+                    })
+                    .catch(() => {});
+                }
               }, 0);
+              // Store timeout ID for cleanup
+              (window as any).__leafletTimeoutId = timeoutId;
               return;
             }
             setData(processedCollection);
             setIsLoading(false);
           } else {
-            console.warn('Fetched data is not valid GeoJSON FeatureCollection', { url, json });
+            Logger.warn('Fetched data is not valid GeoJSON FeatureCollection', { url, json });
             setData(null);
             setIsLoading(false);
           }
         }
       } catch (err) {
         if (!cancelled) {
-          console.error('Error fetching GeoJSON/WFS:', url, err);
+          Logger.error('Error fetching GeoJSON/WFS:', url, err);
           setIsLoading(false);
         }
       }
@@ -571,6 +575,11 @@ function LeafletGeoJSONLayer({
     return () => { 
       cancelled = true;
       setIsLoading(false);
+      // Clear any pending setTimeout to prevent memory leak
+      if ((window as any).__leafletTimeoutId) {
+        clearTimeout((window as any).__leafletTimeoutId);
+        delete (window as any).__leafletTimeoutId;
+      }
     };
   }, [url]); // Only re-fetch when URL changes
 
@@ -645,7 +654,7 @@ function LeafletGeoJSONLayer({
         map.fitBounds(bounds.pad(0.05));
       }
     } catch (error) {
-      console.warn("Error fitting bounds for layer:", url, error);
+      Logger.warn("Error fitting bounds for layer:", url, error);
     }
   };
 
@@ -783,7 +792,7 @@ function GetFeatureInfo({ wmsLayer }: { wmsLayer: { baseUrl: string; layers: str
             .setContent(html)
             .openOn(map);
         })
-        .catch((err) => console.error("GetFeatureInfo error:", err));
+        .catch((err) => Logger.error("GetFeatureInfo error:", err));
     };
 
     map.on("click", onClick);
@@ -916,23 +925,23 @@ function Legend({
               title={isImageMaximized ? "Click to minimize" : "Click to maximize"}
               onLoad={() => {
                 setIsLoading(false);
-                console.log('Legend loaded successfully:', legendUrl);
+                Logger.log('Legend loaded successfully:', legendUrl);
               }}
               onError={(e) => {
-                console.warn('Legend image failed to load:', legendUrl);
+                Logger.warn('Legend image failed to load:', legendUrl);
                 
                 // If this was a WMTS legend that failed and we haven't tried fallback yet
                 if (wmtsLayer && 
                     legendUrl === wmtsLayer.wmtsLegendUrl && 
                     wmtsLayer.wmsLegendUrl && 
                     !hasFallbackAttempted) {
-                  console.log('Trying WMS fallback for WMTS legend');
+                  Logger.log('Trying WMS fallback for WMTS legend');
                   setHasFallbackAttempted(true);
                   setLegendUrl(wmtsLayer.wmsLegendUrl);
                   setIsLoading(true); // Reset loading state for fallback attempt
                 } else {
                   // Final failure - hide the legend
-                  console.log('Legend loading failed permanently');
+                  Logger.log('Legend loading failed permanently');
                   setHasError(true);
                   setIsLoading(false);
                 }
@@ -998,7 +1007,7 @@ export default function LeafletMapComponent() {
         const candidateSets = candidateSetsRaw.filter(s => isWebMercatorMatrixSet(s));
         const chosen = pickWebMercatorMatrixSet(candidateSets) || pickWebMercatorMatrixSet(candidateSetsRaw) || candidateSetsRaw[0];
         if (!chosen || !isWebMercatorMatrixSet(chosen)) {
-          console.warn('Skipping WMTS legend (no WebMercator matrix set):', layer.id, candidateSetsRaw);
+          Logger.warn('Skipping WMTS legend (no WebMercator matrix set):', layer.id, candidateSetsRaw);
           return null;
         }
         return (
@@ -1069,7 +1078,7 @@ export default function LeafletMapComponent() {
                 const candidateSets = candidateSetsRaw.filter(s => isWebMercatorMatrixSet(s));
                 const chosenSet = pickWebMercatorMatrixSet(candidateSets) || pickWebMercatorMatrixSet(candidateSetsRaw) || candidateSetsRaw[0];
                 if (!chosenSet || !isWebMercatorMatrixSet(chosenSet)) {
-                  console.warn('Skipping WMTS layer without WebMercator matrix set (only EPSG:3857 supported currently):', layer.id, candidateSetsRaw);
+                  Logger.warn('Skipping WMTS layer without WebMercator matrix set (only EPSG:3857 supported currently):', layer.id, candidateSetsRaw);
                   return null; // do not render layer
                 }
                 const anyParsed: any = parsed as any;
