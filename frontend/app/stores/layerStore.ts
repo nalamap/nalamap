@@ -1,6 +1,7 @@
 // stores/layerStore.ts
-import { create, StateCreator } from "zustand";
-import { GeoDataObject, LayerStyle } from "../models/geodatamodel";
+import { create } from 'zustand';
+import { GeoDataObject, LayerStyle } from '../models/geodatamodel';
+import Logger from '../utils/logger';
 
 type LayerStore = {
   layers: GeoDataObject[];
@@ -116,13 +117,13 @@ export const useLayerStore = create<LayerStore>()(
   // Update specific layers (for chat styling)
   updateLayersFromBackend: (updated_layers: GeoDataObject[]) =>
     set((state: LayerStore) => {
-      console.log("updateLayersFromBackend called with:", updated_layers);
-      console.log("Current state layers:", state.layers);
+      Logger.log("updateLayersFromBackend called with:", updated_layers);
+      Logger.log("Current state layers:", state.layers);
       
       const layers = state.layers.map(existingLayer => {
         const updatedLayer = updated_layers.find(layer => layer.id === existingLayer.id);
         if (updatedLayer) {
-          console.log(`Updating layer ${existingLayer.id}:`, {
+          Logger.log(`Updating layer ${existingLayer.id}:`, {
             old: existingLayer,
             new: updatedLayer
           });
@@ -136,7 +137,7 @@ export const useLayerStore = create<LayerStore>()(
         return existingLayer;
       });
       
-      console.log("Updated layers result:", layers);
+      Logger.log("Updated layers result:", layers);
       return { layers };
     }),
   synchronizeGlobalGeodataFromBackend: (backend_global_geodata: GeoDataObject[]) =>

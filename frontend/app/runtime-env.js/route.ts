@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readFile } from 'fs/promises';
 import path from 'path';
+import Logger from '../utils/logger';
 
 export async function GET() {
   try {
@@ -36,7 +37,7 @@ export async function GET() {
       });
     }
   } catch (error) {
-    console.error('Error serving runtime environment:', error);
+    Logger.error('Error serving runtime environment:', error);
     
     // Return minimal fallback
     const fallbackConfig = `window.__RUNTIME_CONFIG__ = {

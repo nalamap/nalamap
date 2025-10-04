@@ -4,11 +4,12 @@ import { useMap } from "react-leaflet";
 import L from "leaflet";
 import { GeoDataObject } from "../../models/geodatamodel";
 import { useLayerStore } from "../../stores/layerStore";
+import Logger from "../../utils/logger";
 
 function parseBoundingBoxWKT(wkt: string): L.LatLngBounds | null {
   if (!wkt) return null;
   
-  console.log("Parsing WKT bbox:", wkt);
+  Logger.log("Parsing WKT bbox:", wkt);
   
   const match = wkt.match(/POLYGON\(\((.+?)\)\)/);
   if (!match) return null;
@@ -33,7 +34,7 @@ function parseBoundingBoxWKT(wkt: string): L.LatLngBounds | null {
 function parseBoundingBoxArray(bbox: any): L.LatLngBounds | null {
   if (!Array.isArray(bbox) || bbox.length < 4) return null;
   
-  console.log("Parsing Array bbox:", bbox);
+  Logger.log("Parsing Array bbox:", bbox);
   
   try {
     // Handle both [minX, minY, maxX, maxY] format
@@ -45,7 +46,7 @@ function parseBoundingBoxArray(bbox: any): L.LatLngBounds | null {
     }
     return null;
   } catch (err) {
-    console.error("Error parsing bounding box array:", err);
+    Logger.error("Error parsing bounding box array:", err);
     return null;
   }
 }
@@ -84,16 +85,16 @@ export function ZoomToSelected() {
 
   useEffect(() => {
     if (zoomTo == null) return;
-    console.log("Zooming to layer ID:", zoomTo);
+    Logger.log("Zooming to layer ID:", zoomTo);
     
     const layer = layers.find((l) => l.id === zoomTo);
     if (!layer) {
-      console.warn("Layer not found with ID:", zoomTo);
+      Logger.warn("Layer not found with ID:", zoomTo);
       setZoomTo(null);
       return;
     }
     
-    console.log("Found layer:", layer.name, "with bounding box:", layer.bounding_box);
+    Logger.log("Found layer:", layer.name, "with bounding box:", layer.bounding_box);
     
     if (layer.bounding_box) {
       let bounds = null;
@@ -108,16 +109,16 @@ export function ZoomToSelected() {
       }
       
       if (bounds) {
-        console.log("Zooming to bounds:", bounds.toString());
+        Logger.log("Zooming to bounds:", bounds.toString());
         map.fitBounds(bounds);
       } else {
-        console.warn("Could not parse bounding box:", layer.bounding_box);
+        Logger.warn("Could not parse bounding box:", layer.bounding_box);
       }
     } else if (layer.layer_type?.toUpperCase() === "WFS" || 
               layer.layer_type?.toUpperCase() === "UPLOADED" ||
               layer.data_link.toLowerCase().includes("json")) {
       // For GeoJSON layers, fetch the data to get the bounds
-      console.log("Attempting to fetch GeoJSON data to get bounds");
+      Logger.log("Attempting to fetch GeoJSON data to get bounds");
       fetch(layer.data_link)
         .then(res => res.json())
         .then(data => {
@@ -126,20 +127,20 @@ export function ZoomToSelected() {
             const bounds = geoJsonLayer.getBounds();
             // Check if bounds are valid (not empty/invalid)
             if (bounds && bounds.isValid && bounds.isValid()) {
-              console.log("Got bounds from GeoJSON:", bounds.toString());
+              Logger.log("Got bounds from GeoJSON:", bounds.toString());
               map.fitBounds(bounds);
             } else {
-              console.warn("GeoJSON layer has no valid bounds (likely empty):", layer.name);
+              Logger.warn("GeoJSON layer has no valid bounds (likely empty):", layer.name);
             }
           } catch (err) {
-            console.error("Error creating bounds from GeoJSON:", err);
+            Logger.error("Error creating bounds from GeoJSON:", err);
           }
         })
         .catch(err => {
-          console.error("Error fetching GeoJSON data:", err);
+          Logger.error("Error fetching GeoJSON data:", err);
         });
     } else {
-      console.warn("No bounding box information available for layer:", layer.name);
+      Logger.warn("No bounding box information available for layer:", layer.name);
     }
     
     setZoomTo(null);

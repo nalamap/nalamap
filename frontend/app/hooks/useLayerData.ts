@@ -10,6 +10,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import Logger from '../utils/logger';
 import { GeoJSONNormalizer } from '../utils/geojson-normalizer';
 import { CoordinateProjection } from '../utils/coordinate-projection';
 
@@ -119,7 +120,7 @@ export function useLayerData({
 
         // Final validation
         if (!GeoJSONNormalizer.validateLatLonCoordinates(normalized)) {
-          console.warn('Coordinates validation failed, attempting fallback fetch');
+          Logger.warn('Coordinates validation failed, attempting fallback fetch');
           
           // Fallback: refetch original without modifications
           timeoutId = setTimeout(() => {
@@ -143,7 +144,7 @@ export function useLayerData({
         setData(normalized);
       } catch (err) {
         if (!cancelled) {
-          console.error('Error fetching layer data:', err);
+          Logger.error('Error fetching layer data:', err);
           setError(err instanceof Error ? err : new Error(String(err)));
         }
       } finally {

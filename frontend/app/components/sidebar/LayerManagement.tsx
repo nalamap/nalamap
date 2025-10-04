@@ -8,6 +8,7 @@ import { formatFileSize, isFileSizeValid } from "../../utils/fileUtils";
 import { getUploadUrl } from "../../utils/apiBase";
 import { getApiBase } from "../../utils/apiBase";
 import { sha256OfFile } from "../../utils/hashUtil";
+import Logger from "../../utils/logger";
 
 // Funny geo and data-themed loading messages
 const FUNNY_UPLOAD_MESSAGES = [
@@ -320,7 +321,7 @@ export default function LayerManagement() {
               }
             }
           } else {
-            console.warn('Upload meta endpoint returned', metaRes.status, metaRes.statusText);
+            Logger.warn('Upload meta endpoint returned', metaRes.status, metaRes.statusText);
           }
         } catch (verifyErr) {
           // Surface integrity failure to the user and abort processing this file
@@ -375,11 +376,11 @@ export default function LayerManagement() {
               // Update the layer with the AI-generated styling
               if (styledLayer.style) {
                 updateLayerStyle(id, styledLayer.style);
-                console.log(`Applied automatic AI styling to layer: ${file.name}`);
+                Logger.log(`Applied automatic AI styling to layer: ${file.name}`);
               }
             }
           } else {
-            console.warn('Automatic styling request failed:', styleResponse.statusText);
+            Logger.warn('Automatic styling request failed:', styleResponse.statusText);
           }
 
           stylingPhaseProgress(100); // Styling complete
@@ -387,7 +388,7 @@ export default function LayerManagement() {
           // Set a funny finalizing message
           setFunnyMessage(getRandomMessage(FUNNY_FINALIZING_MESSAGES));
         } catch (autoStyleError) {
-          console.warn('Error applying automatic styling:', autoStyleError);
+          Logger.warn('Error applying automatic styling:', autoStyleError);
           stylingPhaseProgress(100); // Still mark as complete even if styling fails
           
           // Set a funny finalizing message even if styling fails
@@ -397,14 +398,14 @@ export default function LayerManagement() {
 
       // All files processed successfully
       setUploadProgress(100);
-      console.log(`Successfully uploaded and styled ${files.length} file(s)`);
+      Logger.log(`Successfully uploaded and styled ${files.length} file(s)`);
 
     } catch (err) {
       if (err instanceof Error && err.message === 'Upload cancelled by user') {
-        console.log('Upload was cancelled by the user');
+        Logger.log('Upload was cancelled by the user');
       } else {
         setUploadError(`Upload error: ${err instanceof Error ? err.message : String(err)}`);
-        console.error("Error uploading files:", err);
+        Logger.error("Error uploading files:", err);
       }
     } finally {
       // reset so same files can be re‑picked

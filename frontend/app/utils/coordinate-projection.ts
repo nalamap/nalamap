@@ -5,6 +5,8 @@
  * particularly Web Mercator (EPSG:3857) and WGS84 (EPSG:4326).
  */
 
+import Logger from './logger';
+
 export class CoordinateProjection {
   private static readonly EARTH_RADIUS = 6378137; // meters
   private static readonly MAX_WEB_MERCATOR = 20050000; // meters (with padding)
@@ -190,13 +192,13 @@ export class CoordinateProjection {
     if (!needsReprojection) return featureCollection;
 
     // Reproject
-    console.log('Auto-reprojecting from Web Mercator (EPSG:3857) to WGS84 (EPSG:4326)');
+    Logger.log('Auto-reprojecting from Web Mercator (EPSG:3857) to WGS84 (EPSG:4326)');
     const reprojected = this.reprojectFeatureCollection(featureCollection);
 
     // Validate reprojection succeeded
     const firstReprojected = this.extractFirstCoordinate(reprojected.features[0]?.geometry);
     if (firstReprojected && !this.validateWGS84Coordinates({ coordinates: firstReprojected })) {
-      console.warn('Reprojection produced invalid coordinates, returning original');
+      Logger.warn('Reprojection produced invalid coordinates, returning original');
       return featureCollection;
     }
 
