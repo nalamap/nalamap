@@ -35,7 +35,11 @@ def _resolve_upload_path(file_id: str) -> Path:
         # Raised if resolution cycles; treat as invalid input
         raise HTTPException(status_code=400, detail="Invalid file identifier") from err
 
-    if not candidate.is_relative_to(UPLOADS_ROOT):
+    try:
+        rel = candidate.relative_to(UPLOADS_ROOT)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid file identifier")
+    if candidate == UPLOADS_ROOT:
         raise HTTPException(status_code=400, detail="Invalid file identifier")
 
     if not candidate.exists() or not candidate.is_file():
