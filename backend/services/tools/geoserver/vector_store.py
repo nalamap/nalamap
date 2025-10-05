@@ -77,7 +77,7 @@ class _HashingEmbeddings(Embeddings):
 
 
 _vector_store_lock = threading.Lock()
-_vector_store: Optional[SQLiteVec] = None
+_thread_local = threading.local()
 _embedding_model: Optional[Embeddings] = None
 _use_fallback_store = False
 _fallback_documents: List[dict] = []
@@ -155,11 +155,16 @@ def _create_vector_store() -> Optional[SQLiteVec]:
     db_path = _get_db_path()
     db_path.parent.mkdir(parents=True, exist_ok=True)
     try:
-        connection = SQLiteVec.create_connection(str(db_path))
-    except AttributeError:
+        # Enable check_same_thread=False to allow connection reuse across threads
+        # This is safe because we use thread-local storage for the vector store instance
+        connection = SQLiteVec.create_connection(str(db_path), check_same_thread=False)
+    except (AttributeError, TypeError):
+        # Fallback for older versions or if check_same_thread parameter not supported
         import sqlite_vec  # type: ignore
 
         connection = sqlite_vec.Connection(str(db_path))
+        # Enable thread-safe access for SQLite
+        connection.isolation_level = None  # autocommit mode
     # Ensure we always return rows as dictionaries so json_extract calls work predictably
     connection.row_factory = sqlite3.Row
     try:
@@ -176,34 +181,43 @@ def _create_vector_store() -> Optional[SQLiteVec]:
 
 
 def get_vector_store() -> Optional[SQLiteVec]:
-    """Return a lazily-instantiated shared vector store instance."""
+    """Return a thread-local vector store instance.
 
-    global _vector_store
-    with _vector_store_lock:
-        if _use_fallback_store:
-            return None
-        if _vector_store is None:
-            _vector_store = _create_vector_store()
-    return _vector_store
+    Each thread gets its own SQLite connection to avoid threading issues.
+    The connection is created lazily on first access per thread.
+    """
+
+    if _use_fallback_store:
+        return None
+
+    # Check if this thread already has a vector store
+    if not hasattr(_thread_local, "vector_store"):
+        # Create a new vector store for this thread
+        _thread_local.vector_store = _create_vector_store()
+
+    return _thread_local.vector_store
 
 
 def reset_vector_store_for_tests() -> None:
     """Reset cached handles so tests can operate on isolated temporary databases."""
 
-    global _vector_store
     global _embedding_model
     global _use_fallback_store
     global _fallback_documents
-    with _vector_store_lock:
-        if _vector_store is not None:
+
+    # Close thread-local vector store if it exists
+    if hasattr(_thread_local, "vector_store"):
+        if _thread_local.vector_store is not None:
             try:
-                _vector_store._connection.close()  # type: ignore[attr-defined]
+                _thread_local.vector_store._connection.close()  # type: ignore[attr-defined]
             except Exception:
                 pass
-        _vector_store = None
-        _embedding_model = None
-        _use_fallback_store = False
-        _fallback_documents = []
+        delattr(_thread_local, "vector_store")
+
+    # Reset global state
+    _embedding_model = None
+    _use_fallback_store = False
+    _fallback_documents = []
 
 
 def _layer_to_text(layer: GeoDataObject) -> str:
