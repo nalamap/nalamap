@@ -184,6 +184,26 @@ jobs:
               const isPR = context.eventName === 'pull_request';
               const eventType = isPR ? 'deploy-preview' : 'deploy';
               const images = await collectImages('image-metadata');
+              
+              // Get commit message from context
+              let commitMessage = '';
+              if (isPR && context.payload.pull_request) {
+                // For PRs, fetch the latest commit message from the head SHA
+                try {
+                  const commitRes = await github.rest.repos.getCommit({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    ref: context.payload.pull_request.head.sha,
+                  });
+                  commitMessage = commitRes.data.commit.message;
+                } catch (error) {
+                  core.warning(`Failed to fetch commit message: ${error.message}`);
+                  commitMessage = context.payload.pull_request.title; // Fallback to PR title
+                }
+              } else {
+                commitMessage = context.payload.head_commit?.message || '';
+              }
+              
               const payload = {
                 source_repository: `${context.repo.owner}/${context.repo.repo}`,
                 ref: context.ref || process.env.GITHUB_REF,
@@ -191,6 +211,7 @@ jobs:
                 run_id: process.env.GITHUB_RUN_ID,
                 run_attempt: process.env.GITHUB_RUN_ATTEMPT,
                 pull_request: isPR ? (context.payload.pull_request && context.payload.pull_request.number) : null,
+                commit_message: commitMessage,
                 images,
               };
 
