@@ -1,0 +1,67 @@
+version: "3.8"
+
+services:
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    environment:
+      - ENVIRONMENT=development
+      - DATABASE_URL=sqlite:///./nalamap.db
+      - SECRET_KEY=e2e-test-secret-key-change-in-production
+      - USE_AZURE_STORAGE=false
+      - CORS_ORIGINS=http://localhost,http://localhost:3000,http://localhost
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
+    volumes:
+      - ../backend:/app
+      - e2e-uploads:/app/uploads
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - e2e-network
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile.dev
+    environment:
+      - BACKEND_PROTOCOL=http
+      - BACKEND_URL=backend:8000
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost/api
+      - NEXT_PUBLIC_API_UPLOAD_URL=http://localhost/uploads
+      - RUNTIME_ENV_PATH=/app/runtime-env/runtime-env.js
+    volumes:
+      - ../frontend:/app
+      - /app/node_modules
+    command: yarn dev
+    depends_on:
+      - backend
+    networks:
+      - e2e-network
+
+  nginx:
+    build:
+      context: ../nginx
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    environment:
+      - BACKEND_PROTOCOL=http
+      - BACKEND_URL=backend:8000
+      - FRONTEND_PROTOCOL=http
+      - FRONTEND_URL=frontend:3000
+      - AZURE_BLOB_DOMAIN=
+      - DNS_RESOLVER=127.0.0.11
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - e2e-network
+
+volumes:
+  e2e-uploads:
+
+networks:
+  e2e-network:
+    driver: bridge

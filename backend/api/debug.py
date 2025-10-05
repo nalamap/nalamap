@@ -9,7 +9,7 @@ from kml2geojson.main import convert as kml2geojson_convert
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from pydantic import BaseModel
 
-from core.config import BASE_URL, LOCAL_UPLOAD_DIR
+from core.config import LOCAL_UPLOAD_DIR
 from models.geodata import DataOrigin, DataType, GeoDataObject
 from models.messages.chat_messages import (
     NaLaMapRequest,
@@ -18,6 +18,7 @@ from models.messages.chat_messages import (
     OrchestratorResponse,
 )
 from services.agents.langgraph_agent import SearchState, executor
+from services.storage.file_management import store_file
 from services.multi_agent_orch import multi_agent_executor
 from services.tools.geocoding import geocode_using_nominatim
 from utility.string_methods import clean_allow
@@ -28,7 +29,7 @@ from utility.string_methods import clean_allow
 router = APIRouter()
 
 
-@router.post("/api/search", tags=["debug"], response_model=NaLaMapResponse)
+@router.post("/search", tags=["debug"], response_model=NaLaMapResponse)
 async def search(req: NaLaMapRequest):
     state = SearchState(raw_query=req.query)
     result_state = await executor.ainvoke(state)
@@ -54,7 +55,7 @@ async def search(req: NaLaMapRequest):
     )  # , global_geodata=global_geodata)
 
 
-@router.post("/api/geocode", tags=["debug"], response_model=NaLaMapResponse)
+@router.post("/geocode", tags=["debug"], response_model=NaLaMapResponse)
 async def geocode(req: NaLaMapRequest) -> Dict[str, Any]:
     """Geocode the given request using the OpenStreetMap API.
     Returns and geokml some additional information."""
@@ -123,10 +124,10 @@ async def geocode(req: NaLaMapRequest) -> Dict[str, Any]:
         # print(json.dump(geojson_dict))
 
         out_filename = f"{clean_allow(name_prop)}_geocode_{uuid.uuid4().hex}.geojson"
-        out_path = os.path.join(LOCAL_UPLOAD_DIR, out_filename)
-        with open(out_path, "w", encoding="utf-8") as f:
-            json.dump(geojson_dict, f)
-        out_url = f"{BASE_URL}/uploads/{out_filename}"
+        json_content = json.dumps(geojson_dict).encode("utf-8")
+
+        # Use centralized file management (supports both local and Azure Blob Storage)
+        out_url, stored_filename = store_file(out_filename, json_content)
 
         # Copy selected properties
         properties: Dict[str, Any] = dict()
@@ -173,7 +174,7 @@ async def geocode(req: NaLaMapRequest) -> Dict[str, Any]:
     return geocodeResponse
 
 
-@router.post("/api/orchestrate", tags=["debug"], response_model=OrchestratorResponse)
+@router.post("/orchestrate", tags=["debug"], response_model=OrchestratorResponse)
 async def orchestrate(req: OrchestratorRequest):
     state = {"messages": [m.dict() for m in req.messages], "next": ""}
     final_state = await multi_agent_executor.ainvoke(state)
@@ -192,7 +193,7 @@ class GeoProcessResponse(BaseModel):
     tools_used: Optional[List[str]] = None
 
 
-@router.post("/api/geoprocess", response_model=NaLaMapResponse)
+@router.post("/geoprocess", response_model=NaLaMapResponse)
 async def geoprocess(req: NaLaMapRequest):
     """
     Accepts a natural language query and a list of GeoJSON URLs.
@@ -266,10 +267,10 @@ async def geoprocess(req: NaLaMapRequest):
     for result_layer in result_layers:
         out_uuid: str = uuid.uuid4().hex
         out_filename = f"{out_uuid}_geoprocess.geojson"
-        out_path = os.path.join(LOCAL_UPLOAD_DIR, out_filename)
-        with open(out_path, "w", encoding="utf-8") as f:
-            json.dump(result_layer, f)
-        out_url = f"{BASE_URL}/uploads/{out_filename}"
+        json_content = json.dumps(result_layer).encode("utf-8")
+
+        # Use centralized file management (supports both local and Azure Blob Storage)
+        out_url, stored_filename = store_file(out_filename, json_content)
         out_urls.append(out_url)
         new_geodata.append(
             GeoDataObject(

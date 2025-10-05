@@ -11,6 +11,7 @@ import "leaflet-fullscreen";
 import { useMapStore } from "../../stores/mapStore";
 import { useLayerStore } from "../../stores/layerStore";
 import { ZoomToSelected } from "./ZoomToLayer";
+import Logger from "../../utils/logger";
 
 
 import { GeoDataObject, LayerStyle } from "../../models/geodatamodel";
@@ -115,7 +116,7 @@ function parseWMSUrl(access_url: string) {
         : true,
     };
   } catch (err) {
-    console.error("Error parsing WMS URL:", err);
+    Logger.error("Error parsing WMS URL:", err);
     return { baseUrl: access_url, layers: "", format: "image/png", transparent: true };
   }
 }
@@ -155,7 +156,7 @@ function parseWMTSUrl(access_url: string) {
     }
     
     if (!layerName) {
-      console.warn('Could not extract layer name from WMTS URL:', access_url);
+      Logger.warn('Could not extract layer name from WMTS URL:', access_url);
       return { 
         wmtsLegendUrl: "", 
         wmsLegendUrl: "", 
@@ -196,14 +197,14 @@ function parseWMTSUrl(access_url: string) {
       version: version || undefined,
     };
     
-    console.log('WMTS URL parsing result:', {
+    Logger.log('WMTS URL parsing result:', {
       originalUrl: access_url,
       parsed: result
     });
     
     return result;
   } catch (err) {
-    console.error("Error parsing WMTS URL:", err);
+    Logger.error("Error parsing WMTS URL:", err);
     return { wmtsLegendUrl: '', wmsLegendUrl: '', layerName: '', originalUrl: access_url };
   }
 }
@@ -239,7 +240,7 @@ function parseWCSUrl(access_url: string) {
     // coverageId may appear as coverageId or coverage
     const coverageId = params.get('coverageId') || params.get('coverage') || '';
     if (!coverageId) {
-      console.warn('Could not extract coverageId from WCS URL:', access_url);
+      Logger.warn('Could not extract coverageId from WCS URL:', access_url);
     }
     // Derive WMS base by swapping trailing /wcs or /ows with /wms
     let wmsBaseUrl = baseUrl;
@@ -269,7 +270,7 @@ function parseWCSUrl(access_url: string) {
       originalUrl: access_url,
     };
   } catch (err) {
-    console.error('Error parsing WCS URL:', err);
+    Logger.error('Error parsing WCS URL:', err);
     return { baseUrl: access_url, layers: '', format: 'image/png', transparent: true, legendUrl: '', originalUrl: access_url };
   }
 }
@@ -282,23 +283,146 @@ function LeafletGeoJSONLayer({
   layerStyle?: LayerStyle;
 }) {
   const [data, setData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const map = useMap();
   
-  // Force component to re-mount when layerStyle changes significantly
-  const [forceUpdate, setForceUpdate] = useState(0);
-  
+  // Debug: Check if map is available
   useEffect(() => {
-    setForceUpdate(prev => prev + 1);
-  }, [JSON.stringify(layerStyle)]);
-
-  // Create a canvas renderer instance
-  const canvasRenderer = L.canvas();
+    if (map) {
+      Logger.log(`[LeafletGeoJSONLayer] Map context available for ${url}, map center:`, map.getCenter());
+    } else {
+      Logger.error(`[LeafletGeoJSONLayer] NO MAP CONTEXT for ${url}`);
+    }
+  }, [map, url]);
+  
+  // Create stable key from style to trigger re-mount only when style actually changes
+  const styleKey = useMemo(() => {
+    if (!layerStyle) return 'default';
+    // Create a stable key from style properties that affect rendering
+    return `${layerStyle.stroke_color || 'default'}-${layerStyle.fill_color || 'default'}-${layerStyle.stroke_weight || 2}`;
+  }, [layerStyle]);
 
   useEffect(() => {
     let cancelled = false;
+    setIsLoading(true);
+    Logger.log(`[LeafletGeoJSONLayer] Starting fetch for ${url}`);
+
+    const geometryTypes = new Set([
+      'Point',
+      'MultiPoint',
+      'LineString',
+      'MultiLineString',
+      'Polygon',
+      'MultiPolygon',
+    ]);
+
+    const normalizeToFeatureCollection = (input: any): any | null => {
+      if (!input) return null;
+
+      if (Array.isArray(input)) {
+        const features = input
+          .map((item: any, idx: number) => {
+            if (!item) return null;
+            if (item.type === 'Feature' && item.geometry) return item;
+            if (geometryTypes.has(item.type) && item.coordinates) {
+              const props = item.properties && typeof item.properties === 'object' ? { ...item.properties } : {};
+              if (!Object.keys(props).length) {
+                if (item.id !== undefined) props.id = item.id;
+                else props.id = idx + 1;
+              }
+              return {
+                type: 'Feature',
+                properties: props,
+                geometry: { type: item.type, coordinates: item.coordinates },
+              };
+            }
+            return null;
+          })
+          .filter(Boolean);
+        if (!features.length) return null;
+        return { type: 'FeatureCollection', features };
+      }
+
+      if (typeof input !== 'object') return null;
+
+      if (input.type === 'FeatureCollection' && Array.isArray(input.features)) {
+        return input;
+      }
+
+      if (input.type === 'Feature' && input.geometry) {
+        const fc: any = {
+          type: 'FeatureCollection',
+          features: [input],
+        };
+        if (input.crs) fc.crs = input.crs;
+        if (input.bbox) fc.bbox = input.bbox;
+        return fc;
+      }
+
+      if (input.type === 'GeometryCollection' && Array.isArray(input.geometries)) {
+        const features = input.geometries
+          .map((geom: any, idx: number) => {
+            if (!geom?.type) return null;
+            return {
+              type: 'Feature',
+              properties: { id: idx, ...(input.properties || {}) },
+              geometry: geom,
+            };
+          })
+          .filter(Boolean);
+        if (!features.length) return null;
+        const fc: any = { type: 'FeatureCollection', features };
+        if (input.crs) fc.crs = input.crs;
+        if (input.bbox) fc.bbox = input.bbox;
+        return fc;
+      }
+
+      if (geometryTypes.has(input.type) && input.coordinates) {
+        const props = input.properties && typeof input.properties === 'object' ? { ...input.properties } : {};
+        if (!Object.keys(props).length) {
+          if (input.id !== undefined) props.id = input.id;
+          else props.id = 1;
+        }
+        const fc: any = {
+          type: 'FeatureCollection',
+          features: [
+            {
+              type: 'Feature',
+              properties: props,
+              geometry: { type: input.type, coordinates: input.coordinates },
+            },
+          ],
+        };
+        if (input.crs) fc.crs = input.crs;
+        if (input.bbox) fc.bbox = input.bbox;
+        return fc;
+      }
+
+      if (Array.isArray(input.features)) {
+        return { ...input, type: input.type || 'FeatureCollection' };
+      }
+
+      return null;
+    };
+
+    const extractDeclaredCrs = (candidate: any): string | null => {
+      if (!candidate || typeof candidate !== 'object') return null;
+      try {
+        return (
+          candidate.crs?.properties?.name ||
+          candidate.crs?.name ||
+          candidate.features?.[0]?.crs?.properties?.name ||
+          candidate.features?.[0]?.crs?.name ||
+          null
+        );
+      } catch {
+        return null;
+      }
+    };
+
     (async () => {
       try {
-        console.log('Fetching GeoJSON/WFS layer:', url);
+        Logger.log('Fetching GeoJSON/WFS layer:', url);
         // If this is a WFS request and lacks srsName, prefer EPSG:4326 for Leaflet
         let requestUrl = url;
         try {
@@ -315,19 +439,32 @@ function LeafletGeoJSONLayer({
             res = await fetch(url, { headers: { 'Accept': 'application/json, application/geo+json, */*;q=0.1' } });
         }
         const contentType = res.headers.get('content-type') || '';
+        const contentLengthHeader = res.headers.get('content-length');
         let json: any = null;
         if (contentType.includes('application/json') || contentType.includes('geo+json')) {
           json = await res.json();
         } else {
           // Fallback: try to parse text if server mislabels
           const text = await res.text();
-            try { json = JSON.parse(text); } catch (e) { console.warn('Non-JSON WFS response, cannot render', { url, snippet: text.slice(0,200) }); }
+          const expectedBytes = contentLengthHeader ? parseInt(contentLengthHeader, 10) : null;
+          const receivedBytes = typeof TextEncoder !== 'undefined' ? new TextEncoder().encode(text).length : text.length;
+            try { json = JSON.parse(text); } catch (e) {
+              Logger.warn('Non-JSON WFS response, cannot render', {
+                url,
+                snippet: text.slice(0,200),
+                expectedBytes,
+                receivedBytes,
+              });
+              if (expectedBytes !== null && receivedBytes < expectedBytes) {
+                throw new Error(`GeoJSON response truncated (${receivedBytes}/${expectedBytes} bytes)`);
+              }
+            }
         }
         if (!cancelled) {
-          if (json && json.type && (json.type === 'FeatureCollection' || json.features)) {
+          const featureCollection = normalizeToFeatureCollection(json);
+          if (featureCollection) {
             // Detect CRS from GeoJSON 'crs' if present
-            let declaredCrs: string | null = null;
-            try { declaredCrs = json.crs?.properties?.name || json.crs?.name || null; } catch { /* ignore */ }
+            const declaredCrs = extractDeclaredCrs(json) || extractDeclaredCrs(featureCollection);
             // Extract first numeric coordinate pair recursively
             const extractFirstXY = (geom: any): [number, number] | null => {
               if (!geom) return null;
@@ -338,7 +475,7 @@ function LeafletGeoJSONLayer({
               if (Array.isArray(first) && typeof first[0] === 'number' && typeof first[1] === 'number') return [first[0], first[1]];
               return null;
             };
-            const firstFeature = json.features?.[0];
+            const firstFeature = featureCollection.features?.[0];
             const firstXY = firstFeature ? extractFirstXY(firstFeature.geometry) : null;
             const looksLike3857 = (() => {
               if (!firstXY) return false;
@@ -376,10 +513,18 @@ function LeafletGeoJSONLayer({
                 default: return geom;
               }
             };
+            let processedCollection = featureCollection;
+
             if (looksLike3857) {
-              console.log('Reprojecting WFS geometry from EPSG:3857 -> EPSG:4326');
-              json = { ...json, features: json.features.map((f: any) => ({ ...f, geometry: reprojectGeometry(f.geometry) })) };
-              json.crs = { type: 'name', properties: { name: 'EPSG:4326' } };
+              Logger.log('Reprojecting WFS geometry from EPSG:3857 -> EPSG:4326');
+              processedCollection = {
+                ...featureCollection,
+                features: featureCollection.features.map((f: any) => ({
+                  ...f,
+                  geometry: reprojectGeometry(f.geometry),
+                })),
+                crs: { type: 'name', properties: { name: 'EPSG:4326' } },
+              };
             }
             // Validate resulting coords fall within lat/lon plausible ranges; if not, revert to original
             const validateLatLon = (fc: any) => {
@@ -399,30 +544,61 @@ function LeafletGeoJSONLayer({
                 return true;
               } catch { return true; }
             };
-            if (!validateLatLon(json) && looksLike3857) {
-              console.warn('Reprojected coordinates invalid for lat/lon; falling back to original geometry.');
+            if (!validateLatLon(processedCollection) && looksLike3857) {
+              Logger.warn('Reprojected coordinates invalid for lat/lon; falling back to original geometry.');
               // refetch original without reprojection
               setData(null);
-              setTimeout(() => fetch(url).then(r=>r.json()).then(orig => setData(orig)).catch(()=>{}), 0);
+              const timeoutId = setTimeout(() => {
+                if (!cancelled) {
+                  fetch(url)
+                    .then(r => r.json())
+                    .then(orig => {
+                      if (!cancelled) {
+                        const normalized = normalizeToFeatureCollection(orig);
+                        if (normalized) {
+                          setData(normalized);
+                          setIsLoading(false);
+                        } else {
+                          setIsLoading(false);
+                        }
+                      }
+                    })
+                    .catch(() => {
+                      if (!cancelled) {
+                        setIsLoading(false);
+                      }
+                    });
+                }
+              }, 0);
+              // Store timeout ID for cleanup
+              (window as any).__leafletTimeoutId = timeoutId;
               return;
             }
-            setData(json);
-            // Auto-fit bounds from data if possible
-            try {
-              const bounds = L.geoJSON(json).getBounds();
-              if (bounds.isValid()) {
-                map.fitBounds(bounds.pad(0.05));
-              }
-            } catch (e) { /* ignore */ }
+            setData(processedCollection);
+            setIsLoading(false);
+            Logger.log(`[LeafletGeoJSONLayer] Successfully loaded data for ${url}, features:`, processedCollection.features?.length);
           } else {
-            console.warn('Fetched data is not valid GeoJSON FeatureCollection', { url, json });
+            Logger.warn('Fetched data is not valid GeoJSON FeatureCollection', { url, json });
+            setData(null);
+            setIsLoading(false);
           }
         }
       } catch (err) {
-        if (!cancelled) console.error('Error fetching GeoJSON/WFS:', url, err);
+        if (!cancelled) {
+          Logger.error('Error fetching GeoJSON/WFS:', url, err);
+          setIsLoading(false);
+        }
       }
     })();
-    return () => { cancelled = true; };
+    return () => { 
+      cancelled = true;
+      setIsLoading(false);
+      // Clear any pending setTimeout to prevent memory leak
+      if ((window as any).__leafletTimeoutId) {
+        clearTimeout((window as any).__leafletTimeoutId);
+        delete (window as any).__leafletTimeoutId;
+      }
+    };
   }, [url]); // Only re-fetch when URL changes
 
   const onEachFeature = (feature: any, layer: L.Layer) => {
@@ -485,24 +661,18 @@ function LeafletGeoJSONLayer({
 
   let geojsonRef: L.GeoJSON | null = null;
 
-  const handleGeoJsonRef = (layer: L.GeoJSON) => {
+  const handleGeoJsonRef = (layer: L.GeoJSON | null) => {
     if (!layer) return;
     geojsonRef = layer;
-    // Only zoom to bounds for new layers, not styling updates
-    // We can detect this by checking if the layer already exists in the store
-    const existingLayer = useLayerStore.getState().layers.find(l => l.data_link === url);
-    if (!existingLayer || !existingLayer.style) {
-      try {
-        const bounds = layer.getBounds();
-        // Check if bounds are valid (not empty/invalid)
-        if (bounds && bounds.isValid && bounds.isValid()) {
-          map.fitBounds(bounds);
-        } else {
-          console.warn("Layer has no valid bounds (likely empty GeoJSON):", url);
-        }
-      } catch (error) {
-        console.warn("Error getting bounds for layer:", url, error);
+    
+    // Always fit bounds for newly added layers
+    try {
+      const bounds = layer.getBounds();
+      if (bounds && bounds.isValid && bounds.isValid()) {
+        map.fitBounds(bounds.pad(0.05));
       }
+    } catch (error) {
+      Logger.warn("Error fitting bounds for layer:", url, error);
     }
   };
 
@@ -558,16 +728,25 @@ function LeafletGeoJSONLayer({
     return baseStyle;
   };
 
-  return data ? (
-    <GeoJSON
-      key={`geojson-${forceUpdate}`}
-      data={data}
-      onEachFeature={onEachFeature}
-      pointToLayer={pointToLayer}
-      ref={handleGeoJsonRef}
-      style={getFeatureStyle}
-    />
-  ) : null;
+  Logger.log(`[LeafletGeoJSONLayer] Render: url=${url}, hasData=${!!data}, isLoading=${isLoading}, features=${data?.features?.length || 0}`);
+
+  if (data && !isLoading) {
+    Logger.log(`[LeafletGeoJSONLayer] Returning <GeoJSON> component for ${url} with ${data.features?.length} features`);
+    return (
+      <GeoJSON
+        key={`${url}-${styleKey}`}
+        data={data}
+        onEachFeature={onEachFeature}
+        pointToLayer={pointToLayer}
+        ref={handleGeoJsonRef}
+        style={getFeatureStyle}
+      />
+    );
+  } else {
+    if (isLoading) Logger.log(`[LeafletGeoJSONLayer] Still loading ${url}`);
+    if (!data && !isLoading) Logger.log(`[LeafletGeoJSONLayer] No data for ${url}`);
+    return null;
+  }
 }
 
 // Component to add the fullscreen control to the map
@@ -640,7 +819,7 @@ function GetFeatureInfo({ wmsLayer }: { wmsLayer: { baseUrl: string; layers: str
             .setContent(html)
             .openOn(map);
         })
-        .catch((err) => console.error("GetFeatureInfo error:", err));
+        .catch((err) => Logger.error("GetFeatureInfo error:", err));
     };
 
     map.on("click", onClick);
@@ -773,23 +952,23 @@ function Legend({
               title={isImageMaximized ? "Click to minimize" : "Click to maximize"}
               onLoad={() => {
                 setIsLoading(false);
-                console.log('Legend loaded successfully:', legendUrl);
+                Logger.log('Legend loaded successfully:', legendUrl);
               }}
               onError={(e) => {
-                console.warn('Legend image failed to load:', legendUrl);
+                Logger.warn('Legend image failed to load:', legendUrl);
                 
                 // If this was a WMTS legend that failed and we haven't tried fallback yet
                 if (wmtsLayer && 
                     legendUrl === wmtsLayer.wmtsLegendUrl && 
                     wmtsLayer.wmsLegendUrl && 
                     !hasFallbackAttempted) {
-                  console.log('Trying WMS fallback for WMTS legend');
+                  Logger.log('Trying WMS fallback for WMTS legend');
                   setHasFallbackAttempted(true);
                   setLegendUrl(wmtsLayer.wmsLegendUrl);
                   setIsLoading(true); // Reset loading state for fallback attempt
                 } else {
                   // Final failure - hide the legend
-                  console.log('Legend loading failed permanently');
+                  Logger.log('Legend loading failed permanently');
                   setHasError(true);
                   setIsLoading(false);
                 }
@@ -809,7 +988,11 @@ function Legend({
 export default function LeafletMapComponent() {
   const basemap = useMapStore((state) => state.basemap);
   const layers = useLayerStore((state) => state.layers);
-  const layerOrderKey = layers.map((l) => l.id).join("-");
+  
+  // Use a stable key derived from the VISIBLE layer order so React knows when to recreate
+  // the layer list. This ensures proper cleanup and reinitialization of layers
+  // when their order changes. Only include visible layers since those are the only ones rendered.
+  const layerOrderKey = layers.filter(l => l.visible).map((l) => l.id).join("-");
 
   // Get the first WMS layer from the layers array (if any) for GetFeatureInfo.
   const wmsLayerData = layers.find(
@@ -855,7 +1038,7 @@ export default function LeafletMapComponent() {
         const candidateSets = candidateSetsRaw.filter(s => isWebMercatorMatrixSet(s));
         const chosen = pickWebMercatorMatrixSet(candidateSets) || pickWebMercatorMatrixSet(candidateSetsRaw) || candidateSetsRaw[0];
         if (!chosen || !isWebMercatorMatrixSet(chosen)) {
-          console.warn('Skipping WMTS legend (no WebMercator matrix set):', layer.id, candidateSetsRaw);
+          Logger.warn('Skipping WMTS legend (no WebMercator matrix set):', layer.id, candidateSetsRaw);
           return null;
         }
         return (
@@ -878,7 +1061,7 @@ export default function LeafletMapComponent() {
           zoom={2} 
           style={{ height: "100%", width: "100%" }} 
           fullscreenControl={true}
-          preferCanvas={true}
+          preferCanvas={false}
         >
           {/* Add the fullscreen control */}
           <FullscreenControl />
@@ -926,7 +1109,7 @@ export default function LeafletMapComponent() {
                 const candidateSets = candidateSetsRaw.filter(s => isWebMercatorMatrixSet(s));
                 const chosenSet = pickWebMercatorMatrixSet(candidateSets) || pickWebMercatorMatrixSet(candidateSetsRaw) || candidateSetsRaw[0];
                 if (!chosenSet || !isWebMercatorMatrixSet(chosenSet)) {
-                  console.warn('Skipping WMTS layer without WebMercator matrix set (only EPSG:3857 supported currently):', layer.id, candidateSetsRaw);
+                  Logger.warn('Skipping WMTS layer without WebMercator matrix set (only EPSG:3857 supported currently):', layer.id, candidateSetsRaw);
                   return null; // do not render layer
                 }
                 const anyParsed: any = parsed as any;

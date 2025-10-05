@@ -85,6 +85,9 @@ class GeoDataObject(BaseModel):
     visible: Optional[bool] = False
     selected: Optional[bool] = False
     style: Optional[LayerStyle] = None
+    # Optional integrity metadata for locally stored files
+    sha256: Optional[str] = None
+    size: Optional[int] = None
 
     # Pydantic v2: use `model_config` with ConfigDict instead of class Config
     model_config = ConfigDict(

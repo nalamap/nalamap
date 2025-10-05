@@ -1,5 +1,13 @@
 name: Build and push Docker images
 
+# This workflow:
+# - Builds images on all pushes and pull requests
+# - Pushes images to GHCR for main branch, tags, AND pull requests
+# - Tags PR images as "pr-{number}" for easy identification
+# - Tags branch images as "{branch-name}" 
+# - Tags all builds with "sha-{short-sha}"
+# - Only tags "latest" for main branch and version tags
+
 on:
   push:
     branches: ["**"]
@@ -46,7 +54,9 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
-        if: github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/'))
+        if: >-
+          ${{ (github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/'))) 
+           || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -68,14 +78,165 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=sha
 
+      - name: Show generated tags
+        run: |
+          echo "Generated tags for ${{ matrix.name }}:"
+          echo "${{ steps.meta.outputs.tags }}"
+
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           platforms: linux/amd64
-          push: ${{ github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/')) }}
+          push: >-
+            ${{ (github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/'))) 
+             || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: |
+            type=gha,scope=nalamap-${{ matrix.name }}
+          cache-to: |
+            type=gha,mode=max,scope=nalamap-${{ matrix.name }}
+
+      - name: Export image metadata (tags + digest)
+        if: always()
+        run: |
+          set -eu
+          mkdir -p image-metadata
+          # Save tags (newline-separated) for the image
+          echo "${{ steps.meta.outputs.tags }}" > "image-metadata/${{ matrix.name }}-tags.txt"
+
+          # Save metadata JSON (without tags array to avoid complex shell escaping); will merge later
+          cat > "image-metadata/${{ matrix.name }}.json" <<EOF
+          {
+            "name": "${{ matrix.name }}",
+            "image": "${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}",
+            "digest": "${{ steps.build.outputs.digest }}",
+            "ref": "${{ github.ref }}",
+            "sha": "${{ github.sha }}",
+            "event": "${{ github.event_name }}"
+          }
+          EOF
+
+      - name: Upload image metadata artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-metadata-${{ matrix.name }}
+          path: image-metadata/*
+          if-no-files-found: error
+
+  dispatch-deploy:
+    name: Dispatch deploy to infra repo
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    # Trigger on pushes to default branch and tags, and also on PRs (for testing)
+    if: >-
+      ${{ github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/')) || github.event_name == 'pull_request' }}
+    steps:
+      - name: Download image metadata
+        uses: actions/download-artifact@v4
+        with:
+          # Download only our image metadata artifacts from matrix jobs
+          pattern: image-metadata-*
+          path: image-metadata
+          merge-multiple: true
+
+      - name: Build payload and dispatch to infra
+        uses: actions/github-script@v7
+        env:
+          CLOUD_INFRA_REPO_TOKEN: ${{ secrets.CLOUD_INFRA_REPO_TOKEN }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const fs = require('fs').promises;
+            const path = require('path');
+
+            async function collectImages(rootDir) {
+              const images = [];
+              async function walk(current) {
+                const entries = await fs.readdir(current, { withFileTypes: true });
+                for (const entry of entries) {
+                  const p = path.join(current, entry.name);
+                  if (entry.isDirectory()) {
+                    await walk(p);
+                  } else if (entry.isFile() && entry.name.endsWith('.json')) {
+                    const base = entry.name.replace(/\.json$/, '');
+                    const tagsPath = path.join(current, `${base}-tags.txt`);
+                    const meta = JSON.parse(await fs.readFile(p, 'utf8'));
+                    let tags = [];
+                    try {
+                      const rawTags = await fs.readFile(tagsPath, 'utf8');
+                      tags = rawTags.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+                    } catch {}
+                    meta.tags = tags;
+                    images.push(meta);
+                  }
+                }
+              }
+              await walk(rootDir);
+              return images;
+            }
+
+            (async () => {
+              const isPR = context.eventName === 'pull_request';
+              const eventType = isPR ? 'deploy-preview' : 'deploy';
+              const images = await collectImages('image-metadata');
+              
+              // Get commit message from context
+              let commitMessage = '';
+              if (isPR && context.payload.pull_request) {
+                // For PRs, fetch the latest commit message from the head SHA
+                try {
+                  const commitRes = await github.rest.repos.getCommit({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    ref: context.payload.pull_request.head.sha,
+                  });
+                  commitMessage = commitRes.data.commit.message;
+                } catch (error) {
+                  core.warning(`Failed to fetch commit message: ${error.message}`);
+                  commitMessage = context.payload.pull_request.title; // Fallback to PR title
+                }
+              } else {
+                commitMessage = context.payload.head_commit?.message || '';
+              }
+              
+              const payload = {
+                source_repository: `${context.repo.owner}/${context.repo.repo}`,
+                ref: context.ref || process.env.GITHUB_REF,
+                sha: context.sha || process.env.GITHUB_SHA,
+                run_id: process.env.GITHUB_RUN_ID,
+                run_attempt: process.env.GITHUB_RUN_ATTEMPT,
+                pull_request: isPR ? (context.payload.pull_request && context.payload.pull_request.number) : null,
+                commit_message: commitMessage,
+                images,
+              };
+
+              const token = process.env.CLOUD_INFRA_REPO_TOKEN;
+              if (!token) {
+                core.info('CLOUD_INFRA_REPO_TOKEN not set. Skipping repository_dispatch to nalamap/cloud-infrastructure.');
+                core.info(`Would have sent event '${eventType}' with ${images.length} images.`);
+                return;
+              }
+
+              core.info(`Dispatching ${eventType} with ${images.length} images...`);
+              const res = await fetch('https://api.github.com/repos/nalamap/cloud-infrastructure/dispatches', {
+                method: 'POST',
+                headers: {
+                  'Accept': 'application/vnd.github+json',
+                  'Authorization': `token ${token}`,
+                },
+                body: JSON.stringify({
+                  event_type: eventType,
+                  client_payload: payload,
+                }),
+              });
+              if (!res.ok) {
+                const text = await res.text();
+                throw new Error(`Dispatch failed: ${res.status} ${res.statusText}: ${text}`);
+              }
+            })().catch(err => { core.setFailed(err.message); });
+

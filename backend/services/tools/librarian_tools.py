@@ -11,7 +11,7 @@ from typing_extensions import Annotated
 
 from models.geodata import DataType, GeoDataObject
 from models.states import GeoDataAgentState, get_minimal_debug_state
-from services.database.database import close_db, get_db, init_db
+from services.database.database import close_db, get_db, init_db, is_database_available
 
 
 @tool
@@ -45,29 +45,48 @@ def query_librarian_postgis(
     """
 
     async def _inner():
-        async for cur in get_db():
-            await cur.execute(
-                """
-                SELECT
-                resource_id, source_type, name, title, description,
-                access_url, portal, llm_description,
-                ST_AsText(bounding_box) AS bbox_wkt, score
-                FROM dataset_resources_search(
-                %s,     -- searchquery
-                %s,     -- num_results
-                %s,     -- portal_filter
-                ST_GeomFromText(%s,4326)  -- search_bbox
-                )
-                WHERE score <= 0.25
-                """,
-                (
-                    query,
-                    maxRows,
-                    portal_filter,
-                    bbox_wkt,
+        # Check if database is available
+        if not is_database_available():
+            return {
+                "results": [],
+                "message": (
+                    "Database is currently unavailable. Cannot search for geospatial datasets. "
+                    "Please check database configuration or try again later."
                 ),
-            )
-            rows = await cur.fetchall()
+                "total_results": 0,
+            }
+
+        rows = []
+        try:
+            async for cur in get_db():
+                await cur.execute(
+                    """
+                    SELECT
+                    resource_id, source_type, name, title, description,
+                    access_url, portal, llm_description,
+                    ST_AsText(bounding_box) AS bbox_wkt, score
+                    FROM dataset_resources_search(
+                    %s,     -- searchquery
+                    %s,     -- num_results
+                    %s,     -- portal_filter
+                    ST_GeomFromText(%s,4326)  -- search_bbox
+                    )
+                    WHERE score <= 0.25
+                    """,
+                    (
+                        query,
+                        maxRows,
+                        portal_filter,
+                        bbox_wkt,
+                    ),
+                )
+                rows = await cur.fetchall()
+        except Exception as e:
+            return {
+                "results": [],
+                "message": f"Database query failed: {str(e)}",
+                "total_results": 0,
+            }
 
         results = [
             GeoDataObject(

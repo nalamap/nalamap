@@ -6,6 +6,9 @@ import { useLayerStore } from "../../stores/layerStore";
 import { Eye, EyeOff, Trash2, Search, MapPin, GripVertical, Palette } from "lucide-react";
 import { formatFileSize, isFileSizeValid } from "../../utils/fileUtils";
 import { getUploadUrl } from "../../utils/apiBase";
+import { getApiBase } from "../../utils/apiBase";
+import { sha256OfFile } from "../../utils/hashUtil";
+import Logger from "../../utils/logger";
 
 // Funny geo and data-themed loading messages
 const FUNNY_UPLOAD_MESSAGES = [
@@ -224,7 +227,8 @@ export default function LayerManagement() {
     setTotalFiles(files.length);
     setCurrentFileIndex(0);
 
-    const API_UPLOAD_URL = getUploadUrl();
+  const API_UPLOAD_URL = getUploadUrl();
+  const API_BASE_URL = getApiBase();
     const newLayers: any[] = [];
 
     try {
@@ -254,6 +258,9 @@ export default function LayerManagement() {
         formData.append("file", file);
 
         // Upload the file
+        // Compute SHA-256 locally before upload for integrity verification
+        const localSha256 = await sha256OfFile(file);
+
         const { url, id } = await new Promise<{ url: string, id: string }>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhrRef.current = xhr;
@@ -297,6 +304,30 @@ export default function LayerManagement() {
         const uploadCompleteProgress = baseProgress + (70 / files.length);
         setUploadProgress(Math.round(uploadCompleteProgress));
 
+        // Verify integrity against backend-reported hash/size
+        try {
+          const metaRes = await fetch(`${API_BASE_URL}/uploads/meta/${encodeURIComponent(id)}`);
+          if (metaRes.ok) {
+            const meta = await metaRes.json();
+            if (meta?.sha256 && typeof meta.sha256 === 'string') {
+              if (meta.sha256.toLowerCase() !== localSha256.toLowerCase()) {
+                throw new Error(`Integrity check failed for ${file.name}. Expected ${localSha256.slice(0,8)}…, got ${String(meta.sha256).slice(0,8)}…`);
+              }
+            }
+            if (meta?.size && Number.isFinite(Number(meta.size))) {
+              const serverSize = Number(meta.size);
+              if (serverSize !== file.size) {
+                throw new Error(`Size mismatch for ${file.name}. Local ${file.size} bytes vs server ${serverSize} bytes`);
+              }
+            }
+          } else {
+            Logger.warn('Upload meta endpoint returned', metaRes.status, metaRes.statusText);
+          }
+        } catch (verifyErr) {
+          // Surface integrity failure to the user and abort processing this file
+          throw verifyErr instanceof Error ? verifyErr : new Error(String(verifyErr));
+        }
+
         // Create the new layer
         const newLayer = {
           id: id,
@@ -326,7 +357,7 @@ export default function LayerManagement() {
           // Set a funny styling message
           setFunnyMessage(getRandomMessage(FUNNY_STYLING_MESSAGES));
 
-          const styleResponse = await fetch('http://localhost:8000/api/auto-style', {
+          const styleResponse = await fetch(`${API_BASE_URL}/ai-style`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -345,11 +376,11 @@ export default function LayerManagement() {
               // Update the layer with the AI-generated styling
               if (styledLayer.style) {
                 updateLayerStyle(id, styledLayer.style);
-                console.log(`Applied automatic AI styling to layer: ${file.name}`);
+                Logger.log(`Applied automatic AI styling to layer: ${file.name}`);
               }
             }
           } else {
-            console.warn('Automatic styling request failed:', styleResponse.statusText);
+            Logger.warn('Automatic styling request failed:', styleResponse.statusText);
           }
 
           stylingPhaseProgress(100); // Styling complete
@@ -357,7 +388,7 @@ export default function LayerManagement() {
           // Set a funny finalizing message
           setFunnyMessage(getRandomMessage(FUNNY_FINALIZING_MESSAGES));
         } catch (autoStyleError) {
-          console.warn('Error applying automatic styling:', autoStyleError);
+          Logger.warn('Error applying automatic styling:', autoStyleError);
           stylingPhaseProgress(100); // Still mark as complete even if styling fails
           
           // Set a funny finalizing message even if styling fails
@@ -367,14 +398,14 @@ export default function LayerManagement() {
 
       // All files processed successfully
       setUploadProgress(100);
-      console.log(`Successfully uploaded and styled ${files.length} file(s)`);
+      Logger.log(`Successfully uploaded and styled ${files.length} file(s)`);
 
     } catch (err) {
       if (err instanceof Error && err.message === 'Upload cancelled by user') {
-        console.log('Upload was cancelled by the user');
+        Logger.log('Upload was cancelled by the user');
       } else {
         setUploadError(`Upload error: ${err instanceof Error ? err.message : String(err)}`);
-        console.error("Error uploading files:", err);
+        Logger.error("Error uploading files:", err);
       }
     } finally {
       // reset so same files can be re‑picked

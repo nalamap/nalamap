@@ -1,55 +1,244 @@
-worker_processes 1;
+worker_processes auto;
 
-events { 
-  worker_connections 1024; 
+events {
+  worker_connections 1024;
 }
 
 http {
-  include       mime.types;
+  include       /etc/nginx/mime.types;
   default_type  application/octet-stream;
-  sendfile      on;
-  keepalive_timeout 65;
   
-  # Set maximum upload size to 100MB
-  client_max_body_size 100M;
+  # CRITICAL: For proper streaming, disable sendfile and enable immediate flushing
+  # sendfile can buffer data and cause issues with chunked transfer encoding
+  sendfile      off;
+  tcp_nopush    off;
+  tcp_nodelay   on;
+  aio           on;
+  keepalive_timeout 65s;
+  keepalive_requests 1000;
+  send_timeout 300s;
+
+  # DNS resolver for variable proxy_pass targets (required in Azure ACA when using FQDNs)
+  # Default can be overridden via DNS_RESOLVER (e.g., 168.63.129.16 for Azure).
+  resolver ${DNS_RESOLVER} valid=30s ipv6=off;
+  resolver_timeout 5s;
+
+  # Logging to stdout/stderr (container friendly)
+  log_format timings '$remote_addr - $request rt=$request_time urt=$upstream_response_time ub=$upstream_bytes_received sb=$bytes_sent rl=$request_length';
+  access_log /dev/stdout timings;
+  error_log  /dev/stderr warn;
+
+  # Allow large uploads and tune timeouts
+  client_max_body_size 2g;
+  client_body_timeout 300s;
+  server_tokens off;
+
+  # Compression (text only)
+  gzip on;
+  gzip_min_length 1024;
+  gzip_types text/plain text/css application/javascript application/json application/xml;
+
+  # Proper Connection header only when upgrading to WS
+  map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+  }
+
+  # Enable SNI for HTTPS upstreams
+  proxy_ssl_server_name on;
+  # Ensure SNI uses the logical upstream host
+  proxy_ssl_name $proxy_host;
+
+  # Map for allowed CORS origins including Azure Blob Storage
+  # Azure Blob domain can be configured via AZURE_BLOB_DOMAIN env var (e.g., stnalamapdev.blob.core.windows.net)
+  map $http_origin $cors_allowed {
+    default "";
+    "~^https?://${AZURE_BLOB_DOMAIN}$" "$http_origin";
+    "~^https?://[^/]+\.blob\.core\.windows\.net$" "$http_origin";
+  }
 
   server {
     listen 80;
     server_name _;
 
-    # Serve static files and enable SPA routing
+  # Backend health check passthrough
+  # FastAPI exposes /health at the backend root; proxy it here for quick ops checks
+      # Nginx self health
+      location = /health/nginx {
+        default_type application/json;
+        return 200 '{"status":"ok","service":"nginx"}';
+      }
+
+      # Backend health check passthrough (explicit)
+      # FastAPI exposes /health at the backend root; proxy it here for quick ops checks
+      location = /health/backend {
+      proxy_set_header Host               $proxy_host;
+      proxy_set_header X-Forwarded-Proto  $scheme;
+      proxy_set_header X-Forwarded-Host   $host;
+      proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
+        proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL}/health;
+    }
+
+      # Frontend health: fetch runtime-env.js as a simple readiness probe
+      location = /health/frontend {
+        proxy_set_header Host               $proxy_host;
+        proxy_set_header X-Forwarded-Proto  $scheme;
+        proxy_set_header X-Forwarded-Host   $host;
+        proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
+        proxy_pass ${FRONTEND_PROTOCOL}://${FRONTEND_URL}/runtime-env.js;
+      }
+
+
+    # Frontend (SPA)
     location / {
+      proxy_http_version 1.1;
+      proxy_set_header Host               $proxy_host;
+      proxy_set_header X-Forwarded-Proto  $scheme;
+      proxy_set_header X-Forwarded-Host   $host;
+      proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
+
+      proxy_set_header Upgrade            $http_upgrade;
+      proxy_set_header Connection         $connection_upgrade;
+
       proxy_pass ${FRONTEND_PROTOCOL}://${FRONTEND_URL};
-      proxy_http_version 1.1;
-      proxy_set_header Upgrade $http_upgrade;
-      proxy_set_header Connection 'upgrade';
-      proxy_set_header Host $host;
-      proxy_cache_bypass $http_upgrade;
+
+      # Streaming-friendly timeouts and buffering
+      proxy_read_timeout 300s;
+      proxy_send_timeout 300s;
+      # Leave buffering enabled for small HTML/JSON by default
+      proxy_buffers 32 64k;
+      proxy_buffer_size 64k;
+      proxy_busy_buffers_size 128k;
     }
 
-    # Proxy API requests to the backend using env variables
+    # API -> backend
     location /api/ {
-      proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL};
       proxy_http_version 1.1;
-      proxy_set_header Upgrade $http_upgrade;
-      proxy_set_header Connection 'upgrade';
-      proxy_set_header Host $host;
-      proxy_cache_bypass $http_upgrade;
+  proxy_set_header Host               $proxy_host;
+      proxy_set_header X-Forwarded-Proto  $scheme;
+      proxy_set_header X-Forwarded-Host   $host;
+      proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
+
+      proxy_set_header Upgrade            $http_upgrade;
+      proxy_set_header Connection         $connection_upgrade;
+
+      proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL};
+
+      # Streaming-friendly API defaults
+      proxy_read_timeout 600s;
+      proxy_send_timeout 600s;
+      # Generally keep buffering on for API JSON to improve performance
+      proxy_buffers 32 64k;
+      proxy_buffer_size 64k;
+      proxy_busy_buffers_size 128k;
     }
 
-    # Proxy Upload requests to the backend using env variables
-    location /upload/ {
+    # Streaming file endpoint (optimized for large files)
+    # This endpoint uses the custom streaming backend with gzip support
+    location /api/stream/ {
+      # CRITICAL: Use HTTP/1.1 and disable keep-alive for proper streaming
+      proxy_http_version 1.1;
+      proxy_set_header Connection "";
+      
+      proxy_set_header Host               $proxy_host;
+      proxy_set_header X-Forwarded-Proto  $scheme;
+      proxy_set_header X-Forwarded-Host   $host;
+      proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
+
+      # Pass through Accept-Encoding to allow backend gzip
+      proxy_set_header Accept-Encoding    $http_accept_encoding;
+
+      proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL};
+
+      # CRITICAL: Completely disable buffering for streaming
+      proxy_buffering off;
+      proxy_request_buffering off;
+      proxy_max_temp_file_size 0;
+      
+      # Extended timeouts for large files
+      proxy_connect_timeout 600s;
+      proxy_read_timeout    600s;
+      proxy_send_timeout    600s;
+      
+      # Preserve range requests
+      proxy_set_header Range $http_range;
+      proxy_set_header If-Range $http_if_range;
+      
+      # Force immediate flush and disable all buffering hints
+      add_header X-Accel-Buffering "no" always;
+      add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+      add_header Pragma "no-cache" always;
+      add_header Expires "0" always;
+    }
+
+    # Static uploads served by backend FastAPI at /uploads (legacy)
+    # Kept for backward compatibility, but prefer /api/stream/ for new code
+    location /uploads/ {
+      proxy_http_version 1.1;
+      proxy_set_header Host               $proxy_host;
+      proxy_set_header X-Forwarded-Proto  $scheme;
+      proxy_set_header X-Forwarded-Host   $host;
+      proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
+
+      proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL};
+
+      proxy_connect_timeout 600s;
+      proxy_read_timeout    600s;
+      proxy_send_timeout    600s;
+      # Allow Nginx to fully buffer upstream response to avoid partial flushes
+      proxy_buffering on;
+      proxy_buffers 16 512k;
+      proxy_buffer_size 256k;
+      proxy_busy_buffers_size 512k;
+      # Avoid any compression side-effects for large JSON/GeoJSON streams
+      gzip off;
+      # Ensure upstream sends uncompressed bytes; we'll forward as-is
+      proxy_set_header Accept-Encoding "identity";
+      proxy_hide_header Content-Encoding;
+      # Preserve partial content semantics if clients request ranges
+      proxy_set_header Range $http_range;
+      proxy_set_header If-Range $http_if_range;
+      # Fallback to disk buffering when response exceeds memory buffers
+      proxy_max_temp_file_size 512m;
+      # Hint downstream proxies not to buffer
+      add_header X-Accel-Buffering no;
+    }
+
+    # Upload POST endpoint proxy (CORS + long timeouts)
+    # Aligns with backend router mounted at /api and frontend default at /api/upload
+    location ^~ /api/upload {
       proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL};
       proxy_http_version 1.1;
       proxy_set_header Upgrade $http_upgrade;
-      proxy_set_header Connection 'upgrade';
-      proxy_set_header Host $host;
+      proxy_set_header Connection $connection_upgrade;
+  proxy_set_header Host $proxy_host;
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header X-Forwarded-Proto $scheme;
       proxy_cache_bypass $http_upgrade;
-      
-      # Set timeout for uploads
-      proxy_read_timeout 600;
-      proxy_connect_timeout 600;
-      proxy_send_timeout 600;
+
+      # CORS headers and preflight handling for uploads
+      add_header 'Access-Control-Allow-Origin' "$http_origin" always;
+      add_header 'Access-Control-Allow-Credentials' 'true' always;
+      add_header 'Vary' 'Origin' always;
+
+      if ($request_method = OPTIONS) {
+        add_header 'Access-Control-Allow-Origin' "$http_origin" always;
+        add_header 'Access-Control-Allow-Credentials' 'true' always;
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, PATCH, DELETE, OPTIONS' always;
+        add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, X-Requested-With' always;
+        add_header 'Access-Control-Max-Age' 86400 always;
+        return 204;
+      }
+
+      # Stream uploads directly to backend
+      proxy_request_buffering off;
+      proxy_max_temp_file_size 0;
+      add_header X-Accel-Buffering no;
+      # Extended timeouts for large uploads
+      proxy_read_timeout 600s;
+      proxy_connect_timeout 600s;
+      proxy_send_timeout 600s;
     }
   }
 }

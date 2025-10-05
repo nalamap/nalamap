@@ -1,4 +1,5 @@
 import logging
+import mimetypes
 import os
 from contextlib import asynccontextmanager
 
@@ -8,10 +9,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from api import ai_style, auto_styling, data_management, debug, nalamap, settings
+from api import (
+    ai_style,
+    auto_styling,
+    data_management,
+    debug,
+    file_streaming,
+    nalamap,
+    settings,
+)
 
 # from sqlalchemy.ext.asyncio import AsyncSession
-from core.config import LOCAL_UPLOAD_DIR
+from core.config import LOCAL_UPLOAD_DIR, ALLOWED_CORS_ORIGINS
 from services.database.database import close_db, init_db
 
 # Configure logging to show info level messages for debugging
@@ -54,17 +63,34 @@ app = FastAPI(
 )
 
 # CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+if ALLOWED_CORS_ORIGINS:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=ALLOWED_CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    # Fallback: allow all origins but disable credentials to satisfy CORS spec
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # Local upload directory and base URL
-# Serve local uploads
+# Ensure GeoJSON files are served with an explicit media type
+mimetypes.add_type("application/geo+json", ".geojson")
+
 os.makedirs(LOCAL_UPLOAD_DIR, exist_ok=True)
+
+# Legacy /uploads/ endpoint using StaticFiles
+# NOTE: This may have issues with large files in Azure Container Apps
+# Prefer using /api/stream/ for new code (uses async generator)
+# We keep this for backward compatibility, but redirect internally where possible
 app.mount("/uploads", StaticFiles(directory=LOCAL_UPLOAD_DIR), name="uploads")
 
 # Include API routers
@@ -74,11 +100,17 @@ app.include_router(data_management.router, prefix="/api")
 app.include_router(ai_style.router, prefix="/api")  # AI Style button functionality
 app.include_router(auto_styling.router, prefix="/api")  # Automatic styling
 app.include_router(settings.router, prefix="/api")
+app.include_router(file_streaming.router, prefix="/api")  # Streaming files
 
 
 @app.get("/")
 async def root():
     return {"message": "NaLaMap API is running"}
+
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "message": "NaLaMap API is running"}
 
 
 # Exception handlers

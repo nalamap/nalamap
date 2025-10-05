@@ -8,11 +8,12 @@ In cloud environments, the frontend container may not have write permissions to 
 
 ## Solution
 
-The entrypoint script now supports a configurable path for the runtime environment file:
+The entrypoint script now supports a configurable path for the runtime environment file, and the frontend uses an API route to serve the configuration:
 
 1. **Environment Variable**: `RUNTIME_ENV_PATH` - specifies where to write the runtime environment file
 2. **Fallback Behavior**: If `RUNTIME_ENV_PATH` is not set, it falls back to `/app/public/runtime-env.js`
-3. **Symlink Creation**: When using a custom path, a symlink is created from `/app/public/runtime-env.js` to the custom location for backward compatibility
+3. **API Route**: `/runtime-env.js` route serves the configuration from the correct location, eliminating the need for symlinks
+4. **Permission Safe**: No symlink creation needed, avoiding permission issues in cloud environments
 
 ## Usage
 
@@ -47,17 +48,21 @@ The script processes these environment variables:
 2. **Path Determination**: The script checks if `RUNTIME_ENV_PATH` is set, otherwise uses the default path
 3. **Directory Creation**: Ensures the target directory exists using `mkdir -p`
 4. **File Generation**: Creates the JavaScript file with runtime configuration
-5. **Symlink Creation**: If using a custom path, creates a symlink for compatibility
-6. **Logging**: Outputs debug information showing which file was created and what values were injected
+5. **API Route Serving**: The `/runtime-env.js` API route reads from the correct location and serves the configuration
+6. **Fallback Handling**: If the file can't be read, the API route provides fallback configuration using environment variables
+7. **Logging**: Outputs debug information showing which file was created and what values were injected
 
 ## File Structure
 
 ```
 /app/
+├── app/
+│   └── runtime-env.js/
+│       └── route.ts        (API route that serves the configuration)
 ├── public/
-│   └── runtime-env.js -> /app/runtime-env/runtime-env.js (symlink)
-└── runtime-env/        (mounted volume in cloud)
-    └── runtime-env.js  (actual file)
+│   └── (no runtime-env.js needed - served by API route)
+└── runtime-env/           (mounted volume in cloud)
+    └── runtime-env.js     (actual file written by entrypoint)
 ```
 
 ## Testing
@@ -71,11 +76,13 @@ The configuration has been tested with:
 ## Implementation Status
 
 ✅ **Completed**:
-- Updated `frontend/entrypoint.sh` with flexible path support
+- Updated `frontend/entrypoint.sh` with flexible path support (no symlink creation)
 - Added `RUNTIME_ENV_PATH` environment variable to docker-compose configurations
+- Created `/runtime-env.js` API route to serve configuration from any location
 - Added missing `NEXT_PUBLIC_API_UPLOAD_URL` to environment configuration
 - Created test configuration for cloud deployment scenario
-- Verified functionality with test scripts
+- Eliminated permission issues with symlink creation
+- Added fallback configuration in API route for robustness
 
 🔄 **Next Steps for Cloud Deployment**:
 - Configure volume mounting in your cloud infrastructure

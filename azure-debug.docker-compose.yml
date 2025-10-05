@@ -1,0 +1,69 @@
+# Debug docker-compose for Azure Container Apps testing
+# This mirrors the expected Azure Container Apps setup
+
+services:
+
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    environment:
+      # Use internal HTTP URLs (like Azure Container Apps)
+      - BACKEND_PROTOCOL=http
+      - BACKEND_URL=backend:8000
+      - FRONTEND_PROTOCOL=http
+      - FRONTEND_URL=frontend:3000
+      - AZURE_BLOB_DOMAIN=${AZURE_BLOB_DOMAIN:-}
+      - DNS_RESOLVER=${DNS_RESOLVER:-8.8.8.8}
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+      - frontend
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_AZURE_URL=${DATABASE_AZURE_URL}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
+      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
+      - AZURE_OPENAI_DEPLOYMENT=${AZURE_OPENAI_DEPLOYMENT}
+      - AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION}
+      - LLM_PROVIDER=${LLM_PROVIDER}
+      - USE_AZURE_STORAGE=${USE_AZURE_STORAGE:-false}
+      - AZURE_CONN_STRING=${AZURE_CONN_STRING:-}
+      - AZURE_CONTAINER=${AZURE_CONTAINER:-data}
+      - AZURE_SAS_EXPIRY_HOURS=${AZURE_SAS_EXPIRY_HOURS:-24}
+      # Backend runs on internal port 8000 (HTTP)
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+  
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    environment:
+      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
+      - NEXT_PUBLIC_API_UPLOAD_URL=${NEXT_PUBLIC_API_UPLOAD_URL}
+      - RUNTIME_ENV_PATH=/app/runtime-env/runtime-env.js
+    ports:
+      - "3000:3000"
+    # Mount runtime-env volume for cloud compatibility
+    volumes:
+      - runtime-env-data:/app/runtime-env
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  runtime-env-data:
