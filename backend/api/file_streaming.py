@@ -124,6 +124,7 @@ async def file_iterator(file_path: Path, start: int = 0, end: Optional[int] = No
                 # This prevents blocking and ensures proper flushing
                 if chunk_count % 10 == 0:
                     import asyncio
+
                     await asyncio.sleep(0)
 
                 if remaining is not None:
