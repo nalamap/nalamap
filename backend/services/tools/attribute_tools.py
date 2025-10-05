@@ -564,7 +564,7 @@ ATTR_OPS_AND_PARAMS = [
 PLANNER_SCHEMA_EXAMPLE = """
 Return ONLY JSON with EXACT structure:
 {
-  "operation": "<one of: list_fields | summarize | unique_values | filter_where | select_fields | sort_by>",
+  "operation": "<one of: list_fields | summarize | unique_values | filter_where | select_fields | sort_by | describe_dataset>",
   "params": { /* parameters for the chosen operation */ },
   "target_layer_names": ["optional layer name(s) if the user specifies which"] ,
   "result_handling": "<'chat' | 'layer'>"

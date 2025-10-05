@@ -99,6 +99,25 @@ function useZoomToLayer(layers: GeoDataObject[]) {
   }, [layers, map]);
 }
 
+/**
+ * When the map container element is resized (e.g., panels collapse/expand),
+ * invalidate the Leaflet map size so tiles redraw correctly.
+ */
+function InvalidateMapOnResize() {
+  const map = useMap();
+  useEffect(() => {
+    const container = map.getContainer();
+    const ro = new ResizeObserver(() => {
+      map.invalidateSize();
+    });
+    ro.observe(container);
+    return () => {
+      ro.disconnect();
+    };
+  }, [map]);
+  return null;
+}
+
 
 // Helper: Parse a full WMS access_url into its base URL and WMS parameters.
 function parseWMSUrl(access_url: string) {
@@ -882,6 +901,8 @@ export default function LeafletMapComponent() {
         >
           {/* Add the fullscreen control */}
           <FullscreenControl />
+          {/* Ensure map tiles redraw after panel resize */}
+          <InvalidateMapOnResize />
           <ZoomToSelected />
           <TileLayer 
             url={basemap.url} 

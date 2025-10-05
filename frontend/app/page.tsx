@@ -34,15 +34,20 @@ export default function Home() {
     const newWidths = [...dragInfo.current.initialWidths];
     newWidths[idx] = dragInfo.current.initialWidths[idx] + deltaPercent;
     newWidths[idx + 1] = dragInfo.current.initialWidths[idx + 1] - deltaPercent;
-    // enforce minimum widths
-    const minPct = 2;
-    if (newWidths[idx] < minPct) {
-      newWidths[idx + 1] += newWidths[idx] - minPct;
-      newWidths[idx] = minPct;
+    // enforce minimum widths: layer and chat panels have fixed pixel-based minima
+    const minPanelPx = 200;
+    const minLayerPct = (minPanelPx / window.innerWidth) * 100;
+    const minChatPct = minLayerPct;
+    const defaultMinPct = 2;
+    const minLeft = idx === 1 ? minLayerPct : defaultMinPct;
+    const minRight = idx === 2 ? minChatPct : defaultMinPct;
+    if (newWidths[idx] < minLeft) {
+      newWidths[idx + 1] += newWidths[idx] - minLeft;
+      newWidths[idx] = minLeft;
     }
-    if (newWidths[idx + 1] < minPct) {
-      newWidths[idx] += newWidths[idx + 1] - minPct;
-      newWidths[idx + 1] = minPct;
+    if (newWidths[idx + 1] < minRight) {
+      newWidths[idx] += newWidths[idx + 1] - minRight;
+      newWidths[idx + 1] = minRight;
     }
     setWidths(newWidths);
   };
@@ -104,7 +109,7 @@ export default function Home() {
         {!layerCollapsed ? (
           <div
             style={{ flexBasis: `${widths[1]}%` }}
-            className="flex-none relative"
+            className="flex-none relative min-w-[200px]"
           >
             <button
               className="absolute top-2 left-2 p-1 bg-gray-200 rounded shadow z-10"
@@ -129,7 +134,9 @@ export default function Home() {
 
         {/* Map panel */}
         <div
-          style={{ flexBasis: `${widths[2]}%` }}
+          style={{
+            flexBasis: `${widths[2] + (chatCollapsed ? widths[3] : 0)}%`,
+          }}
           className="flex-none relative"
         >
           <MapComponent />
@@ -143,7 +150,7 @@ export default function Home() {
         {!chatCollapsed ? (
           <div
             style={{ flexBasis: `${widths[3]}%` }}
-            className="flex-none relative"
+            className="flex-none relative min-w-[200px]"
           >
             <button
               className="absolute top-2 right-2 p-1 bg-gray-200 rounded shadow z-10"
