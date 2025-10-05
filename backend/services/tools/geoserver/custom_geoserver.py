@@ -452,6 +452,16 @@ def fetch_all_service_capabilities_with_status(
     all_layers: List[GeoDataObject] = []
     service_status: Dict[str, bool] = {}
 
+    # Ensure base_url ends with / for proper urljoin behavior
+    # Without trailing slash:
+    #   urljoin("https://example.com/geoserver", "wms")
+    #   produces: "https://example.com/wms" (incorrect!)
+    # With trailing slash:
+    #   urljoin("https://example.com/geoserver/", "wms")
+    #   produces: "https://example.com/geoserver/wms" (correct)
+    if not base_url.endswith("/"):
+        base_url = base_url + "/"
+
     # WMS
     wms_url = urljoin(base_url, "wms")
     try:
