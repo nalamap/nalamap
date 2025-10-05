@@ -134,10 +134,17 @@ export default function SettingsPage() {
         setBackendError(null)
         setBackendSuccess(null)
 
+        // Preserve current model_settings, tools, and options if not present in snapshot
+        const currentSettings = getSettings()
+        
         const sanitized: SettingsSnapshot = {
-            ...snapshot,
-            geoserver_backends: [],
-            session_id: undefined,
+            search_portals: snapshot.search_portals || [],
+            geoserver_backends: [], // Will be populated via prefetch
+            model_settings: snapshot.model_settings || currentSettings.model_settings,
+            tools: snapshot.tools || currentSettings.tools,
+            tool_options: snapshot.tool_options || currentSettings.tool_options,
+            model_options: snapshot.model_options || currentSettings.model_options,
+            session_id: undefined, // Ignore imported session_id
         }
         setSettings(sanitized)
 

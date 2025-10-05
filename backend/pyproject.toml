@@ -14,7 +14,7 @@ fastapi = ">=0.115.8"
 uvicorn = {extras = ["standard"], version = ">=0.34.0"}
 langchain = ">=0.3.27"
 langchain-core = ">=0.3.76"
-langchain_community = ">=0.3.29"
+langchain_community = "^0.3.30"
 openai = ">=1.108.1"
 psycopg = {extras = ["binary","pool"], version = ">=3.2.10"}
 langgraph = ">=0.6.7"

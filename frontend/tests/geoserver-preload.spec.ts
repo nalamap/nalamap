@@ -162,12 +162,15 @@ test.describe('GeoServer backend preload', () => {
 
     await expect(page.getByText('Prefetched 2 imported backends successfully.')).toBeVisible();
 
-    const backendItems = page.getByRole('listitem');
-    await expect(backendItems).toHaveCount(2);
-    await expect(backendItems.nth(0)).toContainText('Geo One');
-    await expect(backendItems.nth(0).getByRole('checkbox')).toBeChecked();
-    await expect(backendItems.nth(1)).toContainText('Geo Two');
-    await expect(backendItems.nth(1).getByRole('checkbox')).not.toBeChecked();
+    // Look for GeoServer backend entries specifically
+    await expect(page.getByRole('listitem').filter({ hasText: 'Geo One' })).toBeVisible();
+    await expect(page.getByRole('listitem').filter({ hasText: 'Geo Two' })).toBeVisible();
+    
+    const geoOneItem = page.getByRole('listitem').filter({ hasText: 'Geo One' });
+    const geoTwoItem = page.getByRole('listitem').filter({ hasText: 'Geo Two' });
+    
+    await expect(geoOneItem.getByRole('checkbox')).toBeChecked();
+    await expect(geoTwoItem.getByRole('checkbox')).not.toBeChecked();
 
     expect(seenRequests).toHaveLength(2);
     expect(seenRequests[0].session_id).toBe('session-initial');
