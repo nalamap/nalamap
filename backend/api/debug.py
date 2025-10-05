@@ -9,7 +9,7 @@ from kml2geojson.main import convert as kml2geojson_convert
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from pydantic import BaseModel
 
-from core.config import BASE_URL, LOCAL_UPLOAD_DIR
+from core.config import LOCAL_UPLOAD_DIR
 from models.geodata import DataOrigin, DataType, GeoDataObject
 from models.messages.chat_messages import (
     NaLaMapRequest,
@@ -18,6 +18,7 @@ from models.messages.chat_messages import (
     OrchestratorResponse,
 )
 from services.agents.langgraph_agent import SearchState, executor
+from services.storage.file_management import store_file
 from services.multi_agent_orch import multi_agent_executor
 from services.tools.geocoding import geocode_using_nominatim
 from utility.string_methods import clean_allow
@@ -123,10 +124,10 @@ async def geocode(req: NaLaMapRequest) -> Dict[str, Any]:
         # print(json.dump(geojson_dict))
 
         out_filename = f"{clean_allow(name_prop)}_geocode_{uuid.uuid4().hex}.geojson"
-        out_path = os.path.join(LOCAL_UPLOAD_DIR, out_filename)
-        with open(out_path, "w", encoding="utf-8") as f:
-            json.dump(geojson_dict, f)
-        out_url = f"{BASE_URL}/uploads/{out_filename}"
+        json_content = json.dumps(geojson_dict).encode("utf-8")
+
+        # Use centralized file management (supports both local and Azure Blob Storage)
+        out_url, stored_filename = store_file(out_filename, json_content)
 
         # Copy selected properties
         properties: Dict[str, Any] = dict()
@@ -266,10 +267,10 @@ async def geoprocess(req: NaLaMapRequest):
     for result_layer in result_layers:
         out_uuid: str = uuid.uuid4().hex
         out_filename = f"{out_uuid}_geoprocess.geojson"
-        out_path = os.path.join(LOCAL_UPLOAD_DIR, out_filename)
-        with open(out_path, "w", encoding="utf-8") as f:
-            json.dump(result_layer, f)
-        out_url = f"{BASE_URL}/uploads/{out_filename}"
+        json_content = json.dumps(result_layer).encode("utf-8")
+
+        # Use centralized file management (supports both local and Azure Blob Storage)
+        out_url, stored_filename = store_file(out_filename, json_content)
         out_urls.append(out_url)
         new_geodata.append(
             GeoDataObject(
