@@ -25,14 +25,14 @@ from services.tools.geoserver.vector_store import (
 @pytest.fixture
 def temp_db_path(tmp_path, monkeypatch):
     """Fixture to use the fallback store for threading tests.
-    
+
     The fallback store is used because sqlite_vec extension loading
     is not supported in this Python build (enable_load_extension not available).
     The fallback store is thread-safe and suitable for testing threading behavior.
     """
     # Use the fallback store which is thread-safe
     from services.tools.geoserver import vector_store as vs
-    
+
     vs.reset_vector_store_for_tests()
     monkeypatch.setattr(vs, "_use_fallback_store", True, raising=False)
     monkeypatch.setattr(vs, "_fallback_documents", [], raising=False)
@@ -223,16 +223,16 @@ def test_concurrent_reads_same_session(temp_db_path):
 
 def test_thread_local_connections_are_isolated(temp_db_path):
     """Verify that each thread gets its own connection object.
-    
+
     Note: This test is skipped when using the fallback store since it
     doesn't use SQLite connections.
     """
     from services.tools.geoserver import vector_store as vs
-    
+
     # Skip if using fallback store
     if vs._use_fallback_store:
         pytest.skip("Not applicable when using fallback store")
-    
+
     connection_ids = {}
     errors = []
 

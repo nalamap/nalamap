@@ -19,17 +19,17 @@ logger = logging.getLogger(__name__)
 
 def validate_session_id(session_id: str) -> bool:
     """Validate that session_id is safe to use in cookies.
-    
+
     Only allows alphanumeric characters and hyphens, with reasonable length.
     This prevents cookie injection attacks where malicious values could be
     used to manipulate cookie behavior.
-    
+
     Args:
         session_id: The session identifier to validate
-        
+
     Returns:
         True if session_id is valid and safe to use
-        
+
     Examples:
         >>> validate_session_id("abc123def456")
         True
@@ -42,16 +42,16 @@ def validate_session_id(session_id: str) -> bool:
     """
     if not session_id or not isinstance(session_id, str):
         return False
-    
+
     # Length check: reasonable session ID length (8-128 characters)
     if len(session_id) < 8 or len(session_id) > 128:
         return False
-    
+
     # Only allow alphanumeric characters and hyphens (safe for cookies)
     # This matches UUID hex strings and similar safe formats
-    if not re.match(r'^[a-zA-Z0-9-]+$', session_id):
+    if not re.match(r"^[a-zA-Z0-9-]+$", session_id):
         return False
-    
+
     return True
 
 
@@ -137,7 +137,7 @@ async def get_settings_options(request: Request, response: Response):
     }
 
     session_id = request.cookies.get("session_id")
-    
+
     # Validate existing session_id from cookie, or generate a new one
     if not session_id or not validate_session_id(session_id):
         session_id = uuid4().hex
@@ -169,7 +169,7 @@ async def preload_geoserver_backend(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Session identifier is required to preload GeoServer backends.",
         )
-    
+
     # Validate session_id to prevent cookie injection attacks
     if not validate_session_id(session_id):
         raise HTTPException(
