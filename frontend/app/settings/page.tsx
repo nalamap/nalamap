@@ -69,14 +69,23 @@ export default function SettingsPage() {
 
     const API_BASE_URL = getApiBase()
 
-    const normalizeBackend = (backend: BackendPrefetchInput): GeoServerBackend => ({
-        url: backend.url.trim(),
-        name: backend.name?.trim() || backend.name || undefined,
-        description: backend.description,
-        username: backend.username,
-        password: backend.password,
-        enabled: backend.enabled ?? true,
-    })
+    const normalizeBackend = (backend: BackendPrefetchInput): GeoServerBackend => {
+        let url = backend.url.trim()
+        
+        // Add https:// if protocol is missing to prevent connection errors
+        if (url && !url.match(/^https?:\/\//i)) {
+            url = `https://${url}`
+        }
+        
+        return {
+            url,
+            name: backend.name?.trim() || backend.name || undefined,
+            description: backend.description,
+            username: backend.username,
+            password: backend.password,
+            enabled: backend.enabled ?? true,
+        }
+    }
 
     const prefetchBackend = async (
         backend: BackendPrefetchInput,

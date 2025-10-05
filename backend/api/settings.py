@@ -16,6 +16,36 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 logger = logging.getLogger(__name__)
 
 
+def normalize_geoserver_url(url: str) -> str:
+    """Normalize GeoServer URL by ensuring it has a protocol.
+
+    If the URL is missing a protocol (http:// or https://), prepends https://.
+    This prevents connection errors that result in 503 responses.
+
+    Args:
+        url: The GeoServer URL to normalize
+
+    Returns:
+        The normalized URL with protocol
+
+    Examples:
+        >>> normalize_geoserver_url("example.com/geoserver")
+        "https://example.com/geoserver"
+        >>> normalize_geoserver_url("http://example.com/geoserver")
+        "http://example.com/geoserver"
+        >>> normalize_geoserver_url("https://example.com/geoserver")
+        "https://example.com/geoserver"
+    """
+    url = url.strip()
+
+    # Check if URL starts with a protocol (case-insensitive)
+    if not (url.lower().startswith("http://") or url.lower().startswith("https://")):
+        url = f"https://{url}"
+        logger.info(f"Added https:// protocol to GeoServer URL: {url}")
+
+    return url
+
+
 class ToolOption(BaseModel):
     default_prompt: str
     settings: Dict[str, Any] = {}  # additional tool-specific settings
@@ -99,6 +129,10 @@ async def preload_geoserver_backend(
             detail="Session identifier is required to preload GeoServer backends.",
         )
 
+    # Normalize the backend URL to ensure it has a protocol
+    normalized_backend = payload.backend.model_copy()
+    normalized_backend.url = normalize_geoserver_url(payload.backend.url)
+
     response.set_cookie(
         key="session_id",
         value=session_id,
@@ -110,7 +144,7 @@ async def preload_geoserver_backend(
 
     try:
         result = await asyncio.to_thread(
-            preload_backend_layers, session_id, payload.backend, payload.search_term
+            preload_backend_layers, session_id, normalized_backend, payload.search_term
         )
     except ConnectionError as exc:
         raise HTTPException(
