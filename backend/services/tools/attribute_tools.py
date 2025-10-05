@@ -113,7 +113,34 @@ def _suggest_next_steps(gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any]) -> Li
     if any(k in lower_cols for k in ["class","type","category","status"]):
         tips.append("Filter by class/type and compute counts per category.")
 
-    # Keep it short and unique
+    # Try an LLM-driven enhancement of next steps, falling back to simple heuristics
+    context = {
+        "row_count": int(len(gdf)),
+        "geometry_types": gtypes,
+        "columns": cols,
+    }
+    try:
+        llm = get_llm()
+        sys = (
+            "You are a GIS data analysis assistant. "
+            "Given the dataset context, suggest up to 6 concrete next steps for analysis or visualization."
+        )
+        human = f"Dataset context: {json.dumps(context)}"
+        msgs = [SystemMessage(content=sys), HumanMessage(content=human)]
+        resp = llm.generate([msgs])
+        text = resp.generations[0][0].text.strip()
+        # Expect JSON list, else split lines
+        try:
+            llm_tips = json.loads(text)
+            if isinstance(llm_tips, list):
+                return llm_tips
+        except Exception:
+            # fallback to splitting
+            lines = [l.strip(' -') for l in text.splitlines() if l.strip()]
+            return lines[:6]
+    except Exception:
+        pass
+    # fallback simple heuristics: keep it short and unique
     seen = set()
     uniq = []
     for t in tips:
@@ -164,8 +191,7 @@ def describe_dataset_gdf(gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any]) -> D
         summary += f" Bounding box: [{bbox_vals[0]:.4f}, {bbox_vals[1]:.4f}, {bbox_vals[2]:.4f}, {bbox_vals[3]:.4f}]."
 
     next_steps = _suggest_next_steps(gdf, schema_ctx)
-
-    return {
+    result = {
         "row_count": row_count,
         "geometry_column": geom_col,
         "geometry_types": geom_types,
@@ -175,6 +201,54 @@ def describe_dataset_gdf(gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any]) -> D
         "summary": summary,
         "suggested_next_steps": next_steps,
     }
+    # Optionally enrich summary via LLM, including sample rows for richer context
+    try:
+        llm = get_llm()
+        # Prepare sample rows: up to 3 from top and 2 from bottom (or all if fewer)
+        total = len(gdf)
+        if total >= 5:
+            top_n = min(3, total)
+            bot_n = min(2, total - top_n)
+            sample_top = gdf.head(top_n)
+            sample_bot = gdf.tail(bot_n)
+            sample = pd.concat([sample_top, sample_bot])
+        else:
+            sample = gdf.head(total)
+        # Drop geometry column for readability if present
+        if geom_col in sample.columns:
+            sample = sample.drop(columns=[geom_col])
+        sample_rows = sample.to_dict(orient="records")
+
+        sys = (
+            "You are a GIS data assistant. "
+            "Provide a concise description and practical next steps for this specific dataset. "
+            "Respond in JSON with keys 'summary' (string) and 'suggested_next_steps' (list of strings)."
+        )
+        context_obj = {"metadata": result, "sample_rows": sample_rows}
+        human = f"Dataset context and sample rows: {json.dumps(context_obj, default=str)}"
+        msgs = [SystemMessage(content=sys), HumanMessage(content=human)]
+        resp = llm.generate([msgs])
+        text = resp.generations[0][0].text.strip()
+        # strip code fences and optional 'json' tag
+        if text.startswith("```"):
+            parts = text.split("```", 2)
+            if len(parts) >= 2:
+                text = parts[1]
+        if text.strip().lower().startswith("json"):
+            # remove leading 'json' keyword or header
+            lines = text.split("\n", 1)
+            text = lines[1] if len(lines) > 1 else ''
+        data = json.loads(text)
+        if isinstance(data, dict):
+            result.update({
+                "summary": data.get("summary", result.get("summary")),
+                "suggested_next_steps": data.get(
+                    "suggested_next_steps", result.get("suggested_next_steps")
+                ),
+            })
+    except Exception:
+        pass
+    return result
 
 def _parse_literal(tok):
     if tok.group("string") is not None: return tok.group("string")
