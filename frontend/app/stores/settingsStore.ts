@@ -1,5 +1,6 @@
-import { create } from 'zustand'
-import { getApiBase } from '../utils/apiBase'
+import { create } from 'zustand';
+import { getApiBase } from '@/app/utils/apiBase';
+import Logger from '../utils/logger';
 
 export interface GeoServerBackend {
     url: string
@@ -124,7 +125,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
             get().initializeSettingsFromRemote(opts)
             set({ initialized: true })
         } catch (err) {
-            console.error('Failed to initialize settings', err)
+            Logger.error('Failed to initialize settings', err)
         }
     },
     initializeSettingsFromRemote: (opts) => {
@@ -291,3 +292,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         session_id: state.session_id,
     })),
 }))
+
+// Expose store to window for E2E testing
+if (typeof window !== 'undefined') {
+  (window as any).useSettingsStore = useSettingsStore;
+  console.log('[SettingsStore] Exposed to window for testing');
+}

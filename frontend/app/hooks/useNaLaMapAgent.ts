@@ -5,6 +5,7 @@ import { ChatMessage, GeoDataObject, NaLaMapRequest, NaLaMapResponse } from "../
 import { useLayerStore } from '../stores/layerStore'
 import { useChatInterfaceStore } from "../stores/chatInterfaceStore";
 import { useSettingsStore } from "../stores/settingsStore";
+import Logger from "../utils/logger";
 
 type Primitive = string | number | boolean | null | undefined;
 
@@ -109,7 +110,7 @@ export function useNaLaMapAgent(apiUrl: string) {
 
     await useSettingsStore.getState().initializeIfNeeded()
     const rawSettings = useSettingsStore.getState().getSettings()
-    //console.log(rawSettings);
+    //Logger.log(rawSettings);
     const settingsMap = new Map<string, Set<any>>(
       Object.entries(rawSettings)
         // drop methods and any non-arrays
@@ -117,7 +118,7 @@ export function useNaLaMapAgent(apiUrl: string) {
         // for each key, convert its array into a Set
         .map(([key, value]) => [key, new Set(value as any[])] as const)
     )
-    //console.log(settingsMap)
+    //Logger.log(settingsMap)
     const settingsObjOld: Record<string, unknown[]> = Object.fromEntries(
       Array.from(settingsMap.entries()).map(([key, set]) => [
         key,
@@ -125,8 +126,8 @@ export function useNaLaMapAgent(apiUrl: string) {
       ])
     );
     const settingsObj = normalizeSettings(rawSettings)
-    console.log("SettingsObject:")
-    console.log(settingsObj)
+    Logger.log("SettingsObject:")
+    Logger.log(settingsObj)
 
     try {
       let response = null;
@@ -143,8 +144,8 @@ export function useNaLaMapAgent(apiUrl: string) {
           options: settingsObj
         }
         chatInterfaceStore.setInput("");
-        console.log("payload");
-        console.log(payload);
+        Logger.log("payload");
+        Logger.log(payload);
         response = await fetch(`${apiUrl}/${endpoint}`, {
           method: 'POST',
           headers: {
@@ -163,7 +164,7 @@ export function useNaLaMapAgent(apiUrl: string) {
           geodata_last_results: chatInterfaceStore.geoDataList,
         }
         chatInterfaceStore.setInput("");
-        console.log("AI Style payload:", payload);
+        Logger.log("AI Style payload:", payload);
         response = await fetch(`${apiUrl}/${endpoint}`, {
           method: 'POST',
           headers: {
@@ -176,21 +177,21 @@ export function useNaLaMapAgent(apiUrl: string) {
         throw new Error("Unknown Tool");
       }
       if (!response.ok) {
-        console.log(response)
+        Logger.log(response)
         throw new Error("Network response was not ok");
       }
 
       if (endpoint === "ai-style") {
         // Handle AI styling response differently
         const data = await response.json();
-        console.log("AI Style response:", data);
-        console.log("Current layers before update:", layerStore.layers);
+        Logger.log("AI Style response:", data);
+        Logger.log("Current layers before update:", layerStore.layers);
 
         // Update layers with styling changes
         if (data.updated_layers) {
-          console.log("Updating layers with:", data.updated_layers);
+          Logger.log("Updating layers with:", data.updated_layers);
           layerStore.updateLayersFromBackend(data.updated_layers);
-          console.log("Current layers after update:", layerStore.layers);
+          Logger.log("Current layers after update:", layerStore.layers);
         }
 
         // Add AI message to conversation
@@ -203,7 +204,7 @@ export function useNaLaMapAgent(apiUrl: string) {
       }
 
       const data: NaLaMapResponse = await response.json();
-      console.log(data)
+      Logger.log(data)
       if (!data.geodata_results) {
         throw new Error("Response was missing GeoData");
       }
@@ -224,12 +225,12 @@ export function useNaLaMapAgent(apiUrl: string) {
       if (data.geodata_layers) {
         if (isStyleOperation) {
           // For styling operations, use updateLayersFromBackend to preserve existing layers
-          console.log("Detected styling operation, using updateLayersFromBackend");
-          console.log("Styling data.geodata_layers:", data.geodata_layers);
+          Logger.log("Detected styling operation, using updateLayersFromBackend");
+          Logger.log("Styling data.geodata_layers:", data.geodata_layers);
           layerStore.updateLayersFromBackend(data.geodata_layers);
         } else {
           // For other operations, use synchronizeLayersFromBackend
-          console.log("Regular operation, using synchronizeLayersFromBackend");
+          Logger.log("Regular operation, using synchronizeLayersFromBackend");
           layerStore.synchronizeLayersFromBackend(data.geodata_layers);
         }
       }

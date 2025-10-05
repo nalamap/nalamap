@@ -4,6 +4,7 @@ import Sidebar from './components/sidebar/Sidebar';
 import LayerManagement from './components/sidebar/LayerManagement';
 import MapComponent from './components/maps/MapComponent';
 import AgentInterface from './components/chat/AgentInterface';
+import StoreExposer from './components/StoreExposer';
 
 interface Message {
   role: "user" | "agent";
@@ -12,7 +13,9 @@ interface Message {
 
 export default function Home() {
   return (
-    <div className="relative h-screen w-screen overflow-hidden">
+    <>
+      <StoreExposer />
+      <div className="relative h-screen w-screen overflow-hidden">
       {/* Menubar Panel - left side, 4% width */}
       <div className="fixed left-0 top-0 bottom-0 w-[4%] z-[2]" style={{ backgroundColor: 'rgb(64, 64, 64)' }}>
         <Sidebar />
@@ -33,5 +36,6 @@ export default function Home() {
         <AgentInterface />
       </div>
     </div>
+    </>
   );
 }

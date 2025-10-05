@@ -20,6 +20,7 @@ from core.config import BASE_URL, LOCAL_UPLOAD_DIR
 from models.geodata import DataOrigin, DataType, GeoDataObject
 from models.states import GeoDataAgentState
 from services.ai.llm_config import get_llm
+from services.storage.file_management import store_file
 from services.tools.geoprocessing.ops.buffer import op_buffer
 from services.tools.geoprocessing.ops.centroid import op_centroid
 from services.tools.geoprocessing.ops.merge import op_merge
@@ -523,14 +524,12 @@ def geoprocess_tool(
         unique_name = ensure_unique_name(slug_name, existing_layer_names, short_uuid)
         existing_layer_names.append(unique_name)  # Add to list to avoid duplicates
 
-        # Create a filename with the unique name
+        # Create a filename with the unique name and serialize to JSON
         filename = f"{unique_name}_{short_uuid}.geojson"
-        path = os.path.join(LOCAL_UPLOAD_DIR, filename)
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(layer, f)
+        json_content = json.dumps(layer).encode("utf-8")
 
-        # Generate URL
-        url = f"{BASE_URL}/uploads/{filename}"
+        # Use centralized file management (supports both local and Azure Blob Storage)
+        url, stored_filename = store_file(filename, json_content)
         out_urls.append(url)
 
         # Format the operation details for the description

@@ -48,6 +48,18 @@ Thank you for your interest in contributing to NaLaMap! We're excited to welcome
 - Backend linting checks run automatically on pull requests
 - Ensure your backend code passes these checks before submitting
 
+### Testing
+
+Before opening a pull request, please run the backend test suite locally:
+
+```bash
+cd backend
+poetry run pytest tests/
+```
+
+Pull requests will also run tests automatically in CI. Running tests locally first
+helps catch issues early and keeps the review process smooth.
+
 ## Commit Messages
 
 - Use clear, descriptive commit messages

@@ -1,6 +1,7 @@
 // stores/layerStore.ts
-import { create, StateCreator } from "zustand";
-import { GeoDataObject, LayerStyle } from "../models/geodatamodel";
+import { create } from 'zustand';
+import { GeoDataObject, LayerStyle } from '../models/geodatamodel';
+import Logger from '../utils/logger';
 
 type LayerStore = {
   layers: GeoDataObject[];
@@ -15,6 +16,7 @@ type LayerStore = {
   selectLayerForSearch: (resource_id: string | number) => void;
   reorderLayers: (from: number, to: number) => void;
   // Layer styling
+  updateLayer: (resource_id: string | number, updates: Partial<GeoDataObject>) => void;
   updateLayerStyle: (resource_id: string | number, style: LayerStyle) => void;
   // Backend State Sync method
   synchronizeLayersFromBackend: (backend_layers: GeoDataObject[]) => void;
@@ -83,6 +85,14 @@ export const useLayerStore = create<LayerStore>()(
       return { layers };
     }),
   // Layer styling
+  updateLayer: (resource_id: string | number, updates: Partial<GeoDataObject>) =>
+    set((state: LayerStore) => ({
+      layers: state.layers.map((layer: GeoDataObject) =>
+        layer.id === resource_id
+          ? { ...layer, ...updates }
+          : layer
+      ),
+    })),
   updateLayerStyle: (resource_id: string | number, style: LayerStyle) =>
     set((state: LayerStore) => ({
       layers: state.layers.map((layer: GeoDataObject) =>
@@ -116,13 +126,13 @@ export const useLayerStore = create<LayerStore>()(
   // Update specific layers (for chat styling)
   updateLayersFromBackend: (updated_layers: GeoDataObject[]) =>
     set((state: LayerStore) => {
-      console.log("updateLayersFromBackend called with:", updated_layers);
-      console.log("Current state layers:", state.layers);
+      Logger.log("updateLayersFromBackend called with:", updated_layers);
+      Logger.log("Current state layers:", state.layers);
       
       const layers = state.layers.map(existingLayer => {
         const updatedLayer = updated_layers.find(layer => layer.id === existingLayer.id);
         if (updatedLayer) {
-          console.log(`Updating layer ${existingLayer.id}:`, {
+          Logger.log(`Updating layer ${existingLayer.id}:`, {
             old: existingLayer,
             new: updatedLayer
           });
@@ -136,7 +146,7 @@ export const useLayerStore = create<LayerStore>()(
         return existingLayer;
       });
       
-      console.log("Updated layers result:", layers);
+      Logger.log("Updated layers result:", layers);
       return { layers };
     }),
   synchronizeGlobalGeodataFromBackend: (backend_global_geodata: GeoDataObject[]) =>
@@ -146,3 +156,9 @@ export const useLayerStore = create<LayerStore>()(
       return { globalGeodata };
     }),
 }));
+
+// Expose store to window for E2E testing
+if (typeof window !== 'undefined') {
+  (window as any).useLayerStore = useLayerStore;
+  console.log('[LayerStore] Exposed to window for testing');
+}

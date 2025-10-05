@@ -16,9 +16,17 @@ USE_AZURE = os.getenv("USE_AZURE_STORAGE", "false").lower() == "true"
 AZ_CONN = os.getenv("AZURE_CONN_STRING", "")
 AZ_CONTAINER = os.getenv("AZURE_CONTAINER", "")
 
+# Azure SAS token expiry (in hours) - default 24 hours for secure time-limited access
+AZURE_SAS_EXPIRY_HOURS = int(os.getenv("AZURE_SAS_EXPIRY_HOURS", "24"))
+
 # Local upload directory and base URL
 LOCAL_UPLOAD_DIR = os.getenv("LOCAL_UPLOAD_DIR", "./uploads")
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
+
+# CORS configuration
+# Comma-separated list of allowed origins; if empty, allow all (not recommended with credentials)
+RAW_ALLOWED_ORIGINS = os.getenv("ALLOWED_CORS_ORIGINS", "")
+ALLOWED_CORS_ORIGINS = [o.strip() for o in RAW_ALLOWED_ORIGINS.split(",") if o.strip()]
 
 # File size limit (100MB)
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB in bytes

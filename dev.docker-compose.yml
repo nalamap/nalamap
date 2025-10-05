@@ -12,6 +12,10 @@ services:
       - AZURE_OPENAI_DEPLOYMENT=${AZURE_OPENAI_DEPLOYMENT}
       - AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION}
       - LLM_PROVIDER=${LLM_PROVIDER}
+      - USE_AZURE_STORAGE=${USE_AZURE_STORAGE:-false}
+      - AZURE_CONN_STRING=${AZURE_CONN_STRING:-}
+      - AZURE_CONTAINER=${AZURE_CONTAINER:-data}
+      - AZURE_SAS_EXPIRY_HOURS=${AZURE_SAS_EXPIRY_HOURS:-24}
     command: uvicorn main:app --reload --host 0.0.0.0 --port 8000 # auto-reload enabled
     ports:
       - "8000:8000"
@@ -27,6 +31,8 @@ services:
       - BACKEND_PROTOCOL=http
       - BACKEND_URL=backend:8000
       - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
+      - NEXT_PUBLIC_API_UPLOAD_URL=${NEXT_PUBLIC_API_UPLOAD_URL}
+      - RUNTIME_ENV_PATH=/app/runtime-env/runtime-env.js
     ports:
       - "3000:3000"
     command: yarn dev # starts Next.js in dev mode with hot reloading
