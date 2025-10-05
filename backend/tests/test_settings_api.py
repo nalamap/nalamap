@@ -2,12 +2,23 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from api.settings import router as settings_router
-
 
 @pytest.fixture
 def api_client(tmp_path, monkeypatch):
+    # Set test environment for local HTTP testing BEFORE importing
+    monkeypatch.setenv("COOKIE_SECURE", "false")
+    monkeypatch.setenv("COOKIE_HTTPONLY", "false")
     monkeypatch.setenv("NALAMAP_GEOSERVER_VECTOR_DB", str(tmp_path / "vectors.db"))
+
+    # Force reload of config to pick up test environment variables
+    import importlib
+    import core.config
+
+    importlib.reload(core.config)
+
+    # Now import the router
+    from api.settings import router as settings_router
+
     app = FastAPI()
     app.include_router(settings_router)
     return TestClient(app)

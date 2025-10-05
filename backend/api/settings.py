@@ -6,6 +6,7 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Request, Response, status
 from pydantic import BaseModel
 
+from core import config as core_config
 from models.settings_model import GeoServerBackend
 from services.default_agent_settings import DEFAULT_AVAILABLE_TOOLS, DEFAULT_SYSTEM_PROMPT
 from services.tools.geoserver.custom_geoserver import preload_backend_layers
@@ -72,8 +73,9 @@ async def get_settings_options(request: Request, response: Response):
         response.set_cookie(
             key="session_id",
             value=session_id,
-            httponly=False,
-            samesite="lax",
+            httponly=core_config.COOKIE_HTTPONLY,
+            secure=core_config.COOKIE_SECURE,
+            samesite=core_config.COOKIE_SAMESITE,
             max_age=60 * 60 * 24 * 30,
         )
 
@@ -100,8 +102,9 @@ async def preload_geoserver_backend(
     response.set_cookie(
         key="session_id",
         value=session_id,
-        httponly=False,
-        samesite="lax",
+        httponly=core_config.COOKIE_HTTPONLY,
+        secure=core_config.COOKIE_SECURE,
+        samesite=core_config.COOKIE_SAMESITE,
         max_age=60 * 60 * 24 * 30,
     )
 

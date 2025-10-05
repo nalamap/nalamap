@@ -28,6 +28,14 @@ BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
 RAW_ALLOWED_ORIGINS = os.getenv("ALLOWED_CORS_ORIGINS", "")
 ALLOWED_CORS_ORIGINS = [o.strip() for o in RAW_ALLOWED_ORIGINS.split(",") if o.strip()]
 
+# Cookie Security Configuration
+# In Azure Container Apps, nginx handles HTTPS termination, so backend receives HTTP.
+# Set COOKIE_SECURE=false in such environments while still using HTTPS externally.
+# Default to True for production security.
+COOKIE_SECURE = os.getenv("COOKIE_SECURE", "true").lower() == "true"
+COOKIE_HTTPONLY = os.getenv("COOKIE_HTTPONLY", "true").lower() == "true"
+COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax")  # "lax", "strict", or "none"
+
 # File size limit (100MB)
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB in bytes
 
