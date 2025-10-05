@@ -171,5 +171,10 @@ def get_file_to_serve(filename: str) -> tuple[Path, bool]:
             # Original doesn't exist but compressed does
             return compressed_path, True
 
-    # Use original file
+    # Use original file if it exists
+    if original_path.exists():
+        return original_path, False
+
+    # File doesn't exist - return non-existent path
+    # The caller should validate existence
     return original_path, False

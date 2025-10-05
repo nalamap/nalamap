@@ -156,19 +156,26 @@ async def stream_file(filename: str, request: Request):
     Raises:
         HTTPException: If file doesn't exist or is invalid
     """
-    file_path = get_file_path(filename)
-
     # Check if client accepts gzip encoding
     accept_encoding = request.headers.get("accept-encoding", "")
     client_accepts_gzip = "gzip" in accept_encoding.lower()
 
     # Determine which file to serve (original or compressed)
+    # This also validates the filename and sanitizes it
     serve_path, is_compressed = get_file_to_serve(filename)
 
+    # Validate that serve_path exists
+    if not serve_path.exists():
+        logger.error(f"File to serve does not exist: {serve_path}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found",
+        )
+
     # If not compressed but should be, compress it now
-    if not is_compressed and client_accepts_gzip and should_compress_file(file_path):
+    if not is_compressed and client_accepts_gzip and should_compress_file(serve_path):
         logger.info(f"Pre-compressing {filename} on first request...")
-        compressed = compress_file(file_path)
+        compressed = compress_file(serve_path)
         if compressed:
             serve_path = compressed
             is_compressed = True
