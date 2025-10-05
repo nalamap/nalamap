@@ -252,7 +252,7 @@ export default function AgentInterface() {
               className={`flex ${isHuman ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`w-full max-w-full px-4 py-2 rounded-lg ${isHuman
+                className={`max-w-[80%] px-4 py-2 rounded-lg ${isHuman
                   ? 'bg-blue-100 rounded-tr-none text-right'
                   : 'bg-gray-50 rounded-tl-none border'
                   }`}
@@ -278,7 +278,7 @@ export default function AgentInterface() {
 
           {(loading &&
             <div className="flex justify-start mb-2">
-              <div className="flex items-center space-x-2 w-full max-w-full px-4 py-2 rounded-lg bg-gray-50 rounded-tl-none border">
+              <div className="flex items-center space-x-2 max-w-[80%] px-4 py-2 rounded-lg bg-gray-50 rounded-tl-none border">
                 {/* spinning loader */}
                 <Loader2 size={16} className="animate-spin text-gray-500" />
                 <span className="text-sm text-gray-500">NaLaMap Agent is working on your request...</span>
