@@ -82,11 +82,15 @@ else:
     )
 
 # Local upload directory and base URL
-# Serve local uploads
 # Ensure GeoJSON files are served with an explicit media type
 mimetypes.add_type("application/geo+json", ".geojson")
 
 os.makedirs(LOCAL_UPLOAD_DIR, exist_ok=True)
+
+# Legacy /uploads/ endpoint using StaticFiles
+# NOTE: This may have issues with large files in Azure Container Apps
+# Prefer using /api/stream/ for new code (uses async generator)
+# We keep this for backward compatibility, but redirect internally where possible
 app.mount("/uploads", StaticFiles(directory=LOCAL_UPLOAD_DIR), name="uploads")
 
 # Include API routers
