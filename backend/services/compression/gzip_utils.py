@@ -3,6 +3,7 @@ Gzip compression utilities for GeoJSON files.
 
 Pre-compresses large GeoJSON files to reduce transfer size and improve performance.
 """
+
 import gzip
 import logging
 from pathlib import Path
@@ -80,9 +81,7 @@ def compress_file(file_path: Path, compression_level: int = 6) -> Optional[Path]
         logger.info(f"Compressing {file_path.name}...")
 
         with open(file_path, "rb") as f_in:
-            with gzip.open(
-                compressed_path, "wb", compresslevel=compression_level
-            ) as f_out:
+            with gzip.open(compressed_path, "wb", compresslevel=compression_level) as f_out:
                 # Read and write in chunks
                 chunk_size = 1024 * 1024  # 1MB chunks
                 while True:
@@ -110,9 +109,7 @@ def compress_file(file_path: Path, compression_level: int = 6) -> Optional[Path]
         return None
 
 
-def compress_directory(
-    directory: Optional[Path] = None, min_size_mb: float = 1.0
-) -> list[Path]:
+def compress_directory(directory: Optional[Path] = None, min_size_mb: float = 1.0) -> list[Path]:
     """
     Compress all eligible files in a directory.
 

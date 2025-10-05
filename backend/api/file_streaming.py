@@ -8,6 +8,7 @@ This endpoint provides:
 - Gzip compression support for large files
 - Better memory efficiency than StaticFiles for large files
 """
+
 import logging
 from pathlib import Path
 from typing import Optional
@@ -204,8 +205,7 @@ async def stream_file(filename: str, request: Request):
             content_length = end - start + 1
 
             logger.info(
-                f"Streaming file {filename} with range: "
-                f"bytes {start}-{end}/{file_size}"
+                f"Streaming file {filename} with range: " f"bytes {start}-{end}/{file_size}"
             )
 
             return StreamingResponse(
@@ -226,9 +226,7 @@ async def stream_file(filename: str, request: Request):
     else:
         # Full file stream
         compression_note = " (gzip)" if is_compressed else ""
-        logger.info(
-            f"Streaming full file {filename} ({file_size} bytes){compression_note}"
-        )
+        logger.info(f"Streaming full file {filename} ({file_size} bytes){compression_note}")
 
         return StreamingResponse(
             file_iterator(serve_path),

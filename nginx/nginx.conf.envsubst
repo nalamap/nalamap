@@ -130,10 +130,46 @@ http {
       proxy_busy_buffers_size 128k;
     }
 
-    # Static uploads served by backend FastAPI at /uploads
+    # Streaming file endpoint (optimized for large files)
+    # This endpoint uses the custom streaming backend with gzip support
+    location /api/stream/ {
+      proxy_http_version 1.1;
+      proxy_set_header Host               $proxy_host;
+      proxy_set_header X-Forwarded-Proto  $scheme;
+      proxy_set_header X-Forwarded-Host   $host;
+      proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
+
+      # Pass through Accept-Encoding to allow backend gzip
+      proxy_set_header Accept-Encoding    $http_accept_encoding;
+
+      proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL};
+
+      # Disable buffering for streaming
+      proxy_buffering off;
+      proxy_request_buffering off;
+      
+      # Extended timeouts for large files
+      proxy_connect_timeout 600s;
+      proxy_read_timeout    600s;
+      proxy_send_timeout    600s;
+      
+      # Enable chunked transfer encoding
+      chunked_transfer_encoding on;
+      
+      # Preserve range requests
+      proxy_set_header Range $http_range;
+      proxy_set_header If-Range $http_if_range;
+      
+      # Cache control
+      add_header Cache-Control "public, max-age=3600" always;
+      add_header X-Accel-Buffering no;
+    }
+
+    # Static uploads served by backend FastAPI at /uploads (legacy)
+    # Kept for backward compatibility, but prefer /api/stream/ for new code
     location /uploads/ {
       proxy_http_version 1.1;
-  proxy_set_header Host               $proxy_host;
+      proxy_set_header Host               $proxy_host;
       proxy_set_header X-Forwarded-Proto  $scheme;
       proxy_set_header X-Forwarded-Host   $host;
       proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;

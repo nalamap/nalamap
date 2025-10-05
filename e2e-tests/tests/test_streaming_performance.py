@@ -18,7 +18,7 @@ from performance_metrics import PerformanceTester  # noqa: E402
 
 
 # Configuration
-BASE_URL = os.environ.get("E2E_BASE_URL", "http://localhost:8000")
+BASE_URL = os.environ.get("E2E_BASE_URL", "http://localhost")
 TEST_DATA_DIR = Path(__file__).parent.parent / "test_data"
 RESULTS_DIR = Path(__file__).parent.parent / "results"
 

@@ -79,7 +79,7 @@ def store_file(name: str, content: bytes) -> Tuple[str, str]:
         dest_path = os.path.join(LOCAL_UPLOAD_DIR, unique_name)
         with open(dest_path, "wb") as f:
             f.write(content)
-        url = f"{BASE_URL}/uploads/{unique_name}"
+        url = f"{BASE_URL}/api/stream/{unique_name}"
     return url, unique_name
 
 
@@ -156,7 +156,7 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
                     if total > MAX_FILE_SIZE:
                         raise RuntimeError("MAX_FILE_SIZE_EXCEEDED")
                     out.write(data)
-            url = f"{BASE_URL}/uploads/{unique_name}"
+            url = f"{BASE_URL}/api/stream/{unique_name}"
             return url, unique_name
         except Exception as e:
             # Remove partial file
