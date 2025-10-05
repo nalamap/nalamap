@@ -84,9 +84,9 @@ def get_file_path(filename: str) -> Path:
     return file_path
 
 
-def file_iterator(file_path: Path, start: int = 0, end: Optional[int] = None):
+async def file_iterator(file_path: Path, start: int = 0, end: Optional[int] = None):
     """
-    Generator to yield file chunks.
+    Async generator to yield file chunks with explicit flushing.
 
     Args:
         file_path: Path to the file
@@ -96,25 +96,48 @@ def file_iterator(file_path: Path, start: int = 0, end: Optional[int] = None):
     Yields:
         Chunks of file data
     """
-    with open(file_path, "rb") as f:
-        f.seek(start)
-        remaining = end - start + 1 if end else None
+    try:
+        # Use synchronous file I/O but make the generator async
+        # This ensures proper async context handling
+        with open(file_path, "rb") as f:
+            f.seek(start)
+            remaining = end - start + 1 if end else None
+            bytes_read = 0
+            chunk_count = 0
 
-        while True:
-            chunk_size = CHUNK_SIZE
-            if remaining is not None:
-                chunk_size = min(chunk_size, remaining)
+            while True:
+                chunk_size = CHUNK_SIZE
+                if remaining is not None:
+                    chunk_size = min(chunk_size, remaining)
 
-            chunk = f.read(chunk_size)
-            if not chunk:
-                break
-
-            yield chunk
-
-            if remaining is not None:
-                remaining -= len(chunk)
-                if remaining <= 0:
+                chunk = f.read(chunk_size)
+                if not chunk:
                     break
+
+                bytes_read += len(chunk)
+                chunk_count += 1
+
+                # Yield chunk and ensure it's sent
+                yield chunk
+
+                # Give control back to event loop every 10 chunks
+                # This prevents blocking and ensures proper flushing
+                if chunk_count % 10 == 0:
+                    import asyncio
+                    await asyncio.sleep(0)
+
+                if remaining is not None:
+                    remaining -= len(chunk)
+                    if remaining <= 0:
+                        break
+
+            logger.info(
+                f"Finished streaming {file_path.name}: "
+                f"{bytes_read} bytes sent ({chunk_count} chunks)"
+            )
+    except Exception as e:
+        logger.error(f"Error streaming file {file_path}: {e}", exc_info=True)
+        raise
 
 
 def get_content_type(filename: str) -> str:
@@ -239,6 +262,7 @@ async def stream_file(filename: str, request: Request):
         # Full file stream
         compression_note = " (gzip)" if is_compressed else ""
         logger.info(f"Streaming full file {filename} ({file_size} bytes){compression_note}")
+        logger.info(f"Serving file: {serve_path} (exists: {serve_path.exists()})")
 
         return StreamingResponse(
             file_iterator(serve_path),
