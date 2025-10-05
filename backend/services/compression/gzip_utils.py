@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 from core.config import LOCAL_UPLOAD_DIR
+from utility.string_methods import sanitize_filename
 
 logger = logging.getLogger(__name__)
 
@@ -145,12 +146,18 @@ def get_file_to_serve(filename: str) -> tuple[Path, bool]:
     Determine which file to serve (original or compressed).
 
     Args:
-        filename: Name of the requested file
+        filename: Name of the requested file (will be sanitized)
 
     Returns:
         Tuple of (file_path, is_compressed)
     """
-    original_path = Path(LOCAL_UPLOAD_DIR) / filename
+    # Sanitize the filename to prevent path traversal
+    safe_filename = sanitize_filename(filename)
+    if not safe_filename:
+        # Return a non-existent path if filename is invalid
+        return Path(LOCAL_UPLOAD_DIR) / "invalid", False
+
+    original_path = Path(LOCAL_UPLOAD_DIR) / safe_filename
     compressed_path = get_compressed_path(original_path)
 
     # If compressed version exists and is up-to-date, use it

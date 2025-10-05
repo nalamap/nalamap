@@ -1,5 +1,5 @@
 """
-Streaming file endpoint for efficient serving of large GeoJSON files.
+Streaming endpoint for efficient serving of large GeoJSON files.
 
 This endpoint provides:
 - Chunked streaming transfer for large files
@@ -17,6 +17,7 @@ from fastapi import APIRouter, HTTPException, status, Request
 from fastapi.responses import StreamingResponse
 
 from core.config import LOCAL_UPLOAD_DIR
+from utility.string_methods import sanitize_filename
 from services.compression.gzip_utils import (
     get_file_to_serve,
     compress_file,
@@ -44,22 +45,18 @@ def get_file_path(filename: str) -> Path:
     Raises:
         HTTPException: If file doesn't exist or path is invalid
     """
-    # Prevent directory traversal and validate filename
-    if ".." in filename or filename.startswith("/") or "\\" in filename:
+    # Sanitize the filename to remove any path traversal attempts
+    # This uses the same sanitization as file_management.py
+    safe_filename = sanitize_filename(filename)
+
+    if not safe_filename:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid filename",
         )
 
-    # Additional security: ensure filename doesn't contain path separators
-    if "/" in filename or "\\" in filename:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Filename cannot contain path separators",
-        )
-
-    # Construct path only after validation
-    file_path = Path(LOCAL_UPLOAD_DIR) / filename
+    # Construct path with sanitized filename
+    file_path = Path(LOCAL_UPLOAD_DIR) / safe_filename
     file_path = file_path.resolve()
 
     # Ensure the file is within the upload directory
