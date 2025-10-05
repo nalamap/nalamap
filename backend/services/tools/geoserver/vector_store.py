@@ -130,7 +130,8 @@ def _load_custom_embeddings() -> Optional[Embeddings]:
 
     if not isinstance(instance, Embeddings):
         logger.warning(
-            "Custom GeoServer embedding factory '%s' returned %s instead of an Embeddings instance.",
+            "Custom GeoServer embedding factory '%s' returned %s instead of an "
+            "Embeddings instance.",
             factory_path,
             type(instance).__name__,
         )
@@ -286,8 +287,7 @@ def store_layers(
     normalized_backend = backend_url.rstrip("/")
     texts = [_layer_to_text(layer) for layer in layers]
     metadatas = [
-        _metadata_payload(session_id, normalized_backend, backend_name, layer)
-        for layer in layers
+        _metadata_payload(session_id, normalized_backend, backend_name, layer) for layer in layers
     ]
 
     if _use_fallback_store:

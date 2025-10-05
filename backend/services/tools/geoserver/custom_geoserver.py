@@ -584,7 +584,8 @@ def _get_custom_geoserver_data(
     if not session_id:
         return ToolMessage(
             content=(
-                "Missing session identifier. Please reload the settings page to establish a session."
+                "Missing session identifier. Please reload the settings page to "
+                "establish a session."
             ),
             tool_call_id=tool_call_id,
         )
@@ -874,8 +875,6 @@ if __name__ == "__main__":
         print(f"Found total layers: {len(layers)}\n")
 
         # Print a summary by service
-        from collections import Counter
-
         svc_counts = Counter(getattr(layer, "layer_type", "UNKNOWN") for layer in layers)
         for svc, cnt in svc_counts.items():
             print(f"  {svc}: {cnt}")
