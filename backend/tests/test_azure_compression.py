@@ -8,7 +8,7 @@ is set correctly so browsers can automatically decompress.
 
 import gzip
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch, MagicMock
 from io import BytesIO
 
 from services.storage.file_management import (

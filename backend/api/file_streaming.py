@@ -44,13 +44,21 @@ def get_file_path(filename: str) -> Path:
     Raises:
         HTTPException: If file doesn't exist or path is invalid
     """
-    # Prevent directory traversal
-    if ".." in filename or filename.startswith("/"):
+    # Prevent directory traversal and validate filename
+    if ".." in filename or filename.startswith("/") or "\\" in filename:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid filename",
         )
 
+    # Additional security: ensure filename doesn't contain path separators
+    if "/" in filename or "\\" in filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Filename cannot contain path separators",
+        )
+
+    # Construct path only after validation
     file_path = Path(LOCAL_UPLOAD_DIR) / filename
     file_path = file_path.resolve()
 
