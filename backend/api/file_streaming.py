@@ -120,12 +120,12 @@ async def file_iterator(file_path: Path, start: int = 0, end: Optional[int] = No
                 # Yield chunk and ensure it's sent
                 yield chunk
 
-                # Give control back to event loop every 10 chunks
-                # This prevents blocking and ensures proper flushing
-                if chunk_count % 10 == 0:
-                    import asyncio
+                # CRITICAL: Give control back to event loop after EVERY chunk
+                # This prevents the async generator from blocking FastAPI's event loop
+                # Without this, nginx sees "upstream prematurely closed connection"
+                import asyncio
 
-                    await asyncio.sleep(0)
+                await asyncio.sleep(0)
 
                 if remaining is not None:
                     remaining -= len(chunk)
