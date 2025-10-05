@@ -1,0 +1,13 @@
+# Test results
+results/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Test data (generated)
+test_data/*.geojson
+
+# Pytest cache
+.pytest_cache/

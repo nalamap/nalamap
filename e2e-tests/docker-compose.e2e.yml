@@ -1,0 +1,38 @@
+version: "3.8"
+
+services:
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - DATABASE_URL=sqlite:///./nalamap.db
+      - SECRET_KEY=e2e-test-secret-key-change-in-production
+      - USE_AZURE_STORAGE=false
+      - CORS_ORIGINS=http://localhost,http://localhost:3000
+    volumes:
+      - ../backend:/app
+      - e2e-uploads:/app/uploads
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  nginx:
+    build:
+      context: ../nginx
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    environment:
+      - BACKEND_URL=http://backend:8000
+      - FRONTEND_URL=http://frontend:3000
+      - AZURE_BLOB_DOMAIN=
+    volumes:
+      - e2e-uploads:/usr/share/nginx/html/uploads:ro
+    depends_on:
+      - backend
+
+volumes:
+  e2e-uploads:
+    driver: local
