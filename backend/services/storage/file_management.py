@@ -30,9 +30,9 @@ def _generate_sas_url(blob_url: str, blob_name: str) -> str:
         from azure.storage.blob import generate_blob_sas, BlobSasPermissions
 
         # Parse connection string to extract account credentials
-        conn_parts = dict(part.split('=', 1) for part in AZ_CONN.split(';') if '=' in part)
-        account_name = conn_parts.get('AccountName')
-        account_key = conn_parts.get('AccountKey')
+        conn_parts = dict(part.split("=", 1) for part in AZ_CONN.split(";") if "=" in part)
+        account_name = conn_parts.get("AccountName")
+        account_key = conn_parts.get("AccountKey")
 
         if not account_name or not account_key:
             # Fallback to public URL if credentials not available
@@ -45,7 +45,7 @@ def _generate_sas_url(blob_url: str, blob_name: str) -> str:
             blob_name=blob_name,
             account_key=account_key,
             permission=BlobSasPermissions(read=True),
-            expiry=datetime.utcnow() + timedelta(hours=AZURE_SAS_EXPIRY_HOURS)
+            expiry=datetime.utcnow() + timedelta(hours=AZURE_SAS_EXPIRY_HOURS),
         )
 
         # Construct SAS URL
