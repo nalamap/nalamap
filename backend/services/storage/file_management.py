@@ -1,5 +1,6 @@
 import os
 import uuid
+import gzip
 from datetime import datetime, timedelta
 from typing import Tuple, BinaryIO
 
@@ -12,6 +13,35 @@ from core.config import (
     USE_AZURE,
 )
 from utility.string_methods import sanitize_filename
+
+# Minimum file size for compression (1MB)
+MIN_COMPRESS_SIZE = 1024 * 1024
+
+
+def _should_compress_for_azure(filename: str, size: int) -> bool:
+    """Determine if file should be compressed before Azure upload.
+
+    Args:
+        filename: Name of the file
+        size: Size of the file in bytes
+
+    Returns:
+        True if file should be compressed
+    """
+    # Only compress GeoJSON files larger than 1MB
+    return filename.lower().endswith(".geojson") and size > MIN_COMPRESS_SIZE
+
+
+def _compress_for_azure(content: bytes) -> bytes:
+    """Compress content using gzip.
+
+    Args:
+        content: Raw file content
+
+    Returns:
+        Compressed content
+    """
+    return gzip.compress(content, compresslevel=6)
 
 
 def _generate_sas_url(blob_url: str, blob_name: str) -> str:
@@ -60,17 +90,44 @@ def store_file(name: str, content: bytes) -> Tuple[str, str]:
     """Stores the given content in a file based on the name.
 
     Returns a time-limited SAS URL for Azure Blob Storage (more secure than public URLs).
+    For GeoJSON files >1MB, automatically compresses with gzip to save bandwidth and storage.
     """
     # Generate unique file name
     safe_name = sanitize_filename(name)
     unique_name = f"{uuid.uuid4().hex}_{safe_name}"
 
     if USE_AZURE:
-        from azure.storage.blob import BlobServiceClient
+        from azure.storage.blob import BlobServiceClient, ContentSettings
 
         blob_svc = BlobServiceClient.from_connection_string(AZ_CONN)
         container = blob_svc.get_container_client(AZ_CONTAINER)
-        container.upload_blob(name=unique_name, data=content)
+
+        # Check if we should compress
+        should_compress = _should_compress_for_azure(safe_name, len(content))
+
+        if should_compress:
+            # Compress the content
+            compressed_content = _compress_for_azure(content)
+            original_size = len(content)
+            compressed_size = len(compressed_content)
+            compression_ratio = (1 - compressed_size / original_size) * 100
+
+            print(
+                f"Compressed {safe_name}: {original_size} -> {compressed_size} bytes "
+                f"({compression_ratio:.1f}% reduction)"
+            )
+
+            # Upload with Content-Encoding header so browsers auto-decompress
+            container.upload_blob(
+                name=unique_name,
+                data=compressed_content,
+                content_settings=ContentSettings(
+                    content_type="application/geo+json", content_encoding="gzip"
+                ),
+            )
+        else:
+            # Upload without compression
+            container.upload_blob(name=unique_name, data=content)
 
         # Generate secure SAS URL instead of public URL
         blob_url = f"{container.url}/{unique_name}"
@@ -102,7 +159,7 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
     chunk_size = 1024 * 1024  # 1 MiB chunks
 
     if USE_AZURE:
-        from azure.storage.blob import BlobServiceClient
+        from azure.storage.blob import BlobServiceClient, ContentSettings
 
         blob_svc = BlobServiceClient.from_connection_string(AZ_CONN)
         container = blob_svc.get_container_client(AZ_CONTAINER)
@@ -126,8 +183,38 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
 
         limiter = SizeLimitedReader(stream, MAX_FILE_SIZE)
         try:
-            # Stream to Azure; SDK will pull from stream in chunks
-            blob_client.upload_blob(data=limiter, overwrite=True)
+            # For GeoJSON files >1MB, compress before upload
+            # Note: We need to read entire stream into memory for compression
+            if _should_compress_for_azure(safe_name, MAX_FILE_SIZE):
+                # Read stream content (respecting size limit)
+                content = limiter.read()
+
+                # Check actual size
+                actual_size = len(content)
+                if _should_compress_for_azure(safe_name, actual_size):
+                    # Compress
+                    compressed_content = _compress_for_azure(content)
+                    compression_ratio = (1 - len(compressed_content) / actual_size) * 100
+
+                    print(
+                        f"Compressed {safe_name}: {actual_size} -> "
+                        f"{len(compressed_content)} bytes ({compression_ratio:.1f}% reduction)"
+                    )
+
+                    # Upload compressed with Content-Encoding header
+                    blob_client.upload_blob(
+                        data=compressed_content,
+                        overwrite=True,
+                        content_settings=ContentSettings(
+                            content_type="application/geo+json", content_encoding="gzip"
+                        ),
+                    )
+                else:
+                    # File smaller than threshold, upload without compression
+                    blob_client.upload_blob(data=content, overwrite=True)
+            else:
+                # Non-GeoJSON or small file, stream directly
+                blob_client.upload_blob(data=limiter, overwrite=True)
 
             # Generate secure SAS URL instead of public URL
             blob_url = f"{container.url}/{unique_name}"
