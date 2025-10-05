@@ -238,18 +238,17 @@ async def stream_file(filename: str, request: Request):
                     headers={"Content-Range": f"bytes */{file_size}"},
                 )
 
-            content_length = end - start + 1
-
             logger.info(
                 f"Streaming file {filename} with range: " f"bytes {start}-{end}/{file_size}"
             )
 
+            # For range requests, we CAN keep Content-Length since it's partial content
+            # But remove it if you see issues with partial content streaming too
             return StreamingResponse(
                 file_iterator(serve_path, start, end),
                 status_code=status.HTTP_206_PARTIAL_CONTENT,
                 headers={
                     **headers,
-                    "Content-Length": str(content_length),
                     "Content-Range": f"bytes {start}-{end}/{file_size}",
                 },
             )
@@ -265,13 +264,14 @@ async def stream_file(filename: str, request: Request):
         logger.info(f"Streaming full file {filename} ({file_size} bytes){compression_note}")
         logger.info(f"Serving file: {serve_path} (exists: {serve_path.exists()})")
 
+        # Do NOT set Content-Length for streaming responses!
+        # This forces chunked transfer encoding which is required for proper
+        # async streaming in Azure Container Apps. Setting Content-Length can
+        # cause nginx to see "upstream prematurely closed connection"
         return StreamingResponse(
             file_iterator(serve_path),
             status_code=status.HTTP_200_OK,
-            headers={
-                **headers,
-                "Content-Length": str(file_size),
-            },
+            headers=headers,
         )
 
 
