@@ -7,8 +7,11 @@ events {
 http {
   include       /etc/nginx/mime.types;
   default_type  application/octet-stream;
-  sendfile      on;
-  tcp_nopush    on;
+  
+  # CRITICAL: For proper streaming, disable sendfile and enable immediate flushing
+  # sendfile can buffer data and cause issues with chunked transfer encoding
+  sendfile      off;
+  tcp_nopush    off;
   tcp_nodelay   on;
   aio           on;
   keepalive_timeout 65s;
@@ -133,7 +136,10 @@ http {
     # Streaming file endpoint (optimized for large files)
     # This endpoint uses the custom streaming backend with gzip support
     location /api/stream/ {
+      # CRITICAL: Use HTTP/1.1 and disable keep-alive for proper streaming
       proxy_http_version 1.1;
+      proxy_set_header Connection "";
+      
       proxy_set_header Host               $proxy_host;
       proxy_set_header X-Forwarded-Proto  $scheme;
       proxy_set_header X-Forwarded-Host   $host;
@@ -144,25 +150,25 @@ http {
 
       proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL};
 
-      # Disable buffering for streaming
+      # CRITICAL: Completely disable buffering for streaming
       proxy_buffering off;
       proxy_request_buffering off;
+      proxy_max_temp_file_size 0;
       
       # Extended timeouts for large files
       proxy_connect_timeout 600s;
       proxy_read_timeout    600s;
       proxy_send_timeout    600s;
       
-      # Enable chunked transfer encoding
-      chunked_transfer_encoding on;
-      
       # Preserve range requests
       proxy_set_header Range $http_range;
       proxy_set_header If-Range $http_if_range;
       
-      # Cache control
-      add_header Cache-Control "public, max-age=3600" always;
-      add_header X-Accel-Buffering no;
+      # Force immediate flush and disable all buffering hints
+      add_header X-Accel-Buffering "no" always;
+      add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+      add_header Pragma "no-cache" always;
+      add_header Expires "0" always;
     }
 
     # Static uploads served by backend FastAPI at /uploads (legacy)
