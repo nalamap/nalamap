@@ -247,15 +247,15 @@ export default function AgentInterface() {
             // 3) Fall back to your normal human/AI rendering
             const isHuman = msg.type === 'human'
             return (
+            <div
+              key={msgKey}
+              className={`flex ${isHuman ? 'justify-end' : 'justify-start'}`}
+            >
               <div
-                key={msgKey}
-                className={`flex ${isHuman ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`max-w-[80%] px-4 py-2 rounded-lg ${isHuman
-                    ? 'bg-blue-100 rounded-tr-none text-right'
-                    : 'bg-gray-50 rounded-tl-none border'
-                    }`}
+                className={`max-w-[80%] px-4 py-2 rounded-lg ${isHuman
+                  ? 'bg-blue-100 rounded-tr-none text-right'
+                  : 'bg-gray-50 rounded-tl-none border'
+                  }`}
                 >
                   {isHuman ? (
                     <div className="text-sm break-words">{extractTextContent(msg.content)}</div>

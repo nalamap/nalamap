@@ -6,6 +6,7 @@ from services.tools.geocoding import (
     geocode_using_overpass_to_geostate,
 )
 from services.tools.geoprocess_tools import geoprocess_tool
+from services.tools.attribute_tools import attribute_tool
 from services.tools.geostate_management import metadata_search
 from services.tools.librarian_tools import query_librarian_postgis
 from services.tools.styling_tools import (
@@ -29,11 +30,21 @@ DEFAULT_SYSTEM_PROMPT: str = (
     " - Geoprocessing (buffer, intersect, clip, merge on existing layers/AOIs)\n"
     " - Styling (apply or adjust visual styles on demand)\n"
     " - Geostate management (query/describe datasets already in the session)\n"
+    "- You can search for specific amenities (e.g., restaurants, parks, hospitals) "
+    "near a location using the Overpass API.\n"
+    "- You can style map layers based on natural language descriptions (e.g., "
+    "'make the rivers blue', 'thick red borders', 'transparent fill').\n"
+    "- You can inspect and query attribute tables of GeoJSON layers "
+    "(list fields, summarize numeric columns, list unique values, "
+    "sort, select columns, and filter rows using a safe CQL-lite predicate language). "
+    "Use the attribute_tool for these operations.\n"
     "- Decision policy:\n"
     " - Prefer using existing layers/results in state before discovery or new data creation.\n"
     " - Choose the simplest single tool that satisfies the goal; avoid redundant calls.\n"
     " - Validate inputs (layer names, fields, units) and ask one clarifying question if needed.\n"
-    " - Styling is opt-in: do not style layers automatically unless the user asks.\n\n"
+    " - Styling is opt-in: do not style layers automatically unless the user asks.\n"
+    "- You're designed to be proactive, guiding users through the map creation "
+    "process and suggesting potential next steps.\n\n"
     "# STATE INFORMATION\n"
     "- The public state contains:\n"
     " - 'geodata_layers': datasets currently selected by the user and displayed in the UI.\n"
@@ -218,5 +229,6 @@ DEFAULT_AVAILABLE_TOOLS: Dict[str, BaseTool] = {
     "check_and_autostyle": check_and_auto_style_layers,  # Automatic layer style checker
     "apply_color_scheme": apply_intelligent_color_scheme,
     "get_custom_geoserver_data": get_custom_geoserver_data,
+    "attribute_tool": attribute_tool,
 }
 DEFAULT_SELECTED_TOOLS = []
