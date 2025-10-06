@@ -6,6 +6,7 @@ from collections import Counter
 Feature = Dict[str, Any]
 FC = Dict[str, Any]
 
+
 def _to_fc(obj: Dict[str, Any]) -> FC:
     if obj.get("type") == "FeatureCollection":
         return obj
@@ -13,8 +14,10 @@ def _to_fc(obj: Dict[str, Any]) -> FC:
         return {"type": "FeatureCollection", "features": [obj]}
     raise ValueError("Unsupported GeoJSON type")
 
+
 def _features(fc: FC) -> List[Feature]:
     return fc.get("features", [])
+
 
 def list_fields(fc: FC, sample: int = 1000) -> Dict[str, Any]:
     feats = _features(fc)[:sample]
@@ -25,7 +28,7 @@ def list_fields(fc: FC, sample: int = 1000) -> Dict[str, Any]:
         props = f.get("properties", {}) or {}
         for k, v in props.items():
             null_counts[k] = null_counts.get(k, 0) + (1 if v is None else 0)
-            t = ("null" if v is None else type(v).__name__)
+            t = "null" if v is None else type(v).__name__
             # keep the most informative type seen
             prev = type_guess.get(k)
             if prev is None or prev == "null":
@@ -35,13 +38,16 @@ def list_fields(fc: FC, sample: int = 1000) -> Dict[str, Any]:
                 examples[k] = v
     fields = []
     for k in sorted(type_guess.keys()):
-        fields.append({
-            "name": k,
-            "type": type_guess[k],
-            "null_count": null_counts.get(k, 0),
-            "example": examples.get(k)
-        })
+        fields.append(
+            {
+                "name": k,
+                "type": type_guess[k],
+                "null_count": null_counts.get(k, 0),
+                "example": examples.get(k),
+            }
+        )
     return {"fields": fields, "sample_size": len(feats)}
+
 
 def summarize(fc: FC, fields: List[str]) -> Dict[str, Any]:
     feats = _features(fc)
@@ -55,18 +61,27 @@ def summarize(fc: FC, fields: List[str]) -> Dict[str, Any]:
         if vals:
             vals_sorted = sorted(vals)
             n = len(vals)
-            def pct(p): 
-                i = int(max(0, min(n - 1, round(p*(n-1)))))
+
+            def pct(p):
+                i = int(max(0, min(n - 1, round(p * (n - 1)))))
                 return vals_sorted[i]
+
             out[fld] = {
-                "count": n, "mean": sum(vals)/n, "min": vals_sorted[0], "max": vals_sorted[-1],
-                "p25": pct(0.25), "p50": pct(0.5), "p75": pct(0.75)
+                "count": n,
+                "mean": sum(vals) / n,
+                "min": vals_sorted[0],
+                "max": vals_sorted[-1],
+                "p25": pct(0.25),
+                "p50": pct(0.5),
+                "p75": pct(0.75),
             }
         else:
             out[fld] = {"count": 0}
     return out
 
-_token = re.compile(r"""
+
+_token = re.compile(
+    r"""
     \s*(?:
         (?P<ident>[A-Za-z_][A-Za-z0-9_]*)
       | "(?P<identq>[^"]+)"
@@ -78,7 +93,10 @@ _token = re.compile(r"""
       | (?P<rpar>\))
       | (?P<comma>,)
     )
-""", re.X)
+""",
+    re.X,
+)
+
 
 def _tokenize(s: str):
     pos = 0
@@ -89,22 +107,31 @@ def _tokenize(s: str):
         pos = m.end()
         yield m
 
+
 # A very small recursive-descent parser -> AST for predicates.
 # To keep it short here, we evaluate in a simple way during filtering.
+
 
 def _cmp(a, op, b):
     if a is None or b is None:
         return False
     try:
-        if op == "=":  return a == b
-        if op == "!=": return a != b
-        if op == ">":  return a > b
-        if op == "<":  return a < b
-        if op == ">=": return a >= b
-        if op == "<=": return a <= b
+        if op == "=":
+            return a == b
+        if op == "!=":
+            return a != b
+        if op == ">":
+            return a > b
+        if op == "<":
+            return a < b
+        if op == ">=":
+            return a >= b
+        if op == "<=":
+            return a <= b
     except Exception:
         return False
     return False
+
 
 def _parse_literal(tok):
     if tok.group("string") is not None:
@@ -114,21 +141,26 @@ def _parse_literal(tok):
         return float(s) if "." in s else int(s)
     return None
 
+
 def _read(tokens):
     return next(tokens, None)
+
 
 def _peek(state):
     return state["cur"]
 
+
 def _advance(state, tokens):
     state["cur"] = _read(tokens)
     return state["cur"]
+
 
 def _expect_kw(state, kw):
     cur = _peek(state)
     if not (cur and (cur.group("kw") == kw)):
         raise ValueError(f"Expected {kw}")
     _advance(state, state["tokens"])
+
 
 def _expect_op(state, ops):
     cur = _peek(state)
@@ -138,12 +170,14 @@ def _expect_op(state, ops):
     _advance(state, state["tokens"])
     return op
 
+
 def _field_name(tok) -> str:
     if tok.group("ident"):
         return tok.group("ident")
     if tok.group("identq"):
         return tok.group("identq")
     raise ValueError("Expected field name")
+
 
 def _parse_primary(state):
     cur = _peek(state)
@@ -185,7 +219,8 @@ def _parse_primary(state):
                     _advance(state, state["tokens"])
                     break
                 if cur.group("comma"):
-                    _advance(state, state["tokens"]); continue
+                    _advance(state, state["tokens"])
+                    continue
                 v = _parse_literal(cur)
                 if v is None:
                     raise ValueError("Expected literal in IN list")
@@ -207,6 +242,7 @@ def _parse_primary(state):
     # literal (bool context) not supported
     raise ValueError("Expected expression")
 
+
 def _parse_not(state):
     cur = _peek(state)
     if cur and cur.group("kw") == "NOT":
@@ -214,6 +250,7 @@ def _parse_not(state):
         node = _parse_not(state)
         return ("not", node)
     return _parse_primary(state)
+
 
 def _parse_and(state):
     node = _parse_not(state)
@@ -223,6 +260,7 @@ def _parse_and(state):
         node = ("and", node, rhs)
     return node
 
+
 def _parse_expr(state):
     node = _parse_and(state)
     while _peek(state) and _peek(state).group("kw") == "OR":
@@ -231,13 +269,15 @@ def _parse_expr(state):
         node = ("or", node, rhs)
     return node
 
+
 def _compile_predicate(where: str):
     tokens = iter(_tokenize(where))
     state = {"tokens": tokens, "cur": None}
     _advance(state, tokens)
-    ast = _parse_expr(state)
+    _parse_expr(state)  # Parse to validate syntax
     if _peek(state):
         raise ValueError("Unexpected trailing tokens")
+
     def eval_node(node, props):
         kind = node[0]
         if kind == "cmp":
@@ -257,14 +297,28 @@ def _compile_predicate(where: str):
         if kind == "not":
             return not eval_node(node[1], props)
         raise ValueError(f"Unknown node {kind}")
+
     return eval_node
+
 
 def filter_where(fc: FC, where: str) -> FC:
     pred = _compile_predicate(where)
-    feats = [f for f in _features(fc) if pred((f.get("properties") or {}),)]
+    feats = [
+        f
+        for f in _features(fc)
+        if pred(
+            (f.get("properties") or {}),
+        )
+    ]
     return {"type": "FeatureCollection", "features": feats}
 
-def select_fields(fc: FC, include: Optional[List[str]] = None, exclude: Optional[List[str]] = None, keep_geometry: bool = True) -> FC:
+
+def select_fields(
+    fc: FC,
+    include: Optional[List[str]] = None,
+    exclude: Optional[List[str]] = None,
+    keep_geometry: bool = True,
+) -> FC:
     feats_out = []
     for f in _features(fc):
         props = (f.get("properties") or {}).copy()
@@ -279,8 +333,10 @@ def select_fields(fc: FC, include: Optional[List[str]] = None, exclude: Optional
         feats_out.append(newf)
     return {"type": "FeatureCollection", "features": feats_out}
 
+
 def sort_by(fc: FC, fields: List[Tuple[str, str]]) -> FC:
     feats = list(_features(fc))
+
     def keyfun(feat):
         props = feat.get("properties") or {}
         key = []
@@ -288,11 +344,13 @@ def sort_by(fc: FC, fields: List[Tuple[str, str]]) -> FC:
             v = props.get(fld)
             key.append((v is None, v))  # Nones last
         return tuple(key)
-    reverse = any(d.lower()=="desc" for _, d in fields)
+
+    reverse = any(d.lower() == "desc" for _, d in fields)
     feats.sort(key=keyfun, reverse=reverse)
     return {"type": "FeatureCollection", "features": feats}
 
-def unique_values(fc: FC, field: str, top_k: Optional[int]=None) -> Dict[str, Any]:
+
+def unique_values(fc: FC, field: str, top_k: Optional[int] = None) -> Dict[str, Any]:
     vals = []
     for f in _features(fc):
         v = (f.get("properties") or {}).get(field)

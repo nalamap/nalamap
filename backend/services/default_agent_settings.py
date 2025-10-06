@@ -35,7 +35,7 @@ DEFAULT_SYSTEM_PROMPT: str = (
     "- You can style map layers based on natural language descriptions (e.g., "
     "'make the rivers blue', 'thick red borders', 'transparent fill').\n"
     "- You can inspect and query attribute tables of GeoJSON layers "
-    "(list fields, summarize numeric columns, list unique values, " 
+    "(list fields, summarize numeric columns, list unique values, "
     "sort, select columns, and filter rows using a safe CQL-lite predicate language). "
     "Use the attribute_tool for these operations.\n"
     "- Decision policy:\n"

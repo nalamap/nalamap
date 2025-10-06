@@ -1,4 +1,9 @@
-import json, os, uuid, re, math, requests, logging
+import json
+import os
+import uuid
+import re
+import requests
+import logging
 from typing import Any, Dict, List, Optional, Union, Tuple
 
 import pandas as pd
@@ -24,7 +29,8 @@ logging.basicConfig(level=logging.INFO)
 # =========================
 # CQL-lite tokenizer/parser
 # =========================
-_token = re.compile(r"""
+_token = re.compile(
+    r"""
     \s*(?:
         (?P<ident>[A-Za-z_][A-Za-z0-9_]*)
       | "(?P<identq>[^"]+)"
@@ -36,7 +42,10 @@ _token = re.compile(r"""
       | (?P<rpar>\))
       | (?P<comma>,)
     )
-""", re.X)
+""",
+    re.X,
+)
+
 
 def _tokenize(s: str):
     pos = 0
@@ -47,14 +56,27 @@ def _tokenize(s: str):
         pos = m.end()
         yield m
 
-def _read(tokens): return next(tokens, None)
-def _advance(state, tokens): state["cur"] = _read(tokens); return state["cur"]
-def _peek(state): return state["cur"]
 
-def _field_name(tok)->str:
-    if tok.group("ident"): return tok.group("ident")
-    if tok.group("identq"): return tok.group("identq")
+def _read(tokens):
+    return next(tokens, None)
+
+
+def _advance(state, tokens):
+    state["cur"] = _read(tokens)
+    return state["cur"]
+
+
+def _peek(state):
+    return state["cur"]
+
+
+def _field_name(tok) -> str:
+    if tok.group("ident"):
+        return tok.group("ident")
+    if tok.group("identq"):
+        return tok.group("identq")
     raise ValueError("Expected field name")
+
 
 # --- NEW: dataset description helpers ---------------------------------
 def _geometry_type_counts(gdf: gpd.GeoDataFrame) -> Dict[str, int]:
@@ -63,6 +85,7 @@ def _geometry_type_counts(gdf: gpd.GeoDataFrame) -> Dict[str, int]:
     # robust type extraction (handles missing/empty geometries)
     types = gdf.geometry.geom_type.fillna("None")
     return types.value_counts().to_dict()
+
 
 def _bbox(gdf: gpd.GeoDataFrame) -> Optional[List[float]]:
     try:
@@ -73,44 +96,45 @@ def _bbox(gdf: gpd.GeoDataFrame) -> Optional[List[float]]:
         pass
     return None
 
+
 def _suggest_next_steps(gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any]) -> List[str]:
     tips = []
-    geom_name = gdf.geometry.name if gdf.geometry is not None else None
+    # Note: geometry name could be used for field-specific suggestions if needed
     gtypes = set(_geometry_type_counts(gdf).keys())
     cols = [c["name"] for c in schema_ctx.get("columns", [])]
 
     # Geometry-driven ideas
-    if {"LineString","MultiLineString"} & gtypes:
+    if {"LineString", "MultiLineString"} & gtypes:
         tips += [
             "Filter by name or class to focus on a single line feature.",
             "Compute length, then style lines by length or class.",
             "Buffer lines to model influence zones (e.g., 100–500 m).",
-            "Spatial-join with places or admin areas to count overlaps."
+            "Spatial-join with places or admin areas to count overlaps.",
         ]
-    if {"Point","MultiPoint"} & gtypes:
+    if {"Point", "MultiPoint"} & gtypes:
         tips += [
             "Filter by category/status and map clusters or heatmaps.",
             "Aggregate points by admin areas (count per district).",
-            "Nearest-neighbor join to the closest service or road."
+            "Nearest-neighbor join to the closest service or road.",
         ]
-    if {"Polygon","MultiPolygon"} & gtypes:
+    if {"Polygon", "MultiPolygon"} & gtypes:
         tips += [
             "Filter polygons by attributes (e.g., type, protection).",
             "Compute area and style choropleth maps.",
-            "Intersect/union with other layers to analyze overlaps."
+            "Intersect/union with other layers to analyze overlaps.",
         ]
     if not gtypes:
         tips.append("No geometry detected; you can still filter and summarize attributes.")
 
     # Field-driven ideas
     lower_cols = [c.lower() for c in cols]
-    if any(k in lower_cols for k in ["name","name_en","label","title"]):
+    if any(k in lower_cols for k in ["name", "name_en", "label", "title"]):
         tips.append("Search by a specific name (e.g., `filter name = '…'`).")
-    if any(k in lower_cols for k in ["pop","population","inhabitants"]):
+    if any(k in lower_cols for k in ["pop", "population", "inhabitants"]):
         tips.append("Style by population, or filter by thresholds.")
-    if any(k in lower_cols for k in ["gdp","gdp_pc","gdp_per_capita"]):
+    if any(k in lower_cols for k in ["gdp", "gdp_pc", "gdp_per_capita"]):
         tips.append("Style by GDP, filter high/low GDP regions, or bin into classes.")
-    if any(k in lower_cols for k in ["class","type","category","status"]):
+    if any(k in lower_cols for k in ["class", "type", "category", "status"]):
         tips.append("Filter by class/type and compute counts per category.")
 
     # Try an LLM-driven enhancement of next steps, falling back to simple heuristics
@@ -136,7 +160,7 @@ def _suggest_next_steps(gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any]) -> Li
                 return llm_tips
         except Exception:
             # fallback to splitting
-            lines = [l.strip(' -') for l in text.splitlines() if l.strip()]
+            lines = [l.strip(" -") for l in text.splitlines() if l.strip()]
             return lines[:6]
     except Exception:
         pass
@@ -145,8 +169,10 @@ def _suggest_next_steps(gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any]) -> Li
     uniq = []
     for t in tips:
         if t not in seen:
-            uniq.append(t); seen.add(t)
+            uniq.append(t)
+            seen.add(t)
     return uniq[:6]
+
 
 def describe_dataset_gdf(gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -164,7 +190,11 @@ def describe_dataset_gdf(gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any]) -> D
 
     # Pick 5 "key" columns to preview (prefer name-like then numeric/text variety)
     cols_meta = schema_ctx.get("columns", [])
-    name_like = [c for c in cols_meta if c.get("type") != "geometry" and re.search(r"(name|label|title)", c["name"], re.I)]
+    name_like = [
+        c
+        for c in cols_meta
+        if c.get("type") != "geometry" and re.search(r"(name|label|title)", c["name"], re.I)
+    ]
     others = [c for c in cols_meta if c not in name_like and c.get("type") != "geometry"]
     key_cols = (name_like + others)[:5]
     # attach a few top values if present
@@ -237,111 +267,139 @@ def describe_dataset_gdf(gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any]) -> D
         if text.strip().lower().startswith("json"):
             # remove leading 'json' keyword or header
             lines = text.split("\n", 1)
-            text = lines[1] if len(lines) > 1 else ''
+            text = lines[1] if len(lines) > 1 else ""
         data = json.loads(text)
         if isinstance(data, dict):
-            result.update({
-                "summary": data.get("summary", result.get("summary")),
-                "suggested_next_steps": data.get(
-                    "suggested_next_steps", result.get("suggested_next_steps")
-                ),
-            })
+            result.update(
+                {
+                    "summary": data.get("summary", result.get("summary")),
+                    "suggested_next_steps": data.get(
+                        "suggested_next_steps", result.get("suggested_next_steps")
+                    ),
+                }
+            )
     except Exception:
         pass
     return result
 
+
 def _parse_literal(tok):
-    if tok.group("string") is not None: return tok.group("string")
+    if tok.group("string") is not None:
+        return tok.group("string")
     if tok.group("num") is not None:
-        s = tok.group("num"); return float(s) if "." in s else int(s)
+        s = tok.group("num")
+        return float(s) if "." in s else int(s)
     return None
 
+
 def _expect_kw(state, kw):
-    cur=_peek(state)
-    if not (cur and cur.group("kw")==kw): raise ValueError(f"Expected {kw}")
+    cur = _peek(state)
+    if not (cur and cur.group("kw") == kw):
+        raise ValueError(f"Expected {kw}")
     _advance(state, state["tokens"])
 
+
 def _expect_op(state, ops):
-    cur=_peek(state)
-    if not (cur and cur.group("op") in ops): raise ValueError(f"Expected one of {ops}")
-    op=cur.group("op")
+    cur = _peek(state)
+    if not (cur and cur.group("op") in ops):
+        raise ValueError(f"Expected one of {ops}")
+    op = cur.group("op")
     _advance(state, state["tokens"])
     return op
 
+
 def _parse_primary(state):
-    cur=_peek(state)
+    cur = _peek(state)
     if cur and cur.group("lpar"):
         _advance(state, state["tokens"])
-        node=_parse_expr(state)
+        node = _parse_expr(state)
         if not (_peek(state) and _peek(state).group("rpar")):
             raise ValueError("Missing )")
         _advance(state, state["tokens"])
         return node
     if cur and (cur.group("ident") or cur.group("identq")):
-        field=_field_name(cur)
+        field = _field_name(cur)
         _advance(state, state["tokens"])
-        cur=_peek(state)
-        if cur and cur.group("kw")=="IS":
+        cur = _peek(state)
+        if cur and cur.group("kw") == "IS":
             _advance(state, state["tokens"])
-            cur=_peek(state); is_not=False
-            if cur and cur.group("kw")=="NOT":
-                is_not=True; _advance(state, state["tokens"])
+            cur = _peek(state)
+            is_not = False
+            if cur and cur.group("kw") == "NOT":
+                is_not = True
+                _advance(state, state["tokens"])
             _expect_kw(state, "NULL")
             return ("isnull", field, is_not)
-        if cur and cur.group("kw")=="IN":
+        if cur and cur.group("kw") == "IN":
             _advance(state, state["tokens"])
             if not (_peek(state) and _peek(state).group("lpar")):
                 raise ValueError("Expected ( after IN")
             _advance(state, state["tokens"])
-            values=[]
+            values = []
             while True:
-                cur=_peek(state)
-                if not cur: raise ValueError("Unterminated IN list")
+                cur = _peek(state)
+                if not cur:
+                    raise ValueError("Unterminated IN list")
                 if cur.group("rpar"):
-                    _advance(state, state["tokens"]); break
+                    _advance(state, state["tokens"])
+                    break
                 if cur.group("comma"):
-                    _advance(state, state["tokens"]); continue
-                v=_parse_literal(cur)
-                if v is None: raise ValueError("Expected literal in IN list")
-                values.append(v); _advance(state, state["tokens"])
+                    _advance(state, state["tokens"])
+                    continue
+                v = _parse_literal(cur)
+                if v is None:
+                    raise ValueError("Expected literal in IN list")
+                values.append(v)
+                _advance(state, state["tokens"])
             return ("in", field, values)
-        op=_expect_op(state, {">=", "<=", "!=", "=", ">", "<"})
-        cur=_peek(state)
-        if not cur: raise ValueError("Expected literal after op")
-        lit=_parse_literal(cur)
-        if lit is None: raise ValueError("Expected literal after op")
+        op = _expect_op(state, {">=", "<=", "!=", "=", ">", "<"})
+        cur = _peek(state)
+        if not cur:
+            raise ValueError("Expected literal after op")
+        lit = _parse_literal(cur)
+        if lit is None:
+            raise ValueError("Expected literal after op")
         _advance(state, state["tokens"])
         return ("cmp", field, op, lit)
     raise ValueError("Expected expression")
 
+
 def _parse_not(state):
-    cur=_peek(state)
-    if cur and cur.group("kw")=="NOT":
-        _advance(state, state["tokens"]); node=_parse_not(state)
+    cur = _peek(state)
+    if cur and cur.group("kw") == "NOT":
+        _advance(state, state["tokens"])
+        node = _parse_not(state)
         return ("not", node)
     return _parse_primary(state)
 
+
 def _parse_and(state):
-    node=_parse_not(state)
-    while _peek(state) and _peek(state).group("kw")=="AND":
-        _advance(state, state["tokens"]); rhs=_parse_not(state)
-        node=("and", node, rhs)
+    node = _parse_not(state)
+    while _peek(state) and _peek(state).group("kw") == "AND":
+        _advance(state, state["tokens"])
+        rhs = _parse_not(state)
+        node = ("and", node, rhs)
     return node
+
 
 def _parse_expr(state):
-    node=_parse_and(state)
-    while _peek(state) and _peek(state).group("kw")=="OR":
-        _advance(state, state["tokens"]); rhs=_parse_and(state)
-        node=("or", node, rhs)
+    node = _parse_and(state)
+    while _peek(state) and _peek(state).group("kw") == "OR":
+        _advance(state, state["tokens"])
+        rhs = _parse_and(state)
+        node = ("or", node, rhs)
     return node
 
+
 def parse_where(where: str):
-    tokens=iter(_tokenize(where)); state={"tokens":tokens, "cur":None}
+    tokens = iter(_tokenize(where))
+    state = {"tokens": tokens, "cur": None}
     _advance(state, tokens)
-    ast=_parse_expr(state)
+    ast = _parse_expr(state)
     if _peek(state):
         raise ValueError("Unexpected trailing tokens")
     return ast
+
 
 # ===================================
 # GeoPandas-based operations & IO
@@ -364,20 +422,26 @@ def _load_gdf(link: str) -> gpd.GeoDataFrame:
         try:
             return gpd.read_file(tmp)
         finally:
-            try: os.remove(tmp)
-            except Exception: pass
+            try:
+                os.remove(tmp)
+            except Exception:
+                pass
     raise IOError(f"Unsupported path: {link}")
+
 
 def _jsonify_scalar(v):
     # Convert numpy/pandas scalars to native JSON types
     if pd.isna(v):
         return None
     if hasattr(v, "item"):
-        try: return v.item()
-        except Exception: pass
-    if isinstance(v, (pd.Timestamp, )):
+        try:
+            return v.item()
+        except Exception:
+            pass
+    if isinstance(v, (pd.Timestamp,)):
         return v.isoformat()
     return v
+
 
 def _fc_from_gdf(gdf: gpd.GeoDataFrame, keep_geometry: bool = True) -> Dict[str, Any]:
     """Convert a GeoDataFrame to a GeoJSON FeatureCollection dict."""
@@ -389,28 +453,28 @@ def _fc_from_gdf(gdf: gpd.GeoDataFrame, keep_geometry: bool = True) -> Dict[str,
     for _, row in gdf.iterrows():
         props = {c: _jsonify_scalar(row[c]) for c in prop_cols}
         geom = mapping(row[geom_col]) if geom_col else None
-        features.append({
-            "type": "Feature",
-            "properties": props,
-            "geometry": geom
-        })
+        features.append({"type": "Feature", "properties": props, "geometry": geom})
     return {"type": "FeatureCollection", "features": features}
 
-def _slug(text:str)->str:
-    text=(text or "attribute-result").lower().strip()
-    text=re.sub(r"[^a-z0-9\-_ ]+","",text).replace(" ","-")
-    text=re.sub(r"-+","-",text).strip("-")
+
+def _slug(text: str) -> str:
+    text = (text or "attribute-result").lower().strip()
+    text = re.sub(r"[^a-z0-9\-_ ]+", "", text).replace(" ", "-")
+    text = re.sub(r"-+", "-", text).strip("-")
     return text or "attribute-result"
 
-def _save_gdf_as_geojson(gdf: gpd.GeoDataFrame, display_title: str, keep_geometry: bool = True) -> GeoDataObject:
+
+def _save_gdf_as_geojson(
+    gdf: gpd.GeoDataFrame, display_title: str, keep_geometry: bool = True
+) -> GeoDataObject:
     fc = _fc_from_gdf(gdf, keep_geometry=keep_geometry)
-    sid=uuid.uuid4().hex[:8]
-    slug=_slug(display_title)
-    filename=f"{slug}_{sid}.geojson"
-    path=os.path.join(LOCAL_UPLOAD_DIR, filename)
+    sid = uuid.uuid4().hex[:8]
+    slug = _slug(display_title)
+    filename = f"{slug}_{sid}.geojson"
+    path = os.path.join(LOCAL_UPLOAD_DIR, filename)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(fc, f)
-    url=f"{BASE_URL}/uploads/{filename}"
+    url = f"{BASE_URL}/uploads/{filename}"
     return GeoDataObject(
         id=uuid.uuid4().hex,
         data_source_id="attribute",
@@ -427,6 +491,7 @@ def _save_gdf_as_geojson(gdf: gpd.GeoDataFrame, display_title: str, keep_geometr
         layer_type="GeoJSON",
         properties=None,
     )
+
 
 # ============ NEW: schema context from GeoDataFrame ============
 def build_schema_context(
@@ -483,8 +548,9 @@ def build_schema_context(
         "columns": cols_ctx,
     }
 
+
 # ---------- Attribute ops on GeoDataFrame ----------
-def list_fields_gdf(gdf: gpd.GeoDataFrame, sample:int=2000) -> Dict[str, Any]:
+def list_fields_gdf(gdf: gpd.GeoDataFrame, sample: int = 2000) -> Dict[str, Any]:
     sample_df = gdf.head(sample)
     dtypes = sample_df.dtypes.astype(str).to_dict()
     nulls = sample_df.isna().sum().to_dict()
@@ -505,20 +571,23 @@ def list_fields_gdf(gdf: gpd.GeoDataFrame, sample:int=2000) -> Dict[str, Any]:
 
     fields = []
     for k in sorted(dtypes.keys()):
-        fields.append({
-            "name": k,
-            "type": dtypes[k],
-            "null_count": int(nulls.get(k, 0)),
-            "example": examples.get(k)  # will be None for geometry
-        })
+        fields.append(
+            {
+                "name": k,
+                "type": dtypes[k],
+                "null_count": int(nulls.get(k, 0)),
+                "example": examples.get(k),  # will be None for geometry
+            }
+        )
     return {"fields": fields, "row_count": int(len(gdf)), "sampled": int(len(sample_df))}
 
 
 def summarize_gdf(gdf: gpd.GeoDataFrame, fields: List[str]) -> Dict[str, Any]:
-    out={}
+    out = {}
     for fld in fields:
-        if fld not in gdf.columns: 
-            out[fld] = {"error": "field not found"}; continue
+        if fld not in gdf.columns:
+            out[fld] = {"error": "field not found"}
+            continue
         s = pd.to_numeric(gdf[fld], errors="coerce").dropna()
         if s.empty:
             out[fld] = {"count": 0}
@@ -535,23 +604,36 @@ def summarize_gdf(gdf: gpd.GeoDataFrame, fields: List[str]) -> Dict[str, Any]:
         }
     return out
 
-def unique_values_gdf(gdf: gpd.GeoDataFrame, field: str, top_k: Optional[int]=None) -> Dict[str, Any]:
+
+def unique_values_gdf(
+    gdf: gpd.GeoDataFrame, field: str, top_k: Optional[int] = None
+) -> Dict[str, Any]:
     if field not in gdf.columns:
         return {"field": field, "error": "field not found"}
     counts = gdf[field].value_counts(dropna=True)
-    if top_k: counts = counts.head(int(top_k))
-    return {"field": field, "values":[{"value": _jsonify_scalar(idx), "count": int(val)} for idx, val in counts.items()]}
+    if top_k:
+        counts = counts.head(int(top_k))
+    return {
+        "field": field,
+        "values": [
+            {"value": _jsonify_scalar(idx), "count": int(val)} for idx, val in counts.items()
+        ],
+    }
+
 
 def sort_by_gdf(gdf: gpd.GeoDataFrame, fields: List[Tuple[str, str]]) -> gpd.GeoDataFrame:
     cols = [c for c, _ in fields]
     for c in cols:
-        if c not in gdf.columns: 
+        if c not in gdf.columns:
             raise ValueError(f"Unknown field in sort_by: {c}")
-    ascending = [ (d or "asc").lower() != "desc" for _, d in fields ]
+    ascending = [(d or "asc").lower() != "desc" for _, d in fields]
     # Nones last: use na_position="last"
     return gdf.sort_values(by=cols, ascending=ascending, na_position="last")
 
-def select_fields_gdf(gdf: gpd.GeoDataFrame, include=None, exclude=None, keep_geometry=True) -> gpd.GeoDataFrame:
+
+def select_fields_gdf(
+    gdf: gpd.GeoDataFrame, include=None, exclude=None, keep_geometry=True
+) -> gpd.GeoDataFrame:
     # Start from all columns
     geom_name = gdf.geometry.name if gdf.geometry is not None else None
     cols = list(gdf.columns)
@@ -572,6 +654,7 @@ def select_fields_gdf(gdf: gpd.GeoDataFrame, include=None, exclude=None, keep_ge
         gdf2 = gdf2.set_geometry(None)
     return gdf2
 
+
 # ----- WHERE predicate -> boolean mask (vectorized) -----
 def _series_cmp(a: pd.Series, op: str, b):
     # Autocast numeric comparisons sensibly
@@ -579,13 +662,20 @@ def _series_cmp(a: pd.Series, op: str, b):
         b_cast = pd.to_numeric(pd.Series([b]), errors="coerce").iloc[0]
     else:
         b_cast = b
-    if op == "=":  return a.eq(b_cast)
-    if op == "!=": return a.ne(b_cast)
-    if op == ">":  return a.gt(b_cast)
-    if op == "<":  return a.lt(b_cast)
-    if op == ">=": return a.ge(b_cast)
-    if op == "<=": return a.le(b_cast)
+    if op == "=":
+        return a.eq(b_cast)
+    if op == "!=":
+        return a.ne(b_cast)
+    if op == ">":
+        return a.gt(b_cast)
+    if op == "<":
+        return a.lt(b_cast)
+    if op == ">=":
+        return a.ge(b_cast)
+    if op == "<=":
+        return a.le(b_cast)
     raise ValueError(f"Unsupported op {op}")
+
 
 def _eval_ast_to_mask(ast, gdf: gpd.GeoDataFrame) -> pd.Series:
     kind = ast[0]
@@ -617,10 +707,12 @@ def _eval_ast_to_mask(ast, gdf: gpd.GeoDataFrame) -> pd.Series:
         return (~_eval_ast_to_mask(ast[1], gdf)).fillna(False)
     raise ValueError(f"Unknown node {kind}")
 
+
 def filter_where_gdf(gdf: gpd.GeoDataFrame, where: str) -> gpd.GeoDataFrame:
     ast = parse_where(where)
     mask = _eval_ast_to_mask(ast, gdf)
     return gdf[mask].copy()
+
 
 # ===================================
 # Planner (same as before)
@@ -655,10 +747,9 @@ Rules:
 - Sorting -> sort_by (layer).
 """
 
+
 def attribute_plan_from_prompt(
-    query: str,
-    layer_meta: List[Dict[str, Any]],
-    schema_context: Dict[str, Any]
+    query: str, layer_meta: List[Dict[str, Any]], schema_context: Dict[str, Any]
 ) -> Dict[str, Any]:
     llm = get_llm()
     sys = (
@@ -678,9 +769,9 @@ def attribute_plan_from_prompt(
     msg = {
         "query": query,
         "layers": [{"name": m.get("name"), "title": m.get("title")} for m in layer_meta],
-        "schema_context": schema_context,   # <<--- new
+        "schema_context": schema_context,  # <<--- new
     }
-    messages=[SystemMessage(content=sys), HumanMessage(content=json.dumps(msg))]
+    messages = [SystemMessage(content=sys), HumanMessage(content=json.dumps(msg))]
     resp = llm.generate([messages])
     text = resp.generations[0][0].text.strip()
     if text.startswith("```"):
@@ -688,9 +779,18 @@ def attribute_plan_from_prompt(
         if text.strip().lower().startswith("json"):
             text = text.split("\n", 1)[1]
     plan = json.loads(text)
-    if plan.get("operation") not in {"list_fields","summarize","unique_values","filter_where","select_fields","sort_by", "describe_dataset"}:
+    if plan.get("operation") not in {
+        "list_fields",
+        "summarize",
+        "unique_values",
+        "filter_where",
+        "select_fields",
+        "sort_by",
+        "describe_dataset",
+    }:
         raise ValueError(f"Planner chose unsupported operation: {plan.get('operation')}")
     return plan
+
 
 # ===================================
 # The Tool
@@ -698,7 +798,7 @@ def attribute_plan_from_prompt(
 @tool
 def attribute_tool(
     state: Annotated[GeoDataAgentState, InjectedState],
-    tool_call_id: Annotated[str, InjectedToolCallId],   # <-- important
+    tool_call_id: Annotated[str, InjectedToolCallId],  # <-- important
     target_layer_names: Optional[List[str]] = None,
 ) -> Union[Dict[str, Any], Command]:
     """
@@ -709,11 +809,18 @@ def attribute_tool(
     layers = state.get("geodata_layers") or []
     messages = state.get("messages") or []
     if not layers:
-        return Command(update={"messages":[ToolMessage(
-            name="attribute_tool",
-            content="Error: No geodata layers found in state. Add/select a layer first.",
-            tool_call_id=tool_call_id, status="error"
-        )]})
+        return Command(
+            update={
+                "messages": [
+                    ToolMessage(
+                        name="attribute_tool",
+                        content="Error: No geodata layers found in state. Add/select a layer first.",
+                        tool_call_id=tool_call_id,
+                        status="error",
+                    )
+                ]
+            }
+        )
 
     layer_meta = [{"name": l.name, "title": l.title} for l in layers]
 
@@ -722,46 +829,76 @@ def attribute_tool(
             if getattr(m, "type", None) == "human" or m.__class__.__name__ == "HumanMessage":
                 return m.content
         return ""
+
     query = _last_user(messages) or ""
     selected = match_layer_names(layers, target_layer_names) if target_layer_names else layers[:1]
     if not selected:
-        avail=[{"name": l.name, "title": l.title} for l in layers]
-        return Command(update={"messages":[ToolMessage(
-            name="attribute_tool",
-            content=f"Error: Target layer(s) not found. Available: {json.dumps(avail)}",
-            tool_call_id=tool_call_id, status="error"
-        )]})
+        avail = [{"name": l.name, "title": l.title} for l in layers]
+        return Command(
+            update={
+                "messages": [
+                    ToolMessage(
+                        name="attribute_tool",
+                        content=f"Error: Target layer(s) not found. Available: {json.dumps(avail)}",
+                        tool_call_id=tool_call_id,
+                        status="error",
+                    )
+                ]
+            }
+        )
     layer = selected[0]
     if layer.data_type not in (DataType.GEOJSON, DataType.UPLOADED):
-        return Command(update={"messages":[ToolMessage(
-            name="attribute_tool",
-            content=f"Error: Layer '{layer.name}' is not a GeoJSON-like dataset.",
-            tool_call_id=tool_call_id, status="error"
-        )]})
+        return Command(
+            update={
+                "messages": [
+                    ToolMessage(
+                        name="attribute_tool",
+                        content=f"Error: Layer '{layer.name}' is not a GeoJSON-like dataset.",
+                        tool_call_id=tool_call_id,
+                        status="error",
+                    )
+                ]
+            }
+        )
 
     # Load as GeoDataFrame
     try:
         gdf = _load_gdf(layer.data_link)
     except Exception as e:
-        return Command(update={"messages":[ToolMessage(
-            name="attribute_tool",
-            content=f"Error loading GeoJSON into GeoDataFrame: {e}",
-            tool_call_id=tool_call_id, status="error"
-        )]})
+        return Command(
+            update={
+                "messages": [
+                    ToolMessage(
+                        name="attribute_tool",
+                        content=f"Error loading GeoJSON into GeoDataFrame: {e}",
+                        tool_call_id=tool_call_id,
+                        status="error",
+                    )
+                ]
+            }
+        )
     schema_ctx = build_schema_context(gdf)
 
     # Plan
     try:
         plan = attribute_plan_from_prompt(query, layer_meta, schema_ctx)
     except Exception as e:
-        return Command(update={"messages":[ToolMessage(
-            name="attribute_tool",
-            content=f"Error planning attribute operation: {e}",
-            tool_call_id=tool_call_id, status="error"
-        )]})
+        return Command(
+            update={
+                "messages": [
+                    ToolMessage(
+                        name="attribute_tool",
+                        content=f"Error planning attribute operation: {e}",
+                        tool_call_id=tool_call_id,
+                        status="error",
+                    )
+                ]
+            }
+        )
 
-    op = plan.get("operation"); params = plan.get("params") or {}
-    result_handling = plan.get("result_handling") or "chat"
+    op = plan.get("operation")
+    params = plan.get("params") or {}
+    # result_handling = plan.get("result_handling") or "chat"  # Not used in current logic
 
     # Validate fields where meaningful
     def _check_fields(names: List[str]) -> List[str]:
@@ -770,123 +907,214 @@ def attribute_tool(
     try:
         if op == "list_fields":
             out = list_fields_gdf(gdf)
-            return Command(update={"messages":[ToolMessage(
-                name="attribute_tool",
-                content=json.dumps({"operation":"list_fields","layer":layer.name,"result":out}),
-                tool_call_id=tool_call_id
-            )]})
+            return Command(
+                update={
+                    "messages": [
+                        ToolMessage(
+                            name="attribute_tool",
+                            content=json.dumps(
+                                {"operation": "list_fields", "layer": layer.name, "result": out}
+                            ),
+                            tool_call_id=tool_call_id,
+                        )
+                    ]
+                }
+            )
 
         if op == "summarize":
             missing = _check_fields(params.get("fields", []))
             if missing:
-                return Command(update={"messages":[ToolMessage(
-                    name="attribute_tool",
-                    content=f"Error: Unknown fields in summarize: {missing}. Available: {sorted(gdf.columns.tolist())}",
-                    tool_call_id=tool_call_id, status="error"
-                )]})
+                return Command(
+                    update={
+                        "messages": [
+                            ToolMessage(
+                                name="attribute_tool",
+                                content=f"Error: Unknown fields in summarize: {missing}. Available: {sorted(gdf.columns.tolist())}",
+                                tool_call_id=tool_call_id,
+                                status="error",
+                            )
+                        ]
+                    }
+                )
             out = summarize_gdf(gdf, params.get("fields", []))
-            return Command(update={"messages":[ToolMessage(
-                name="attribute_tool",
-                content=json.dumps({"operation":"summarize","layer":layer.name,"result":out}),
-                tool_call_id=tool_call_id
-            )]})
+            return Command(
+                update={
+                    "messages": [
+                        ToolMessage(
+                            name="attribute_tool",
+                            content=json.dumps(
+                                {"operation": "summarize", "layer": layer.name, "result": out}
+                            ),
+                            tool_call_id=tool_call_id,
+                        )
+                    ]
+                }
+            )
 
         if op == "unique_values":
             fld = params.get("field")
             if not fld or fld not in gdf.columns:
-                return Command(update={"messages":[ToolMessage(
-                    name="attribute_tool",
-                    content=f"Error: Unknown field '{fld}'. Available: {sorted(gdf.columns.tolist())}",
-                    tool_call_id=tool_call_id, status="error"
-                )]})
+                return Command(
+                    update={
+                        "messages": [
+                            ToolMessage(
+                                name="attribute_tool",
+                                content=f"Error: Unknown field '{fld}'. Available: {sorted(gdf.columns.tolist())}",
+                                tool_call_id=tool_call_id,
+                                status="error",
+                            )
+                        ]
+                    }
+                )
             out = unique_values_gdf(gdf, fld, params.get("top_k"))
-            return Command(update={"messages":[ToolMessage(
-                name="attribute_tool",
-                content=json.dumps({"operation":"unique_values","layer":layer.name,"result":out}),
-                tool_call_id=tool_call_id
-            )]})
+            return Command(
+                update={
+                    "messages": [
+                        ToolMessage(
+                            name="attribute_tool",
+                            content=json.dumps(
+                                {"operation": "unique_values", "layer": layer.name, "result": out}
+                            ),
+                            tool_call_id=tool_call_id,
+                        )
+                    ]
+                }
+            )
 
         if op == "filter_where":
             try:
                 out_gdf = filter_where_gdf(gdf, params["where"])
             except Exception as e:
-                return Command(update={"messages":[ToolMessage(
-                    name="attribute_tool",
-                    content=f"Error parsing/applying WHERE: {e}. Available fields: {sorted(gdf.columns.tolist())}",
-                    tool_call_id=tool_call_id, status="error"
-                )]})
+                return Command(
+                    update={
+                        "messages": [
+                            ToolMessage(
+                                name="attribute_tool",
+                                content=f"Error parsing/applying WHERE: {e}. Available fields: {sorted(gdf.columns.tolist())}",
+                                tool_call_id=tool_call_id,
+                                status="error",
+                            )
+                        ]
+                    }
+                )
             title = f"{layer.name}-filtered"
             obj = _save_gdf_as_geojson(out_gdf, title, keep_geometry=True)
             new_results = (state.get("geodata_results") or []) + [obj]
-            return Command(update={
-                "messages":[ToolMessage(
-                    name="attribute_tool",
-                    content=f"Filter applied. New layer: {obj.title}",
-                    tool_call_id=tool_call_id
-                )],
-                "geodata_results": new_results
-            })
+            return Command(
+                update={
+                    "messages": [
+                        ToolMessage(
+                            name="attribute_tool",
+                            content=f"Filter applied. New layer: {obj.title}",
+                            tool_call_id=tool_call_id,
+                        )
+                    ],
+                    "geodata_results": new_results,
+                }
+            )
 
         if op == "select_fields":
             include = params.get("include")
             exclude = params.get("exclude")
             missing = _check_fields((include or []) + (exclude or []))
             if missing:
-                return Command(update={"messages":[ToolMessage(
-                    name="attribute_tool",
-                    content=f"Error: Unknown fields in select_fields: {missing}. Available: {sorted(gdf.columns.tolist())}",
-                    tool_call_id=tool_call_id, status="error"
-                )]})
+                return Command(
+                    update={
+                        "messages": [
+                            ToolMessage(
+                                name="attribute_tool",
+                                content=f"Error: Unknown fields in select_fields: {missing}. Available: {sorted(gdf.columns.tolist())}",
+                                tool_call_id=tool_call_id,
+                                status="error",
+                            )
+                        ]
+                    }
+                )
             keep_geometry = bool(params.get("keep_geometry", True))
-            out_gdf = select_fields_gdf(gdf, include=include, exclude=exclude, keep_geometry=keep_geometry)
-            obj = _save_gdf_as_geojson(out_gdf, f"{layer.name}-selected", keep_geometry=keep_geometry)
+            out_gdf = select_fields_gdf(
+                gdf, include=include, exclude=exclude, keep_geometry=keep_geometry
+            )
+            obj = _save_gdf_as_geojson(
+                out_gdf, f"{layer.name}-selected", keep_geometry=keep_geometry
+            )
             new_results = (state.get("geodata_results") or []) + [obj]
-            return Command(update={
-                "messages":[ToolMessage(
-                    name="attribute_tool",
-                    content=f"Projection applied. New layer: {obj.title}",
-                    tool_call_id=tool_call_id
-                )],
-                "geodata_results": new_results
-            })
+            return Command(
+                update={
+                    "messages": [
+                        ToolMessage(
+                            name="attribute_tool",
+                            content=f"Projection applied. New layer: {obj.title}",
+                            tool_call_id=tool_call_id,
+                        )
+                    ],
+                    "geodata_results": new_results,
+                }
+            )
 
         if op == "sort_by":
             fields = params.get("fields", [])
             out_gdf = sort_by_gdf(gdf, fields)
             obj = _save_gdf_as_geojson(out_gdf, f"{layer.name}-sorted", keep_geometry=True)
             new_results = (state.get("geodata_results") or []) + [obj]
-            return Command(update={
-                "messages":[ToolMessage(
-                    name="attribute_tool",
-                    content=f"Sorting applied. New layer: {obj.title}",
-                    tool_call_id=tool_call_id
-                )],
-                "geodata_results": new_results
-            })
-        
+            return Command(
+                update={
+                    "messages": [
+                        ToolMessage(
+                            name="attribute_tool",
+                            content=f"Sorting applied. New layer: {obj.title}",
+                            tool_call_id=tool_call_id,
+                        )
+                    ],
+                    "geodata_results": new_results,
+                }
+            )
+
         if op == "describe_dataset":
             # Use schema context + gdf to produce a friendly overview
             out = describe_dataset_gdf(gdf, schema_ctx)
             # Optional: add a short, humanized paragraph on top
             # out["summary"] already has a one-liner; keep the payload JSON-safe.
-            return Command(update={
-                "messages":[ToolMessage(
-                    name="attribute_tool",
-                    content=json.dumps({"operation":"describe_dataset","layer":layer.name,"result":out}),
-                    tool_call_id=tool_call_id
-                )]
-            })
+            return Command(
+                update={
+                    "messages": [
+                        ToolMessage(
+                            name="attribute_tool",
+                            content=json.dumps(
+                                {
+                                    "operation": "describe_dataset",
+                                    "layer": layer.name,
+                                    "result": out,
+                                }
+                            ),
+                            tool_call_id=tool_call_id,
+                        )
+                    ]
+                }
+            )
 
-
-        return Command(update={"messages":[ToolMessage(
-            name="attribute_tool",
-            content=f"Error: Unsupported operation '{op}'.",
-            tool_call_id=tool_call_id, status="error"
-        )]})
+        return Command(
+            update={
+                "messages": [
+                    ToolMessage(
+                        name="attribute_tool",
+                        content=f"Error: Unsupported operation '{op}'.",
+                        tool_call_id=tool_call_id,
+                        status="error",
+                    )
+                ]
+            }
+        )
 
     except Exception as e:
-        return Command(update={"messages":[ToolMessage(
-            name="attribute_tool",
-            content=f"Error executing attribute op '{op}': {e}",
-            tool_call_id=tool_call_id, status="error"
-        )]})
+        return Command(
+            update={
+                "messages": [
+                    ToolMessage(
+                        name="attribute_tool",
+                        content=f"Error executing attribute op '{op}': {e}",
+                        tool_call_id=tool_call_id,
+                        status="error",
+                    )
+                ]
+            }
+        )
