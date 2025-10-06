@@ -24,17 +24,22 @@ from typing_extensions import Annotated
 
 from core.config import get_filter_non_webmercator_wmts
 from models.geodata import DataOrigin, DataType, GeoDataObject
-from models.settings_model import (GeoServerBackend, ModelSettings,
-                                   SearchPortal, SettingsSnapshot, ToolConfig)
+from models.settings_model import (
+    GeoServerBackend,
+    ModelSettings,
+    SearchPortal,
+    SettingsSnapshot,
+    ToolConfig,
+)
 from models.states import GeoDataAgentState
-from services.tools.geoserver.vector_store import (delete_layers,
-                                                   get_embedding_status,
-                                                   has_layers,
-                                                   is_fully_encoded)
-from services.tools.geoserver.vector_store import \
-    list_layers as vector_list_layers
-from services.tools.geoserver.vector_store import \
-    similarity_search as vector_similarity_search
+from services.tools.geoserver.vector_store import (
+    delete_layers,
+    get_embedding_status,
+    has_layers,
+    is_fully_encoded,
+)
+from services.tools.geoserver.vector_store import list_layers as vector_list_layers
+from services.tools.geoserver.vector_store import similarity_search as vector_similarity_search
 from services.tools.geoserver.vector_store import store_layers
 
 logger = logging.getLogger(__name__)
@@ -734,7 +739,7 @@ def _get_custom_geoserver_data(
     if distinct_crs:
         crs_summary = f" Distinct CRS: {', '.join(distinct_crs[:6])}"
         if len(distinct_crs) > 6:
-            crs_summary += f" (+{len(distinct_crs)-6} more)"
+            crs_summary += f" (+{len(distinct_crs) - 6} more)"
 
     tool_message = ToolMessage(
         content=f"Found {len(all_layers)} layers.{crs_summary}", tool_call_id=tool_call_id

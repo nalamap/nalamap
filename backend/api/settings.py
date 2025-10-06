@@ -9,8 +9,7 @@ from pydantic import BaseModel
 
 from core import config as core_config
 from models.settings_model import GeoServerBackend
-from services.default_agent_settings import (DEFAULT_AVAILABLE_TOOLS,
-                                             DEFAULT_SYSTEM_PROMPT)
+from services.default_agent_settings import DEFAULT_AVAILABLE_TOOLS, DEFAULT_SYSTEM_PROMPT
 from services.tools.geoserver.custom_geoserver import preload_backend_layers
 
 router = APIRouter(prefix="/settings", tags=["settings"])
