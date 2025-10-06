@@ -273,9 +273,9 @@ export default function SettingsPage() {
       });
 
       // Start preloading in background - user can now navigate away
-      const { totalLayers } = await prefetchBackend(normalizedBackend);
+      await prefetchBackend(normalizedBackend);
       setBackendSuccess(
-        `Prefetched ${totalLayers} layer${totalLayers === 1 ? "" : "s"} successfully.`,
+        `Backend queued for processing. Embedding will start shortly.`,
       );
     } catch (err: any) {
       setBackendError(err?.message || "Failed to preload GeoServer backend.");
@@ -312,21 +312,26 @@ export default function SettingsPage() {
 
   // Poll embedding status every 10 seconds when there are enabled backends
   React.useEffect(() => {
+    // Fetch initial status immediately when component mounts or backends change
+    const enabledBackends = backends.filter((b) => b.enabled);
+    if (enabledBackends.length > 0) {
+      fetchEmbeddingStatus();
+    }
 
     // Determine if we should continue polling
     const shouldPoll = () => {
-      const enabledBackends = backends.filter((b) => b.enabled);
       if (enabledBackends.length === 0) {
         return false; // No backends to poll
       }
 
-      // Check if any backend is in 'waiting' or 'processing' state
+      // Check if any backend is in 'waiting', 'processing', or 'unknown' state
       const hasActiveBackends = enabledBackends.some((b) => {
         const status = embeddingStatus[b.url];
         return (
           status &&
           (status.state === "waiting" ||
             status.state === "processing" ||
+            status.state === "unknown" ||
             status.in_progress)
         );
       });
@@ -693,7 +698,8 @@ export default function SettingsPage() {
                     {b.enabled &&
                       embeddingStatus[b.url] &&
                       (embeddingStatus[b.url].total > 0 ||
-                        embeddingStatus[b.url].state === "waiting") && (
+                        embeddingStatus[b.url].state === "waiting" ||
+                        embeddingStatus[b.url].state === "unknown") && (
                         <div className="mt-2">
                           <div className="flex justify-between items-center text-xs mb-1">
                             <span
@@ -705,6 +711,8 @@ export default function SettingsPage() {
                                     ? "text-red-600"
                                     : embeddingStatus[b.url].state === "waiting"
                                       ? "text-yellow-600"
+                                    : embeddingStatus[b.url].state === "unknown"
+                                      ? "text-gray-500"
                                       : "text-blue-600"
                               }
                             >
@@ -717,6 +725,8 @@ export default function SettingsPage() {
                                       "Unknown error")
                                   : embeddingStatus[b.url].state === "waiting"
                                     ? "⏱️ Waiting to start"
+                                  : embeddingStatus[b.url].state === "unknown"
+                                    ? "⏸️ Status unknown (checking...)"
                                     : "⏳ Embedding in progress"}
                               {embeddingStatus[b.url].total > 0 && (
                                 <>
@@ -747,7 +757,7 @@ export default function SettingsPage() {
                                           : "bg-blue-500"
                                   }`}
                                   style={{
-                                    width: `${embeddingStatus[b.url].state === "waiting" ? 5 : embeddingStatus[b.url].percentage}%`,
+                                    width: `${embeddingStatus[b.url].state === "waiting" || embeddingStatus[b.url].state === "unknown" ? 5 : embeddingStatus[b.url].percentage}%`,
                                   }}
                                 />
                               </div>

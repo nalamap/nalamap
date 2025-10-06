@@ -548,11 +548,26 @@ def store_layers(
     Returns the number of stored layers. Also tracks progress for embedding status.
     """
 
-    if not layers:
-        return 0
-
     normalized_backend = backend_url.rstrip("/")
     progress_key = (session_id, normalized_backend)
+
+    if not layers:
+        # Even with 0 layers, mark as completed
+        with _progress_lock:
+            if progress_key not in _embedding_progress:
+                _embedding_progress[progress_key] = {
+                    "total": 0,
+                    "encoded": 0,
+                    "state": "completed",
+                    "in_progress": False,
+                    "error": None,
+                }
+            else:
+                _embedding_progress[progress_key]["total"] = 0
+                _embedding_progress[progress_key]["encoded"] = 0
+                _embedding_progress[progress_key]["state"] = "completed"
+                _embedding_progress[progress_key]["in_progress"] = False
+        return 0
 
     # Initialize or update progress tracking to "processing" state
     with _progress_lock:

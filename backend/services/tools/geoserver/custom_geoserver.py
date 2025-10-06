@@ -557,9 +557,15 @@ def preload_backend_layers(
     session_id: str, backend: GeoServerBackend, search_term: Optional[str] = None
 ) -> Dict[str, Any]:
     """Fetch and persist layers for a backend into the session-scoped vector store."""
+    from services.tools.geoserver.vector_store import set_processing_state
 
     if not backend.enabled:
         raise ValueError("Backend must be enabled before preloading layers.")
+
+    backend_url = backend.url.rstrip("/")
+    
+    # Set processing state before fetching
+    set_processing_state(session_id, backend_url, "processing", total=0)
 
     layers, status = fetch_all_service_capabilities_with_status(backend, search_term=search_term)
     if not any(status.values()):
@@ -569,11 +575,16 @@ def preload_backend_layers(
 
     annotated_layers = _annotate_layers_with_backend(layers, backend)
     delete_layers(session_id, [backend.url])
+    
+    # Update total count now that we know how many layers exist
+    if annotated_layers:
+        set_processing_state(session_id, backend_url, "processing", total=len(annotated_layers))
+    
     stored_count = store_layers(session_id, backend.url, backend.name, annotated_layers)
     service_counts = Counter(layer.layer_type or "UNKNOWN" for layer in annotated_layers)
     return {
         "session_id": session_id,
-        "backend_url": backend.url.rstrip("/"),
+        "backend_url": backend_url,
         "backend_name": backend.name,
         "total_layers": stored_count,
         "service_status": status,
