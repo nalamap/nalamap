@@ -21,6 +21,7 @@ from services.tools.styling_tools import (
     check_and_auto_style_layers,
     style_map_layers,
 )
+from services.tools.attribute_tools import attribute_tool
 from utility.tool_configurator import create_configured_tools
 
 
@@ -38,6 +39,7 @@ tools: List[BaseTool] = [
     auto_style_new_layers,  # Intelligent auto-styling tool
     check_and_auto_style_layers,  # Automatic layer style checker
     apply_intelligent_color_scheme,  # Intelligent color scheme application
+    attribute_tool,
 ]
 
 

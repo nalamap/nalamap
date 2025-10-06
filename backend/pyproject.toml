@@ -52,6 +52,7 @@ per-file-ignores = [
     "services/tools/geostate_management.py:E501",  # Long docstrings
     "services/tools/librarian_tools.py:E501",  # Long docstrings
     "services/tools/styling_tools.py:E501",  # Long docstrings
+    "services/tools/attribute_tools.py:E501,E741",  # Long docstrings and intentional short var names
     "services/tools/geoprocessing/ops/buffer.py:E501",  # Long docstrings
     "services/tools/geoprocessing/ops/overlay.py:E501",  # Long docstrings
     "tests/conftest.py:E402",  # Import order needed for test fixtures
