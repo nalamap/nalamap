@@ -120,7 +120,7 @@ class _HashingEmbeddings(Embeddings):
             if self._use_ngrams and len(word) >= 4:
                 # Add character trigrams from longer words
                 for i in range(len(word) - 2):
-                    ngram = word[i : i + 3]
+                    ngram = word[i: i + 3]
                     tokens.append(f"#{ngram}")
 
         return tokens

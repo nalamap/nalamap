@@ -36,11 +36,14 @@ def query_librarian_postgis(
     Limitations:
     * The results are limited to the datasets, layers and regions available in the database.
     * The search is based on similarity, so the results may not always be exact matches to the query.
-    query: the search string to send to the database for a similarity search, like "Rivers Namibia"
+    query: the search string to send to the database for a similarity search, like
+    "Rivers Namibia"
     maxRows: the maximum number of results to return, default is 10
     portal_filter: portal name (string) or null
-    bbox_wkt: WKT polygon string or null like POLYGON((...)) to limit results to an area
-    Inform the user that the results are limited to the datasets and layers available in the linked database.
+    bbox_wkt: WKT polygon string or null like POLYGON((...)) to limit results to an
+    area
+    Inform the user that the results are limited to the datasets and layers available
+    in the linked database.
     Inform the user about the total number of results for the query.
     Always use the bounding box to limit the results to a specific area.
     """

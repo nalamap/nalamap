@@ -57,11 +57,13 @@ def style_map_layers(
     dash_pattern: Optional[str] = None,
 ) -> Command:
     """
-    Style map layers with visual properties. Tool automatically provides current color context.
+    Style map layers with visual properties. Tool automatically provides current
+    color context.
 
     CRITICAL: For colorblind-safe, accessibility, or distinguishable styling:
     - NEVER use one call without layer_names (this makes all layers identical!)
-    - ALWAYS use separate calls: layer_names=["specific_layer"] with different colors
+    - ALWAYS use separate calls: layer_names=["specific_layer"] with different
+      colors
     - Each call must target ONE layer with a UNIQUE color combination
 
     COLOR SELECTION GUIDANCE - Use HEX colors (#RRGGBB format):
@@ -71,7 +73,8 @@ def style_map_layers(
     - Orange family: #FF4500, #FF6347, #D2691E, #A0522D
     - Yellow family: #FFD700, #DAA520, #B8860B, #F4A460
     - Brown family: #A52A2A, #8B4513, #CD853F, #DEB887
-    - Ensure HIGH CONTRAST between layers (avoid similar hues like #FFCC00 vs #FFB300)
+    - Ensure HIGH CONTRAST between layers (avoid similar hues like #FFCC00 vs
+      #FFB300)
 
     COOL COLOR SCHEMES - Choose from diverse cool families:
     - Blue family: #0000FF, #4169E1, #1E90FF, #87CEEB
@@ -94,16 +97,20 @@ def style_map_layers(
     - Use darker stroke colors than fill colors for definition
     - Test color combinations for accessibility
     - Consider the map background when choosing colors
-    - For 3+ layers, use colors from different families (red, blue, green, not red, pink, coral)
+    - For 3+ layers, use colors from different families (red, blue, green, not
+      red, pink, coral)
 
     For uniform appearance (all layers same color):
     - Use one call without layer_names
     - Example: style_map_layers(fill_color="#FF0000", stroke_color="#8B0000")
 
     Args:
-        layer_names: Target specific layers (REQUIRED for distinguishable styling)
-        fill_color: Fill color as hex (#RRGGBB) - agent should choose intelligently
-        stroke_color: Border color as hex (#RRGGBB) - should be darker than fill
+        layer_names: Target specific layers (REQUIRED for distinguishable
+                     styling)
+        fill_color: Fill color as hex (#RRGGBB) - agent should choose
+                    intelligently
+        stroke_color: Border color as hex (#RRGGBB) - should be darker than
+                     fill
         stroke_width: Border width in pixels
         fill_opacity: Fill transparency (0.0 to 1.0)
         stroke_opacity: Border transparency (0.0 to 1.0)
@@ -116,7 +123,8 @@ def style_map_layers(
 
     if not available_layers:
         message = (
-            "No layers are currently available to style. Please add some layers to the map first."
+            "No layers are currently available to style. "
+            "Please add some layers to the map first."
         )
         return Command(
             update={
@@ -137,7 +145,9 @@ def style_map_layers(
         if layer.style and layer.style.fill_color:
             fill = layer.style.fill_color
             stroke = layer.style.stroke_color or "none"
-            current_colors.append(f"{layer.name}: fill={fill}, stroke={stroke}")
+            current_colors.append(
+                f"{layer.name}: fill={fill}, stroke={stroke}"
+            )
 
     color_context = (
         f"Current layer colors: {'; '.join(current_colors)}"
@@ -149,7 +159,9 @@ def style_map_layers(
     layers_to_style = []
 
     # Log available layers for debugging
-    logger.info(f"Available layers: {[layer.name for layer in available_layers]}")
+    logger.info(
+        f"Available layers: {[layer.name for layer in available_layers]}"
+    )
     logger.info(f"Requested layer_names: {layer_names}")
 
     # Determine target layers using fuzzy name matching
@@ -157,9 +169,12 @@ def style_map_layers(
         layers_to_style = match_layer_names(available_layers, layer_names)
         missing = len(layer_names) - len(layers_to_style)
         if missing:
+            available_names = ', '.join([
+                layer.name for layer in available_layers
+            ])
             message = (
                 f"Could not find any layers matching the specified names. "
-                f"Available layers: {', '.join([layer.name for layer in available_layers])}"
+                f"Available layers: {available_names}"
             )
             return Command(
                 update={
@@ -174,19 +189,26 @@ def style_map_layers(
                 }
             )
         logger.info(
-            f"Matched layers for names {layer_names}: {[layer.name for layer in layers_to_style]}"
+            f"Matched layers for names {layer_names}: "
+            f"{[layer.name for layer in layers_to_style]}"
         )
     elif len(available_layers) == 1:
         # Only one layer available and no specific layer names provided
         layers_to_style = available_layers
-        logger.info("Single layer auto-detection: styling the only available layer")
+        logger.info(
+            "Single layer auto-detection: styling the only available layer"
+        )
     else:
         # Multiple layers available and no specific names provided
         layers_to_style = available_layers
         logger.info("Multiple layers: styling all available layers")
 
     if not layers_to_style:
-        message = f"Could not find any layers matching the specified names. Available layers: {', '.join([layer.name for layer in available_layers])}"
+        available_names = ', '.join([layer.name for layer in available_layers])
+        message = (
+            f"Could not find any layers matching the specified names. "
+            f"Available layers: {available_names}"
+        )
         return Command(
             update={
                 "messages": [
@@ -214,7 +236,8 @@ def style_map_layers(
         if stroke_color is not None:
             style_params["stroke_color"] = normalize_color(stroke_color)
         if stroke_width is not None:
-            style_params["stroke_weight"] = stroke_width  # Note: stroke_weight in the model
+            style_params["stroke_weight"] = stroke_width  # Note: stroke_weight
+            # in the model
         if fill_opacity is not None:
             style_params["fill_opacity"] = fill_opacity
         if stroke_opacity is not None:
@@ -225,16 +248,20 @@ def style_map_layers(
             style_params["stroke_dash_array"] = dash_pattern
 
         # Log the styling parameters being applied
-        logger.info(f"Applying styling to layer '{layer.name}': {style_params}")
+        logger.info(
+            f"Applying styling to layer '{layer.name}': {style_params}"
+        )
 
         # Initialize with defaults if no style exists
         if not layer_dict.get("style"):
             layer_dict["style"] = {
                 "stroke_color": "#3388FF",
                 "stroke_weight": 2,
-                "stroke_opacity": 0.85,  # Changed from 1.0 to 0.85 (85% opacity)
+                "stroke_opacity": 0.85,  # Changed from 1.0 to 0.85 (85%
+                                         # opacity)
                 "fill_color": "#3388FF",
-                "fill_opacity": 0.15,  # Changed from 0.3 to 0.15 for less transparency
+                "fill_opacity": 0.15,  # Changed from 0.3 to 0.15 for less
+                                       # transparency
                 "radius": 6,  # Changed from 8 to 6
                 "line_cap": "round",
                 "line_join": "round",
@@ -244,7 +271,9 @@ def style_map_layers(
         layer_dict["style"].update(style_params)
 
         # Log the final style after update
-        logger.info(f"Final style for layer '{layer.name}': {layer_dict['style']}")
+        logger.info(
+            f"Final style for layer '{layer.name}': {layer_dict['style']}"
+        )
 
         # Create new GeoDataObject
         updated_layer = GeoDataObject(**layer_dict)
@@ -253,7 +282,9 @@ def style_map_layers(
     # Update the state with styled layers
     updated_layers = []
     for layer in available_layers:
-        styled_layer = next((sl for sl in styled_layers if sl.id == layer.id), None)
+        styled_layer = next(
+            (sl for sl in styled_layers if sl.id == layer.id), None
+        )
         if styled_layer:
             updated_layers.append(styled_layer)
         else:
@@ -262,9 +293,16 @@ def style_map_layers(
     # Return success message and update state
     styled_layer_names = [layer.name for layer in layers_to_style]
     if len(styled_layer_names) == 1:
-        message = f"Successfully applied styling to layer '{styled_layer_names[0]}'. The changes should be visible on the map."
+        message = (
+            f"Successfully applied styling to layer '{styled_layer_names[0]}'. "
+            "The changes should be visible on the map."
+        )
     else:
-        message = f"Successfully applied styling to {len(styled_layer_names)} layers: {', '.join(styled_layer_names)}. The changes should be visible on the map."
+        layer_list = ', '.join(styled_layer_names)
+        message = (
+            f"Successfully applied styling to {len(styled_layer_names)} layers: "
+            f"{layer_list}. The changes should be visible on the map."
+        )
 
     message += f"\n\n{color_context}\n\n"
 
@@ -272,7 +310,11 @@ def style_map_layers(
         update={
             "messages": [
                 *state["messages"],
-                ToolMessage(name="style_map_layers", content=message, tool_call_id=tool_call_id),
+                ToolMessage(
+                    name="style_map_layers",
+                    content=message,
+                    tool_call_id=tool_call_id
+                ),
             ],
             "geodata_layers": updated_layers,
         }
@@ -286,16 +328,21 @@ def auto_style_new_layers(
     layer_names: Optional[List[str]] = None,
 ) -> Command:
     """
-    Automatically apply intelligent styling to newly uploaded layers with default colors.
+    Automatically apply intelligent styling to newly uploaded layers with
+    default colors.
 
-    This tool directly applies appropriate cartographic colors based on layer names and descriptions,
-    using the comprehensive automatic styling system that analyzes layer names and applies contextually
+    This tool directly applies appropriate cartographic colors based on layer
+    names and descriptions,
+    using the comprehensive automatic styling system that analyzes layer names
+    and applies contextually
     appropriate colors and styles for different geographic feature types.
 
-    Key examples: hospitals→red family, rivers→blue family, forests→green family, roads→gray family.
+    Key examples: hospitals→red family, rivers→blue family, forests→green
+    family, roads→gray family.
 
     Args:
-        layer_names: Specific layer names to auto-style (if None, styles all layers needing styling)
+        layer_names: Specific layer names to auto-style (if None, styles all
+                     layers needing styling)
     """
     available_layers = state.get("geodata_layers", [])
 
@@ -320,7 +367,9 @@ def auto_style_new_layers(
     if layer_names:
         # Style specific layers
         for layer_name in layer_names:
-            matching_layers = [layer for layer in available_layers if layer.name == layer_name]
+            matching_layers = [
+                layer for layer in available_layers if layer.name == layer_name
+            ]
             layers_to_style.extend(matching_layers)
     else:
         # Style all layers that have default styling or no styling
@@ -336,7 +385,10 @@ def auto_style_new_layers(
         ]
 
     if not layers_to_style:
-        message = "No layers found that need auto-styling. All layers appear to have custom styling already."
+        message = (
+            "No layers found that need auto-styling. "
+            "All layers appear to have custom styling already."
+        )
         return Command(
             update={
                 "messages": [
@@ -356,12 +408,16 @@ def auto_style_new_layers(
 
     # Extract existing colors to avoid conflicts
     for layer in available_layers:
-        if layer.style and layer.style.fill_color and layer not in layers_to_style:
+        if (layer.style and layer.style.fill_color and
+                layer not in layers_to_style):
             used_colors.add(layer.style.fill_color.upper())
 
     for layer in layers_to_style:
         # Use the automatic styling system to generate appropriate styling
-        layer_description = getattr(layer, "description", None) or getattr(layer, "title", None)
+        layer_description = (
+            getattr(layer, "description", None) or
+            getattr(layer, "title", None)
+        )
         auto_style = generate_automatic_style(
             layer_name=layer.name,
             layer_description=layer_description,
@@ -383,7 +439,9 @@ def auto_style_new_layers(
         }
 
         # Remove None values
-        layer_dict["style"] = {k: v for k, v in layer_dict["style"].items() if v is not None}
+        layer_dict["style"] = {
+            k: v for k, v in layer_dict["style"].items() if v is not None
+        }
 
         # Track used colors
         if auto_style.fill_color:
@@ -397,7 +455,9 @@ def auto_style_new_layers(
     # Update the state with styled layers
     updated_layers = []
     for layer in available_layers:
-        styled_layer = next((sl for sl in styled_layers if sl.id == layer.id), None)
+        styled_layer = next(
+            (sl for sl in styled_layers if sl.id == layer.id), None
+        )
         if styled_layer:
             updated_layers.append(styled_layer)
         else:
@@ -407,15 +467,16 @@ def auto_style_new_layers(
     styled_layer_info = []
     for layer in styled_layers:
         layer_type = detect_layer_type(
-            layer.name, getattr(layer, "description", None) or getattr(layer, "title", None)
+            layer.name,
+            getattr(layer, "description", None) or getattr(layer, "title", None)
         )
         styled_layer_info.append(f"{layer.name} ({layer_type}): {layer.style.fill_color}")
 
     message = (
-        f"Successfully applied intelligent automatic styling to {len(styled_layers)} layer(s) using "
-        f"the comprehensive automatic styling system. Each layer received contextually appropriate "
-        f"colors and styles based on geographic feature type analysis. Styling applied: "
-        f"{'; '.join(styled_layer_info)}"
+        f"Successfully applied intelligent automatic styling to {len(styled_layers)} "
+        f"layer(s) using the comprehensive automatic styling system. Each layer received "
+        f"contextually appropriate colors and styles based on geographic feature type "
+        f"analysis. Styling applied: {'; '.join(styled_layer_info)}"
     )
 
     return Command(
@@ -439,12 +500,14 @@ def check_and_auto_style_layers(
     tool_call_id: Annotated[str, InjectedToolCallId],
 ) -> Command:
     """
-    Check for newly uploaded layers that have default styling (blue #3388ff colors) and need initial styling.
+    Check for newly uploaded layers that have default styling (blue #3388ff colors) and need
+    initial styling.
 
     IMPORTANT: This tool ONLY works for layers with default styling. Do NOT use this tool when:
     - Users want to change existing styled layers (use style_map_layers instead)
     - Users request colorblind-safe styling (use style_map_layers instead)
-    - Users want to restyle any layers that already have custom colors (use style_map_layers instead)
+    - Users want to restyle any layers that already have custom colors (use style_map_layers
+      instead)
 
     Only use this tool proactively when detecting newly uploaded layers that need initial styling.
     """
@@ -493,7 +556,8 @@ def check_and_auto_style_layers(
     # Trigger auto-styling workflow
     layer_names = [layer.name for layer in layers_needing_style]
     message = (
-        f"Detected {len(layers_needing_style)} newly uploaded layer(s) that need styling: {', '.join(layer_names)}. "
+        f"Detected {len(layers_needing_style)} newly uploaded layer(s) that need styling: "
+        f"{', '.join(layer_names)}. "
         "Automatically applying intelligent cartographic styling based on layer names..."
     )
 

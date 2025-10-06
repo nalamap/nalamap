@@ -99,7 +99,8 @@ def _bbox(gdf: gpd.GeoDataFrame) -> Optional[List[float]]:
 
 def _suggest_next_steps(gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any]) -> List[str]:
     tips = []
-    # Note: geometry name could be used for field-specific suggestions if needed
+    # Note: geometry name could be used for field-specific suggestions
+    # if needed
     gtypes = set(_geometry_type_counts(gdf).keys())
     cols = [c["name"] for c in schema_ctx.get("columns", [])]
 
@@ -147,7 +148,8 @@ def _suggest_next_steps(gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any]) -> Li
         llm = get_llm()
         sys = (
             "You are a GIS data analysis assistant. "
-            "Given the dataset context, suggest up to 6 concrete next steps for analysis or visualization."
+            "Given the dataset context, suggest up to 6 concrete next steps "
+            "for analysis or visualization."
         )
         human = f"Dataset context: {json.dumps(context)}"
         msgs = [SystemMessage(content=sys), HumanMessage(content=human)]
@@ -160,7 +162,7 @@ def _suggest_next_steps(gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any]) -> Li
                 return llm_tips
         except Exception:
             # fallback to splitting
-            lines = [l.strip(" -") for l in text.splitlines() if l.strip()]
+            lines = [line.strip(" -") for line in text.splitlines() if line.strip()]
             return lines[:6]
     except Exception:
         pass
@@ -218,7 +220,10 @@ def describe_dataset_gdf(gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any]) -> D
     if crs:
         summary += f" CRS: {crs}."
     if bbox_vals:
-        summary += f" Bounding box: [{bbox_vals[0]:.4f}, {bbox_vals[1]:.4f}, {bbox_vals[2]:.4f}, {bbox_vals[3]:.4f}]."
+        summary += (
+            f" Bounding box: [{bbox_vals[0]:.4f}, {bbox_vals[1]:.4f}, "
+            f"{bbox_vals[2]:.4f}, {bbox_vals[3]:.4f}]."
+        )
 
     next_steps = _suggest_next_steps(gdf, schema_ctx)
     result = {
@@ -252,7 +257,8 @@ def describe_dataset_gdf(gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any]) -> D
         sys = (
             "You are a GIS data assistant. "
             "Provide a concise description and practical next steps for this specific dataset. "
-            "Respond in JSON with keys 'summary' (string) and 'suggested_next_steps' (list of strings)."
+            "Respond in JSON with keys 'summary' (string) and "
+            "'suggested_next_steps' (list of strings)."
         )
         context_obj = {"metadata": result, "sample_rows": sample_rows}
         human = f"Dataset context and sample rows: {json.dumps(context_obj, default=str)}"
@@ -748,7 +754,8 @@ ATTR_OPS_AND_PARAMS = [
     "operation: summarize params: fields=<list_of_strings>",
     "operation: unique_values params: field=<string>, top_k=<number|null>",
     "operation: filter_where params: where=<CQL_lite_string>",
-    "operation: select_fields params: include=<list_of_strings|null>, exclude=<list_of_strings|null>, keep_geometry=<bool|true>",
+    "operation: select_fields params: include=<list_of_strings|null>, "
+    "exclude=<list_of_strings|null>, keep_geometry=<bool|true>",
     "operation: sort_by params: fields=<list_of_[field,asc|desc]>",
     "operation: describe_dataset params: ",
 ]
@@ -756,7 +763,8 @@ ATTR_OPS_AND_PARAMS = [
 PLANNER_SCHEMA_EXAMPLE = """
 Return ONLY JSON with EXACT structure:
 {
-  "operation": "<one of: list_fields | summarize | unique_values | filter_where | select_fields | sort_by | describe_dataset>",
+  "operation": "<one of: list_fields | summarize | unique_values | "
+  "filter_where | select_fields | sort_by | describe_dataset>",
   "params": { /* parameters for the chosen operation */ },
   "target_layer_names": ["optional layer name(s) if the user specifies which"] ,
   "result_handling": "<'chat' | 'layer'>"
@@ -764,9 +772,12 @@ Return ONLY JSON with EXACT structure:
 Rules:
 - If the user asks for a filter/subset, set result_handling = "layer".
 - If the user wants a table/description/summary, set result_handling = "chat".
-- If the user asks e.g. 'countries of layer A with gdp over 100', choose filter_where with where="gdp > 100" and result_handling="layer".
-- If the user asks “what is this layer”, “explain/describe this dataset”, or seems unsure/naive, choose describe_dataset with result_handling = "chat".
-- Prefer field names as they appear; do NOT invent fields. If unsure, use list_fields first with result_handling="chat".
+- If the user asks e.g. 'countries of layer A with gdp over 100', choose filter_where
+  with where="gdp > 100" and result_handling="layer".
+- If the user asks “what is this layer”, “explain/describe this dataset”, or seems unsure/naive,
+  choose describe_dataset with result_handling = "chat".
+- Prefer field names as they appear; do NOT invent fields. If unsure, use list_fields first
+  with result_handling="chat".
 - For unique categories or value counts -> unique_values (chat).
 - For stats on numeric fields -> summarize (chat).
 - For 'keep only columns X,Y' -> select_fields (layer).
@@ -780,17 +791,23 @@ def attribute_plan_from_prompt(
     llm = get_llm()
     sys = (
         "You convert a user's natural-language request about a GeoJSON attribute table "
-        "into ONE attribute operation. Use the provided COLUMN/VALUE context to pick the correct field(s) and value(s). "
-        "If the referenced value clearly appears under a specific text column's top_values, use that column."
+        "into ONE attribute operation. Use the provided COLUMN/VALUE context to pick the correct "
+        "field(s) and value(s). "
+        "If the referenced value clearly appears under a specific text column's top_values, "
+        "use that column."
         "\nAvailable operations:\n"
         + json.dumps(ATTR_OPS_AND_PARAMS)
         + "\n"
         + PLANNER_SCHEMA_EXAMPLE
         + "\nGuidance:\n"
-        "- Prefer exact matches between user-mentioned entity names and 'top_values' of text columns.\n"
-        "- If multiple columns contain the same value, choose the one named like a name/label field (e.g., name, name_en, river, waterway, label).\n"
-        "- If no plausible column is found, plan `list_fields` with result_handling='chat' and explain uncertainty.\n"
-        "Use the provided schema_context to produce helpful explanations without guessing. Avoid inventing fields."
+        "- Prefer exact matches between user-mentioned entity names and 'top_values' "
+        "of text columns.\n"
+        "- If multiple columns contain the same value, choose the one named like a name/label "
+        "field (e.g., name, name_en, river, waterway, label).\n"
+        "- If no plausible column is found, plan `list_fields` with result_handling='chat' "
+        "and explain uncertainty.\n"
+        "Use the provided schema_context to produce helpful explanations without guessing. "
+        "Avoid inventing fields."
     )
     msg = {
         "query": query,
@@ -840,7 +857,8 @@ def attribute_tool(
                 "messages": [
                     ToolMessage(
                         name="attribute_tool",
-                        content="Error: No geodata layers found in state. Add/select a layer first.",
+                        content="Error: No geodata layers found in state. "
+                        "Add/select a layer first.",
                         tool_call_id=tool_call_id,
                         status="error",
                     )
@@ -848,7 +866,7 @@ def attribute_tool(
             }
         )
 
-    layer_meta = [{"name": l.name, "title": l.title} for l in layers]
+    layer_meta = [{"name": layer.name, "title": layer.title} for layer in layers]
 
     def _last_user(ms):
         for m in reversed(ms):
@@ -859,7 +877,7 @@ def attribute_tool(
     query = _last_user(messages) or ""
     selected = match_layer_names(layers, target_layer_names) if target_layer_names else layers[:1]
     if not selected:
-        avail = [{"name": l.name, "title": l.title} for l in layers]
+        avail = [{"name": layer.name, "title": layer.title} for layer in layers]
         return Command(
             update={
                 "messages": [
@@ -955,7 +973,10 @@ def attribute_tool(
                         "messages": [
                             ToolMessage(
                                 name="attribute_tool",
-                                content=f"Error: Unknown fields in summarize: {missing}. Available: {sorted(gdf.columns.tolist())}",
+                                content=(
+                                    f"Error: Unknown fields in summarize: {missing}. "
+                                    f"Available: {sorted(gdf.columns.tolist())}"
+                                ),
                                 tool_call_id=tool_call_id,
                                 status="error",
                             )
@@ -985,7 +1006,10 @@ def attribute_tool(
                         "messages": [
                             ToolMessage(
                                 name="attribute_tool",
-                                content=f"Error: Unknown field '{fld}'. Available: {sorted(gdf.columns.tolist())}",
+                                content=(
+                                    f"Error: Unknown field '{fld}'. "
+                                    f"Available: {sorted(gdf.columns.tolist())}"
+                                ),
                                 tool_call_id=tool_call_id,
                                 status="error",
                             )
@@ -1016,7 +1040,10 @@ def attribute_tool(
                         "messages": [
                             ToolMessage(
                                 name="attribute_tool",
-                                content=f"Error parsing/applying WHERE: {e}. Available fields: {sorted(gdf.columns.tolist())}",
+                                content=(
+                                    f"Error parsing/applying WHERE: {e}. "
+                                    f"Available fields: {sorted(gdf.columns.tolist())}"
+                                ),
                                 tool_call_id=tool_call_id,
                                 status="error",
                             )
@@ -1049,7 +1076,10 @@ def attribute_tool(
                         "messages": [
                             ToolMessage(
                                 name="attribute_tool",
-                                content=f"Error: Unknown fields in select_fields: {missing}. Available: {sorted(gdf.columns.tolist())}",
+                                content=(
+                                    f"Error: Unknown fields in select_fields: {missing}. "
+                                    f"Available: {sorted(gdf.columns.tolist())}"
+                                ),
                                 tool_call_id=tool_call_id,
                                 status="error",
                             )

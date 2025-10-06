@@ -113,8 +113,17 @@ def mock_geodata_objects() -> List[GeoDataObject]:
             title="Rivers of Africa (Derived from HydroSHEDS)",
             description="""The rivers of Africa dataset is derived from the World Wildlife Fund's (WWF) HydroSHEDS drainage direction layer and a stream network layer. The source of the drainage direction layer was the 15-second Digital Elevation Model (DEM) from NASA's Shuttle Radar Topographic Mission (SRTM). The raster stream network was determined by using the HydroSHEDS flow accumulation grid, with a threshold of about 1000 km² upstream area.
 
-    The stream network dataset consists of the following information: the origin node of each arc in the network (FROM_NODE), the destination of each arc in the network (TO_NODE), the Strahler stream order of each arc in the network (STRAHLER), numerical code and name of the major basin that the arc falls within (MAJ_BAS and MAJ_NAME); - area of the major basin in square km that the arc falls within (MAJ_AREA); - numerical code and name of the sub-basin that the arc falls within (SUB_BAS and SUB_NAME); - area of the sub-basin in square km that the arc falls within (SUB_AREA); - numerical code of the sub-basin towards which the sub-basin flows that the arc falls within (TO_SUBBAS) (the codes -888 and -999 have been assigned respectively to internal sub-basins and to sub-basins draining into the sea).
-    The attributes table now includes a field named "Regime" with tentative classification of perennial ("P") and intermittent ("I") streams.
+    The stream network dataset consists of the following information: the origin node of each arc
+    in the network (FROM_NODE), the destination of each arc in the network (TO_NODE), the Strahler
+    stream order of each arc in the network (STRAHLER), numerical code and name of the major basin
+    that the arc falls within (MAJ_BAS and MAJ_NAME); - area of the major basin in square km that
+    the arc falls within (MAJ_AREA); - numerical code and name of the sub-basin that the arc falls
+    within (SUB_BAS and SUB_NAME); - area of the sub-basin in square km that the arc falls within
+    (SUB_AREA); - numerical code of the sub-basin towards which the sub-basin flows that the arc
+    falls within (TO_SUBBAS) (the codes -888 and -999 have been assigned respectively to internal
+    sub-basins and to sub-basins draining into the sea).
+    The attributes table now includes a field named "Regime" with tentative classification of
+    perennial ("P") and intermittent ("I") streams.
 
     **Supplemental Information:**
 
@@ -154,8 +163,17 @@ def mock_geodata_objects() -> List[GeoDataObject]:
             title="Rivers of Africa (Derived from HydroSHEDS)",
             description="""The rivers of Africa dataset is derived from the World Wildlife Fund's (WWF) HydroSHEDS drainage direction layer and a stream network layer. The source of the drainage direction layer was the 15-second Digital Elevation Model (DEM) from NASA's Shuttle Radar Topographic Mission (SRTM). The raster stream network was determined by using the HydroSHEDS flow accumulation grid, with a threshold of about 1000 km² upstream area.
 
-    The stream network dataset consists of the following information: the origin node of each arc in the network (FROM_NODE), the destination of each arc in the network (TO_NODE), the Strahler stream order of each arc in the network (STRAHLER), numerical code and name of the major basin that the arc falls within (MAJ_BAS and MAJ_NAME); - area of the major basin in square km that the arc falls within (MAJ_AREA); - numerical code and name of the sub-basin that the arc falls within (SUB_BAS and SUB_NAME); - area of the sub-basin in square km that the arc falls within (SUB_AREA); - numerical code of the sub-basin towards which the sub-basin flows that the arc falls within (TO_SUBBAS) (the codes -888 and -999 have been assigned respectively to internal sub-basins and to sub-basins draining into the sea).
-    The attributes table now includes a field named "Regime" with tentative classification of perennial ("P") and intermittent ("I") streams.
+    The stream network dataset consists of the following information: the origin node of each arc
+    in the network (FROM_NODE), the destination of each arc in the network (TO_NODE), the Strahler
+    stream order of each arc in the network (STRAHLER), numerical code and name of the major basin
+    that the arc falls within (MAJ_BAS and MAJ_NAME); - area of the major basin in square km that
+    the arc falls within (MAJ_AREA); - numerical code and name of the sub-basin that the arc falls
+    within (SUB_BAS and SUB_NAME); - area of the sub-basin in square km that the arc falls within
+    (SUB_AREA); - numerical code of the sub-basin towards which the sub-basin flows that the arc
+    falls within (TO_SUBBAS) (the codes -888 and -999 have been assigned respectively to internal
+    sub-basins and to sub-basins draining into the sea).
+    The attributes table now includes a field named "Regime" with tentative classification of
+    perennial ("P") and intermittent ("I") streams.
 
     **Supplemental Information:**
 
@@ -190,7 +208,11 @@ def mock_geodata_objects() -> List[GeoDataObject]:
             data_type=DataType.LAYER,
             data_origin=DataOrigin.TOOL,
             data_source="HOTOSM",
-            data_link="https://data.apps.fao.org/map/gsrv/edit/casap/ows?service=WMS&request=GetMap&layers=rivieres_principales_hotosm_fao&format=image/png&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256",
+            data_link=(
+                "https://data.apps.fao.org/map/gsrv/edit/casap/ows?service=WMS&request=GetMap&"
+                "layers=rivieres_principales_hotosm_fao&format=image/png&BBOX={bbox-epsg-3857}&"
+                "WIDTH=256&HEIGHT=256"
+            ),
             name="rivieres_principales_hotosm_fao",
             title="rivieres_principales_hotosm_fao",
             description="""Rivières principales de la République Centrafricaine. Le fichier est une sélection du HOTOSM Central African Republic Waterways (OpenStreetMap Export) distribué par OCHA à travers le portail Humanitarian Data Exchange. Les cours d'eau ont été integré pour guarantir la continuité des lignes.
@@ -216,7 +238,11 @@ def mock_geodata_objects() -> List[GeoDataObject]:
             data_type=DataType.LAYER,
             data_origin=DataOrigin.TOOL,
             data_source="FAO",
-            data_link="https://data.apps.fao.org/map/gsrv/edit/wwweeks/ows?service=WMS&request=GetMap&layers=Rivers (Ethiopia)&format=image/png&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256",
+            data_link=(
+                "https://data.apps.fao.org/map/gsrv/edit/wwweeks/ows?service=WMS&"
+                "request=GetMap&layers=Rivers (Ethiopia)&format=image/png&"
+                "BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256"
+            ),
             name="Rivers (Ethiopia)",
             title="Rivers (Ethiopia)",
             description="No notes available",
