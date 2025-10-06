@@ -110,14 +110,55 @@ async def upload_file(file: UploadFile = File(...)) -> Dict[str, str]:
 # Debug/ops: fetch file metadata (size, sha256) to verify integrity end-to-end
 @router.get("/uploads/meta/{file_id:path}")
 async def get_upload_meta(file_id: str) -> Dict[str, str]:
-    """Return file size and SHA256 for a stored upload by its ID (filename)."""
-    fullpath = _resolve_upload_path(file_id)
+    """Return file size and SHA256 for a stored upload by its ID (filename).
 
-    sha256 = hashlib.sha256()
-    size = 0
-    with open(fullpath, "rb") as f:
-        for chunk in iter(lambda: f.read(1024 * 1024), b""):
-            size += len(chunk)
-            sha256.update(chunk)
+    Supports both local storage and Azure Blob Storage backends.
+    """
+    # Check if we're using Azure Blob Storage
+    if core_config.USE_AZURE and core_config.AZ_CONN:
+        try:
+            from azure.storage.blob import BlobServiceClient
 
-    return {"id": file_id, "size": str(size), "sha256": sha256.hexdigest()}
+            # Sanitize filename to prevent path traversal
+            safe_file_id = file_id.split("/")[-1]  # Get just the filename
+
+            blob_svc = BlobServiceClient.from_connection_string(core_config.AZ_CONN)
+            container_client = blob_svc.get_container_client(core_config.AZ_CONTAINER)
+            blob_client = container_client.get_blob_client(safe_file_id)
+
+            # Download blob and compute hash
+            sha256 = hashlib.sha256()
+            size = 0
+
+            stream = blob_client.download_blob()
+            for chunk in stream.chunks():
+                size += len(chunk)
+                sha256.update(chunk)
+
+            return {
+                "id": file_id,
+                "size": str(size),
+                "sha256": sha256.hexdigest(),
+                "storage": "azure",
+            }
+        except Exception as e:
+            raise HTTPException(
+                status_code=404, detail=f"File not found in Azure Blob Storage: {str(e)}"
+            )
+    else:
+        # Local storage fallback
+        fullpath = _resolve_upload_path(file_id)
+
+        sha256 = hashlib.sha256()
+        size = 0
+        with open(fullpath, "rb") as f:
+            for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                size += len(chunk)
+                sha256.update(chunk)
+
+        return {
+            "id": file_id,
+            "size": str(size),
+            "sha256": sha256.hexdigest(),
+            "storage": "local",
+        }
