@@ -24,11 +24,10 @@ from typing import Iterable, List, Optional, Sequence, Tuple
 from langchain_community.vectorstores import SQLiteVec
 from langchain_core.embeddings import Embeddings
 
-from core.config import (
-    GEOSERVER_EMBEDDING_FACTORY_ENV,
-    get_geoserver_embedding_factory_path,
-    get_geoserver_vector_db_path,
-)
+from core.config import (GEOSERVER_EMBEDDING_FACTORY_ENV, OPENAI_API_KEY,
+                         OPENAI_EMBEDDING_MODEL, USE_OPENAI_EMBEDDINGS,
+                         get_geoserver_embedding_factory_path,
+                         get_geoserver_vector_db_path)
 from models.geodata import GeoDataObject
 
 _VECTOR_TABLE = "geoserver_layer_embeddings"
@@ -46,17 +45,52 @@ class _HashingEmbeddings(Embeddings):
     3. N-gram support: captures character and word patterns
     4. Sublinear TF scaling: log(1+tf) reduces impact of repetition
     5. Higher dimension: 768 instead of 512 for better separation
-    
+
     This provides better semantic similarity without heavy ML dependencies.
     """
 
     # Common English stopwords to filter out
-    _STOPWORDS = frozenset([
-        "a", "an", "and", "are", "as", "at", "be", "by", "for", "from",
-        "has", "he", "in", "is", "it", "its", "of", "on", "that", "the",
-        "to", "was", "will", "with", "the", "this", "but", "they", "have",
-        "had", "what", "when", "where", "who", "which", "why", "how"
-    ])
+    _STOPWORDS = frozenset(
+        [
+            "a",
+            "an",
+            "and",
+            "are",
+            "as",
+            "at",
+            "be",
+            "by",
+            "for",
+            "from",
+            "has",
+            "he",
+            "in",
+            "is",
+            "it",
+            "its",
+            "of",
+            "on",
+            "that",
+            "the",
+            "to",
+            "was",
+            "will",
+            "with",
+            "the",
+            "this",
+            "but",
+            "they",
+            "have",
+            "had",
+            "what",
+            "when",
+            "where",
+            "who",
+            "which",
+            "why",
+            "how",
+        ]
+    )
 
     def __init__(self, dimension: int = 768, use_ngrams: bool = True) -> None:
         self._dimension = dimension
@@ -71,7 +105,7 @@ class _HashingEmbeddings(Embeddings):
         """Extract tokens from text with preprocessing."""
         tokens = []
         words = self._token_pattern.findall(text.lower())
-        
+
         for word in words:
             # Skip stopwords
             if word in self._STOPWORDS:
@@ -79,33 +113,33 @@ class _HashingEmbeddings(Embeddings):
             # Skip very short tokens
             if len(word) < 2:
                 continue
-            
+
             tokens.append(word)
-            
+
             # Add character n-grams for partial matching
             if self._use_ngrams and len(word) >= 4:
                 # Add character trigrams from longer words
                 for i in range(len(word) - 2):
-                    ngram = word[i:i+3]
+                    ngram = word[i : i + 3]
                     tokens.append(f"#{ngram}")
-        
+
         return tokens
 
     def _get_idf_weight(self, token: str) -> float:
         """Get IDF-like weight for token (higher for rarer terms).
-        
+
         Uses a simplified IDF approximation without requiring
         a full document corpus.
         """
         if not self._doc_freq:
             # No corpus stats yet, use uniform weight
             return 1.0
-        
+
         df = self._doc_freq.get(token, 0)
         if df == 0:
             # Rare token, high weight
             return 2.0
-        
+
         # IDF = log(N / df)
         idf = math.log((self._total_docs + 1) / (df + 1)) + 1.0
         return idf
@@ -113,7 +147,7 @@ class _HashingEmbeddings(Embeddings):
     def _vectorize(self, text: str) -> List[float]:
         buckets = [0.0] * self._dimension
         tokens = self._extract_tokens(text)
-        
+
         if not tokens:
             return buckets
 
@@ -126,13 +160,13 @@ class _HashingEmbeddings(Embeddings):
         for token, tf in term_freq.items():
             # Sublinear TF: log(1 + tf) instead of raw tf
             tf_weight = math.log(1.0 + tf)
-            
+
             # IDF-like weight for rare terms
             idf_weight = self._get_idf_weight(token)
-            
+
             # Combined TF-IDF weight
             weight = tf_weight * idf_weight
-            
+
             # Hash to bucket
             digest = hashlib.sha1(token.encode("utf-8")).digest()
             bucket_idx = int.from_bytes(digest[:4], byteorder="big") % self._dimension
@@ -142,25 +176,102 @@ class _HashingEmbeddings(Embeddings):
         norm = math.sqrt(sum(w * w for w in buckets))
         if norm > 0.0:
             buckets = [w / norm for w in buckets]
-        
+
         return buckets
 
     def embed_documents(self, texts: Iterable[str]) -> List[List[float]]:  # type: ignore[override]
         """Embed multiple documents and update IDF statistics."""
         texts_list = list(texts)
-        
+
         # Update document frequency statistics
         self._total_docs += len(texts_list)
         for text in texts_list:
             tokens = set(self._extract_tokens(text))
             for token in tokens:
                 self._doc_freq[token] = self._doc_freq.get(token, 0) + 1
-        
+
         return [self._vectorize(text) for text in texts_list]
 
     def embed_query(self, text: str) -> List[float]:  # type: ignore[override]
         """Embed a query using the current IDF statistics."""
         return self._vectorize(text)
+
+
+class _OpenAIEmbeddings(Embeddings):
+    """OpenAI embeddings wrapper with automatic fallback.
+
+    Uses OpenAI's text-embedding models (e.g., text-embedding-3-small,
+    text-embedding-3-large, text-embedding-ada-002) for high-quality semantic
+    embeddings. Falls back to _HashingEmbeddings if OpenAI is unavailable
+    or encounters errors.
+
+    Configuration via environment variables:
+    - OPENAI_API_KEY: Your OpenAI API key
+    - OPENAI_EMBEDDING_MODEL: Model name (default: text-embedding-3-small)
+    """
+
+    def __init__(self) -> None:
+        self._openai_embeddings: Optional[Embeddings] = None
+        self._fallback_embeddings = _HashingEmbeddings()
+        self._use_fallback = False
+
+        # Try to initialize OpenAI embeddings
+        if self._should_use_openai():
+            try:
+                from langchain_openai import OpenAIEmbeddings
+
+                self._openai_embeddings = OpenAIEmbeddings(
+                    model=OPENAI_EMBEDDING_MODEL,
+                    openai_api_key=OPENAI_API_KEY,
+                )
+                logger.info(
+                    f"OpenAI embeddings initialized with model: " f"{OPENAI_EMBEDDING_MODEL}"
+                )
+            except ImportError:
+                logger.warning(
+                    "langchain_openai not installed. Install with: pip install langchain-openai. "
+                    "Falling back to lightweight hashing embeddings."
+                )
+                self._use_fallback = True
+            except Exception as e:
+                logger.warning(
+                    f"Failed to initialize OpenAI embeddings: {e}. "
+                    "Falling back to lightweight hashing embeddings."
+                )
+                self._use_fallback = True
+        else:
+            logger.info("OpenAI embeddings not configured. Using lightweight hashing embeddings.")
+            self._use_fallback = True
+
+    def _should_use_openai(self) -> bool:
+        """Check if OpenAI should be used based on configuration."""
+        return bool(USE_OPENAI_EMBEDDINGS and OPENAI_API_KEY)
+
+    def embed_documents(self, texts: Iterable[str]) -> List[List[float]]:  # type: ignore[override]
+        """Embed documents using OpenAI or fallback."""
+        texts_list = list(texts)
+
+        if self._use_fallback or not self._openai_embeddings:
+            return self._fallback_embeddings.embed_documents(texts_list)
+
+        try:
+            return self._openai_embeddings.embed_documents(texts_list)
+        except Exception as e:
+            logger.error(f"OpenAI embedding failed: {e}. Falling back to hashing embeddings.")
+            self._use_fallback = True
+            return self._fallback_embeddings.embed_documents(texts_list)
+
+    def embed_query(self, text: str) -> List[float]:  # type: ignore[override]
+        """Embed a query using OpenAI or fallback."""
+        if self._use_fallback or not self._openai_embeddings:
+            return self._fallback_embeddings.embed_query(text)
+
+        try:
+            return self._openai_embeddings.embed_query(text)
+        except Exception as e:
+            logger.error(f"OpenAI query embedding failed: {e}. Falling back to hashing embeddings.")
+            self._use_fallback = True
+            return self._fallback_embeddings.embed_query(text)
 
 
 _vector_store_lock = threading.Lock()
@@ -233,36 +344,48 @@ def _get_embedding_model() -> Embeddings:
         custom = _load_custom_embeddings()
         if custom is not None:
             _embedding_model = custom
+        elif USE_OPENAI_EMBEDDINGS:
+            _embedding_model = _OpenAIEmbeddings()
         else:
             _embedding_model = _HashingEmbeddings()
     return _embedding_model
 
 
 def _create_vector_store() -> Optional[SQLiteVec]:
+    global _use_fallback_store
+
     db_path = _get_db_path()
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        # Enable check_same_thread=False to allow connection reuse across threads
-        # This is safe because we use thread-local storage for the vector store instance
-        connection = SQLiteVec.create_connection(str(db_path), check_same_thread=False)
-    except (AttributeError, TypeError):
-        # Fallback for older versions or if check_same_thread parameter not supported
-        import sqlite_vec  # type: ignore
 
-        connection = sqlite_vec.Connection(str(db_path))
-        # Enable thread-safe access for SQLite
-        connection.isolation_level = None  # autocommit mode
-    # Ensure we always return rows as dictionaries so json_extract calls work predictably
-    connection.row_factory = sqlite3.Row
     try:
+        # Try using SQLiteVec's create_connection first
+        try:
+            connection = SQLiteVec.create_connection(str(db_path), check_same_thread=False)
+        except (AttributeError, TypeError):
+            # Fallback: create connection with sqlite-vec pre-loaded
+            import sqlite_vec  # type: ignore
+
+            # sqlite_vec.Connection creates a SQLite connection with vec extension pre-loaded
+            connection = sqlite_vec.Connection(str(db_path), check_same_thread=False)
+            # Enable thread-safe access for SQLite
+            connection.isolation_level = None  # autocommit mode
+
+        # Ensure we always return rows as dictionaries so json_extract calls work predictably
+        connection.row_factory = sqlite3.Row
+
         return SQLiteVec(
             table=_VECTOR_TABLE,
             connection=connection,
             embedding=_get_embedding_model(),
         )
-    except sqlite3.OperationalError:
-        global _use_fallback_store
-
+    except sqlite3.OperationalError as e:
+        logger.warning(f"Failed to initialize SQLite vector store: {e}. Using in-memory fallback.")
+        _use_fallback_store = True
+        return None
+    except Exception as e:
+        logger.warning(
+            f"Unexpected error initializing SQLite vector store: {e}. Using in-memory fallback."
+        )
         _use_fallback_store = True
         return None
 
@@ -309,36 +432,36 @@ def reset_vector_store_for_tests() -> None:
 
 def _layer_to_text(layer: GeoDataObject) -> str:
     """Create a textual representation used for embedding generation.
-    
+
     The text is structured to prioritize important fields:
     1. Title (repeated 3x for higher weight in similarity)
     2. Name (repeated 2x)
     3. Description (full text)
     4. Layer type and data source
     5. Keywords from properties
-    
+
     This weighting helps match user queries to layer titles/names more effectively.
     """
     parts: List[str] = []
-    
+
     # Title gets highest weight (repeated 3 times)
     if layer.title:
         parts.extend([layer.title] * 3)
-    
+
     # Name gets medium weight (repeated 2 times)
     if layer.name:
         parts.extend([layer.name] * 2)
-    
+
     # Description gets full weight (once)
     if layer.description:
         parts.append(layer.description)
-    
+
     # Add layer type and data source for context
     if layer.layer_type:
         parts.append(f"type:{layer.layer_type}")
     if layer.data_source:
         parts.append(f"source:{layer.data_source}")
-    
+
     # Extract keywords from properties if available
     if layer.properties:
         props = layer.properties
@@ -350,7 +473,7 @@ def _layer_to_text(layer: GeoDataObject) -> str:
             for key, value in props.items():
                 if isinstance(value, str) and len(value) < 100:
                     parts.append(value)
-    
+
     return " ".join(parts)
 
 

@@ -80,6 +80,14 @@ GEOSERVER_VECTOR_DB_ENV = "NALAMAP_GEOSERVER_VECTOR_DB"
 GEOSERVER_EMBEDDING_FACTORY_ENV = "NALAMAP_GEOSERVER_EMBEDDING_FACTORY"
 DEFAULT_GEOSERVER_VECTOR_DB_PATH = Path("data/geoserver_vectors.db")
 
+# OpenAI embeddings configuration (optional)
+# Set USE_OPENAI_EMBEDDINGS=true to enable transformer-based embeddings
+USE_OPENAI_EMBEDDINGS = os.getenv("USE_OPENAI_EMBEDDINGS", "false").lower() == "true"
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_EMBEDDING_MODEL = os.getenv(
+    "OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"
+)
+
 
 def get_geoserver_vector_db_path() -> Path:
     """Return the configured GeoServer vector database path."""

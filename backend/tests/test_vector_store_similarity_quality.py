@@ -35,9 +35,16 @@ def make_layer(
 
 
 @pytest.fixture(autouse=True)
-def reset_store():
-    """Clean up before and after each test."""
+def reset_store(monkeypatch):
+    """Clean up before and after each test and force fallback mode.
+
+    The fallback store is used to avoid sqlite-vec extension loading issues
+    while still testing the embedding algorithm quality.
+    """
     vs.reset_vector_store_for_tests()
+    # Force fallback mode to avoid extension loading issues in tests
+    monkeypatch.setattr(vs, "_use_fallback_store", True, raising=False)
+    monkeypatch.setattr(vs, "_fallback_documents", [], raising=False)
     yield
     vs.reset_vector_store_for_tests()
 
@@ -182,9 +189,7 @@ def test_stopword_filtering_improves_relevance():
 
     # Despite "unrelated" having many common words,
     # "precipitation" should rank first due to content word matching
-    assert (
-        results[0][0].name == "precipitation"
-    ), "Content words should matter more than stopwords"
+    assert results[0][0].name == "precipitation", "Content words should matter more than stopwords"
 
 
 def test_ngram_support_for_partial_matches():

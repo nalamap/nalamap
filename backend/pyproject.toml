@@ -43,6 +43,8 @@ isort = "*"
 
 [tool.flake8]
 max-line-length = 100
+# E203: whitespace before ':' - conflicts with Black formatter for slice notation
+extend-ignore = ["E203"]
 per-file-ignores = [
     "models/geodata.py:E501",  # Mock Data String
     "services/tools/geocoding.py:E501",  # Long docstrings and API URLs
