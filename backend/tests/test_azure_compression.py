@@ -12,9 +12,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from services.storage.file_management import (_compress_for_azure,
-                                              _should_compress_for_azure,
-                                              store_file, store_file_stream)
+from services.storage.file_management import (
+    _compress_for_azure,
+    _should_compress_for_azure,
+    store_file,
+    store_file_stream,
+)
 
 
 class TestAzureCompressionHelpers:

@@ -7,6 +7,7 @@ import uuid
 from typing import Any, Dict, List, Optional, Union
 
 import requests
+
 # LLM import
 from langchain_core.messages import HumanMessage, ToolMessage
 from langchain_core.tools import tool
@@ -27,6 +28,7 @@ from services.tools.geoprocessing.ops.overlay import op_overlay
 from services.tools.geoprocessing.ops.simplify import op_simplify
 from services.tools.geoprocessing.ops.sjoin import op_sjoin
 from services.tools.geoprocessing.ops.sjoin_nearest import op_sjoin_nearest
+
 # Imports of operation functions from geoprocessing ops and utils
 from services.tools.geoprocessing.utils import get_last_human_content
 from services.tools.utils import match_layer_names
@@ -214,7 +216,7 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
                         start_line = i
                         break
                 # Get content starting from the line after the first ``` line
-                cleaned_content = "\n".join(lines[start_line + 1:])
+                cleaned_content = "\n".join(lines[start_line + 1 :])
                 # Remove the last ``` and anything after it
                 if "```" in cleaned_content:
                     cleaned_content = cleaned_content.split("```")[0]

@@ -9,10 +9,8 @@ from pydantic import BaseModel
 from core import config as core_config
 from models.settings_model import GeoServerBackend
 from services.background_tasks import TaskPriority, get_task_manager
-from services.default_agent_settings import (DEFAULT_AVAILABLE_TOOLS,
-                                             DEFAULT_SYSTEM_PROMPT)
-from services.tools.geoserver.custom_geoserver import \
-    preload_backend_layers_with_state
+from services.default_agent_settings import DEFAULT_AVAILABLE_TOOLS, DEFAULT_SYSTEM_PROMPT
+from services.tools.geoserver.custom_geoserver import preload_backend_layers_with_state
 from services.tools.geoserver.vector_store import set_processing_state
 
 router = APIRouter(prefix="/settings", tags=["settings"])

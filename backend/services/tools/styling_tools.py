@@ -13,10 +13,12 @@ from langgraph.types import Command
 from typing_extensions import Annotated
 
 from models.geodata import GeoDataObject
-from services.ai.automatic_styling import (detect_layer_type,
-                                           generate_automatic_style,
-                                           parse_color_scheme_request,
-                                           parse_intelligent_color)
+from services.ai.automatic_styling import (
+    detect_layer_type,
+    generate_automatic_style,
+    parse_color_scheme_request,
+    parse_intelligent_color,
+)
 from services.tools.utils import match_layer_names
 
 logger = logging.getLogger(__name__)
@@ -145,9 +147,7 @@ def style_map_layers(
         if layer.style and layer.style.fill_color:
             fill = layer.style.fill_color
             stroke = layer.style.stroke_color or "none"
-            current_colors.append(
-                f"{layer.name}: fill={fill}, stroke={stroke}"
-            )
+            current_colors.append(f"{layer.name}: fill={fill}, stroke={stroke}")
 
     color_context = (
         f"Current layer colors: {'; '.join(current_colors)}"
@@ -159,9 +159,7 @@ def style_map_layers(
     layers_to_style = []
 
     # Log available layers for debugging
-    logger.info(
-        f"Available layers: {[layer.name for layer in available_layers]}"
-    )
+    logger.info(f"Available layers: {[layer.name for layer in available_layers]}")
     logger.info(f"Requested layer_names: {layer_names}")
 
     # Determine target layers using fuzzy name matching
@@ -169,9 +167,7 @@ def style_map_layers(
         layers_to_style = match_layer_names(available_layers, layer_names)
         missing = len(layer_names) - len(layers_to_style)
         if missing:
-            available_names = ', '.join([
-                layer.name for layer in available_layers
-            ])
+            available_names = ", ".join([layer.name for layer in available_layers])
             message = (
                 f"Could not find any layers matching the specified names. "
                 f"Available layers: {available_names}"
@@ -195,16 +191,14 @@ def style_map_layers(
     elif len(available_layers) == 1:
         # Only one layer available and no specific layer names provided
         layers_to_style = available_layers
-        logger.info(
-            "Single layer auto-detection: styling the only available layer"
-        )
+        logger.info("Single layer auto-detection: styling the only available layer")
     else:
         # Multiple layers available and no specific names provided
         layers_to_style = available_layers
         logger.info("Multiple layers: styling all available layers")
 
     if not layers_to_style:
-        available_names = ', '.join([layer.name for layer in available_layers])
+        available_names = ", ".join([layer.name for layer in available_layers])
         message = (
             f"Could not find any layers matching the specified names. "
             f"Available layers: {available_names}"
@@ -248,9 +242,7 @@ def style_map_layers(
             style_params["stroke_dash_array"] = dash_pattern
 
         # Log the styling parameters being applied
-        logger.info(
-            f"Applying styling to layer '{layer.name}': {style_params}"
-        )
+        logger.info(f"Applying styling to layer '{layer.name}': {style_params}")
 
         # Initialize with defaults if no style exists
         if not layer_dict.get("style"):
@@ -258,10 +250,10 @@ def style_map_layers(
                 "stroke_color": "#3388FF",
                 "stroke_weight": 2,
                 "stroke_opacity": 0.85,  # Changed from 1.0 to 0.85 (85%
-                                         # opacity)
+                # opacity)
                 "fill_color": "#3388FF",
                 "fill_opacity": 0.15,  # Changed from 0.3 to 0.15 for less
-                                       # transparency
+                # transparency
                 "radius": 6,  # Changed from 8 to 6
                 "line_cap": "round",
                 "line_join": "round",
@@ -271,9 +263,7 @@ def style_map_layers(
         layer_dict["style"].update(style_params)
 
         # Log the final style after update
-        logger.info(
-            f"Final style for layer '{layer.name}': {layer_dict['style']}"
-        )
+        logger.info(f"Final style for layer '{layer.name}': {layer_dict['style']}")
 
         # Create new GeoDataObject
         updated_layer = GeoDataObject(**layer_dict)
@@ -282,9 +272,7 @@ def style_map_layers(
     # Update the state with styled layers
     updated_layers = []
     for layer in available_layers:
-        styled_layer = next(
-            (sl for sl in styled_layers if sl.id == layer.id), None
-        )
+        styled_layer = next((sl for sl in styled_layers if sl.id == layer.id), None)
         if styled_layer:
             updated_layers.append(styled_layer)
         else:
@@ -298,7 +286,7 @@ def style_map_layers(
             "The changes should be visible on the map."
         )
     else:
-        layer_list = ', '.join(styled_layer_names)
+        layer_list = ", ".join(styled_layer_names)
         message = (
             f"Successfully applied styling to {len(styled_layer_names)} layers: "
             f"{layer_list}. The changes should be visible on the map."
@@ -310,11 +298,7 @@ def style_map_layers(
         update={
             "messages": [
                 *state["messages"],
-                ToolMessage(
-                    name="style_map_layers",
-                    content=message,
-                    tool_call_id=tool_call_id
-                ),
+                ToolMessage(name="style_map_layers", content=message, tool_call_id=tool_call_id),
             ],
             "geodata_layers": updated_layers,
         }
@@ -367,9 +351,7 @@ def auto_style_new_layers(
     if layer_names:
         # Style specific layers
         for layer_name in layer_names:
-            matching_layers = [
-                layer for layer in available_layers if layer.name == layer_name
-            ]
+            matching_layers = [layer for layer in available_layers if layer.name == layer_name]
             layers_to_style.extend(matching_layers)
     else:
         # Style all layers that have default styling or no styling
@@ -408,16 +390,12 @@ def auto_style_new_layers(
 
     # Extract existing colors to avoid conflicts
     for layer in available_layers:
-        if (layer.style and layer.style.fill_color and
-                layer not in layers_to_style):
+        if layer.style and layer.style.fill_color and layer not in layers_to_style:
             used_colors.add(layer.style.fill_color.upper())
 
     for layer in layers_to_style:
         # Use the automatic styling system to generate appropriate styling
-        layer_description = (
-            getattr(layer, "description", None) or
-            getattr(layer, "title", None)
-        )
+        layer_description = getattr(layer, "description", None) or getattr(layer, "title", None)
         auto_style = generate_automatic_style(
             layer_name=layer.name,
             layer_description=layer_description,
@@ -439,9 +417,7 @@ def auto_style_new_layers(
         }
 
         # Remove None values
-        layer_dict["style"] = {
-            k: v for k, v in layer_dict["style"].items() if v is not None
-        }
+        layer_dict["style"] = {k: v for k, v in layer_dict["style"].items() if v is not None}
 
         # Track used colors
         if auto_style.fill_color:
@@ -455,9 +431,7 @@ def auto_style_new_layers(
     # Update the state with styled layers
     updated_layers = []
     for layer in available_layers:
-        styled_layer = next(
-            (sl for sl in styled_layers if sl.id == layer.id), None
-        )
+        styled_layer = next((sl for sl in styled_layers if sl.id == layer.id), None)
         if styled_layer:
             updated_layers.append(styled_layer)
         else:
@@ -467,8 +441,7 @@ def auto_style_new_layers(
     styled_layer_info = []
     for layer in styled_layers:
         layer_type = detect_layer_type(
-            layer.name,
-            getattr(layer, "description", None) or getattr(layer, "title", None)
+            layer.name, getattr(layer, "description", None) or getattr(layer, "title", None)
         )
         styled_layer_info.append(f"{layer.name} ({layer_type}): {layer.style.fill_color}")
 

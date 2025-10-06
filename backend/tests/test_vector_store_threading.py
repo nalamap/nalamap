@@ -13,11 +13,13 @@ import time
 import pytest
 
 from models.geodata import DataOrigin, DataType, GeoDataObject
-from services.tools.geoserver.vector_store import (delete_layers,
-                                                   get_vector_store,
-                                                   list_layers,
-                                                   similarity_search,
-                                                   store_layers)
+from services.tools.geoserver.vector_store import (
+    delete_layers,
+    get_vector_store,
+    list_layers,
+    similarity_search,
+    store_layers,
+)
 
 
 @pytest.fixture

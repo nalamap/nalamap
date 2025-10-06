@@ -3,11 +3,18 @@ from typing import List
 import pytest
 
 from models.geodata import DataOrigin, DataType, GeoDataObject
-from models.settings_model import (GeoServerBackend, ModelSettings,
-                                   SearchPortal, SettingsSnapshot, ToolConfig)
+from models.settings_model import (
+    GeoServerBackend,
+    ModelSettings,
+    SearchPortal,
+    SettingsSnapshot,
+    ToolConfig,
+)
 from models.states import GeoDataAgentState
 from services.tools.geoserver.custom_geoserver import (
-    get_custom_geoserver_data, preload_backend_layers)
+    get_custom_geoserver_data,
+    preload_backend_layers,
+)
 
 
 def _create_tool_call(tool_name: str, args: dict, call_id: str) -> dict:

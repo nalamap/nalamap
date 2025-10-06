@@ -4,8 +4,14 @@ import uuid
 from datetime import datetime, timedelta
 from typing import BinaryIO, Tuple
 
-from core.config import (AZ_CONN, AZ_CONTAINER, AZURE_SAS_EXPIRY_HOURS,
-                         BASE_URL, LOCAL_UPLOAD_DIR, USE_AZURE)
+from core.config import (
+    AZ_CONN,
+    AZ_CONTAINER,
+    AZURE_SAS_EXPIRY_HOURS,
+    BASE_URL,
+    LOCAL_UPLOAD_DIR,
+    USE_AZURE,
+)
 from utility.string_methods import sanitize_filename
 
 # Minimum file size for compression (1MB)

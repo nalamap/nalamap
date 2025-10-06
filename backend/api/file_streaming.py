@@ -17,8 +17,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 
 from core.config import LOCAL_UPLOAD_DIR
-from services.compression.gzip_utils import (compress_file, get_file_to_serve,
-                                             should_compress_file)
+from services.compression.gzip_utils import compress_file, get_file_to_serve, should_compress_file
 from utility.string_methods import sanitize_filename
 
 router = APIRouter(tags=["file-streaming"])

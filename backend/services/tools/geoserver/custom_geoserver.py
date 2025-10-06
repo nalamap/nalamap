@@ -24,17 +24,22 @@ from typing_extensions import Annotated
 
 from core.config import get_filter_non_webmercator_wmts
 from models.geodata import DataOrigin, DataType, GeoDataObject
-from models.settings_model import (GeoServerBackend, ModelSettings,
-                                   SearchPortal, SettingsSnapshot, ToolConfig)
+from models.settings_model import (
+    GeoServerBackend,
+    ModelSettings,
+    SearchPortal,
+    SettingsSnapshot,
+    ToolConfig,
+)
 from models.states import GeoDataAgentState
-from services.tools.geoserver.vector_store import (delete_layers,
-                                                   get_embedding_status,
-                                                   has_layers,
-                                                   is_fully_encoded)
-from services.tools.geoserver.vector_store import \
-    list_layers as vector_list_layers
-from services.tools.geoserver.vector_store import \
-    similarity_search as vector_similarity_search
+from services.tools.geoserver.vector_store import (
+    delete_layers,
+    get_embedding_status,
+    has_layers,
+    is_fully_encoded,
+)
+from services.tools.geoserver.vector_store import list_layers as vector_list_layers
+from services.tools.geoserver.vector_store import similarity_search as vector_similarity_search
 from services.tools.geoserver.vector_store import store_layers
 
 logger = logging.getLogger(__name__)
@@ -563,7 +568,7 @@ def preload_backend_layers(
         raise ValueError("Backend must be enabled before preloading layers.")
 
     backend_url = backend.url.rstrip("/")
-    
+
     # Set processing state before fetching
     set_processing_state(session_id, backend_url, "processing", total=0)
 
@@ -575,11 +580,11 @@ def preload_backend_layers(
 
     annotated_layers = _annotate_layers_with_backend(layers, backend)
     delete_layers(session_id, [backend.url])
-    
+
     # Update total count now that we know how many layers exist
     if annotated_layers:
         set_processing_state(session_id, backend_url, "processing", total=len(annotated_layers))
-    
+
     stored_count = store_layers(session_id, backend.url, backend.name, annotated_layers)
     service_counts = Counter(layer.layer_type or "UNKNOWN" for layer in annotated_layers)
     return {

@@ -1,7 +1,6 @@
 import types
 
-from services.tools.geoserver.custom_geoserver import (_sanitize_crs_list,
-                                                       _sanitize_properties)
+from services.tools.geoserver.custom_geoserver import _sanitize_crs_list, _sanitize_properties
 
 
 def test_sanitize_crs_list_basic():

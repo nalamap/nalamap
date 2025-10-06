@@ -24,10 +24,14 @@ from typing import Iterable, List, Optional, Sequence, Tuple
 from langchain_community.vectorstores import SQLiteVec
 from langchain_core.embeddings import Embeddings
 
-from core.config import (GEOSERVER_EMBEDDING_FACTORY_ENV, OPENAI_API_KEY,
-                         OPENAI_EMBEDDING_MODEL, USE_OPENAI_EMBEDDINGS,
-                         get_geoserver_embedding_factory_path,
-                         get_geoserver_vector_db_path)
+from core.config import (
+    GEOSERVER_EMBEDDING_FACTORY_ENV,
+    OPENAI_API_KEY,
+    OPENAI_EMBEDDING_MODEL,
+    USE_OPENAI_EMBEDDINGS,
+    get_geoserver_embedding_factory_path,
+    get_geoserver_vector_db_path,
+)
 from models.geodata import GeoDataObject
 
 _VECTOR_TABLE = "geoserver_layer_embeddings"
@@ -120,7 +124,7 @@ class _HashingEmbeddings(Embeddings):
             if self._use_ngrams and len(word) >= 4:
                 # Add character trigrams from longer words
                 for i in range(len(word) - 2):
-                    ngram = word[i: i + 3]
+                    ngram = word[i : i + 3]
                     tokens.append(f"#{ngram}")
 
         return tokens

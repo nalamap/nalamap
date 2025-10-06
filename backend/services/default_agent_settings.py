@@ -3,16 +3,20 @@ from typing import Dict
 from langchain_core.tools import BaseTool
 
 from services.tools.attribute_tools import attribute_tool
-from services.tools.geocoding import (geocode_using_nominatim_to_geostate,
-                                      geocode_using_overpass_to_geostate)
+from services.tools.geocoding import (
+    geocode_using_nominatim_to_geostate,
+    geocode_using_overpass_to_geostate,
+)
 from services.tools.geoprocess_tools import geoprocess_tool
 from services.tools.geoserver.custom_geoserver import get_custom_geoserver_data
 from services.tools.geostate_management import metadata_search
 from services.tools.librarian_tools import query_librarian_postgis
-from services.tools.styling_tools import (apply_intelligent_color_scheme,
-                                          auto_style_new_layers,
-                                          check_and_auto_style_layers,
-                                          style_map_layers)
+from services.tools.styling_tools import (
+    apply_intelligent_color_scheme,
+    auto_style_new_layers,
+    check_and_auto_style_layers,
+    style_map_layers,
+)
 
 DEFAULT_SYSTEM_PROMPT: str = (
     "You are NaLaMap: an advanced geospatial assistant that helps users without GIS expertise "
