@@ -12,6 +12,7 @@ def api_client(tmp_path, monkeypatch):
 
     # Force reload of config to pick up test environment variables
     import importlib
+
     import core.config
 
     importlib.reload(core.config)
@@ -39,19 +40,74 @@ def test_preload_endpoint_uses_session_cookie(api_client, monkeypatch):
 
     called = {}
 
-    def fake_preload(session, backend, search_term=None):
-        called["session"] = session
-        called["backend"] = backend
-        return {
-            "session_id": session,
-            "backend_url": backend.url,
-            "backend_name": backend.name,
-            "total_layers": 2,
-            "service_status": {"WMS": True},
-            "service_counts": {"WMS": 2},
-        }
+    # Mock the capability fetching to avoid network calls
+    def fake_fetch_capabilities(backend, search_term=None):
+        from models.geodata import DataOrigin, DataType, GeoDataObject
 
-    monkeypatch.setattr("api.settings.preload_backend_layers", fake_preload)
+        layers = [
+            GeoDataObject(
+                id="test_layer_1",
+                data_source_id="test_1",
+                data_type=DataType.RASTER,
+                data_origin=DataOrigin.TOOL.value,
+                data_source="Test",
+                data_link="http://example.com",
+                name="Test Layer 1",
+                title="Test Layer 1",
+                description="Test",
+                layer_type="WMS",
+            ),
+            GeoDataObject(
+                id="test_layer_2",
+                data_source_id="test_2",
+                data_type=DataType.LAYER,
+                data_origin=DataOrigin.TOOL.value,
+                data_source="Test",
+                data_link="http://example.com",
+                name="Test Layer 2",
+                title="Test Layer 2",
+                description="Test",
+                layer_type="WFS",
+            ),
+        ]
+        status = {"WMS": True, "WFS": True, "WCS": False, "WMTS": False}
+        return layers, status
+
+    # Mock delete_layers and store_layers
+    def fake_delete_layers(session, urls):
+        pass
+
+    def fake_store_layers(session, backend_url, backend_name, layers):
+        called["session"] = session
+        called["backend_url"] = backend_url
+        called["stored_layers"] = len(layers)
+        return len(layers)
+
+    # Mock the task manager to execute synchronously for testing
+    class MockTaskManager:
+        def submit_task(self, func, *args, priority=None, task_id=None, **kwargs):
+            # Execute immediately for testing
+            func(*args, **kwargs)
+            called["executed"] = True
+            return None
+
+        def get_stats(self):
+            return {}
+
+    def mock_get_task_manager():
+        return MockTaskManager()
+
+    # Mock all the required functions
+    monkeypatch.setattr("api.settings.get_task_manager", mock_get_task_manager)
+    monkeypatch.setattr("api.settings.set_processing_state", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        "services.tools.geoserver.custom_geoserver.fetch_all_service_capabilities_with_status",
+        fake_fetch_capabilities,
+    )
+    monkeypatch.setattr(
+        "services.tools.geoserver.custom_geoserver.delete_layers", fake_delete_layers
+    )
+    monkeypatch.setattr("services.tools.geoserver.custom_geoserver.store_layers", fake_store_layers)
 
     payload = {
         "backend": {
@@ -66,5 +122,13 @@ def test_preload_endpoint_uses_session_cookie(api_client, monkeypatch):
     response = api_client.post("/settings/geoserver/preload", json=payload)
     assert response.status_code == 200
     data = response.json()
-    assert data["total_layers"] == 2
+
+    # Note: The endpoint now returns immediately with total_layers=0
+    # The actual processing happens in the background (but we execute it sync in test)
+    assert data["session_id"] == session_id
+    assert data["backend_url"] == "http://example.com/geoserver"
+
+    # Verify the background task was executed and used the correct session
+    assert called["executed"] is True
     assert called["session"] == session_id
+    assert called["stored_layers"] == 2
