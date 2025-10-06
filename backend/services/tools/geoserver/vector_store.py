@@ -38,41 +38,128 @@ logger = logging.getLogger(__name__)
 
 
 class _HashingEmbeddings(Embeddings):
-    """Deterministic hashing-based embeddings.
+    """Enhanced hashing-based embeddings with TF-IDF and n-gram support.
 
-    The implementation tokenizes the text into alphanumeric tokens and assigns each
-    token to one of ``dimension`` buckets using SHA1. Term frequency weights are
-    accumulated per bucket and the resulting vector is L2-normalized. The
-    representation is simple yet effective enough for clustering similar layer
-    descriptions without the heavy runtime dependency footprint of transformer
-    models.
+    Improvements over simple hashing:
+    1. TF-IDF inspired weighting: rare terms get higher weight
+    2. Stopword filtering: common words like "the", "a" are ignored
+    3. N-gram support: captures character and word patterns
+    4. Sublinear TF scaling: log(1+tf) reduces impact of repetition
+    5. Higher dimension: 768 instead of 512 for better separation
+    
+    This provides better semantic similarity without heavy ML dependencies.
     """
 
-    def __init__(self, dimension: int = 512) -> None:
+    # Common English stopwords to filter out
+    _STOPWORDS = frozenset([
+        "a", "an", "and", "are", "as", "at", "be", "by", "for", "from",
+        "has", "he", "in", "is", "it", "its", "of", "on", "that", "the",
+        "to", "was", "will", "with", "the", "this", "but", "they", "have",
+        "had", "what", "when", "where", "who", "which", "why", "how"
+    ])
+
+    def __init__(self, dimension: int = 768, use_ngrams: bool = True) -> None:
         self._dimension = dimension
+        self._use_ngrams = use_ngrams
+        # Match word tokens (alphanumeric sequences)
         self._token_pattern = re.compile(r"\w+", re.UNICODE)
+        # Document frequency cache for IDF weighting
+        self._doc_freq: dict = {}
+        self._total_docs = 0
+
+    def _extract_tokens(self, text: str) -> List[str]:
+        """Extract tokens from text with preprocessing."""
+        tokens = []
+        words = self._token_pattern.findall(text.lower())
+        
+        for word in words:
+            # Skip stopwords
+            if word in self._STOPWORDS:
+                continue
+            # Skip very short tokens
+            if len(word) < 2:
+                continue
+            
+            tokens.append(word)
+            
+            # Add character n-grams for partial matching
+            if self._use_ngrams and len(word) >= 4:
+                # Add character trigrams from longer words
+                for i in range(len(word) - 2):
+                    ngram = word[i:i+3]
+                    tokens.append(f"#{ngram}")
+        
+        return tokens
+
+    def _get_idf_weight(self, token: str) -> float:
+        """Get IDF-like weight for token (higher for rarer terms).
+        
+        Uses a simplified IDF approximation without requiring
+        a full document corpus.
+        """
+        if not self._doc_freq:
+            # No corpus stats yet, use uniform weight
+            return 1.0
+        
+        df = self._doc_freq.get(token, 0)
+        if df == 0:
+            # Rare token, high weight
+            return 2.0
+        
+        # IDF = log(N / df)
+        idf = math.log((self._total_docs + 1) / (df + 1)) + 1.0
+        return idf
 
     def _vectorize(self, text: str) -> List[float]:
         buckets = [0.0] * self._dimension
-        tokens = self._token_pattern.findall(text.lower())
+        tokens = self._extract_tokens(text)
+        
         if not tokens:
             return buckets
 
+        # Count term frequencies
+        term_freq = {}
         for token in tokens:
-            digest = hashlib.sha1(token.encode("utf-8")).digest()
-            # Use the first 4 bytes to derive a consistent bucket index
-            bucket_idx = int.from_bytes(digest[:4], byteorder="big") % self._dimension
-            buckets[bucket_idx] += 1.0
+            term_freq[token] = term_freq.get(token, 0) + 1
 
-        norm = math.sqrt(sum(weight * weight for weight in buckets))
+        # Apply sublinear TF scaling and IDF weighting
+        for token, tf in term_freq.items():
+            # Sublinear TF: log(1 + tf) instead of raw tf
+            tf_weight = math.log(1.0 + tf)
+            
+            # IDF-like weight for rare terms
+            idf_weight = self._get_idf_weight(token)
+            
+            # Combined TF-IDF weight
+            weight = tf_weight * idf_weight
+            
+            # Hash to bucket
+            digest = hashlib.sha1(token.encode("utf-8")).digest()
+            bucket_idx = int.from_bytes(digest[:4], byteorder="big") % self._dimension
+            buckets[bucket_idx] += weight
+
+        # L2 normalization
+        norm = math.sqrt(sum(w * w for w in buckets))
         if norm > 0.0:
-            buckets = [weight / norm for weight in buckets]
+            buckets = [w / norm for w in buckets]
+        
         return buckets
 
     def embed_documents(self, texts: Iterable[str]) -> List[List[float]]:  # type: ignore[override]
-        return [self._vectorize(text) for text in texts]
+        """Embed multiple documents and update IDF statistics."""
+        texts_list = list(texts)
+        
+        # Update document frequency statistics
+        self._total_docs += len(texts_list)
+        for text in texts_list:
+            tokens = set(self._extract_tokens(text))
+            for token in tokens:
+                self._doc_freq[token] = self._doc_freq.get(token, 0) + 1
+        
+        return [self._vectorize(text) for text in texts_list]
 
     def embed_query(self, text: str) -> List[float]:  # type: ignore[override]
+        """Embed a query using the current IDF statistics."""
         return self._vectorize(text)
 
 
@@ -221,18 +308,50 @@ def reset_vector_store_for_tests() -> None:
 
 
 def _layer_to_text(layer: GeoDataObject) -> str:
-    """Create a textual representation used for embedding generation."""
-
+    """Create a textual representation used for embedding generation.
+    
+    The text is structured to prioritize important fields:
+    1. Title (repeated 3x for higher weight in similarity)
+    2. Name (repeated 2x)
+    3. Description (full text)
+    4. Layer type and data source
+    5. Keywords from properties
+    
+    This weighting helps match user queries to layer titles/names more effectively.
+    """
     parts: List[str] = []
-    for candidate in (
-        layer.name,
-        layer.title,
-        layer.description,
-        json.dumps(layer.properties or {}, sort_keys=True),
-    ):
-        if candidate:
-            parts.append(candidate)
-    return " \n".join(parts)
+    
+    # Title gets highest weight (repeated 3 times)
+    if layer.title:
+        parts.extend([layer.title] * 3)
+    
+    # Name gets medium weight (repeated 2 times)
+    if layer.name:
+        parts.extend([layer.name] * 2)
+    
+    # Description gets full weight (once)
+    if layer.description:
+        parts.append(layer.description)
+    
+    # Add layer type and data source for context
+    if layer.layer_type:
+        parts.append(f"type:{layer.layer_type}")
+    if layer.data_source:
+        parts.append(f"source:{layer.data_source}")
+    
+    # Extract keywords from properties if available
+    if layer.properties:
+        props = layer.properties
+        if isinstance(props, dict):
+            # Add keywords if present
+            if "keywords" in props and isinstance(props["keywords"], list):
+                parts.extend(props["keywords"])
+            # Add other string values (avoid large nested structures)
+            for key, value in props.items():
+                if isinstance(value, str) and len(value) < 100:
+                    parts.append(value)
+    
+    return " ".join(parts)
 
 
 def _metadata_payload(
