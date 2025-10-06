@@ -205,10 +205,14 @@ export default function SettingsPage() {
         setBackendLoading(true)
         setImportingBackends(false)
         try {
-            const { backend, totalLayers } = await prefetchBackend(newBackend)
-            addBackend(backend)
-            setBackendSuccess(`Prefetched ${totalLayers} layer${totalLayers === 1 ? '' : 's'} successfully.`)
+            // Normalize and add backend to settings immediately
+            const normalizedBackend = normalizeBackend({ ...newBackend, enabled: true })
+            addBackend(normalizedBackend)
             setNewBackend({ url: '', name: '', description: '', username: '', password: '' })
+            
+            // Start preloading in background - user can now navigate away
+            const { totalLayers } = await prefetchBackend(normalizedBackend)
+            setBackendSuccess(`Prefetched ${totalLayers} layer${totalLayers === 1 ? '' : 's'} successfully.`)
         } catch (err: any) {
             setBackendError(err?.message || 'Failed to preload GeoServer backend.')
         } finally {
@@ -252,7 +256,7 @@ export default function SettingsPage() {
         }, 10000) // 10 seconds
 
         return () => clearInterval(interval)
-    }, [backends])
+    }, [backends.map(b => b.url).join(',')])
 
 
     /** Export JSON */
