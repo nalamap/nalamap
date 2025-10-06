@@ -312,7 +312,6 @@ export default function SettingsPage() {
 
   // Poll embedding status every 10 seconds when there are enabled backends
   React.useEffect(() => {
-    fetchEmbeddingStatus();
 
     // Determine if we should continue polling
     const shouldPoll = () => {
