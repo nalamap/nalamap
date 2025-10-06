@@ -66,7 +66,7 @@ export default function SettingsPage() {
     const [backendSuccess, setBackendSuccess] = useState<string | null>(null)
     const [backendLoading, setBackendLoading] = useState(false)
     const [importingBackends, setImportingBackends] = useState(false)
-    const [embeddingStatus, setEmbeddingStatus] = useState<{[url: string]: {total: number, encoded: number, percentage: number, in_progress: boolean, complete: boolean}}>({})
+    const [embeddingStatus, setEmbeddingStatus] = useState<{[url: string]: {total: number, encoded: number, percentage: number, state: string, in_progress: boolean, complete: boolean, error: string | null}}>({})
 
     const API_BASE_URL = getApiBase()
 
@@ -536,29 +536,52 @@ export default function SettingsPage() {
                                         {b.username && <p className={`${b.enabled ? 'text-gray-900' : 'text-gray-400'}`}><strong>Username:</strong> {b.username}</p>}
                                         
                                         {/* Embedding Progress */}
-                                        {b.enabled && embeddingStatus[b.url] && embeddingStatus[b.url].total > 0 && (
+                                        {b.enabled && embeddingStatus[b.url] && (embeddingStatus[b.url].total > 0 || embeddingStatus[b.url].state === 'waiting') && (
                                             <div className="mt-2">
                                                 <div className="flex justify-between items-center text-xs mb-1">
-                                                    <span className={embeddingStatus[b.url].complete ? 'text-green-600' : 'text-blue-600'}>
-                                                        {embeddingStatus[b.url].complete ? '✓ Embedding complete' : '⏳ Embedding in progress'}
-                                                        : {embeddingStatus[b.url].encoded} / {embeddingStatus[b.url].total} layers
+                                                    <span className={
+                                                        embeddingStatus[b.url].complete || embeddingStatus[b.url].state === 'completed'
+                                                            ? 'text-green-600'
+                                                            : embeddingStatus[b.url].state === 'error'
+                                                                ? 'text-red-600'
+                                                                : embeddingStatus[b.url].state === 'waiting'
+                                                                    ? 'text-yellow-600'
+                                                                    : 'text-blue-600'
+                                                    }>
+                                                        {embeddingStatus[b.url].complete || embeddingStatus[b.url].state === 'completed'
+                                                            ? '✓ Embedding complete'
+                                                            : embeddingStatus[b.url].state === 'error'
+                                                                ? '✗ Error: ' + (embeddingStatus[b.url].error || 'Unknown error')
+                                                                : embeddingStatus[b.url].state === 'waiting'
+                                                                    ? '⏱️ Waiting to start'
+                                                                    : '⏳ Embedding in progress'
+                                                        }
+                                                        {embeddingStatus[b.url].total > 0 && (
+                                                            <>: {embeddingStatus[b.url].encoded} / {embeddingStatus[b.url].total} layers</>
+                                                        )}
                                                     </span>
-                                                    <span className="text-gray-600">
-                                                        {embeddingStatus[b.url].percentage}%
-                                                    </span>
+                                                    {embeddingStatus[b.url].total > 0 && (
+                                                        <span className="text-gray-600">
+                                                            {embeddingStatus[b.url].percentage}%
+                                                        </span>
+                                                    )}
                                                 </div>
-                                                <div className="w-full h-2 bg-gray-200 rounded overflow-hidden">
-                                                    <div 
-                                                        className={`h-full transition-all duration-300 ${
-                                                            embeddingStatus[b.url].complete 
-                                                                ? 'bg-green-500' 
-                                                                : embeddingStatus[b.url].in_progress 
-                                                                    ? 'bg-blue-500 animate-pulse' 
-                                                                    : 'bg-blue-500'
-                                                        }`}
-                                                        style={{ width: `${embeddingStatus[b.url].percentage}%` }}
-                                                    />
-                                                </div>
+                                                {embeddingStatus[b.url].state !== 'error' && embeddingStatus[b.url].total > 0 && (
+                                                    <div className="w-full h-2 bg-gray-200 rounded overflow-hidden">
+                                                        <div 
+                                                            className={`h-full transition-all duration-300 ${
+                                                                embeddingStatus[b.url].complete || embeddingStatus[b.url].state === 'completed'
+                                                                    ? 'bg-green-500' 
+                                                                    : embeddingStatus[b.url].state === 'waiting'
+                                                                        ? 'bg-yellow-500 animate-pulse'
+                                                                        : embeddingStatus[b.url].in_progress 
+                                                                            ? 'bg-blue-500 animate-pulse' 
+                                                                            : 'bg-blue-500'
+                                                            }`}
+                                                            style={{ width: `${embeddingStatus[b.url].state === 'waiting' ? 5 : embeddingStatus[b.url].percentage}%` }}
+                                                        />
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </div>

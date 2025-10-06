@@ -24,22 +24,17 @@ from typing_extensions import Annotated
 
 from core.config import get_filter_non_webmercator_wmts
 from models.geodata import DataOrigin, DataType, GeoDataObject
-from models.settings_model import (
-    GeoServerBackend,
-    ModelSettings,
-    SearchPortal,
-    SettingsSnapshot,
-    ToolConfig,
-)
+from models.settings_model import (GeoServerBackend, ModelSettings,
+                                   SearchPortal, SettingsSnapshot, ToolConfig)
 from models.states import GeoDataAgentState
-from services.tools.geoserver.vector_store import (
-    delete_layers,
-    get_embedding_status,
-    has_layers,
-    is_fully_encoded,
-)
-from services.tools.geoserver.vector_store import list_layers as vector_list_layers
-from services.tools.geoserver.vector_store import similarity_search as vector_similarity_search
+from services.tools.geoserver.vector_store import (delete_layers,
+                                                   get_embedding_status,
+                                                   has_layers,
+                                                   is_fully_encoded)
+from services.tools.geoserver.vector_store import \
+    list_layers as vector_list_layers
+from services.tools.geoserver.vector_store import \
+    similarity_search as vector_similarity_search
 from services.tools.geoserver.vector_store import store_layers
 
 logger = logging.getLogger(__name__)
@@ -533,6 +528,29 @@ def _annotate_layers_with_backend(
             props.setdefault("_backend_description", backend.description)
         layer.properties = props
     return layers
+
+
+def preload_backend_layers_with_state(
+    session_id: str, backend: GeoServerBackend, search_term: Optional[str] = None
+) -> Dict[str, Any]:
+    """Wrapper for preload_backend_layers that manages processing state.
+
+    This function sets the state to 'processing', calls the actual preload,
+    and sets the state to 'completed' or 'error' based on the result.
+    """
+    from services.tools.geoserver.vector_store import set_processing_state
+
+    backend_url = backend.url.rstrip("/")
+
+    try:
+        # Processing happens in preload_backend_layers (sets to "processing")
+        result = preload_backend_layers(session_id, backend, search_term)
+        # State is set to "completed" in store_layers finally block
+        return result
+    except Exception as exc:
+        # Set error state
+        set_processing_state(session_id, backend_url, "error", error=str(exc))
+        raise
 
 
 def preload_backend_layers(

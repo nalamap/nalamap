@@ -56,6 +56,12 @@ RUN pip install --upgrade pip \
 # Copy the rest of the app code
 COPY . .
 
+# Configure thread pool defaults based on CPU cores
+# These can be overridden via environment variables at runtime
+ENV NALAMAP_HIGH_PRIORITY_THREADS="" \
+    NALAMAP_LOW_PRIORITY_THREADS="" \
+    NALAMAP_MAX_CONCURRENT_PRELOADS="3"
+
 # Expose the port and set the default command
 EXPOSE 8000
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

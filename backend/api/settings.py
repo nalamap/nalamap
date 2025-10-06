@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import re
 from typing import Any, Dict, List, Optional
@@ -9,8 +8,12 @@ from pydantic import BaseModel
 
 from core import config as core_config
 from models.settings_model import GeoServerBackend
-from services.default_agent_settings import DEFAULT_AVAILABLE_TOOLS, DEFAULT_SYSTEM_PROMPT
-from services.tools.geoserver.custom_geoserver import preload_backend_layers
+from services.background_tasks import TaskPriority, get_task_manager
+from services.default_agent_settings import (DEFAULT_AVAILABLE_TOOLS,
+                                             DEFAULT_SYSTEM_PROMPT)
+from services.tools.geoserver.custom_geoserver import \
+    preload_backend_layers_with_state
+from services.tools.geoserver.vector_store import set_processing_state
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -190,24 +193,35 @@ async def preload_geoserver_backend(
         max_age=60 * 60 * 24 * 30,
     )
 
-    try:
-        result = await asyncio.to_thread(
-            preload_backend_layers, session_id, normalized_backend, payload.search_term
-        )
-    except ConnectionError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)
-        ) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    except Exception as exc:  # pragma: no cover - defensive logging path
-        logger.exception("Failed to preload GeoServer backend", exc_info=exc)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to preload GeoServer backend.",
-        ) from exc
+    # Immediately set state to "waiting" and return response
+    # This prevents 504 timeouts for long-running preloads
+    backend_url = normalized_backend.url.rstrip("/")
+    set_processing_state(session_id, backend_url, "waiting", total=0)
 
-    return GeoServerPreloadResponse(**result)
+    # Submit preload task to low-priority thread pool (runs in background)
+    task_manager = get_task_manager()
+    task_id = f"preload_{session_id}_{backend_url}"
+
+    # Submit the task with low priority (won't block user queries)
+    task_manager.submit_task(
+        preload_backend_layers_with_state,
+        session_id,
+        normalized_backend,
+        payload.search_term,
+        priority=TaskPriority.LOW,
+        task_id=task_id,
+    )
+
+    # Return immediately with "waiting" state
+    # Frontend will poll embedding-status endpoint to track progress
+    return GeoServerPreloadResponse(
+        session_id=session_id,
+        backend_url=backend_url,
+        backend_name=normalized_backend.name,
+        total_layers=0,  # Will be updated once processing starts
+        service_status={},  # Will be populated during processing
+        service_counts={},  # Will be populated during processing
+    )
 
 
 @router.get("/geoserver/embedding-status")
