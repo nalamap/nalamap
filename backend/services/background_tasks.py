@@ -57,17 +57,25 @@ class BackgroundTaskManager:
 
         # Configure thread pool sizes from environment or use defaults
         # High priority: Reserve at least 25% of cores (min 1, max 4) for user queries
-        high_priority_threads = int(
-            os.getenv("NALAMAP_HIGH_PRIORITY_THREADS", max(1, min(4, cpu_count // 4)))
-        )
+        env_high = os.getenv("NALAMAP_HIGH_PRIORITY_THREADS", "")
+        if env_high and env_high.strip():
+            high_priority_threads = int(env_high)
+        else:
+            high_priority_threads = max(1, min(4, cpu_count // 4))
 
         # Low priority: Use remaining cores for preprocessing (min 1)
-        low_priority_threads = int(
-            os.getenv("NALAMAP_LOW_PRIORITY_THREADS", max(1, cpu_count - high_priority_threads))
-        )
+        env_low = os.getenv("NALAMAP_LOW_PRIORITY_THREADS", "")
+        if env_low and env_low.strip():
+            low_priority_threads = int(env_low)
+        else:
+            low_priority_threads = max(1, cpu_count - high_priority_threads)
 
         # Maximum concurrent preprocessing tasks (to prevent memory issues)
-        max_concurrent_preloads = int(os.getenv("NALAMAP_MAX_CONCURRENT_PRELOADS", 3))
+        env_max = os.getenv("NALAMAP_MAX_CONCURRENT_PRELOADS", "")
+        if env_max and env_max.strip():
+            max_concurrent_preloads = int(env_max)
+        else:
+            max_concurrent_preloads = 3
 
         logger.info(
             f"Initializing thread pools: {high_priority_threads} high-priority, "

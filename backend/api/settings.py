@@ -196,21 +196,45 @@ async def preload_geoserver_backend(
     # Immediately set state to "waiting" and return response
     # This prevents 504 timeouts for long-running preloads
     backend_url = normalized_backend.url.rstrip("/")
-    set_processing_state(session_id, backend_url, "waiting", total=0)
+
+    try:
+        set_processing_state(session_id, backend_url, "waiting", total=0)
+    except Exception as exc:
+        logger.exception("Failed to set processing state", exc_info=exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to initialize backend processing state.",
+        ) from exc
 
     # Submit preload task to low-priority thread pool (runs in background)
-    task_manager = get_task_manager()
+    try:
+        task_manager = get_task_manager()
+    except Exception as exc:
+        logger.exception("Failed to get task manager", exc_info=exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to initialize background task manager.",
+        ) from exc
+
     task_id = f"preload_{session_id}_{backend_url}"
 
     # Submit the task with low priority (won't block user queries)
-    task_manager.submit_task(
-        preload_backend_layers_with_state,
-        session_id,
-        normalized_backend,
-        payload.search_term,
-        priority=TaskPriority.LOW,
-        task_id=task_id,
-    )
+    try:
+        task_manager.submit_task(
+            preload_backend_layers_with_state,
+            session_id,
+            normalized_backend,
+            payload.search_term,
+            priority=TaskPriority.LOW,
+            task_id=task_id,
+        )
+    except Exception as exc:
+        logger.exception("Failed to submit preload task", exc_info=exc)
+        set_processing_state(session_id, backend_url, "error", error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to submit backend preload task.",
+        ) from exc
 
     # Return immediately with "waiting" state
     # Frontend will poll embedding-status endpoint to track progress
