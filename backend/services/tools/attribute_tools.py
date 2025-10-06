@@ -469,13 +469,13 @@ def _jsonify_scalar(v):
 def _fc_from_gdf(gdf: gpd.GeoDataFrame, keep_geometry: bool = True) -> Dict[str, Any]:
     """Convert a GeoDataFrame to a GeoJSON FeatureCollection dict."""
     features = []
-    geom_col = gdf.geometry.name if keep_geometry and gdf.geometry is not None else None
+    geom_col = gdf.geometry.name if gdf.geometry is not None else None
 
-    # Build clean properties (only JSON-serializable)
-    prop_cols = [c for c in gdf.columns if c != geom_col] if geom_col else list(gdf.columns)
+    # Build clean properties (only JSON-serializable, exclude geometry column)
+    prop_cols = [c for c in gdf.columns if c != geom_col]
     for _, row in gdf.iterrows():
         props = {c: _jsonify_scalar(row[c]) for c in prop_cols}
-        geom = mapping(row[geom_col]) if geom_col else None
+        geom = mapping(row[geom_col]) if keep_geometry and geom_col else None
         features.append({"type": "Feature", "properties": props, "geometry": geom})
     return {"type": "FeatureCollection", "features": features}
 
