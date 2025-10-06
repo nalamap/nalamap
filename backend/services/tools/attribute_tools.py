@@ -20,6 +20,7 @@ from core.config import BASE_URL, LOCAL_UPLOAD_DIR
 from models.geodata import DataOrigin, DataType, GeoDataObject
 from models.states import GeoDataAgentState
 from services.ai.llm_config import get_llm
+from services.storage.file_management import store_file
 from services.tools.utils import match_layer_names
 
 logger = logging.getLogger(__name__)
@@ -404,16 +405,38 @@ def parse_where(where: str):
 # GeoPandas-based operations & IO
 # ===================================
 def _load_gdf(link: str) -> gpd.GeoDataFrame:
-    """Load GeoJSON (local or remote) into a GeoDataFrame."""
+    """Load GeoJSON (local or remote) into a GeoDataFrame.
+
+    Supports:
+    - Local upload directory files
+    - BASE_URL/uploads/ URLs (local dev)
+    - BASE_URL/api/stream/ URLs (local dev with central file management)
+    - Azure Blob Storage URLs (SAS tokens supported)
+    - HTTP/HTTPS URLs (external GeoJSON)
+    - Local file paths
+    """
+    # Handle BASE_URL/uploads/ format (legacy local uploads)
     if link.startswith(f"{BASE_URL}/uploads/"):
         fn = os.path.basename(link)
         local_path = os.path.join(LOCAL_UPLOAD_DIR, fn)
-        return gpd.read_file(local_path)
+        if os.path.isfile(local_path):
+            return gpd.read_file(local_path)
+
+    # Handle BASE_URL/api/stream/ format (central file management local)
+    if link.startswith(f"{BASE_URL}/api/stream/"):
+        fn = os.path.basename(link)
+        local_path = os.path.join(LOCAL_UPLOAD_DIR, fn)
+        if os.path.isfile(local_path):
+            return gpd.read_file(local_path)
+
+    # Handle direct local file paths
     if os.path.isfile(link):
         return gpd.read_file(link)
+
+    # Handle HTTP/HTTPS URLs (including Azure Blob Storage with SAS tokens)
     if link.startswith("http://") or link.startswith("https://"):
-        # requests -> temp file -> read_file (handles streaming + drivers reliably)
-        resp = requests.get(link, timeout=20)
+        # Download to temp file for reliable driver support
+        resp = requests.get(link, timeout=30)
         resp.raise_for_status()
         tmp = os.path.join(LOCAL_UPLOAD_DIR, f"tmp_{uuid.uuid4().hex[:8]}.geojson")
         with open(tmp, "wb") as f:
@@ -425,7 +448,8 @@ def _load_gdf(link: str) -> gpd.GeoDataFrame:
                 os.remove(tmp)
             except Exception:
                 pass
-    raise IOError(f"Unsupported path: {link}")
+
+    raise IOError(f"Unsupported path or URL: {link}")
 
 
 def _jsonify_scalar(v):
@@ -466,14 +490,17 @@ def _slug(text: str) -> str:
 def _save_gdf_as_geojson(
     gdf: gpd.GeoDataFrame, display_title: str, keep_geometry: bool = True
 ) -> GeoDataObject:
+    """Save a GeoDataFrame as GeoJSON using central file management."""
     fc = _fc_from_gdf(gdf, keep_geometry=keep_geometry)
-    sid = uuid.uuid4().hex[:8]
     slug = _slug(display_title)
-    filename = f"{slug}_{sid}.geojson"
-    path = os.path.join(LOCAL_UPLOAD_DIR, filename)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(fc, f)
-    url = f"{BASE_URL}/uploads/{filename}"
+    filename = f"{slug}_{uuid.uuid4().hex[:8]}.geojson"
+
+    # Convert to JSON bytes
+    content = json.dumps(fc).encode("utf-8")
+
+    # Use central file management (supports both local and Azure Blob)
+    url, _ = store_file(filename, content)
+
     return GeoDataObject(
         id=uuid.uuid4().hex,
         data_source_id="attribute",
