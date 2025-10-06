@@ -24,14 +24,10 @@ from typing import Iterable, List, Optional, Sequence, Tuple
 from langchain_community.vectorstores import SQLiteVec
 from langchain_core.embeddings import Embeddings
 
-from core.config import (
-    GEOSERVER_EMBEDDING_FACTORY_ENV,
-    OPENAI_API_KEY,
-    OPENAI_EMBEDDING_MODEL,
-    USE_OPENAI_EMBEDDINGS,
-    get_geoserver_embedding_factory_path,
-    get_geoserver_vector_db_path,
-)
+from core.config import (GEOSERVER_EMBEDDING_FACTORY_ENV, OPENAI_API_KEY,
+                         OPENAI_EMBEDDING_MODEL, USE_OPENAI_EMBEDDINGS,
+                         get_geoserver_embedding_factory_path,
+                         get_geoserver_vector_db_path)
 from models.geodata import GeoDataObject
 
 _VECTOR_TABLE = "geoserver_layer_embeddings"
@@ -284,6 +280,11 @@ _embedding_model: Optional[Embeddings] = None
 _use_fallback_store = False
 _fallback_documents: List[dict] = []
 
+# Progress tracking for embedding status
+# Key: (session_id, backend_url), Value: {"total": int, "encoded": int, "in_progress": bool}
+_embedding_progress: dict[Tuple[str, str], dict] = {}
+_progress_lock = threading.Lock()
+
 
 def _get_db_path() -> Path:
     return get_geoserver_vector_db_path()
@@ -433,6 +434,10 @@ def reset_vector_store_for_tests() -> None:
     _use_fallback_store = False
     _fallback_documents = []
 
+    # Reset progress tracking
+    with _progress_lock:
+        _embedding_progress.clear()
+
 
 def _layer_to_text(layer: GeoDataObject) -> str:
     """Create a textual representation used for embedding generation.
@@ -538,40 +543,71 @@ def store_layers(
 ) -> int:
     """Persist a collection of layers for later retrieval.
 
-    Returns the number of stored layers.
+    Returns the number of stored layers. Also tracks progress for embedding status.
     """
 
     if not layers:
         return 0
 
     normalized_backend = backend_url.rstrip("/")
-    texts = [_layer_to_text(layer) for layer in layers]
-    metadatas = [
-        _metadata_payload(session_id, normalized_backend, backend_name, layer) for layer in layers
-    ]
+    progress_key = (session_id, normalized_backend)
 
-    if _use_fallback_store:
-        embedding_model = _get_embedding_model()
-        for text, metadata in zip(texts, metadatas):
-            vector = embedding_model.embed_query(text)
-            _fallback_documents.append(
-                {
-                    "session_id": session_id,
-                    "backend_url": normalized_backend,
-                    "backend_name": backend_name,
-                    "layer": metadata["layer"],
-                    "metadata": metadata,
-                    "text": text,
-                    "vector": vector,
-                }
-            )
+    # Initialize or update progress tracking
+    with _progress_lock:
+        if progress_key not in _embedding_progress:
+            _embedding_progress[progress_key] = {
+                "total": len(layers),
+                "encoded": 0,
+                "in_progress": True,
+            }
+        else:
+            _embedding_progress[progress_key]["total"] = len(layers)
+            _embedding_progress[progress_key]["in_progress"] = True
+
+    try:
+        texts = [_layer_to_text(layer) for layer in layers]
+        metadatas = [
+            _metadata_payload(session_id, normalized_backend, backend_name, layer)
+            for layer in layers
+        ]
+
+        if _use_fallback_store:
+            embedding_model = _get_embedding_model()
+            for i, (text, metadata) in enumerate(zip(texts, metadatas)):
+                vector = embedding_model.embed_query(text)
+                _fallback_documents.append(
+                    {
+                        "session_id": session_id,
+                        "backend_url": normalized_backend,
+                        "backend_name": backend_name,
+                        "layer": metadata["layer"],
+                        "metadata": metadata,
+                        "text": text,
+                        "vector": vector,
+                    }
+                )
+                # Update progress after each embedding
+                with _progress_lock:
+                    _embedding_progress[progress_key]["encoded"] = i + 1
+            return len(layers)
+
+        store = get_vector_store()
+        if store is None:
+            return 0
+
+        # For SQLite store, add all at once (LangChain handles batching internally)
+        store.add_texts(texts=texts, metadatas=metadatas)
+
+        # Mark as complete
+        with _progress_lock:
+            _embedding_progress[progress_key]["encoded"] = len(layers)
+
         return len(layers)
-
-    store = get_vector_store()
-    if store is None:
-        return 0
-    store.add_texts(texts=texts, metadatas=metadatas)
-    return len(layers)
+    finally:
+        # Mark embedding as complete (not in progress)
+        with _progress_lock:
+            if progress_key in _embedding_progress:
+                _embedding_progress[progress_key]["in_progress"] = False
 
 
 def _rows_to_layers(rows: Iterable[sqlite3.Row]) -> List[GeoDataObject]:
@@ -716,3 +752,57 @@ def has_layers(session_id: str, backend_urls: Sequence[str]) -> bool:
         params,
     )
     return cursor.fetchone() is not None
+
+
+def get_embedding_status(session_id: str, backend_urls: Sequence[str]) -> dict[str, dict[str, int]]:
+    """Get embedding progress status for given session and backend URLs.
+
+    Returns a dictionary with backend URLs as keys and status info as values.
+    Status info includes: total layers, encoded layers, and completion percentage.
+    """
+    normalized = [url.rstrip("/") for url in backend_urls if url]
+    status = {}
+
+    with _progress_lock:
+        for backend_url in normalized:
+            progress_key = (session_id, backend_url)
+            if progress_key in _embedding_progress:
+                info = _embedding_progress[progress_key]
+                total = info["total"]
+                encoded = info["encoded"]
+                percentage = int((encoded / total * 100) if total > 0 else 0)
+
+                status[backend_url] = {
+                    "total": total,
+                    "encoded": encoded,
+                    "percentage": percentage,
+                    "in_progress": info["in_progress"],
+                    "complete": encoded >= total and not info["in_progress"],
+                }
+            else:
+                # No progress data means not started or already cleaned up
+                status[backend_url] = {
+                    "total": 0,
+                    "encoded": 0,
+                    "percentage": 0,
+                    "in_progress": False,
+                    "complete": False,
+                }
+
+    return status
+
+
+def is_fully_encoded(session_id: str, backend_urls: Sequence[str]) -> bool:
+    """Check if all backends for a session have been fully encoded.
+
+    Returns True if all backends are complete or have no progress data.
+    Returns False if any backend is incomplete or in progress.
+    """
+    status = get_embedding_status(session_id, backend_urls)
+
+    for backend_url, info in status.items():
+        # If there's progress data and it's not complete, return False
+        if info["total"] > 0 and not info["complete"]:
+            return False
+
+    return True

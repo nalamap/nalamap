@@ -66,6 +66,7 @@ export default function SettingsPage() {
     const [backendSuccess, setBackendSuccess] = useState<string | null>(null)
     const [backendLoading, setBackendLoading] = useState(false)
     const [importingBackends, setImportingBackends] = useState(false)
+    const [embeddingStatus, setEmbeddingStatus] = useState<{[url: string]: {total: number, encoded: number, percentage: number, in_progress: boolean, complete: boolean}}>({})
 
     const API_BASE_URL = getApiBase()
 
@@ -214,6 +215,44 @@ export default function SettingsPage() {
             setBackendLoading(false)
         }
     }
+
+
+    // Fetch embedding status for enabled backends
+    const fetchEmbeddingStatus = async () => {
+        const enabledBackends = backends.filter(b => b.enabled)
+        if (enabledBackends.length === 0) {
+            setEmbeddingStatus({})
+            return
+        }
+
+        const backendUrls = enabledBackends.map(b => b.url).join(',')
+        try {
+            const res = await fetch(
+                `${API_BASE_URL}/settings/geoserver/embedding-status?backend_urls=${encodeURIComponent(backendUrls)}`,
+                {
+                    credentials: 'include',
+                }
+            )
+            if (res.ok) {
+                const data = await res.json()
+                setEmbeddingStatus(data.backends || {})
+            }
+        } catch (err) {
+            // Silently fail - embedding status is optional
+            console.error('Failed to fetch embedding status:', err)
+        }
+    }
+
+    // Poll embedding status every 10 seconds when there are enabled backends
+    React.useEffect(() => {
+        fetchEmbeddingStatus()
+
+        const interval = setInterval(() => {
+            fetchEmbeddingStatus()
+        }, 10000) // 10 seconds
+
+        return () => clearInterval(interval)
+    }, [backends])
 
 
     /** Export JSON */
@@ -487,13 +526,40 @@ export default function SettingsPage() {
                                         onChange={() => toggleBackend(b.url)}
                                         className="form-checkbox h-5 w-5 text-green-600"
                                     />
-                                    <div>
+                                    <div className="flex-1">
                                         <p className={`${b.enabled ? 'text-gray-900' : 'text-gray-400'}`}><strong>{b.name || 'URL'}:</strong> {b.url}</p>
                                         {b.description && <p className={`${b.enabled ? 'text-gray-700' : 'text-gray-400'} text-sm`}>{b.description}</p>}
                                         {b.username && <p className={`${b.enabled ? 'text-gray-900' : 'text-gray-400'}`}><strong>Username:</strong> {b.username}</p>}
+                                        
+                                        {/* Embedding Progress */}
+                                        {b.enabled && embeddingStatus[b.url] && embeddingStatus[b.url].total > 0 && (
+                                            <div className="mt-2">
+                                                <div className="flex justify-between items-center text-xs mb-1">
+                                                    <span className={embeddingStatus[b.url].complete ? 'text-green-600' : 'text-blue-600'}>
+                                                        {embeddingStatus[b.url].complete ? '✓ Embedding complete' : '⏳ Embedding in progress'}
+                                                        : {embeddingStatus[b.url].encoded} / {embeddingStatus[b.url].total} layers
+                                                    </span>
+                                                    <span className="text-gray-600">
+                                                        {embeddingStatus[b.url].percentage}%
+                                                    </span>
+                                                </div>
+                                                <div className="w-full h-2 bg-gray-200 rounded overflow-hidden">
+                                                    <div 
+                                                        className={`h-full transition-all duration-300 ${
+                                                            embeddingStatus[b.url].complete 
+                                                                ? 'bg-green-500' 
+                                                                : embeddingStatus[b.url].in_progress 
+                                                                    ? 'bg-blue-500 animate-pulse' 
+                                                                    : 'bg-blue-500'
+                                                        }`}
+                                                        style={{ width: `${embeddingStatus[b.url].percentage}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </label>
-                                <button onClick={() => removeBackend(b.url)} className="text-red-600 hover:underline">
+                                <button onClick={() => removeBackend(b.url)} className="text-red-600 hover:underline ml-2">
                                     Remove
                                 </button>
                             </li>

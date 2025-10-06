@@ -9,36 +9,33 @@ from collections import Counter
 from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.parse import urlencode, urljoin
 
-from owslib.wcs import WebCoverageService
-from owslib.wfs import WebFeatureService
-from owslib.wms import WebMapService
-from owslib.wmts import WebMapTileService
-from core.config import get_filter_non_webmercator_wmts
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import tool
 from langchain_core.tools.base import InjectedToolCallId
 from langgraph.prebuilt import InjectedState
+from langgraph.types import Command
+from owslib.wcs import WebCoverageService
+from owslib.wfs import WebFeatureService
+from owslib.wms import WebMapService
+from owslib.wmts import WebMapTileService
 from pydantic import Field
 from pydantic.fields import FieldInfo
 from typing_extensions import Annotated
-from langgraph.types import Command
 
+from core.config import get_filter_non_webmercator_wmts
 from models.geodata import DataOrigin, DataType, GeoDataObject
-from models.settings_model import (
-    GeoServerBackend,
-    SettingsSnapshot,
-    SearchPortal,
-    ModelSettings,
-    ToolConfig,
-)
+from models.settings_model import (GeoServerBackend, ModelSettings,
+                                   SearchPortal, SettingsSnapshot, ToolConfig)
 from models.states import GeoDataAgentState
-from services.tools.geoserver.vector_store import (
-    delete_layers,
-    has_layers,
-    list_layers as vector_list_layers,
-    similarity_search as vector_similarity_search,
-    store_layers,
-)
+from services.tools.geoserver.vector_store import (delete_layers,
+                                                   get_embedding_status,
+                                                   has_layers,
+                                                   is_fully_encoded)
+from services.tools.geoserver.vector_store import \
+    list_layers as vector_list_layers
+from services.tools.geoserver.vector_store import \
+    similarity_search as vector_similarity_search
+from services.tools.geoserver.vector_store import store_layers
 
 logger = logging.getLogger(__name__)
 
@@ -624,6 +621,25 @@ def _get_custom_geoserver_data(
             ),
             tool_call_id=tool_call_id,
         )
+
+    # Check if embedding is complete
+    if not is_fully_encoded(session_id, backend_urls):
+        embedding_status = get_embedding_status(session_id, backend_urls)
+        incomplete_backends = [
+            url
+            for url, info in embedding_status.items()
+            if info["total"] > 0 and not info["complete"]
+        ]
+        if incomplete_backends:
+            return ToolMessage(
+                content=(
+                    "⚠️ Warning: GeoServer layer embedding is still in progress. "
+                    f"Some layers may not be searchable yet. "
+                    f"Incomplete backends: {', '.join(incomplete_backends)}. "
+                    "Results may be incomplete. Please wait for embedding to complete."
+                ),
+                tool_call_id=tool_call_id,
+            )
 
     limit = max_results or 10
     fetch_limit = max(limit * 5, limit)

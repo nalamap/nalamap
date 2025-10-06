@@ -9,7 +9,8 @@ from pydantic import BaseModel
 
 from core import config as core_config
 from models.settings_model import GeoServerBackend
-from services.default_agent_settings import DEFAULT_AVAILABLE_TOOLS, DEFAULT_SYSTEM_PROMPT
+from services.default_agent_settings import (DEFAULT_AVAILABLE_TOOLS,
+                                             DEFAULT_SYSTEM_PROMPT)
 from services.tools.geoserver.custom_geoserver import preload_backend_layers
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -208,3 +209,52 @@ async def preload_geoserver_backend(
         ) from exc
 
     return GeoServerPreloadResponse(**result)
+
+
+@router.get("/geoserver/embedding-status")
+async def get_geoserver_embedding_status(request: Request, backend_urls: Optional[str] = None):
+    """Get the embedding progress status for GeoServer backends in the current session.
+
+    Returns the total number of layers and how many have been encoded for each backend.
+
+    Query parameters:
+        backend_urls: Comma-separated list of backend URLs to check (optional).
+                     If not provided, will return empty status.
+    """
+    from services.tools.geoserver import vector_store
+
+    session_id = request.cookies.get("session_id")
+    if not session_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Session identifier is required.",
+        )
+
+    # Validate session_id
+    if not validate_session_id(session_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid session identifier format.",
+        )
+
+    # Parse backend URLs from query parameter
+    urls = []
+    if backend_urls:
+        urls = [
+            normalize_geoserver_url(url.strip()) for url in backend_urls.split(",") if url.strip()
+        ]
+
+    # Get embedding status from vector store
+    try:
+        status_dict = vector_store.get_embedding_status(session_id, urls)
+
+        return {
+            "session_id": session_id,
+            "backends": status_dict,
+        }
+    except Exception as exc:
+        logger.exception("Failed to get embedding status", exc_info=exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get embedding status.",
+        ) from exc
