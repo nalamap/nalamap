@@ -1,9 +1,10 @@
 import asyncio
 
-from models.settings_model import ToolConfig
-from utility.tool_configurator import create_configured_tools
 from langchain_core.tools import BaseTool
 from pydantic import ConfigDict
+
+from models.settings_model import ToolConfig
+from utility.tool_configurator import create_configured_tools
 
 
 class FakeTool(BaseTool):

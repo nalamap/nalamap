@@ -1,11 +1,11 @@
 /**
  * Coordinate Projection Utility
- * 
+ *
  * Handles coordinate transformations between different projection systems,
  * particularly Web Mercator (EPSG:3857) and WGS84 (EPSG:4326).
  */
 
-import Logger from './logger';
+import Logger from "./logger";
 
 export class CoordinateProjection {
   private static readonly EARTH_RADIUS = 6378137; // meters
@@ -15,8 +15,10 @@ export class CoordinateProjection {
    * Convert Web Mercator (EPSG:3857) coordinates to WGS84 (EPSG:4326)
    */
   static webMercatorToWGS84(x: number, y: number): [number, number] {
-    const lon = (x / this.EARTH_RADIUS) * 180 / Math.PI;
-    const lat = (2 * Math.atan(Math.exp(y / this.EARTH_RADIUS)) - Math.PI / 2) * 180 / Math.PI;
+    const lon = ((x / this.EARTH_RADIUS) * 180) / Math.PI;
+    const lat =
+      ((2 * Math.atan(Math.exp(y / this.EARTH_RADIUS)) - Math.PI / 2) * 180) /
+      Math.PI;
     return [lon, lat];
   }
 
@@ -24,15 +26,21 @@ export class CoordinateProjection {
    * Convert WGS84 (EPSG:4326) coordinates to Web Mercator (EPSG:3857)
    */
   static wgs84ToWebMercator(lon: number, lat: number): [number, number] {
-    const x = this.EARTH_RADIUS * lon * Math.PI / 180;
-    const y = this.EARTH_RADIUS * Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
+    const x = (this.EARTH_RADIUS * lon * Math.PI) / 180;
+    const y =
+      this.EARTH_RADIUS *
+      Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
     return [x, y];
   }
 
   /**
    * Determine if coordinates appear to be in Web Mercator projection
    */
-  static looksLikeWebMercator(x: number, y: number, declaredCrs?: string): boolean {
+  static looksLikeWebMercator(
+    x: number,
+    y: number,
+    declaredCrs?: string,
+  ): boolean {
     // Check declared CRS first
     if (declaredCrs) {
       if (/3857|900913/i.test(declaredCrs)) return true;
@@ -40,8 +48,9 @@ export class CoordinateProjection {
     }
 
     // Heuristic: Web Mercator values are large and outside lat/lon ranges
-    const inWebMercatorRange = Math.abs(x) <= this.MAX_WEB_MERCATOR && 
-                                Math.abs(y) <= this.MAX_WEB_MERCATOR;
+    const inWebMercatorRange =
+      Math.abs(x) <= this.MAX_WEB_MERCATOR &&
+      Math.abs(y) <= this.MAX_WEB_MERCATOR;
     const outsideLatLonRange = Math.abs(x) > 180 || Math.abs(y) > 90;
 
     return inWebMercatorRange && outsideLatLonRange;
@@ -55,14 +64,16 @@ export class CoordinateProjection {
 
     const dive = (coords: any): any => {
       if (!Array.isArray(coords)) return null;
-      if (typeof coords[0] === 'number' && typeof coords[1] === 'number') {
+      if (typeof coords[0] === "number" && typeof coords[1] === "number") {
         return coords as [number, number];
       }
       return dive(coords[0]);
     };
 
     const result = dive(geometry.coordinates);
-    return Array.isArray(result) && result.length >= 2 ? [result[0], result[1]] : null;
+    return Array.isArray(result) && result.length >= 2
+      ? [result[0], result[1]]
+      : null;
   }
 
   /**
@@ -77,52 +88,59 @@ export class CoordinateProjection {
 
     const reprojectCoords = (coords: any): any => {
       if (!Array.isArray(coords)) return coords;
-      if (typeof coords[0] === 'number') {
+      if (typeof coords[0] === "number") {
         return reprojectCoord(coords as [number, number]);
       }
       return coords.map(reprojectCoords);
     };
 
     switch (geometry.type) {
-      case 'Point':
+      case "Point":
         return {
-          type: 'Point',
+          type: "Point",
           coordinates: reprojectCoord(geometry.coordinates),
         };
 
-      case 'MultiPoint':
+      case "MultiPoint":
         return {
-          type: 'MultiPoint',
-          coordinates: geometry.coordinates.map((c: [number, number]) => reprojectCoord(c)),
+          type: "MultiPoint",
+          coordinates: geometry.coordinates.map((c: [number, number]) =>
+            reprojectCoord(c),
+          ),
         };
 
-      case 'LineString':
+      case "LineString":
         return {
-          type: 'LineString',
-          coordinates: geometry.coordinates.map((c: [number, number]) => reprojectCoord(c)),
+          type: "LineString",
+          coordinates: geometry.coordinates.map((c: [number, number]) =>
+            reprojectCoord(c),
+          ),
         };
 
-      case 'MultiLineString':
+      case "MultiLineString":
         return {
-          type: 'MultiLineString',
+          type: "MultiLineString",
           coordinates: geometry.coordinates.map((line: [number, number][]) =>
-            line.map(reprojectCoord)
+            line.map(reprojectCoord),
           ),
         };
 
-      case 'Polygon':
+      case "Polygon":
         return {
-          type: 'Polygon',
+          type: "Polygon",
           coordinates: geometry.coordinates.map((ring: [number, number][]) =>
-            ring.map(reprojectCoord)
+            ring.map(reprojectCoord),
           ),
         };
 
-      case 'MultiPolygon':
+      case "MultiPolygon":
         return {
-          type: 'MultiPolygon',
-          coordinates: geometry.coordinates.map((polygon: [number, number][][]) =>
-            polygon.map((ring: [number, number][]) => ring.map(reprojectCoord))
+          type: "MultiPolygon",
+          coordinates: geometry.coordinates.map(
+            (polygon: [number, number][][]) =>
+              polygon.map((ring: [number, number][]) =>
+                ring.map(reprojectCoord),
+              ),
           ),
         };
 
@@ -144,8 +162,8 @@ export class CoordinateProjection {
         geometry: this.reprojectGeometry(feature.geometry),
       })),
       crs: {
-        type: 'name',
-        properties: { name: 'EPSG:4326' },
+        type: "name",
+        properties: { name: "EPSG:4326" },
       },
     };
   }
@@ -159,7 +177,7 @@ export class CoordinateProjection {
     const validate = (coords: any): boolean => {
       if (!Array.isArray(coords)) return true;
 
-      if (typeof coords[0] === 'number') {
+      if (typeof coords[0] === "number") {
         const [lon, lat] = coords;
         return Math.abs(lon) <= 180 && Math.abs(lat) <= 90;
       }
@@ -186,19 +204,28 @@ export class CoordinateProjection {
     const needsReprojection = this.looksLikeWebMercator(
       firstCoord[0],
       firstCoord[1],
-      declaredCrs
+      declaredCrs,
     );
 
     if (!needsReprojection) return featureCollection;
 
     // Reproject
-    Logger.log('Auto-reprojecting from Web Mercator (EPSG:3857) to WGS84 (EPSG:4326)');
+    Logger.log(
+      "Auto-reprojecting from Web Mercator (EPSG:3857) to WGS84 (EPSG:4326)",
+    );
     const reprojected = this.reprojectFeatureCollection(featureCollection);
 
     // Validate reprojection succeeded
-    const firstReprojected = this.extractFirstCoordinate(reprojected.features[0]?.geometry);
-    if (firstReprojected && !this.validateWGS84Coordinates({ coordinates: firstReprojected })) {
-      Logger.warn('Reprojection produced invalid coordinates, returning original');
+    const firstReprojected = this.extractFirstCoordinate(
+      reprojected.features[0]?.geometry,
+    );
+    if (
+      firstReprojected &&
+      !this.validateWGS84Coordinates({ coordinates: firstReprojected })
+    ) {
+      Logger.warn(
+        "Reprojection produced invalid coordinates, returning original",
+      );
       return featureCollection;
     }
 

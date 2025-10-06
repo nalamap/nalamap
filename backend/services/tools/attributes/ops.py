@@ -1,7 +1,7 @@
-from typing import Any, Dict, List, Optional, Tuple
 import math
 import re
 from collections import Counter
+from typing import Any, Dict, List, Optional, Tuple
 
 Feature = Dict[str, Any]
 FC = Dict[str, Any]

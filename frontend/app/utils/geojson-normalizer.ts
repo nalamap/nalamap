@@ -1,9 +1,9 @@
 /**
  * GeoJSON Normalization Utility
- * 
+ *
  * Handles normalization of various GeoJSON formats into standard FeatureCollections
  * that can be consumed by Leaflet and other mapping libraries.
- * 
+ *
  * Supports:
  * - FeatureCollection (pass-through)
  * - Single Feature
@@ -14,12 +14,12 @@
 
 export class GeoJSONNormalizer {
   private static readonly GEOMETRY_TYPES = new Set([
-    'Point',
-    'MultiPoint',
-    'LineString',
-    'MultiLineString',
-    'Polygon',
-    'MultiPolygon',
+    "Point",
+    "MultiPoint",
+    "LineString",
+    "MultiLineString",
+    "Polygon",
+    "MultiPolygon",
   ]);
 
   /**
@@ -33,20 +33,23 @@ export class GeoJSONNormalizer {
       return this.normalizeArray(input);
     }
 
-    if (typeof input !== 'object') return null;
+    if (typeof input !== "object") return null;
 
     // Already a proper FeatureCollection
-    if (input.type === 'FeatureCollection' && Array.isArray(input.features)) {
+    if (input.type === "FeatureCollection" && Array.isArray(input.features)) {
       return input;
     }
 
     // Single Feature
-    if (input.type === 'Feature' && input.geometry) {
+    if (input.type === "Feature" && input.geometry) {
       return this.wrapInFeatureCollection([input], input.crs, input.bbox);
     }
 
     // GeometryCollection
-    if (input.type === 'GeometryCollection' && Array.isArray(input.geometries)) {
+    if (
+      input.type === "GeometryCollection" &&
+      Array.isArray(input.geometries)
+    ) {
       return this.normalizeGeometryCollection(input);
     }
 
@@ -57,7 +60,7 @@ export class GeoJSONNormalizer {
 
     // Object with features array but missing type
     if (Array.isArray(input.features)) {
-      return { ...input, type: input.type || 'FeatureCollection' };
+      return { ...input, type: input.type || "FeatureCollection" };
     }
 
     return null;
@@ -72,7 +75,7 @@ export class GeoJSONNormalizer {
         if (!item) return null;
 
         // Already a Feature
-        if (item.type === 'Feature' && item.geometry) {
+        if (item.type === "Feature" && item.geometry) {
           return item;
         }
 
@@ -98,7 +101,7 @@ export class GeoJSONNormalizer {
       .map((geom: any, idx: number) => {
         if (!geom?.type) return null;
         return {
-          type: 'Feature',
+          type: "Feature",
           properties: { id: idx, ...(input.properties || {}) },
           geometry: geom,
         };
@@ -122,9 +125,10 @@ export class GeoJSONNormalizer {
    * Convert a geometry object to a Feature
    */
   private static geometryToFeature(geometry: any, defaultId: number): any {
-    const props = geometry.properties && typeof geometry.properties === 'object' 
-      ? { ...geometry.properties } 
-      : {};
+    const props =
+      geometry.properties && typeof geometry.properties === "object"
+        ? { ...geometry.properties }
+        : {};
 
     // Add default ID if properties are empty
     if (!Object.keys(props).length) {
@@ -136,7 +140,7 @@ export class GeoJSONNormalizer {
     }
 
     return {
-      type: 'Feature',
+      type: "Feature",
       properties: props,
       geometry: {
         type: geometry.type,
@@ -151,10 +155,10 @@ export class GeoJSONNormalizer {
   private static wrapInFeatureCollection(
     features: any[],
     crs?: any,
-    bbox?: any
+    bbox?: any,
   ): any {
     const fc: any = {
-      type: 'FeatureCollection',
+      type: "FeatureCollection",
       features,
     };
 
@@ -168,7 +172,7 @@ export class GeoJSONNormalizer {
    * Extract declared CRS from GeoJSON
    */
   static extractCRS(candidate: any): string | null {
-    if (!candidate || typeof candidate !== 'object') return null;
+    if (!candidate || typeof candidate !== "object") return null;
 
     try {
       return (
@@ -194,7 +198,7 @@ export class GeoJSONNormalizer {
         const flat: number[] = [];
 
         const walk = (arr: any) => {
-          if (typeof arr[0] === 'number') {
+          if (typeof arr[0] === "number") {
             flat.push(arr[0], arr[1]);
             return;
           }

@@ -13,16 +13,13 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, status, Request
+from fastapi import APIRouter, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 
 from core.config import LOCAL_UPLOAD_DIR
+from services.compression.gzip_utils import (compress_file, get_file_to_serve,
+                                             should_compress_file)
 from utility.string_methods import sanitize_filename
-from services.compression.gzip_utils import (
-    get_file_to_serve,
-    compress_file,
-    should_compress_file,
-)
 
 router = APIRouter(tags=["file-streaming"])
 

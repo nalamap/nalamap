@@ -4,14 +4,8 @@ from typing import Any, Dict, List, Optional
 
 import openai  # Import openai for error handling
 from fastapi import APIRouter, HTTPException
-from langchain_core.messages import (
-    AIMessage,
-    BaseMessage,
-    FunctionMessage,
-    HumanMessage,
-    SystemMessage,
-    ToolMessage,
-)
+from langchain_core.messages import (AIMessage, BaseMessage, FunctionMessage,
+                                     HumanMessage, SystemMessage, ToolMessage)
 
 from models.geodata import GeoDataObject, mock_geodata_objects
 from models.messages.chat_messages import NaLaMapRequest, NaLaMapResponse

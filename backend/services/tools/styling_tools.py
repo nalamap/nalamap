@@ -12,15 +12,12 @@ from langgraph.prebuilt import InjectedState
 from langgraph.types import Command
 from typing_extensions import Annotated
 
-from services.tools.utils import match_layer_names
-
 from models.geodata import GeoDataObject
-from services.ai.automatic_styling import (
-    detect_layer_type,
-    generate_automatic_style,
-    parse_color_scheme_request,
-    parse_intelligent_color,
-)
+from services.ai.automatic_styling import (detect_layer_type,
+                                           generate_automatic_style,
+                                           parse_color_scheme_request,
+                                           parse_intelligent_color)
+from services.tools.utils import match_layer_names
 
 logger = logging.getLogger(__name__)
 

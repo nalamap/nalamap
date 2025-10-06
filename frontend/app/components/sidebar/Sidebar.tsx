@@ -1,9 +1,9 @@
-"use client"
+"use client";
 
-import { useState } from 'react';
-import Link from 'next/link';
-import Head from 'next/head';
-import { User, Maximize, RefreshCcw, Settings, Home } from 'lucide-react';
+import { useState } from "react";
+import Link from "next/link";
+import Head from "next/head";
+import { User, Maximize, RefreshCcw, Settings, Home } from "lucide-react";
 
 const toggleFullscreen = () => {
   const elem = document.documentElement;
@@ -38,12 +38,18 @@ export default function Sidebar() {
       <div className="flex flex-col items-center justify-start py-4 space-y-4 h-full w-full">
         {/* Home Icon */}
         <Link href="/">
-          <button className="hover:bg-secondary-900 p-2 rounded focus:outline-none text-white" title="Home">
+          <button
+            className="hover:bg-secondary-900 p-2 rounded focus:outline-none text-white"
+            title="Home"
+          >
             <Home className="w-6 h-6" />
           </button>
         </Link>
         {/* Account Icon */}
-        <button className="hover:bg-secondary-900 p-2 rounded focus:outline-none text-white" title="Account">
+        <button
+          className="hover:bg-secondary-900 p-2 rounded focus:outline-none text-white"
+          title="Account"
+        >
           <User className="w-6 h-6" />
         </button>
 
@@ -57,17 +63,23 @@ export default function Sidebar() {
         </button>
 
         {/* Reset Icon */}
-        <button className="hover:bg-secondary-900 p-2 rounded focus:outline-none text-white" title="Reset App">
+        <button
+          className="hover:bg-secondary-900 p-2 rounded focus:outline-none text-white"
+          title="Reset App"
+        >
           <RefreshCcw className="w-6 h-6" />
         </button>
 
         {/* Settings Icon */}
         <Link href="/settings">
-          <button className="hover:bg-secondary-900 p-2 rounded focus:outline-none text-white" title="Settings">
+          <button
+            className="hover:bg-secondary-900 p-2 rounded focus:outline-none text-white"
+            title="Settings"
+          >
             <Settings className="w-6 h-6" />
           </button>
         </Link>
       </div>
     </>
   );
-};
+}

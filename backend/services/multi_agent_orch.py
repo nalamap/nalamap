@@ -14,7 +14,8 @@ from services.agents.langgraph_agent import SearchState
 from services.agents.langgraph_agent import executor as librarien_executor
 from services.agents.nala_map_ai import ai_executor as nala_helper_executor
 from services.agents.supervisor_agent import choose_agent
-from services.agents.supervisor_agent import supervisor_node as llm_supervisor_node
+from services.agents.supervisor_agent import \
+    supervisor_node as llm_supervisor_node
 
 
 async def supervisor_node(state: DataState) -> Command:

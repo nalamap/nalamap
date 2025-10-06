@@ -7,16 +7,14 @@ is set correctly so browsers can automatically decompress.
 """
 
 import gzip
-import pytest
-from unittest.mock import patch, MagicMock
 from io import BytesIO
+from unittest.mock import MagicMock, patch
 
-from services.storage.file_management import (
-    store_file,
-    store_file_stream,
-    _should_compress_for_azure,
-    _compress_for_azure,
-)
+import pytest
+
+from services.storage.file_management import (_compress_for_azure,
+                                              _should_compress_for_azure,
+                                              store_file, store_file_stream)
 
 
 class TestAzureCompressionHelpers:

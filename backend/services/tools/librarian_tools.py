@@ -11,7 +11,8 @@ from typing_extensions import Annotated
 
 from models.geodata import DataType, GeoDataObject
 from models.states import GeoDataAgentState, get_minimal_debug_state
-from services.database.database import close_db, get_db, init_db, is_database_available
+from services.database.database import (close_db, get_db, init_db,
+                                        is_database_available)
 
 
 @tool

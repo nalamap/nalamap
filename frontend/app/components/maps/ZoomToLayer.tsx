@@ -8,15 +8,15 @@ import Logger from "../../utils/logger";
 
 function parseBoundingBoxWKT(wkt: string): L.LatLngBounds | null {
   if (!wkt) return null;
-  
+
   Logger.log("Parsing WKT bbox:", wkt);
-  
+
   const match = wkt.match(/POLYGON\(\((.+?)\)\)/);
   if (!match) return null;
 
   const coords = match[1]
     .split(",")
-    .map(pair => pair.trim().split(" ").map(Number))
+    .map((pair) => pair.trim().split(" ").map(Number))
     .filter(([lng, lat]) => !isNaN(lng) && !isNaN(lat));
 
   if (coords.length === 0) return null;
@@ -33,9 +33,9 @@ function parseBoundingBoxWKT(wkt: string): L.LatLngBounds | null {
 // Handle array format bounding box [minX, minY, maxX, maxY]
 function parseBoundingBoxArray(bbox: any): L.LatLngBounds | null {
   if (!Array.isArray(bbox) || bbox.length < 4) return null;
-  
+
   Logger.log("Parsing Array bbox:", bbox);
-  
+
   try {
     // Handle both [minX, minY, maxX, maxY] format
     if (bbox.length === 4) {
@@ -61,7 +61,7 @@ export function ZoomToLayer({ layers }: { layers: GeoDataObject[] }) {
 
       if (layer.layer_type?.toUpperCase() === "WMS") {
         if (layer.bounding_box) {
-          if (typeof layer.bounding_box === 'string') {
+          if (typeof layer.bounding_box === "string") {
             const bounds = parseBoundingBoxWKT(layer.bounding_box);
             if (bounds) {
               map.fitBounds(bounds);
@@ -86,42 +86,52 @@ export function ZoomToSelected() {
   useEffect(() => {
     if (zoomTo == null) return;
     Logger.log("Zooming to layer ID:", zoomTo);
-    
+
     const layer = layers.find((l) => l.id === zoomTo);
     if (!layer) {
       Logger.warn("Layer not found with ID:", zoomTo);
       setZoomTo(null);
       return;
     }
-    
-    Logger.log("Found layer:", layer.name, "with bounding box:", layer.bounding_box);
-    
+
+    Logger.log(
+      "Found layer:",
+      layer.name,
+      "with bounding box:",
+      layer.bounding_box,
+    );
+
     if (layer.bounding_box) {
       let bounds = null;
-      
+
       // Try parsing as WKT POLYGON format
-      if (typeof layer.bounding_box === 'string' && layer.bounding_box.includes('POLYGON')) {
+      if (
+        typeof layer.bounding_box === "string" &&
+        layer.bounding_box.includes("POLYGON")
+      ) {
         bounds = parseBoundingBoxWKT(layer.bounding_box);
-      } 
+      }
       // Try parsing as array format [minX, minY, maxX, maxY]
       else if (Array.isArray(layer.bounding_box)) {
         bounds = parseBoundingBoxArray(layer.bounding_box);
       }
-      
+
       if (bounds) {
         Logger.log("Zooming to bounds:", bounds.toString());
         map.fitBounds(bounds);
       } else {
         Logger.warn("Could not parse bounding box:", layer.bounding_box);
       }
-    } else if (layer.layer_type?.toUpperCase() === "WFS" || 
-              layer.layer_type?.toUpperCase() === "UPLOADED" ||
-              layer.data_link.toLowerCase().includes("json")) {
+    } else if (
+      layer.layer_type?.toUpperCase() === "WFS" ||
+      layer.layer_type?.toUpperCase() === "UPLOADED" ||
+      layer.data_link.toLowerCase().includes("json")
+    ) {
       // For GeoJSON layers, fetch the data to get the bounds
       Logger.log("Attempting to fetch GeoJSON data to get bounds");
       fetch(layer.data_link)
-        .then(res => res.json())
-        .then(data => {
+        .then((res) => res.json())
+        .then((data) => {
           try {
             const geoJsonLayer = L.geoJSON(data);
             const bounds = geoJsonLayer.getBounds();
@@ -130,19 +140,25 @@ export function ZoomToSelected() {
               Logger.log("Got bounds from GeoJSON:", bounds.toString());
               map.fitBounds(bounds);
             } else {
-              Logger.warn("GeoJSON layer has no valid bounds (likely empty):", layer.name);
+              Logger.warn(
+                "GeoJSON layer has no valid bounds (likely empty):",
+                layer.name,
+              );
             }
           } catch (err) {
             Logger.error("Error creating bounds from GeoJSON:", err);
           }
         })
-        .catch(err => {
+        .catch((err) => {
           Logger.error("Error fetching GeoJSON data:", err);
         });
     } else {
-      Logger.warn("No bounding box information available for layer:", layer.name);
+      Logger.warn(
+        "No bounding box information available for layer:",
+        layer.name,
+      );
     }
-    
+
     setZoomTo(null);
   }, [zoomTo, layers, map, setZoomTo]);
 

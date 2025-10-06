@@ -1,11 +1,9 @@
-import { test, expect, Page } from '@playwright/test';
+import { test, expect, Page } from "@playwright/test";
 import {
   germanyGeocodingResponse,
   brazilGeocodingResponse,
-} from './fixtures/geocoding-fixtures';
-import {
-  brazilHospitalsOverpassResponse,
-} from './fixtures/overpass-fixtures';
+} from "./fixtures/geocoding-fixtures";
+import { brazilHospitalsOverpassResponse } from "./fixtures/overpass-fixtures";
 import {
   wmsLayerMetadata,
   wfsLayerMetadata,
@@ -15,29 +13,29 @@ import {
   singleFeatureResponse,
   singleGeometryResponse,
   geometryCollectionResponse,
-} from './fixtures/ogc-services-fixtures';
+} from "./fixtures/ogc-services-fixtures";
 
 /**
  * Helper to setup API mocks for backend endpoints
  */
 async function setupBackendMocks(page: Page) {
   // Mock backend health/initialization endpoints
-  await page.route('**/api/**', (route) => {
+  await page.route("**/api/**", (route) => {
     const url = route.request().url();
-    
+
     // Mock health check
-    if (url.includes('/health')) {
-      route.fulfill({ status: 200, body: JSON.stringify({ status: 'ok' }) });
+    if (url.includes("/health")) {
+      route.fulfill({ status: 200, body: JSON.stringify({ status: "ok" }) });
       return;
     }
 
     // Mock settings endpoint
-    if (url.includes('/settings')) {
+    if (url.includes("/settings")) {
       route.fulfill({
         status: 200,
         body: JSON.stringify({
-          agent_settings: { model: 'test-model' },
-          available_models: ['test-model'],
+          agent_settings: { model: "test-model" },
+          available_models: ["test-model"],
         }),
       });
       return;
@@ -56,7 +54,7 @@ async function addLayerViaStore(page: Page, layer: any) {
     // Access Zustand store directly from window
     const { useLayerStore } = window as any;
     if (!useLayerStore) {
-      return { success: false, error: 'useLayerStore not found on window' };
+      return { success: false, error: "useLayerStore not found on window" };
     }
     try {
       useLayerStore.getState().addLayer(layerData);
@@ -66,7 +64,7 @@ async function addLayerViaStore(page: Page, layer: any) {
       return { success: false, error: error.message };
     }
   }, layer);
-  
+
   if (!result.success) {
     throw new Error(`Failed to add layer: ${result.error}`);
   }
@@ -78,17 +76,20 @@ async function addLayerViaStore(page: Page, layer: any) {
  */
 async function waitForMapReady(page: Page) {
   // Wait for Leaflet map container
-  await page.waitForSelector('.leaflet-container', { timeout: 10000 });
-  
+  await page.waitForSelector(".leaflet-container", { timeout: 10000 });
+
   // Try to wait for the store to be available on window, but don't fail if it times out
   try {
-    await page.waitForFunction(() => {
-      return typeof (window as any).useLayerStore !== 'undefined';
-    }, { timeout: 5000 });
+    await page.waitForFunction(
+      () => {
+        return typeof (window as any).useLayerStore !== "undefined";
+      },
+      { timeout: 5000 },
+    );
   } catch (error) {
-    console.log('Store not available on window yet, continuing anyway...');
+    console.log("Store not available on window yet, continuing anyway...");
   }
-  
+
   // Wait for tiles to start loading
   await page.waitForTimeout(1000);
 }
@@ -100,7 +101,7 @@ async function isLayerVisible(page: Page, layerId: string): Promise<boolean> {
   return page.evaluate((id) => {
     const { useLayerStore } = window as any;
     if (!useLayerStore) return false;
-    
+
     const layers = useLayerStore.getState().layers;
     const layer = layers.find((l: any) => l.id === id);
     return layer?.visible === true;
@@ -130,20 +131,20 @@ async function getLayerCount(page: Page): Promise<number> {
   });
 }
 
-test.describe('LeafletMapClient - Geocoding Tests', () => {
+test.describe("LeafletMapClient - Geocoding Tests", () => {
   test.beforeEach(async ({ page }) => {
     await setupBackendMocks(page);
-    await page.goto('/');
+    await page.goto("/");
     await waitForMapReady(page);
   });
 
-  test('should display Germany geocoding result', async ({ page }) => {
+  test("should display Germany geocoding result", async ({ page }) => {
     // Mock the geocoding endpoint
-    await page.route('**/uploads/**', (route) => {
-      if (route.request().url().includes('germany')) {
+    await page.route("**/uploads/**", (route) => {
+      if (route.request().url().includes("germany")) {
         route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify(germanyGeocodingResponse),
         });
       } else {
@@ -153,13 +154,13 @@ test.describe('LeafletMapClient - Geocoding Tests', () => {
 
     // Create a layer object for Germany
     const germanyLayer = {
-      id: 'germany-geocode-1',
-      name: 'Germany',
-      title: 'Germany Boundary',
-      layer_type: 'UPLOADED',
-      data_link: '/uploads/germany.geojson',
+      id: "germany-geocode-1",
+      name: "Germany",
+      title: "Germany Boundary",
+      layer_type: "UPLOADED",
+      data_link: "/uploads/germany.geojson",
       visible: true,
-      data_source_id: 'geocodeNominatim',
+      data_source_id: "geocodeNominatim",
       bounding_box: [5.8663153, 47.2701114, 15.0419319, 55.099161],
     };
 
@@ -174,20 +175,22 @@ test.describe('LeafletMapClient - Geocoding Tests', () => {
     expect(layerCount).toBeGreaterThan(0);
 
     // Check that layer is visible
-    const visible = await isLayerVisible(page, 'germany-geocode-1');
+    const visible = await isLayerVisible(page, "germany-geocode-1");
     expect(visible).toBe(true);
 
     // Check for GeoJSON layer rendering (Leaflet should have path elements)
-    const geoJsonPaths = await page.locator('.leaflet-overlay-pane path').count();
+    const geoJsonPaths = await page
+      .locator(".leaflet-overlay-pane path")
+      .count();
     expect(geoJsonPaths).toBeGreaterThan(0);
   });
 
-  test('should display Brazil geocoding result', async ({ page }) => {
-    await page.route('**/uploads/**', (route) => {
-      if (route.request().url().includes('brazil')) {
+  test("should display Brazil geocoding result", async ({ page }) => {
+    await page.route("**/uploads/**", (route) => {
+      if (route.request().url().includes("brazil")) {
         route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify(brazilGeocodingResponse),
         });
       } else {
@@ -196,40 +199,42 @@ test.describe('LeafletMapClient - Geocoding Tests', () => {
     });
 
     const brazilLayer = {
-      id: 'brazil-geocode-1',
-      name: 'Brasil',
-      title: 'Brazil Boundary',
-      layer_type: 'UPLOADED',
-      data_link: '/uploads/brazil.geojson',
+      id: "brazil-geocode-1",
+      name: "Brasil",
+      title: "Brazil Boundary",
+      layer_type: "UPLOADED",
+      data_link: "/uploads/brazil.geojson",
       visible: true,
-      data_source_id: 'geocodeNominatim',
+      data_source_id: "geocodeNominatim",
       bounding_box: [-73.9872354804, -33.7683777809, -28.6341164537, 5.2842873],
     };
 
     await addLayerViaStore(page, brazilLayer);
     await page.waitForTimeout(2000);
 
-    const visible = await isLayerVisible(page, 'brazil-geocode-1');
+    const visible = await isLayerVisible(page, "brazil-geocode-1");
     expect(visible).toBe(true);
 
-    const geoJsonPaths = await page.locator('.leaflet-overlay-pane path').count();
+    const geoJsonPaths = await page
+      .locator(".leaflet-overlay-pane path")
+      .count();
     expect(geoJsonPaths).toBeGreaterThan(0);
   });
 });
 
-test.describe('LeafletMapClient - Overpass Tests', () => {
+test.describe("LeafletMapClient - Overpass Tests", () => {
   test.beforeEach(async ({ page }) => {
     await setupBackendMocks(page);
-    await page.goto('/');
+    await page.goto("/");
     await waitForMapReady(page);
   });
 
-  test('should display Brazil hospitals from Overpass', async ({ page }) => {
-    await page.route('**/uploads/**', (route) => {
-      if (route.request().url().includes('brazil_hospitals')) {
+  test("should display Brazil hospitals from Overpass", async ({ page }) => {
+    await page.route("**/uploads/**", (route) => {
+      if (route.request().url().includes("brazil_hospitals")) {
         route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify(brazilHospitalsOverpassResponse),
         });
       } else {
@@ -238,13 +243,13 @@ test.describe('LeafletMapClient - Overpass Tests', () => {
     });
 
     const hospitalsLayer = {
-      id: 'brazil-hospitals-1',
-      name: 'Hospitals in Brazil',
-      title: 'Brazilian Hospitals',
-      layer_type: 'UPLOADED',
-      data_link: '/uploads/brazil_hospitals.geojson',
+      id: "brazil-hospitals-1",
+      name: "Hospitals in Brazil",
+      title: "Brazilian Hospitals",
+      layer_type: "UPLOADED",
+      data_link: "/uploads/brazil_hospitals.geojson",
       visible: true,
-      data_source_id: 'geocodeOverpassCollection',
+      data_source_id: "geocodeOverpassCollection",
     };
 
     await addLayerViaStore(page, hospitalsLayer);
@@ -255,25 +260,31 @@ test.describe('LeafletMapClient - Overpass Tests', () => {
     expect(layerCount).toBe(1);
 
     // Verify layer is visible
-    const visible = await isLayerVisible(page, 'brazil-hospitals-1');
+    const visible = await isLayerVisible(page, "brazil-hospitals-1");
     expect(visible).toBe(true);
 
     // Check for markers/paths (hospitals should render as circle markers or polygons)
-    const markers = await page.locator('.leaflet-marker-pane, .leaflet-overlay-pane path, .leaflet-overlay-pane circle').count();
+    const markers = await page
+      .locator(
+        ".leaflet-marker-pane, .leaflet-overlay-pane path, .leaflet-overlay-pane circle",
+      )
+      .count();
     expect(markers).toBeGreaterThan(0);
   });
 
-  test('BUG REPRODUCTION: Brazil hospitals visibility after toggle', async ({ page }) => {
+  test("BUG REPRODUCTION: Brazil hospitals visibility after toggle", async ({
+    page,
+  }) => {
     /**
      * This test reproduces the bug where layers only show after disable/re-enable
      * Expected: Layer shows immediately after adding
      * Actual: Layer might not show until toggled
      */
-    await page.route('**/uploads/**', (route) => {
-      if (route.request().url().includes('brazil_hospitals')) {
+    await page.route("**/uploads/**", (route) => {
+      if (route.request().url().includes("brazil_hospitals")) {
         route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify(brazilHospitalsOverpassResponse),
         });
       } else {
@@ -282,13 +293,13 @@ test.describe('LeafletMapClient - Overpass Tests', () => {
     });
 
     const hospitalsLayer = {
-      id: 'brazil-hospitals-toggle',
-      name: 'Hospitals Toggle Test',
-      title: 'Brazilian Hospitals Toggle',
-      layer_type: 'UPLOADED',
-      data_link: '/uploads/brazil_hospitals.geojson',
+      id: "brazil-hospitals-toggle",
+      name: "Hospitals Toggle Test",
+      title: "Brazilian Hospitals Toggle",
+      layer_type: "UPLOADED",
+      data_link: "/uploads/brazil_hospitals.geojson",
       visible: true,
-      data_source_id: 'geocodeOverpassCollection',
+      data_source_id: "geocodeOverpassCollection",
     };
 
     // Add layer
@@ -296,26 +307,40 @@ test.describe('LeafletMapClient - Overpass Tests', () => {
     await page.waitForTimeout(1500);
 
     // Check initial visibility
-    const initialVisible = await isLayerVisible(page, 'brazil-hospitals-toggle');
-    const initialMarkers = await page.locator('.leaflet-overlay-pane path, .leaflet-overlay-pane circle').count();
-    
-    console.log(`Initial state - Visible: ${initialVisible}, Markers: ${initialMarkers}`);
+    const initialVisible = await isLayerVisible(
+      page,
+      "brazil-hospitals-toggle",
+    );
+    const initialMarkers = await page
+      .locator(".leaflet-overlay-pane path, .leaflet-overlay-pane circle")
+      .count();
+
+    console.log(
+      `Initial state - Visible: ${initialVisible}, Markers: ${initialMarkers}`,
+    );
 
     // Toggle off
-    await toggleLayerVisibility(page, 'brazil-hospitals-toggle');
+    await toggleLayerVisibility(page, "brazil-hospitals-toggle");
     await page.waitForTimeout(500);
 
-    const afterToggleOff = await isLayerVisible(page, 'brazil-hospitals-toggle');
+    const afterToggleOff = await isLayerVisible(
+      page,
+      "brazil-hospitals-toggle",
+    );
     expect(afterToggleOff).toBe(false);
 
     // Toggle back on
-    await toggleLayerVisibility(page, 'brazil-hospitals-toggle');
+    await toggleLayerVisibility(page, "brazil-hospitals-toggle");
     await page.waitForTimeout(1500);
 
-    const afterToggleOn = await isLayerVisible(page, 'brazil-hospitals-toggle');
-    const markersAfterToggle = await page.locator('.leaflet-overlay-pane path, .leaflet-overlay-pane circle').count();
+    const afterToggleOn = await isLayerVisible(page, "brazil-hospitals-toggle");
+    const markersAfterToggle = await page
+      .locator(".leaflet-overlay-pane path, .leaflet-overlay-pane circle")
+      .count();
 
-    console.log(`After toggle - Visible: ${afterToggleOn}, Markers: ${markersAfterToggle}`);
+    console.log(
+      `After toggle - Visible: ${afterToggleOn}, Markers: ${markersAfterToggle}`,
+    );
 
     // ASSERTION: Markers should appear after toggle
     expect(afterToggleOn).toBe(true);
@@ -323,195 +348,204 @@ test.describe('LeafletMapClient - Overpass Tests', () => {
 
     // BUG CHECK: If markers only appear after toggle but not initially, there's a bug
     if (initialMarkers === 0 && markersAfterToggle > 0) {
-      console.warn('BUG DETECTED: Layer only renders after visibility toggle!');
+      console.warn("BUG DETECTED: Layer only renders after visibility toggle!");
     }
   });
 });
 
-test.describe('LeafletMapClient - OGC Services Tests', () => {
+test.describe("LeafletMapClient - OGC Services Tests", () => {
   test.beforeEach(async ({ page }) => {
     await setupBackendMocks(page);
-    await page.goto('/');
+    await page.goto("/");
     await waitForMapReady(page);
   });
 
-  test('should display WMS layer', async ({ page }) => {
+  test("should display WMS layer", async ({ page }) => {
     await addLayerViaStore(page, wmsLayerMetadata);
     await page.waitForTimeout(2000);
 
-    const visible = await isLayerVisible(page, 'wms-layer-1');
+    const visible = await isLayerVisible(page, "wms-layer-1");
     expect(visible).toBe(true);
 
     // WMS layers should create tile layers
-    const tileLayers = await page.locator('.leaflet-tile-pane img').count();
+    const tileLayers = await page.locator(".leaflet-tile-pane img").count();
     expect(tileLayers).toBeGreaterThan(0);
   });
 
-  test('should display WFS layer', async ({ page }) => {
-    await page.route((url) => {
-      const urlString = url.toString();
-      return urlString.includes('geoserver') && urlString.includes('wfs');
-    }, (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(wfsFeatureCollectionResponse),
-      });
-    });
+  test("should display WFS layer", async ({ page }) => {
+    await page.route(
+      (url) => {
+        const urlString = url.toString();
+        return urlString.includes("geoserver") && urlString.includes("wfs");
+      },
+      (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(wfsFeatureCollectionResponse),
+        });
+      },
+    );
 
     await addLayerViaStore(page, wfsLayerMetadata);
     await page.waitForTimeout(4000);
-    
-    const visible = await isLayerVisible(page, 'wfs-layer-1');
+
+    const visible = await isLayerVisible(page, "wfs-layer-1");
     expect(visible).toBe(true);
 
     // WFS layers should render as vector features
-    const features = await page.locator('.leaflet-overlay-pane path').count();
+    const features = await page.locator(".leaflet-overlay-pane path").count();
     expect(features).toBeGreaterThan(0);
   });
 
-  test('should display WMTS layer', async ({ page }) => {
+  test("should display WMTS layer", async ({ page }) => {
     await addLayerViaStore(page, wmtsLayerMetadata);
     await page.waitForTimeout(2000);
 
-    const visible = await isLayerVisible(page, 'wmts-layer-1');
+    const visible = await isLayerVisible(page, "wmts-layer-1");
     expect(visible).toBe(true);
 
     // WMTS layers should create tile layers
-    const tileLayers = await page.locator('.leaflet-tile-pane img').count();
+    const tileLayers = await page.locator(".leaflet-tile-pane img").count();
     expect(tileLayers).toBeGreaterThan(0);
   });
 
-  test('should display WCS layer', async ({ page }) => {
+  test("should display WCS layer", async ({ page }) => {
     await addLayerViaStore(page, wcsLayerMetadata);
     await page.waitForTimeout(2000);
 
-    const visible = await isLayerVisible(page, 'wcs-layer-1');
+    const visible = await isLayerVisible(page, "wcs-layer-1");
     expect(visible).toBe(true);
 
     // WCS layers are rendered as WMS (raster tiles)
-    const tileLayers = await page.locator('.leaflet-tile-pane img').count();
+    const tileLayers = await page.locator(".leaflet-tile-pane img").count();
     expect(tileLayers).toBeGreaterThan(0);
   });
 });
 
-test.describe('LeafletMapClient - GeoJSON Normalization Tests', () => {
+test.describe("LeafletMapClient - GeoJSON Normalization Tests", () => {
   test.beforeEach(async ({ page }) => {
     await setupBackendMocks(page);
-    await page.goto('/');
+    await page.goto("/");
     await waitForMapReady(page);
   });
 
-  test('should handle single Feature response', async ({ page }) => {
-    await page.route('**/uploads/single-feature.geojson', (route) => {
+  test("should handle single Feature response", async ({ page }) => {
+    await page.route("**/uploads/single-feature.geojson", (route) => {
       route.fulfill({
         status: 200,
-        contentType: 'application/json',
+        contentType: "application/json",
         body: JSON.stringify(singleFeatureResponse),
       });
     });
 
     const singleFeatureLayer = {
-      id: 'single-feature-1',
-      name: 'Single Feature',
-      title: 'Single Feature Test',
-      layer_type: 'UPLOADED',
-      data_link: '/uploads/single-feature.geojson',
+      id: "single-feature-1",
+      name: "Single Feature",
+      title: "Single Feature Test",
+      layer_type: "UPLOADED",
+      data_link: "/uploads/single-feature.geojson",
       visible: true,
-      data_source_id: 'test',
+      data_source_id: "test",
     };
 
     await addLayerViaStore(page, singleFeatureLayer);
     await page.waitForTimeout(2000);
 
-    const visible = await isLayerVisible(page, 'single-feature-1');
+    const visible = await isLayerVisible(page, "single-feature-1");
     expect(visible).toBe(true);
 
     // Should render as a marker
-    const markers = await page.locator('.leaflet-overlay-pane circle, .leaflet-marker-pane').count();
+    const markers = await page
+      .locator(".leaflet-overlay-pane circle, .leaflet-marker-pane")
+      .count();
     expect(markers).toBeGreaterThan(0);
   });
 
-  test('should handle bare Geometry response', async ({ page }) => {
-    await page.route('**/uploads/bare-geometry.geojson', (route) => {
+  test("should handle bare Geometry response", async ({ page }) => {
+    await page.route("**/uploads/bare-geometry.geojson", (route) => {
       route.fulfill({
         status: 200,
-        contentType: 'application/json',
+        contentType: "application/json",
         body: JSON.stringify(singleGeometryResponse),
       });
     });
 
     const bareGeometryLayer = {
-      id: 'bare-geometry-1',
-      name: 'Bare Geometry',
-      title: 'Bare Geometry Test',
-      layer_type: 'UPLOADED',
-      data_link: '/uploads/bare-geometry.geojson',
+      id: "bare-geometry-1",
+      name: "Bare Geometry",
+      title: "Bare Geometry Test",
+      layer_type: "UPLOADED",
+      data_link: "/uploads/bare-geometry.geojson",
       visible: true,
-      data_source_id: 'test',
+      data_source_id: "test",
     };
 
     await addLayerViaStore(page, bareGeometryLayer);
     await page.waitForTimeout(2000);
 
-    const visible = await isLayerVisible(page, 'bare-geometry-1');
+    const visible = await isLayerVisible(page, "bare-geometry-1");
     expect(visible).toBe(true);
 
-    const markers = await page.locator('.leaflet-overlay-pane circle, .leaflet-marker-pane').count();
+    const markers = await page
+      .locator(".leaflet-overlay-pane circle, .leaflet-marker-pane")
+      .count();
     expect(markers).toBeGreaterThan(0);
   });
 
-  test('should handle GeometryCollection response', async ({ page }) => {
-    await page.route('**/uploads/geometry-collection.geojson', (route) => {
+  test("should handle GeometryCollection response", async ({ page }) => {
+    await page.route("**/uploads/geometry-collection.geojson", (route) => {
       route.fulfill({
         status: 200,
-        contentType: 'application/json',
+        contentType: "application/json",
         body: JSON.stringify(geometryCollectionResponse),
       });
     });
 
     const geometryCollectionLayer = {
-      id: 'geometry-collection-1',
-      name: 'Geometry Collection',
-      title: 'Geometry Collection Test',
-      layer_type: 'UPLOADED',
-      data_link: '/uploads/geometry-collection.geojson',
+      id: "geometry-collection-1",
+      name: "Geometry Collection",
+      title: "Geometry Collection Test",
+      layer_type: "UPLOADED",
+      data_link: "/uploads/geometry-collection.geojson",
       visible: true,
-      data_source_id: 'test',
+      data_source_id: "test",
     };
 
     await addLayerViaStore(page, geometryCollectionLayer);
     await page.waitForTimeout(2000);
 
-    const visible = await isLayerVisible(page, 'geometry-collection-1');
+    const visible = await isLayerVisible(page, "geometry-collection-1");
     expect(visible).toBe(true);
 
     // Should render multiple geometries
-    const features = await page.locator('.leaflet-overlay-pane path, .leaflet-overlay-pane circle').count();
+    const features = await page
+      .locator(".leaflet-overlay-pane path, .leaflet-overlay-pane circle")
+      .count();
     expect(features).toBeGreaterThan(0);
   });
 });
 
-test.describe('LeafletMapClient - Layer Management Tests', () => {
+test.describe("LeafletMapClient - Layer Management Tests", () => {
   test.beforeEach(async ({ page }) => {
     await setupBackendMocks(page);
-    await page.goto('/');
+    await page.goto("/");
     await waitForMapReady(page);
   });
 
-  test('should handle multiple layers', async ({ page }) => {
-    await page.route('**/uploads/**', (route) => {
+  test("should handle multiple layers", async ({ page }) => {
+    await page.route("**/uploads/**", (route) => {
       const url = route.request().url();
-      if (url.includes('layer1')) {
+      if (url.includes("layer1")) {
         route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify(germanyGeocodingResponse),
         });
-      } else if (url.includes('layer2')) {
+      } else if (url.includes("layer2")) {
         route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify(brazilGeocodingResponse),
         });
       } else {
@@ -521,26 +555,26 @@ test.describe('LeafletMapClient - Layer Management Tests', () => {
 
     // Add first layer
     await addLayerViaStore(page, {
-      id: 'multi-layer-1',
-      name: 'Layer 1',
-      title: 'First Layer',
-      layer_type: 'UPLOADED',
-      data_link: '/uploads/layer1.geojson',
+      id: "multi-layer-1",
+      name: "Layer 1",
+      title: "First Layer",
+      layer_type: "UPLOADED",
+      data_link: "/uploads/layer1.geojson",
       visible: true,
-      data_source_id: 'test',
+      data_source_id: "test",
     });
 
     await page.waitForTimeout(1000);
 
     // Add second layer
     await addLayerViaStore(page, {
-      id: 'multi-layer-2',
-      name: 'Layer 2',
-      title: 'Second Layer',
-      layer_type: 'UPLOADED',
-      data_link: '/uploads/layer2.geojson',
+      id: "multi-layer-2",
+      name: "Layer 2",
+      title: "Second Layer",
+      layer_type: "UPLOADED",
+      data_link: "/uploads/layer2.geojson",
       visible: true,
-      data_source_id: 'test',
+      data_source_id: "test",
     });
 
     await page.waitForTimeout(1000);
@@ -550,29 +584,29 @@ test.describe('LeafletMapClient - Layer Management Tests', () => {
     expect(layerCount).toBe(2);
 
     // Both should be visible
-    const visible1 = await isLayerVisible(page, 'multi-layer-1');
-    const visible2 = await isLayerVisible(page, 'multi-layer-2');
+    const visible1 = await isLayerVisible(page, "multi-layer-1");
+    const visible2 = await isLayerVisible(page, "multi-layer-2");
     expect(visible1).toBe(true);
     expect(visible2).toBe(true);
   });
 
-  test('should remove layer', async ({ page }) => {
-    await page.route('**/uploads/**', (route) => {
+  test("should remove layer", async ({ page }) => {
+    await page.route("**/uploads/**", (route) => {
       route.fulfill({
         status: 200,
-        contentType: 'application/json',
+        contentType: "application/json",
         body: JSON.stringify(germanyGeocodingResponse),
       });
     });
 
     const layer = {
-      id: 'removable-layer',
-      name: 'Removable Layer',
-      title: 'Layer to Remove',
-      layer_type: 'UPLOADED',
-      data_link: '/uploads/removable.geojson',
+      id: "removable-layer",
+      name: "Removable Layer",
+      title: "Layer to Remove",
+      layer_type: "UPLOADED",
+      data_link: "/uploads/removable.geojson",
       visible: true,
-      data_source_id: 'test',
+      data_source_id: "test",
     };
 
     await addLayerViaStore(page, layer);
@@ -587,7 +621,7 @@ test.describe('LeafletMapClient - Layer Management Tests', () => {
       if (useLayerStore) {
         useLayerStore.getState().removeLayer(id);
       }
-    }, 'removable-layer');
+    }, "removable-layer");
 
     await page.waitForTimeout(500);
 
@@ -596,41 +630,46 @@ test.describe('LeafletMapClient - Layer Management Tests', () => {
   });
 });
 
-test.describe('LeafletMapClient - Bug Fix Verification Tests', () => {
+test.describe("LeafletMapClient - Bug Fix Verification Tests", () => {
   test.beforeEach(async ({ page }) => {
     await setupBackendMocks(page);
-    await page.goto('/');
+    await page.goto("/");
     await waitForMapReady(page);
   });
 
-  test('Fix #2: Bounds fitting should happen exactly once (no duplicate logic)', async ({ page }) => {
+  test("Fix #2: Bounds fitting should happen exactly once (no duplicate logic)", async ({
+    page,
+  }) => {
     /**
      * Verifies Fix #2: Consolidate bounds fitting
      * - Bounds fitting should only happen in handleGeoJsonRef, not in fetch useEffect
      * - Layer should render immediately without race conditions
      * - Map should fit bounds exactly once per layer
      */
-    
+
     // Track fitBounds calls
     await page.evaluate(() => {
       (window as any).fitBoundsCallCount = 0;
       const map = (window as any).map;
       if (map) {
         const originalFitBounds = map.fitBounds;
-        map.fitBounds = function(...args: any[]) {
+        map.fitBounds = function (...args: any[]) {
           (window as any).fitBoundsCallCount++;
-          console.log('fitBounds called, count:', (window as any).fitBoundsCallCount);
+          console.log(
+            "fitBounds called, count:",
+            (window as any).fitBoundsCallCount,
+          );
           return originalFitBounds.apply(this, args);
         };
       }
     });
 
     // Mock geocoding response
-    await page.route('**/uploads/**', (route) => {
-      if (route.request().url().includes('bounds_test')) {
+    await page.route("**/uploads/**", (route) => {
+      if (route.request().url().includes("bounds_test")) {
         route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify(germanyGeocodingResponse),
         });
       } else {
@@ -639,27 +678,29 @@ test.describe('LeafletMapClient - Bug Fix Verification Tests', () => {
     });
 
     const testLayer = {
-      id: 'bounds-test-layer',
-      name: 'Bounds Test Layer',
-      title: 'Layer for Bounds Testing',
-      layer_type: 'UPLOADED',
-      data_link: '/uploads/bounds_test.geojson',
+      id: "bounds-test-layer",
+      name: "Bounds Test Layer",
+      title: "Layer for Bounds Testing",
+      layer_type: "UPLOADED",
+      data_link: "/uploads/bounds_test.geojson",
       visible: true,
-      data_source_id: 'test',
+      data_source_id: "test",
     };
 
     // Add layer
     await addLayerViaStore(page, testLayer);
-    
+
     // Wait for layer to render
     await page.waitForTimeout(2000);
 
     // Verify layer is visible
-    const visible = await isLayerVisible(page, 'bounds-test-layer');
+    const visible = await isLayerVisible(page, "bounds-test-layer");
     expect(visible).toBe(true);
 
     // Check that layer rendered on map
-    const features = await page.locator('.leaflet-overlay-pane path, .leaflet-overlay-pane circle').count();
+    const features = await page
+      .locator(".leaflet-overlay-pane path, .leaflet-overlay-pane circle")
+      .count();
     expect(features).toBeGreaterThan(0);
 
     // Get fitBounds call count
@@ -673,17 +714,19 @@ test.describe('LeafletMapClient - Bug Fix Verification Tests', () => {
     expect(fitBoundsCount).toBeLessThanOrEqual(2); // Allow for initial map setup
   });
 
-  test('Fix #2: Layer should render immediately without toggle', async ({ page }) => {
+  test("Fix #2: Layer should render immediately without toggle", async ({
+    page,
+  }) => {
     /**
      * Verifies that after removing duplicate bounds fitting logic,
      * layers render immediately without needing to toggle visibility
      */
-    
-    await page.route('**/uploads/**', (route) => {
-      if (route.request().url().includes('immediate_render')) {
+
+    await page.route("**/uploads/**", (route) => {
+      if (route.request().url().includes("immediate_render")) {
         route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify(brazilHospitalsOverpassResponse),
         });
       } else {
@@ -692,49 +735,51 @@ test.describe('LeafletMapClient - Bug Fix Verification Tests', () => {
     });
 
     const testLayer = {
-      id: 'immediate-render-layer',
-      name: 'Immediate Render Test',
-      title: 'Should Render Immediately',
-      layer_type: 'UPLOADED',
-      data_link: '/uploads/immediate_render.geojson',
+      id: "immediate-render-layer",
+      name: "Immediate Render Test",
+      title: "Should Render Immediately",
+      layer_type: "UPLOADED",
+      data_link: "/uploads/immediate_render.geojson",
       visible: true,
-      data_source_id: 'test',
+      data_source_id: "test",
     };
 
     // Add layer
     await addLayerViaStore(page, testLayer);
-    
+
     // Wait for initial render (shorter timeout after fix)
     await page.waitForTimeout(1500);
 
     // Check that layer is visible immediately
-    const visible = await isLayerVisible(page, 'immediate-render-layer');
+    const visible = await isLayerVisible(page, "immediate-render-layer");
     expect(visible).toBe(true);
 
     // Check that features are rendered immediately (no toggle needed)
-    const initialFeatures = await page.locator('.leaflet-overlay-pane path, .leaflet-overlay-pane circle').count();
+    const initialFeatures = await page
+      .locator(".leaflet-overlay-pane path, .leaflet-overlay-pane circle")
+      .count();
     console.log(`Features rendered immediately: ${initialFeatures}`);
-    
+
     // CRITICAL ASSERTION: Features should appear immediately after Fix #2
     expect(initialFeatures).toBeGreaterThan(0);
   });
 
-  test('Fix #3: Loading state prevents premature renders', async ({ page }) => {
+  test("Fix #3: Loading state prevents premature renders", async ({ page }) => {
     /**
      * Verifies Fix #3: Add loading state
      * - Data should not render until isLoading is false
      * - Prevents race conditions from async state updates
      * - Layer should only appear when fully loaded
      */
-    
+
     // Create a slower response to test loading state
-    await page.route('**/uploads/**', (route) => {
-      if (route.request().url().includes('loading_test')) {
+    await page.route("**/uploads/**", (route) => {
+      if (route.request().url().includes("loading_test")) {
         // Delay response by 1 second to test loading state
         setTimeout(() => {
           route.fulfill({
             status: 200,
-            contentType: 'application/json',
+            contentType: "application/json",
             body: JSON.stringify(germanyGeocodingResponse),
           });
         }, 1000);
@@ -744,55 +789,59 @@ test.describe('LeafletMapClient - Bug Fix Verification Tests', () => {
     });
 
     const testLayer = {
-      id: 'loading-test-layer',
-      name: 'Loading Test Layer',
-      title: 'Layer for Loading State Testing',
-      layer_type: 'UPLOADED',
-      data_link: '/uploads/loading_test.geojson',
+      id: "loading-test-layer",
+      name: "Loading Test Layer",
+      title: "Layer for Loading State Testing",
+      layer_type: "UPLOADED",
+      data_link: "/uploads/loading_test.geojson",
       visible: true,
-      data_source_id: 'test',
+      data_source_id: "test",
     };
 
     // Add layer
     await addLayerViaStore(page, testLayer);
-    
+
     // Check immediately - should not render yet (loading state)
     await page.waitForTimeout(300);
-    const featuresWhileLoading = await page.locator('.leaflet-overlay-pane path, .leaflet-overlay-pane circle').count();
-    
+    const featuresWhileLoading = await page
+      .locator(".leaflet-overlay-pane path, .leaflet-overlay-pane circle")
+      .count();
+
     // CRITICAL ASSERTION: No features should render while loading
     console.log(`Features while loading: ${featuresWhileLoading}`);
-    
+
     // Wait for load to complete
     await page.waitForTimeout(1500);
-    
+
     // Verify layer is visible after loading completes
-    const visible = await isLayerVisible(page, 'loading-test-layer');
+    const visible = await isLayerVisible(page, "loading-test-layer");
     expect(visible).toBe(true);
 
     // Check that features are now rendered
-    const featuresAfterLoading = await page.locator('.leaflet-overlay-pane path, .leaflet-overlay-pane circle').count();
+    const featuresAfterLoading = await page
+      .locator(".leaflet-overlay-pane path, .leaflet-overlay-pane circle")
+      .count();
     console.log(`Features after loading: ${featuresAfterLoading}`);
-    
+
     // CRITICAL ASSERTION: Features should appear after loading completes
     expect(featuresAfterLoading).toBeGreaterThan(0);
-    
+
     // The key assertion: features only appear after loading, not during
     // This verifies isLoading state is working correctly
   });
 
-  test('Fix #3: Loading state is cleared on error', async ({ page }) => {
+  test("Fix #3: Loading state is cleared on error", async ({ page }) => {
     /**
      * Verifies that loading state is properly cleared even when fetch fails
      * Prevents component from being stuck in loading state
      */
-    
+
     // Mock a failed request
-    await page.route('**/uploads/**', (route) => {
-      if (route.request().url().includes('error_test')) {
+    await page.route("**/uploads/**", (route) => {
+      if (route.request().url().includes("error_test")) {
         route.fulfill({
           status: 500,
-          body: 'Internal Server Error',
+          body: "Internal Server Error",
         });
       } else {
         route.continue();
@@ -800,47 +849,51 @@ test.describe('LeafletMapClient - Bug Fix Verification Tests', () => {
     });
 
     const testLayer = {
-      id: 'error-test-layer',
-      name: 'Error Test Layer',
-      title: 'Layer for Error Testing',
-      layer_type: 'UPLOADED',
-      data_link: '/uploads/error_test.geojson',
+      id: "error-test-layer",
+      name: "Error Test Layer",
+      title: "Layer for Error Testing",
+      layer_type: "UPLOADED",
+      data_link: "/uploads/error_test.geojson",
       visible: true,
-      data_source_id: 'test',
+      data_source_id: "test",
     };
 
     // Add layer
     await addLayerViaStore(page, testLayer);
-    
+
     // Wait for error to be handled
     await page.waitForTimeout(1500);
 
     // Verify layer exists in store but has no data
-    const visible = await isLayerVisible(page, 'error-test-layer');
+    const visible = await isLayerVisible(page, "error-test-layer");
     expect(visible).toBe(true); // Layer is in store as visible
 
     // Check that no features rendered (due to error)
-    const features = await page.locator('.leaflet-overlay-pane path, .leaflet-overlay-pane circle').count();
+    const features = await page
+      .locator(".leaflet-overlay-pane path, .leaflet-overlay-pane circle")
+      .count();
     console.log(`Features after error: ${features}`);
-    
+
     // CRITICAL ASSERTION: Loading state should be cleared even on error
     // Component should not be stuck in loading state
     // This is verified by the fact that the test completes without hanging
   });
 
-  test('Fix #3: Loading state is cleared on component unmount', async ({ page }) => {
+  test("Fix #3: Loading state is cleared on component unmount", async ({
+    page,
+  }) => {
     /**
      * Verifies that loading state is properly cleared when component unmounts
      * Prevents memory leaks and stale state updates
      */
-    
-    await page.route('**/uploads/**', (route) => {
-      if (route.request().url().includes('unmount_test')) {
+
+    await page.route("**/uploads/**", (route) => {
+      if (route.request().url().includes("unmount_test")) {
         // Slow response to ensure we can unmount before completion
         setTimeout(() => {
           route.fulfill({
             status: 200,
-            contentType: 'application/json',
+            contentType: "application/json",
             body: JSON.stringify(germanyGeocodingResponse),
           });
         }, 2000);
@@ -850,18 +903,18 @@ test.describe('LeafletMapClient - Bug Fix Verification Tests', () => {
     });
 
     const testLayer = {
-      id: 'unmount-test-layer',
-      name: 'Unmount Test Layer',
-      title: 'Layer for Unmount Testing',
-      layer_type: 'UPLOADED',
-      data_link: '/uploads/unmount_test.geojson',
+      id: "unmount-test-layer",
+      name: "Unmount Test Layer",
+      title: "Layer for Unmount Testing",
+      layer_type: "UPLOADED",
+      data_link: "/uploads/unmount_test.geojson",
       visible: true,
-      data_source_id: 'test',
+      data_source_id: "test",
     };
 
     // Add layer
     await addLayerViaStore(page, testLayer);
-    
+
     // Wait a bit but not long enough for load to complete
     await page.waitForTimeout(500);
 
@@ -871,7 +924,7 @@ test.describe('LeafletMapClient - Bug Fix Verification Tests', () => {
       if (useLayerStore) {
         useLayerStore.getState().removeLayer(id);
       }
-    }, 'unmount-test-layer');
+    }, "unmount-test-layer");
 
     await page.waitForTimeout(500);
 
@@ -883,30 +936,32 @@ test.describe('LeafletMapClient - Bug Fix Verification Tests', () => {
     // This prevents "Can't perform a React state update on an unmounted component" warnings
     // Wait for the original fetch to complete and verify no errors
     await page.waitForTimeout(2000);
-    
+
     // Check for console errors about state updates on unmounted components
     // (This would be caught by React's warnings in development mode)
   });
 
-  test('Fix #1: Stable styleKey prevents unnecessary re-renders', async ({ page }) => {
+  test("Fix #1: Stable styleKey prevents unnecessary re-renders", async ({
+    page,
+  }) => {
     /**
      * Verifies Fix #1: Remove forceUpdate pattern
      * - Component uses stable styleKey instead of forceUpdate counter
      * - No unnecessary re-renders from JSON.stringify on every render
      * - Style changes trigger re-mount only when style actually changes
      */
-    
+
     // Track component renders
     await page.evaluate(() => {
       (window as any).renderCount = 0;
       (window as any).mountCount = 0;
     });
 
-    await page.route('**/uploads/**', (route) => {
-      if (route.request().url().includes('style_test')) {
+    await page.route("**/uploads/**", (route) => {
+      if (route.request().url().includes("style_test")) {
         route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify(germanyGeocodingResponse),
         });
       } else {
@@ -915,31 +970,33 @@ test.describe('LeafletMapClient - Bug Fix Verification Tests', () => {
     });
 
     const testLayer = {
-      id: 'style-test-layer',
-      name: 'Style Test Layer',
-      title: 'Layer for Style Testing',
-      layer_type: 'UPLOADED',
-      data_link: '/uploads/style_test.geojson',
+      id: "style-test-layer",
+      name: "Style Test Layer",
+      title: "Layer for Style Testing",
+      layer_type: "UPLOADED",
+      data_link: "/uploads/style_test.geojson",
       visible: true,
-      data_source_id: 'test',
+      data_source_id: "test",
       style: {
-        stroke_color: '#ff0000',
-        fill_color: '#00ff00',
+        stroke_color: "#ff0000",
+        fill_color: "#00ff00",
         stroke_weight: 2,
       },
     };
 
     // Add layer
     await addLayerViaStore(page, testLayer);
-    
+
     // Wait for initial render
     await page.waitForTimeout(2000);
 
     // Verify layer rendered
-    const visible = await isLayerVisible(page, 'style-test-layer');
+    const visible = await isLayerVisible(page, "style-test-layer");
     expect(visible).toBe(true);
 
-    const initialFeatures = await page.locator('.leaflet-overlay-pane path, .leaflet-overlay-pane circle').count();
+    const initialFeatures = await page
+      .locator(".leaflet-overlay-pane path, .leaflet-overlay-pane circle")
+      .count();
     expect(initialFeatures).toBeGreaterThan(0);
 
     // Update style with SAME values (should not cause re-mount with stable styleKey)
@@ -953,19 +1010,19 @@ test.describe('LeafletMapClient - Bug Fix Verification Tests', () => {
           useLayerStore.getState().updateLayer(id, {
             ...layer,
             style: {
-              stroke_color: '#ff0000', // SAME
-              fill_color: '#00ff00',   // SAME
-              stroke_weight: 2,        // SAME
+              stroke_color: "#ff0000", // SAME
+              fill_color: "#00ff00", // SAME
+              stroke_weight: 2, // SAME
             },
           });
         }
       }
-    }, 'style-test-layer');
+    }, "style-test-layer");
 
     await page.waitForTimeout(500);
 
     // Layer should still be visible with same features
-    const stillVisible = await isLayerVisible(page, 'style-test-layer');
+    const stillVisible = await isLayerVisible(page, "style-test-layer");
     expect(stillVisible).toBe(true);
 
     // Now change style significantly (should trigger re-mount)
@@ -978,50 +1035,57 @@ test.describe('LeafletMapClient - Bug Fix Verification Tests', () => {
           useLayerStore.getState().updateLayer(id, {
             ...layer,
             style: {
-              stroke_color: '#0000ff', // DIFFERENT
-              fill_color: '#ffff00',   // DIFFERENT
-              stroke_weight: 5,        // DIFFERENT
+              stroke_color: "#0000ff", // DIFFERENT
+              fill_color: "#ffff00", // DIFFERENT
+              stroke_weight: 5, // DIFFERENT
             },
           });
         }
       }
-    }, 'style-test-layer');
+    }, "style-test-layer");
 
     await page.waitForTimeout(1000);
 
     // Layer should still render with new style
-    const visibleAfterStyleChange = await isLayerVisible(page, 'style-test-layer');
+    const visibleAfterStyleChange = await isLayerVisible(
+      page,
+      "style-test-layer",
+    );
     expect(visibleAfterStyleChange).toBe(true);
 
-    const featuresAfterStyleChange = await page.locator('.leaflet-overlay-pane path, .leaflet-overlay-pane circle').count();
+    const featuresAfterStyleChange = await page
+      .locator(".leaflet-overlay-pane path, .leaflet-overlay-pane circle")
+      .count();
     expect(featuresAfterStyleChange).toBeGreaterThan(0);
 
     console.log(`Style test completed - Layer re-rendered with new style`);
-    
+
     // CRITICAL ASSERTION: After Fix #1, no forceUpdate pattern causing race conditions
     // Component uses stable styleKey derived from actual style properties
   });
 });
 
-test.describe('LeafletMapClient - Performance Tests', () => {
+test.describe("LeafletMapClient - Performance Tests", () => {
   test.beforeEach(async ({ page }) => {
     await setupBackendMocks(page);
-    await page.goto('/');
+    await page.goto("/");
     await waitForMapReady(page);
   });
 
-  test('Performance: Multiple layers render within acceptable time', async ({ page }) => {
+  test("Performance: Multiple layers render within acceptable time", async ({
+    page,
+  }) => {
     /**
      * Performance test: Measure time to render multiple layers
      * Expected: <2 seconds for 5 layers after fixes
      */
-    
-    await page.route('**/uploads/**', (route) => {
+
+    await page.route("**/uploads/**", (route) => {
       const url = route.request().url();
-      if (url.includes('perf_layer')) {
+      if (url.includes("perf_layer")) {
         route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify(germanyGeocodingResponse),
         });
       } else {
@@ -1037,10 +1101,10 @@ test.describe('LeafletMapClient - Performance Tests', () => {
         id: `perf-layer-${i}`,
         name: `Performance Test Layer ${i}`,
         title: `Layer ${i}`,
-        layer_type: 'UPLOADED',
+        layer_type: "UPLOADED",
         data_link: `/uploads/perf_layer_${i}.geojson`,
         visible: true,
-        data_source_id: 'test',
+        data_source_id: "test",
       });
       await page.waitForTimeout(100); // Small delay between adds
     }
@@ -1059,22 +1123,22 @@ test.describe('LeafletMapClient - Performance Tests', () => {
 
     // PERFORMANCE ASSERTION: Should render 5 layers in < 3 seconds (lenient for CI)
     expect(renderTime).toBeLessThan(3000);
-    
+
     // Log for CI reporting
     console.log(`✅ Performance test passed: ${renderTime}ms for 5 layers`);
   });
 
-  test('Performance: Layer removal is fast', async ({ page }) => {
+  test("Performance: Layer removal is fast", async ({ page }) => {
     /**
      * Performance test: Measure time to remove layers
      * Expected: <500ms to remove 3 layers
      */
-    
-    await page.route('**/uploads/**', (route) => {
-      if (route.request().url().includes('removal_perf')) {
+
+    await page.route("**/uploads/**", (route) => {
+      if (route.request().url().includes("removal_perf")) {
         route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify(germanyGeocodingResponse),
         });
       } else {
@@ -1088,10 +1152,10 @@ test.describe('LeafletMapClient - Performance Tests', () => {
         id: `removal-perf-${i}`,
         name: `Removal Test ${i}`,
         title: `Layer ${i}`,
-        layer_type: 'UPLOADED',
+        layer_type: "UPLOADED",
         data_link: `/uploads/removal_perf_${i}.geojson`,
         visible: true,
-        data_source_id: 'test',
+        data_source_id: "test",
       });
     }
 
@@ -1124,21 +1188,21 @@ test.describe('LeafletMapClient - Performance Tests', () => {
 
     // PERFORMANCE ASSERTION: Should remove layers quickly
     expect(removalTime).toBeLessThan(1000);
-    
+
     console.log(`✅ Removal performance test passed: ${removalTime}ms`);
   });
 
-  test('Performance: Memory usage tracking', async ({ page }) => {
+  test("Performance: Memory usage tracking", async ({ page }) => {
     /**
      * Performance test: Monitor memory usage with multiple layers
      * This helps detect memory leaks
      */
-    
-    await page.route('**/uploads/**', (route) => {
-      if (route.request().url().includes('memory_test')) {
+
+    await page.route("**/uploads/**", (route) => {
+      if (route.request().url().includes("memory_test")) {
         route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify(brazilHospitalsOverpassResponse),
         });
       } else {
@@ -1148,7 +1212,7 @@ test.describe('LeafletMapClient - Performance Tests', () => {
 
     // Get initial memory usage
     const initialMemory = await page.evaluate(() => {
-      if ('memory' in performance) {
+      if ("memory" in performance) {
         return (performance as any).memory.usedJSHeapSize;
       }
       return 0;
@@ -1160,10 +1224,10 @@ test.describe('LeafletMapClient - Performance Tests', () => {
         id: `memory-test-${i}`,
         name: `Memory Test ${i}`,
         title: `Layer ${i}`,
-        layer_type: 'UPLOADED',
+        layer_type: "UPLOADED",
         data_link: `/uploads/memory_test_${i}.geojson`,
         visible: true,
-        data_source_id: 'test',
+        data_source_id: "test",
       });
     }
 
@@ -1171,7 +1235,7 @@ test.describe('LeafletMapClient - Performance Tests', () => {
 
     // Get memory after adding layers
     const memoryAfterAdd = await page.evaluate(() => {
-      if ('memory' in performance) {
+      if ("memory" in performance) {
         return (performance as any).memory.usedJSHeapSize;
       }
       return 0;
@@ -1191,47 +1255,59 @@ test.describe('LeafletMapClient - Performance Tests', () => {
 
     // Get memory after removal
     const memoryAfterRemoval = await page.evaluate(() => {
-      if ('memory' in performance) {
+      if ("memory" in performance) {
         return (performance as any).memory.usedJSHeapSize;
       }
       return 0;
     });
 
     if (initialMemory > 0) {
-      const memoryIncrease = ((memoryAfterAdd - initialMemory) / 1024 / 1024).toFixed(2);
-      const memoryAfterCleanup = ((memoryAfterRemoval - initialMemory) / 1024 / 1024).toFixed(2);
-      
+      const memoryIncrease = (
+        (memoryAfterAdd - initialMemory) /
+        1024 /
+        1024
+      ).toFixed(2);
+      const memoryAfterCleanup = (
+        (memoryAfterRemoval - initialMemory) /
+        1024 /
+        1024
+      ).toFixed(2);
+
       console.log(`💾 Memory usage:`);
       console.log(`   Initial: ${(initialMemory / 1024 / 1024).toFixed(2)} MB`);
       console.log(`   After adding 3 layers: +${memoryIncrease} MB`);
-      console.log(`   After removing layers: ${memoryAfterCleanup} MB from initial`);
+      console.log(
+        `   After removing layers: ${memoryAfterCleanup} MB from initial`,
+      );
 
       // Memory should not grow excessively (allow 50MB increase for 3 layers with data)
       expect(parseFloat(memoryIncrease)).toBeLessThan(50);
-      
+
       console.log(`✅ Memory test passed: No excessive memory growth`);
     } else {
-      console.log(`⚠️  Memory API not available in this browser, skipping memory assertions`);
+      console.log(
+        `⚠️  Memory API not available in this browser, skipping memory assertions`,
+      );
     }
   });
 
-  test('Performance: Bounds fitting optimization', async ({ page }) => {
+  test("Performance: Bounds fitting optimization", async ({ page }) => {
     /**
      * Performance test: Verify bounds fitting happens efficiently
      * After Fix #2, should only happen once per layer
      */
-    
+
     // Track fitBounds calls
     await page.evaluate(() => {
       (window as any).fitBoundsCalls = [];
       (window as any).fitBoundsTimestamps = [];
     });
 
-    await page.route('**/uploads/**', (route) => {
-      if (route.request().url().includes('bounds_perf')) {
+    await page.route("**/uploads/**", (route) => {
+      if (route.request().url().includes("bounds_perf")) {
         route.fulfill({
           status: 200,
-          contentType: 'application/json',
+          contentType: "application/json",
           body: JSON.stringify(germanyGeocodingResponse),
         });
       } else {
@@ -1243,13 +1319,13 @@ test.describe('LeafletMapClient - Performance Tests', () => {
 
     // Add layer
     await addLayerViaStore(page, {
-      id: 'bounds-perf-layer',
-      name: 'Bounds Performance Test',
-      title: 'Bounds Test',
-      layer_type: 'UPLOADED',
-      data_link: '/uploads/bounds_perf.geojson',
+      id: "bounds-perf-layer",
+      name: "Bounds Performance Test",
+      title: "Bounds Test",
+      layer_type: "UPLOADED",
+      data_link: "/uploads/bounds_perf.geojson",
       visible: true,
-      data_source_id: 'test',
+      data_source_id: "test",
     });
 
     await page.waitForTimeout(2000);
@@ -1260,12 +1336,12 @@ test.describe('LeafletMapClient - Performance Tests', () => {
     console.log(`⏱️  Bounds fitting performance: ${totalTime}ms`);
 
     // Verify layer rendered
-    const visible = await isLayerVisible(page, 'bounds-perf-layer');
+    const visible = await isLayerVisible(page, "bounds-perf-layer");
     expect(visible).toBe(true);
 
     // PERFORMANCE ASSERTION: Should complete quickly
     expect(totalTime).toBeLessThan(2500);
-    
+
     console.log(`✅ Bounds fitting performance test passed`);
   });
 });

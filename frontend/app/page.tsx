@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useState, useRef } from 'react';
-import Sidebar from './components/sidebar/Sidebar';
-import LayerManagement from './components/sidebar/LayerManagement';
-import MapComponent from './components/maps/MapComponent';
-import AgentInterface from './components/chat/AgentInterface';
+import React, { useState, useRef } from "react";
+import Sidebar from "./components/sidebar/Sidebar";
+import LayerManagement from "./components/sidebar/LayerManagement";
+import MapComponent from "./components/maps/MapComponent";
+import AgentInterface from "./components/chat/AgentInterface";
 import {
   ChevronLeft,
   ChevronRight,
@@ -12,7 +12,7 @@ import {
   X,
   Layers,
   MessageCircle,
-} from 'lucide-react';
+} from "lucide-react";
 
 export default function Home() {
   const [widths, setWidths] = useState<number[]>([4, 18, 56, 22]);
@@ -54,8 +54,8 @@ export default function Home() {
 
   const onMouseUp = () => {
     dragInfo.current.active = false;
-    document.removeEventListener('mousemove', onMouseMove);
-    document.removeEventListener('mouseup', onMouseUp);
+    document.removeEventListener("mousemove", onMouseMove);
+    document.removeEventListener("mouseup", onMouseUp);
   };
 
   const onHandleMouseDown = (e: React.MouseEvent, idx: number) => {
@@ -66,8 +66,8 @@ export default function Home() {
       startX: e.clientX,
       initialWidths: [...widths],
     };
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
   };
 
   return (

@@ -10,10 +10,8 @@ import requests
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from services.tools.geocoding import (  # noqa: E402
-    create_geodata_object_from_geojson,
-    geocode_using_geonames,
-    geocode_using_nominatim,
-)
+    create_geodata_object_from_geojson, geocode_using_geonames,
+    geocode_using_nominatim)
 
 
 @pytest.fixture

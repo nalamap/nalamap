@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any, Union
+from typing import Any, Dict, List, Optional, Union
 
 from langchain_core.messages import HumanMessage
 from langgraph.graph import MessagesState
@@ -8,7 +8,8 @@ from typing_extensions import Annotated
 
 from models.settings_model import SettingsSnapshot
 
-from .geodata import GeoDataObject, mock_geodata_objects  # relativer Import angepasst
+from .geodata import (GeoDataObject,  # relativer Import angepasst
+                      mock_geodata_objects)
 
 
 def update_geodata_layers(
