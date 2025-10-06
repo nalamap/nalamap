@@ -23,9 +23,11 @@ from api import (
 from core.config import LOCAL_UPLOAD_DIR, ALLOWED_CORS_ORIGINS
 from services.database.database import close_db, init_db
 
-# Configure logging to show info level messages for debugging
+# Configure logging with environment variable support
+# Set LOG_LEVEL=WARNING in production to reduce noise, DEBUG for verbose output
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, log_level, logging.INFO),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
