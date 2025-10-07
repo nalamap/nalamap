@@ -377,5 +377,165 @@ class TestDescribeDatasetGdf:
         assert isinstance(result["suggested_next_steps"], list)
 
 
+class TestLoadGdfWFS:
+    """Test loading GeoDataFrames from WFS URLs."""
+
+    @patch("services.tools.attribute_tools.requests.get")
+    def test_load_gdf_adds_srsname_to_wfs(self, mock_get):
+        """Test that WFS URLs get srsName=EPSG:4326 added."""
+        # Create mock response
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.raise_for_status = Mock()
+        
+        # Create a simple GeoJSON for the response
+        geojson_data = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [0, 0]},
+                    "properties": {"name": "Test"},
+                }
+            ],
+        }
+        mock_response.content = json.dumps(geojson_data).encode("utf-8")
+        mock_get.return_value = mock_response
+
+        # Test WFS URL without srsName
+        wfs_url = (
+            "https://geoserver.example.com/wfs?"
+            "service=WFS&version=2.0.0&request=GetFeature&"
+            "typeName=test:layer&outputFormat=application/json"
+        )
+
+        with patch("services.tools.attribute_tools.gpd.read_file") as mock_read_file:
+            mock_gdf = gpd.GeoDataFrame.from_features(geojson_data["features"])
+            mock_read_file.return_value = mock_gdf
+
+            result = _load_gdf(wfs_url)
+
+            # Verify that requests.get was called with modified URL
+            assert mock_get.called
+            called_url = mock_get.call_args[0][0]
+            assert "srsName=EPSG%3A4326" in called_url or "srsName=EPSG:4326" in called_url
+            assert isinstance(result, gpd.GeoDataFrame)
+
+    @patch("services.tools.attribute_tools.requests.get")
+    def test_load_gdf_preserves_existing_srsname(self, mock_get):
+        """Test that existing srsName in WFS URL is not overwritten."""
+        # Create mock response
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.raise_for_status = Mock()
+        
+        geojson_data = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [0, 0]},
+                    "properties": {"name": "Test"},
+                }
+            ],
+        }
+        mock_response.content = json.dumps(geojson_data).encode("utf-8")
+        mock_get.return_value = mock_response
+
+        # Test WFS URL with existing srsName
+        wfs_url = (
+            "https://geoserver.example.com/wfs?"
+            "service=WFS&version=2.0.0&request=GetFeature&"
+            "typeName=test:layer&outputFormat=application/json&srsName=EPSG:3857"
+        )
+
+        with patch("services.tools.attribute_tools.gpd.read_file") as mock_read_file:
+            mock_gdf = gpd.GeoDataFrame.from_features(geojson_data["features"])
+            mock_read_file.return_value = mock_gdf
+
+            result = _load_gdf(wfs_url)
+
+            # Verify that requests.get was called with original srsName
+            assert mock_get.called
+            called_url = mock_get.call_args[0][0]
+            assert "EPSG:3857" in called_url or "EPSG%3A3857" in called_url
+            assert isinstance(result, gpd.GeoDataFrame)
+
+    @patch("services.tools.attribute_tools.requests.get")
+    def test_load_gdf_non_wfs_url_unchanged(self, mock_get):
+        """Test that non-WFS URLs are not modified."""
+        # Create mock response
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.raise_for_status = Mock()
+        
+        geojson_data = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [0, 0]},
+                    "properties": {"name": "Test"},
+                }
+            ],
+        }
+        mock_response.content = json.dumps(geojson_data).encode("utf-8")
+        mock_get.return_value = mock_response
+
+        # Test regular GeoJSON URL (not WFS)
+        url = "https://example.com/data.geojson"
+
+        with patch("services.tools.attribute_tools.gpd.read_file") as mock_read_file:
+            mock_gdf = gpd.GeoDataFrame.from_features(geojson_data["features"])
+            mock_read_file.return_value = mock_gdf
+
+            result = _load_gdf(url)
+
+            # Verify that URL was not modified
+            assert mock_get.called
+            called_url = mock_get.call_args[0][0]
+            assert called_url == url
+            assert "srsName" not in called_url
+            assert isinstance(result, gpd.GeoDataFrame)
+
+
+class TestAttributeToolIntegration:
+    """Integration tests for the full attribute_tool workflow."""
+
+    def test_filter_empty_result(self, sample_gdf):
+        """Test filtering that returns no features."""
+        # Filter for non-existent value
+        result = filter_where_gdf(sample_gdf, "value > 100")
+        assert len(result) == 0
+        assert isinstance(result, gpd.GeoDataFrame)
+
+    def test_filter_partial_result(self, sample_gdf):
+        """Test filtering that returns some features."""
+        # Filter for value > 15 (should return 2 features: 20 and 30)
+        result = filter_where_gdf(sample_gdf, "value > 15")
+        assert len(result) == 2
+        assert list(result["value"]) == [20, 30]
+
+    def test_filter_all_features(self, sample_gdf):
+        """Test filtering that returns all features."""
+        # Filter that matches everything
+        result = filter_where_gdf(sample_gdf, "value > 0")
+        assert len(result) == 4
+
+    @patch("services.tools.attribute_tools.store_file")
+    def test_save_filtered_layer_with_proper_title(self, mock_store_file, sample_gdf):
+        """Test that filtered layers get proper titles."""
+        mock_store_file.return_value = ("http://localhost:8000/api/stream/test.geojson", {})
+        
+        # Save filtered result
+        filtered = filter_where_gdf(sample_gdf, "value > 15")
+        obj = _save_gdf_as_geojson(filtered, "Test Layer (filtered)", keep_geometry=True)
+        
+        assert obj.title == "Test Layer (filtered)"
+        assert obj.data_type == DataType.GEOJSON
+        assert obj.data_origin == DataOrigin.TOOL.value
+        assert mock_store_file.called
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

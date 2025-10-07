@@ -419,6 +419,7 @@ def _load_gdf(link: str) -> gpd.GeoDataFrame:
     - BASE_URL/api/stream/ URLs (local dev with central file management)
     - Azure Blob Storage URLs (SAS tokens supported)
     - HTTP/HTTPS URLs (external GeoJSON)
+    - WFS URLs (adds srsName=EPSG:4326 if missing)
     - Local file paths
     """
     # Handle BASE_URL/uploads/ format (legacy local uploads)
@@ -441,8 +442,42 @@ def _load_gdf(link: str) -> gpd.GeoDataFrame:
 
     # Handle HTTP/HTTPS URLs (including Azure Blob Storage with SAS tokens)
     if link.startswith("http://") or link.startswith("https://"):
+        request_url = link
+        # For WFS requests, ensure srsName=EPSG:4326 is set for consistent coordinate system
+        try:
+            from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+
+            parsed = urlparse(link)
+            params = parse_qs(parsed.query)
+
+            # Check if this is a WFS request
+            is_wfs = (
+                "wfs" in parsed.path.lower()
+                or "wfs" in parsed.query.lower()
+                or (params.get("service", [""])[0].upper() == "WFS")
+            )
+
+            # Add srsName if WFS and not already present
+            if is_wfs and "srsName" not in params and "srsname" not in params:
+                params["srsName"] = ["EPSG:4326"]
+                # Rebuild URL with updated params
+                new_query = urlencode(params, doseq=True)
+                request_url = urlunparse(
+                    (
+                        parsed.scheme,
+                        parsed.netloc,
+                        parsed.path,
+                        parsed.params,
+                        new_query,
+                        parsed.fragment,
+                    )
+                )
+                logger.info(f"Added srsName=EPSG:4326 to WFS URL: {request_url}")
+        except Exception as e:
+            logger.warning(f"Failed to parse URL for WFS detection: {e}")
+
         # Download to temp file for reliable driver support
-        resp = requests.get(link, timeout=30)
+        resp = requests.get(request_url, timeout=30)
         resp.raise_for_status()
         tmp = os.path.join(LOCAL_UPLOAD_DIR, f"tmp_{uuid.uuid4().hex[:8]}.geojson")
         with open(tmp, "wb") as f:
@@ -1050,15 +1085,62 @@ def attribute_tool(
                         ]
                     }
                 )
-            title = f"{layer.name}-filtered"
+            
+            # Check if filter returned any features
+            if len(out_gdf) == 0:
+                return Command(
+                    update={
+                        "messages": [
+                            ToolMessage(
+                                name="attribute_tool",
+                                content=(
+                                    f"Filter applied to '{layer.name}' but no features matched "
+                                    f"the condition: {params['where']}. "
+                                    f"Original layer had {len(gdf)} features."
+                                ),
+                                tool_call_id=tool_call_id,
+                            )
+                        ]
+                    }
+                )
+            
+            title = f"{layer.title or layer.name} (filtered)"
             obj = _save_gdf_as_geojson(out_gdf, title, keep_geometry=True)
             new_results = (state.get("geodata_results") or []) + [obj]
+            
+            # Build actionable layer info similar to geocoding tools
+            actionable_layer_info = {
+                "name": obj.name,
+                "title": obj.title,
+                "id": obj.id,
+                "data_source_id": obj.data_source_id,
+                "feature_count": len(out_gdf),
+                "original_count": len(gdf),
+                "filter": params["where"],
+            }
+            
+            # Provide user guidance similar to geocoding tools
+            tool_message_content = (
+                f"Successfully filtered '{layer.name}' using condition: {params['where']}. "
+                f"Result contains {len(out_gdf)} feature(s) out of {len(gdf)} original features. "
+                f"New layer '{obj.title}' created and stored in geodata_results. "
+                f"Actionable layer details: {json.dumps(actionable_layer_info)}. "
+                f"User response guidance: Call 'set_result_list' to make this filtered layer "
+                f"available for the user to select. In your textual response to the user, "
+                f"confirm the filtering success and mention the number of features that matched. "
+                f"State that the filtered layer is now listed and can be selected by the user "
+                f"to be added to the map. Ensure your response clearly indicates the user needs "
+                f"to take an action to add the layer to the map. Do NOT state or imply that the "
+                f"layer has already been added to the map. Do NOT include direct file paths, "
+                f"sandbox links, or any other internal storage paths in your textual response."
+            )
+            
             return Command(
                 update={
                     "messages": [
                         ToolMessage(
                             name="attribute_tool",
-                            content=f"Filter applied. New layer: {obj.title}",
+                            content=tool_message_content,
                             tool_call_id=tool_call_id,
                         )
                     ],
