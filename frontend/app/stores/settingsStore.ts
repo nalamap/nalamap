@@ -107,13 +107,21 @@ export interface SettingsState extends SettingsSnapshot {
   setSessionId: (id?: string | null) => void;
 }
 
+// Module-level flag to prevent concurrent initialization requests
+let initializationInProgress = false;
+
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   // Initialization
   initialized: false,
 
   initializeIfNeeded: async () => {
     const state = get();
-    if (state.initialized) return;
+    
+    // Double-check: return if already initialized OR if initialization is in progress
+    if (state.initialized || initializationInProgress) return;
+    
+    // Set flag immediately to block concurrent calls
+    initializationInProgress = true;
 
     try {
       // API endpoint via shared resolver
@@ -128,6 +136,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       set({ initialized: true });
     } catch (err) {
       Logger.error("Failed to initialize settings", err);
+    } finally {
+      // Reset flag after completion (success or failure)
+      initializationInProgress = false;
     }
   },
   initializeSettingsFromRemote: (opts) => {
