@@ -134,7 +134,8 @@ export default function Home() {
           </div>
         ) : (
           <div
-            className="flex-none flex items-center justify-center w-12 bg-primary-200 hover:bg-primary-300 cursor-pointer"
+            className="flex-none flex items-center justify-center bg-primary-200 hover:bg-primary-300 cursor-pointer"
+            style={{ width: '48px' }}
             onClick={() => setLayerCollapsed(false)}
           >
             <Layers className="w-6 h-6 text-primary-700" />
@@ -143,16 +144,15 @@ export default function Home() {
 
         {/* Map panel */}
         <div
-          style={{
-            flexBasis: `${widths[2] + (chatCollapsed ? widths[3] : 0)}%`,
-          }}
-          className="flex-none relative"
+          className="flex-1 relative"
         >
           <MapComponent />
-          <div
-            className="absolute top-0 right-0 bottom-0 w-1 hover:bg-primary-400 cursor-ew-resize z-10"
-            onMouseDown={(e) => onHandleMouseDown(e, 2)}
-          />
+          {!chatCollapsed && (
+            <div
+              className="absolute top-0 right-0 bottom-0 w-1 hover:bg-primary-400 cursor-ew-resize z-10"
+              onMouseDown={(e) => onHandleMouseDown(e, 2)}
+            />
+          )}
         </div>
 
         {/* Chat panel */}
