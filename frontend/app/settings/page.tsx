@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Sidebar from "../components/sidebar/Sidebar";
 import { GeoServerBackend, SettingsSnapshot } from "../stores/settingsStore";
 import { useUIStore } from "../stores/uiStore";
@@ -15,6 +15,39 @@ type BackendPrefetchInput = Omit<GeoServerBackend, "enabled"> & {
 export default function SettingsPage() {
   // UI store for layout
   const sidebarWidth = useUIStore((s) => s.sidebarWidth);
+  const setSidebarWidth = useUIStore((s) => s.setSidebarWidth);
+  
+  // Drag handling for sidebar resize
+  const dragInfo = useRef<{
+    active: boolean;
+    startX: number;
+    initialWidth: number;
+  }>({ active: false, startX: 0, initialWidth: 0 });
+
+  const onMouseMove = (e: MouseEvent) => {
+    if (!dragInfo.current.active) return;
+    const deltaX = e.clientX - dragInfo.current.startX;
+    const deltaPercent = (deltaX / window.innerWidth) * 100;
+    const newWidth = Math.max(2, Math.min(20, dragInfo.current.initialWidth + deltaPercent));
+    setSidebarWidth(newWidth);
+  };
+
+  const onMouseUp = () => {
+    dragInfo.current.active = false;
+    document.removeEventListener("mousemove", onMouseMove);
+    document.removeEventListener("mouseup", onMouseUp);
+  };
+
+  const onHandleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    dragInfo.current = {
+      active: true,
+      startX: e.clientX,
+      initialWidth: sidebarWidth,
+    };
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  };
   
   // store hooks
   const portals = useInitializedSettingsStore((s) => s.search_portals);
@@ -603,6 +636,10 @@ export default function SettingsPage() {
           style={{ flexBasis: `${sidebarWidth}%` }}
         >
           <Sidebar />
+          <div
+            className="absolute top-0 right-0 bottom-0 w-1 hover:bg-primary-400 cursor-ew-resize z-10"
+            onMouseDown={onHandleMouseDown}
+          />
         </div>
 
         {/* Main content */}
@@ -612,7 +649,7 @@ export default function SettingsPage() {
           <div className="flex space-x-4 mb-8">
             <button
               onClick={exportSettings}
-              className="bg-tertiary-600 text-white px-4 py-2 rounded hover:bg-tertiary-700 font-medium shadow-sm"
+              className="bg-tertiary-600 text-white px-4 py-2 rounded hover:bg-tertiary-700 font-medium shadow-sm cursor-pointer"
               style={{ backgroundColor: 'var(--tertiary-600)' }}
             >
               Export Settings
@@ -704,7 +741,7 @@ export default function SettingsPage() {
                 newToolName && addToolConfig(newToolName);
                 setNewToolName("");
               }}
-              className="bg-second-primary-600 text-white px-4 py-2 rounded hover:bg-second-primary-700 font-medium shadow-sm"
+              className="bg-second-primary-600 text-white px-4 py-2 rounded hover:bg-second-primary-700 font-medium shadow-sm cursor-pointer"
               style={{ backgroundColor: 'var(--second-primary-600)' }}
             >
               Add Tool
@@ -768,7 +805,7 @@ export default function SettingsPage() {
                 newPortal && addPortal(newPortal);
                 setNewPortal("");
               }}
-              className="bg-second-primary-600 text-white px-4 py-2 rounded hover:bg-second-primary-700 font-medium shadow-sm"
+              className="bg-second-primary-600 text-white px-4 py-2 rounded hover:bg-second-primary-700 font-medium shadow-sm cursor-pointer"
               style={{ backgroundColor: 'var(--second-primary-600)' }}
             >
               Add Portal
@@ -852,7 +889,7 @@ export default function SettingsPage() {
             <button
               onClick={handleAddBackend}
               disabled={backendLoading}
-              className={`bg-second-primary-600 text-white px-4 py-2 rounded font-medium shadow-sm ${backendLoading ? "opacity-50 cursor-not-allowed" : "hover:bg-second-primary-700"}`}
+              className={`bg-second-primary-600 text-white px-4 py-2 rounded font-medium shadow-sm ${backendLoading ? "opacity-50 cursor-not-allowed" : "hover:bg-second-primary-700 cursor-pointer"}`}
               style={{ backgroundColor: backendLoading ? undefined : 'var(--second-primary-600)' }}
             >
               {backendLoading

@@ -39,7 +39,7 @@ export default function Sidebar() {
         {/* Home Icon */}
         <Link href="/">
           <button
-            className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors"
+            className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors cursor-pointer"
             title="Home"
           >
             <Home className="w-6 h-6" />
@@ -47,7 +47,7 @@ export default function Sidebar() {
         </Link>
         {/* Account Icon */}
         <button
-          className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors"
+          className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors cursor-pointer"
           title="Account"
         >
           <User className="w-6 h-6" />
@@ -56,7 +56,7 @@ export default function Sidebar() {
         {/* Fullscreen Icon */}
         <button
           onClick={toggleFullscreen}
-          className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors"
+          className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors cursor-pointer"
           title="Fullscreen Mode"
         >
           <Maximize className="w-6 h-6" />
@@ -64,7 +64,7 @@ export default function Sidebar() {
 
         {/* Reset Icon */}
         <button
-          className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors"
+          className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors cursor-pointer"
           title="Reset App"
         >
           <RefreshCcw className="w-6 h-6" />
@@ -73,7 +73,7 @@ export default function Sidebar() {
         {/* Settings Icon */}
         <Link href="/settings">
           <button
-            className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors"
+            className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors cursor-pointer"
             title="Settings"
           >
             <Settings className="w-6 h-6" />
