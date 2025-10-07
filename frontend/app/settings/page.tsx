@@ -333,15 +333,15 @@ export default function SettingsPage() {
                 updated[url] = {
                   encoded: status.encoded,
                   percentage: status.percentage,
-                  velocity: velocity > 0 ? velocity : prevInterp.velocity || 0,
+                  velocity: velocity > 0 ? velocity : prevInterp.velocity || DEFAULT_VELOCITY,
                   lastUpdate: now,
                 };
               } else {
-                // First data point - no velocity yet
+                // First data point - use default velocity for immediate smooth animation
                 updated[url] = {
                   encoded: status.encoded,
                   percentage: status.percentage,
-                  velocity: 0,
+                  velocity: DEFAULT_VELOCITY,
                   lastUpdate: now,
                 };
               }
@@ -406,62 +406,77 @@ export default function SettingsPage() {
   }, [backends.map((b) => b.url).join(",")]);
 
   // Smooth interpolation effect for progress bars
+  // Configurable: interpolation FPS (3 = ~333ms updates, smoother but less CPU)
+  const INTERPOLATION_FPS = 3;
+  const INTERPOLATION_INTERVAL = 1000 / INTERPOLATION_FPS; // milliseconds
+  // Default velocity before we have real data (layers per second)
+  const DEFAULT_VELOCITY = 3;
+
   React.useEffect(() => {
-    let animationFrameId: number;
+    let timeoutId: NodeJS.Timeout;
+    let lastAnimationTime = Date.now();
 
     const animate = () => {
       const now = Date.now();
+      const timeSinceLastAnimation = now - lastAnimationTime;
 
-      setInterpolatedProgress((prev) => {
-        const updated: typeof prev = {};
-        let hasChanges = false;
+      // Only update at configured FPS
+      if (timeSinceLastAnimation >= INTERPOLATION_INTERVAL) {
+        lastAnimationTime = now;
 
-        Object.keys(prev).forEach((url) => {
-          const interp = prev[url];
-          const status = embeddingStatus[url];
+        setInterpolatedProgress((prev) => {
+          const updated: typeof prev = {};
+          let hasChanges = false;
 
-          if (
-            status &&
-            status.state === "processing" &&
-            status.in_progress &&
-            interp.velocity > 0
-          ) {
-            const timeSinceUpdate = (now - interp.lastUpdate) / 1000; // seconds
-            const predictedProgress =
-              interp.encoded + interp.velocity * timeSinceUpdate;
+          Object.keys(prev).forEach((url) => {
+            const interp = prev[url];
+            const status = embeddingStatus[url];
 
-            // Cap at the total to avoid overshooting
-            const cappedProgress = Math.min(predictedProgress, status.total);
-            const cappedPercentage =
-              status.total > 0 ? (cappedProgress / status.total) * 100 : 0;
+            if (
+              status &&
+              status.state === "processing" &&
+              status.in_progress &&
+              interp.velocity > 0
+            ) {
+              const timeSinceUpdate = (now - interp.lastUpdate) / 1000; // seconds
+              const predictedProgress =
+                interp.encoded + interp.velocity * timeSinceUpdate;
 
-            // Only update if we haven't reached the real progress yet
-            if (cappedProgress > interp.encoded) {
-              updated[url] = {
-                ...interp,
-                encoded: cappedProgress,
-                percentage: Math.min(cappedPercentage, 99.9), // Never show 100% unless complete
-              };
-              hasChanges = true;
+              // Cap at the total to avoid overshooting
+              const cappedProgress = Math.min(predictedProgress, status.total);
+              const cappedPercentage =
+                status.total > 0 ? (cappedProgress / status.total) * 100 : 0;
+
+              // Only update if we haven't reached the real progress yet
+              if (cappedProgress > interp.encoded) {
+                updated[url] = {
+                  ...interp,
+                  encoded: cappedProgress,
+                  percentage: Math.min(cappedPercentage, 99.9), // Never show 100% unless complete
+                };
+                hasChanges = true;
+              } else {
+                updated[url] = interp;
+              }
             } else {
               updated[url] = interp;
             }
-          } else {
-            updated[url] = interp;
-          }
+          });
+
+          return hasChanges ? updated : prev;
         });
+      }
 
-        return hasChanges ? updated : prev;
-      });
-
-      animationFrameId = requestAnimationFrame(animate);
+      // Schedule next frame
+      timeoutId = setTimeout(animate, INTERPOLATION_INTERVAL);
     };
 
-    animationFrameId = requestAnimationFrame(animate);
+    // Start animation loop
+    timeoutId = setTimeout(animate, INTERPOLATION_INTERVAL);
 
     return () => {
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
       }
     };
   }, [embeddingStatus]);
