@@ -99,6 +99,16 @@ export default function SettingsPage() {
     };
   }>({});
 
+  // Interpolated progress for smooth animations
+  const [interpolatedProgress, setInterpolatedProgress] = useState<{
+    [url: string]: {
+      encoded: number;
+      percentage: number;
+      velocity: number; // layers per second
+      lastUpdate: number; // timestamp
+    };
+  }>({});
+
   const API_BASE_URL = getApiBase();
 
   const normalizeBackend = (
@@ -289,6 +299,7 @@ export default function SettingsPage() {
     const enabledBackends = backends.filter((b) => b.enabled);
     if (enabledBackends.length === 0) {
       setEmbeddingStatus({});
+      setInterpolatedProgress({});
       return;
     }
 
@@ -302,7 +313,52 @@ export default function SettingsPage() {
       );
       if (res.ok) {
         const data = await res.json();
-        setEmbeddingStatus(data.backends || {});
+        const newStatus = data.backends || {};
+        const now = Date.now();
+
+        // Calculate velocity for each backend
+        setInterpolatedProgress((prev) => {
+          const updated: typeof prev = {};
+          Object.keys(newStatus).forEach((url) => {
+            const status = newStatus[url];
+            const prevInterp = prev[url];
+
+            if (status.state === "processing" && status.in_progress) {
+              if (prevInterp && prevInterp.lastUpdate) {
+                const timeDelta = (now - prevInterp.lastUpdate) / 1000; // seconds
+                const layersDelta = status.encoded - prevInterp.encoded;
+                const velocity =
+                  timeDelta > 0 ? layersDelta / timeDelta : 0;
+
+                updated[url] = {
+                  encoded: status.encoded,
+                  percentage: status.percentage,
+                  velocity: velocity > 0 ? velocity : prevInterp.velocity || 0,
+                  lastUpdate: now,
+                };
+              } else {
+                // First data point - no velocity yet
+                updated[url] = {
+                  encoded: status.encoded,
+                  percentage: status.percentage,
+                  velocity: 0,
+                  lastUpdate: now,
+                };
+              }
+            } else {
+              // Not processing - reset
+              updated[url] = {
+                encoded: status.encoded,
+                percentage: status.percentage,
+                velocity: 0,
+                lastUpdate: now,
+              };
+            }
+          });
+          return updated;
+        });
+
+        setEmbeddingStatus(newStatus);
       }
     } catch (err) {
       // Silently fail - embedding status is optional
@@ -348,6 +404,67 @@ export default function SettingsPage() {
 
     return () => clearInterval(interval);
   }, [backends.map((b) => b.url).join(",")]);
+
+  // Smooth interpolation effect for progress bars
+  React.useEffect(() => {
+    let animationFrameId: number;
+
+    const animate = () => {
+      const now = Date.now();
+
+      setInterpolatedProgress((prev) => {
+        const updated: typeof prev = {};
+        let hasChanges = false;
+
+        Object.keys(prev).forEach((url) => {
+          const interp = prev[url];
+          const status = embeddingStatus[url];
+
+          if (
+            status &&
+            status.state === "processing" &&
+            status.in_progress &&
+            interp.velocity > 0
+          ) {
+            const timeSinceUpdate = (now - interp.lastUpdate) / 1000; // seconds
+            const predictedProgress =
+              interp.encoded + interp.velocity * timeSinceUpdate;
+
+            // Cap at the total to avoid overshooting
+            const cappedProgress = Math.min(predictedProgress, status.total);
+            const cappedPercentage =
+              status.total > 0 ? (cappedProgress / status.total) * 100 : 0;
+
+            // Only update if we haven't reached the real progress yet
+            if (cappedProgress > interp.encoded) {
+              updated[url] = {
+                ...interp,
+                encoded: cappedProgress,
+                percentage: Math.min(cappedPercentage, 99.9), // Never show 100% unless complete
+              };
+              hasChanges = true;
+            } else {
+              updated[url] = interp;
+            }
+          } else {
+            updated[url] = interp;
+          }
+        });
+
+        return hasChanges ? updated : prev;
+      });
+
+      animationFrameId = requestAnimationFrame(animate);
+    };
+
+    animationFrameId = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, [embeddingStatus]);
 
   /** Export JSON */
   const exportSettings = () => {
@@ -731,14 +848,24 @@ export default function SettingsPage() {
                                     : "⏳ Embedding in progress"}
                               {embeddingStatus[b.url].total > 0 && (
                                 <>
-                                  : {embeddingStatus[b.url].encoded} /{" "}
-                                  {embeddingStatus[b.url].total} layers
+                                  :{" "}
+                                  {interpolatedProgress[b.url]
+                                    ? Math.floor(
+                                        interpolatedProgress[b.url].encoded,
+                                      )
+                                    : embeddingStatus[b.url].encoded}{" "}
+                                  / {embeddingStatus[b.url].total} layers
                                 </>
                               )}
                             </span>
                             {embeddingStatus[b.url].total > 0 && (
                               <span className="text-gray-600">
-                                {embeddingStatus[b.url].percentage}%
+                                {interpolatedProgress[b.url]
+                                  ? interpolatedProgress[b.url].percentage.toFixed(
+                                      1,
+                                    )
+                                  : embeddingStatus[b.url].percentage}
+                                %
                               </span>
                             )}
                           </div>
@@ -746,7 +873,7 @@ export default function SettingsPage() {
                             embeddingStatus[b.url].total > 0 && (
                               <div className="w-full h-2 bg-gray-200 rounded overflow-hidden">
                                 <div
-                                  className={`h-full transition-all duration-300 ${
+                                  className={`h-full transition-all duration-100 ${
                                     embeddingStatus[b.url].complete ||
                                     embeddingStatus[b.url].state === "completed"
                                       ? "bg-green-500"
@@ -754,11 +881,20 @@ export default function SettingsPage() {
                                           "waiting"
                                         ? "bg-yellow-500 animate-pulse"
                                         : embeddingStatus[b.url].in_progress
-                                          ? "bg-blue-500 animate-pulse"
+                                          ? "bg-blue-500"
                                           : "bg-blue-500"
                                   }`}
                                   style={{
-                                    width: `${embeddingStatus[b.url].state === "waiting" || embeddingStatus[b.url].state === "unknown" ? 5 : embeddingStatus[b.url].percentage}%`,
+                                    width: `${
+                                      embeddingStatus[b.url].state ===
+                                        "waiting" ||
+                                      embeddingStatus[b.url].state === "unknown"
+                                        ? 5
+                                        : interpolatedProgress[b.url]
+                                          ? interpolatedProgress[b.url]
+                                              .percentage
+                                          : embeddingStatus[b.url].percentage
+                                    }%`,
                                   }}
                                 />
                               </div>
