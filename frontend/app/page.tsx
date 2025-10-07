@@ -74,14 +74,14 @@ export default function Home() {
     <>
       {/* Mobile menu toggle */}
       <button
-        className="md:hidden fixed top-4 right-4 z-20 p-2 bg-gray-200 rounded-full hover:bg-gray-300"
+        className="md:hidden fixed top-4 right-4 z-20 p-2 bg-primary-200 rounded-full hover:bg-primary-300"
         onClick={() => setMobileMenuOpen(true)}
       >
-        <Menu className="w-6 h-6 text-gray-700" />
+        <Menu className="w-6 h-6 text-primary-700" />
       </button>
       {mobileMenuOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-20">
-          <div className="fixed top-0 left-0 bottom-0 w-64 bg-gray-800 z-30 text-white p-4">
+          <div className="fixed top-0 left-0 bottom-0 w-64 bg-primary-800 z-30 text-white p-4">
             <button
               className="absolute top-4 right-4"
               onClick={() => setMobileMenuOpen(false)}
@@ -96,11 +96,11 @@ export default function Home() {
         {/* Sidebar / Menu */}
         <div
           style={{ flexBasis: `${widths[0]}%` }}
-          className="hidden md:flex flex-none relative"
+          className="hidden md:flex flex-none relative bg-primary-800"
         >
           <Sidebar />
           <div
-            className="absolute top-0 right-0 bottom-0 w-1 hover:bg-gray-400 cursor-ew-resize z-10"
+            className="absolute top-0 right-0 bottom-0 w-1 hover:bg-primary-400 cursor-ew-resize z-10"
             onMouseDown={(e) => onHandleMouseDown(e, 0)}
           />
         </div>
@@ -109,26 +109,26 @@ export default function Home() {
         {!layerCollapsed ? (
           <div
             style={{ flexBasis: `${widths[1]}%` }}
-            className="flex-none relative min-w-[200px]"
+            className="flex-none relative min-w-[200px] bg-primary-100"
           >
             <button
-              className="absolute top-2 left-2 p-1 bg-gray-200 rounded shadow z-10"
+              className="absolute top-2 left-2 p-1 bg-primary-200 rounded shadow z-10 hover:bg-primary-300"
               onClick={() => setLayerCollapsed(true)}
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-4 h-4 text-primary-700" />
             </button>
             <LayerManagement />
             <div
-              className="absolute top-0 right-0 bottom-0 w-1 hover:bg-gray-400 cursor-ew-resize z-10"
+              className="absolute top-0 right-0 bottom-0 w-1 hover:bg-primary-400 cursor-ew-resize z-10"
               onMouseDown={(e) => onHandleMouseDown(e, 1)}
             />
           </div>
         ) : (
           <div
-            className="flex-none flex items-center justify-center w-12 bg-gray-200 hover:bg-gray-300 cursor-pointer"
+            className="flex-none flex items-center justify-center w-12 bg-primary-200 hover:bg-primary-300 cursor-pointer"
             onClick={() => setLayerCollapsed(false)}
           >
-            <Layers className="w-6 h-6 text-gray-700" />
+            <Layers className="w-6 h-6 text-primary-700" />
           </div>
         )}
 
@@ -141,7 +141,7 @@ export default function Home() {
         >
           <MapComponent />
           <div
-            className="absolute top-0 right-0 bottom-0 w-1 hover:bg-gray-400 cursor-ew-resize z-10"
+            className="absolute top-0 right-0 bottom-0 w-1 hover:bg-primary-400 cursor-ew-resize z-10"
             onMouseDown={(e) => onHandleMouseDown(e, 2)}
           />
         </div>
@@ -150,22 +150,22 @@ export default function Home() {
         {!chatCollapsed ? (
           <div
             style={{ flexBasis: `${widths[3]}%` }}
-            className="flex-none relative min-w-[200px]"
+            className="flex-none relative min-w-[200px] bg-primary-50"
           >
             <button
-              className="absolute top-2 right-2 p-1 bg-gray-200 rounded shadow z-10"
+              className="absolute top-2 right-2 p-1 bg-primary-200 rounded shadow z-10 hover:bg-primary-300"
               onClick={() => setChatCollapsed(true)}
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-4 h-4 text-primary-700" />
             </button>
             <AgentInterface />
           </div>
         ) : (
           <button
-            className="fixed bottom-4 right-4 p-3 bg-gray-200 rounded-full shadow z-20 hover:bg-gray-300"
+            className="fixed bottom-4 right-4 p-3 bg-primary-200 rounded-full shadow z-20 hover:bg-primary-300"
             onClick={() => setChatCollapsed(false)}
           >
-            <MessageCircle className="w-6 h-6 text-gray-700" />
+            <MessageCircle className="w-6 h-6 text-primary-700" />
           </button>
         )}
       </div>

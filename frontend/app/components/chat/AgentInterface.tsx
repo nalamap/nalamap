@@ -202,9 +202,9 @@ export default function AgentInterface() {
   const resultsToShow = showAllResults ? geoDataList : geoDataList.slice(0, 5);
 
   return (
-    <div className="h-full w-full bg-gray-100 p-4 flex flex-col overflow-hidden relative border-l">
+    <div className="h-full w-full bg-primary-50 p-4 flex flex-col overflow-hidden relative border-l border-primary-300">
       {/* Header */}
-      <h2 className="text-xl font-bold mb-4">Map Assistant</h2>
+      <h2 className="text-xl font-bold mb-4 text-primary-900">Map Assistant</h2>
 
       {/* Chat content area */}
       <div
@@ -228,16 +228,16 @@ export default function AgentInterface() {
 
               return (
                 <div key={msgKey} className="flex justify-start">
-                  <div className="max-w px-4 py-2 rounded-lg bg-gray-50 rounded-tl-none border">
+                  <div className="max-w px-4 py-2 rounded-lg bg-primary-100 rounded-tl-none border border-primary-300">
                     {/* "Using tool…" header */}
-                    <div className="text-sm font-medium">
+                    <div className="text-sm font-medium text-primary-900">
                       Using tool ' {call.function.name} ' with arguments '{" "}
                       {call.function.arguments} '
                     </div>
 
                     {/* toggle button */}
                     <button
-                      className="ml-2 px-2 py-1 bg-blue-500 text-white rounded text-xs"
+                      className="ml-2 px-2 py-1 bg-second-primary-600 text-white rounded text-xs hover:bg-second-primary-700"
                       onClick={() =>
                         setExpandedToolMessage((prev) => ({
                           ...prev,
@@ -250,7 +250,7 @@ export default function AgentInterface() {
 
                     {/* if expanded, show the next message's content (must be type "tool") */}
                     {isOpen && conversation[idx + 1]?.type === "tool" && (
-                      <div className="mt-2 text-sm break-words whitespace-pre-wrap">
+                      <div className="mt-2 text-sm break-words whitespace-pre-wrap text-primary-800">
                         {conversation[idx + 1].content}
                       </div>
                     )}
@@ -274,22 +274,22 @@ export default function AgentInterface() {
                 <div
                   className={`max-w-[80%] px-4 py-2 rounded-lg ${
                     isHuman
-                      ? "bg-blue-100 rounded-tr-none text-right"
-                      : "bg-gray-50 rounded-tl-none border"
+                      ? "bg-second-primary-200 rounded-tr-none text-right"
+                      : "bg-white rounded-tl-none border border-primary-200"
                   }`}
                 >
                   {isHuman ? (
-                    <div className="text-sm break-words">
+                    <div className="text-sm break-words text-primary-900">
                       {extractTextContent(msg.content)}
                     </div>
                   ) : (
-                    <div className="text-sm break-words chat-markdown">
+                    <div className="text-sm break-words chat-markdown text-primary-900">
                       <ReactMarkdown>
                         {extractTextContent(msg.content)}
                       </ReactMarkdown>
                     </div>
                   )}
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="text-xs text-primary-500 mt-1">
                     {isHuman ? "You" : msg.type === "ai" ? "Agent" : "Unknown"}
                   </div>
                 </div>
@@ -299,10 +299,10 @@ export default function AgentInterface() {
 
           {loading && (
             <div className="flex justify-start mb-2">
-              <div className="flex items-center space-x-2 max-w-[80%] px-4 py-2 rounded-lg bg-gray-50 rounded-tl-none border">
+              <div className="flex items-center space-x-2 max-w-[80%] px-4 py-2 rounded-lg bg-white rounded-tl-none border border-primary-200">
                 {/* spinning loader */}
-                <Loader2 size={16} className="animate-spin text-gray-500" />
-                <span className="text-sm text-gray-500">
+                <Loader2 size={16} className="animate-spin text-second-primary-600" />
+                <span className="text-sm text-primary-700">
                   NaLaMap Agent is working on your request...
                 </span>
               </div>
@@ -469,61 +469,31 @@ export default function AgentInterface() {
         <div className="flex flex-wrap gap-2 justify-center sm:flex-row flex-col">
           <button
             onClick={() => setActiveTool("chat")}
-            className={`px-2 py-1 rounded text-white`}
-            style={{
-              backgroundColor:
-                activeTool === "chat"
-                  ? "rgb(102, 102, 102)"
-                  : "rgb(64, 64, 64)",
-            }}
+            className={`px-2 py-1 rounded text-white font-medium transition-colors ${activeTool === "chat" ? "bg-second-primary-600 hover:bg-second-primary-700" : "bg-primary-600 hover:bg-primary-700"}`}
           >
             Chat
           </button>
           <button
             onClick={() => setActiveTool("search")}
-            className={`px-2 py-1 rounded text-white hidden`}
-            style={{
-              backgroundColor:
-                activeTool === "search"
-                  ? "rgb(102, 102, 102)"
-                  : "rgb(64, 64, 64)",
-            }}
+            className={`px-2 py-1 rounded text-white font-medium transition-colors hidden ${activeTool === "search" ? "bg-second-primary-600 hover:bg-second-primary-700" : "bg-primary-600 hover:bg-primary-700"}`}
           >
             Search
           </button>
           <button
             onClick={() => setActiveTool("geoprocess")}
-            className={`px-2 py-1 rounded text-white hidden`}
-            style={{
-              backgroundColor:
-                activeTool === "geoprocess"
-                  ? "rgb(102, 102, 102)"
-                  : "rgb(64, 64, 64)",
-            }}
+            className={`px-2 py-1 rounded text-white font-medium transition-colors hidden ${activeTool === "geoprocess" ? "bg-second-primary-600 hover:bg-second-primary-700" : "bg-primary-600 hover:bg-primary-700"}`}
           >
             Geoprocessing
           </button>
           <button
             onClick={() => setActiveTool("geocode")}
-            className={`px-2 py-1 rounded text-white hidden`}
-            style={{
-              backgroundColor:
-                activeTool === "geocode"
-                  ? "rgb(102, 102, 102)"
-                  : "rgb(64, 64, 64)",
-            }}
+            className={`px-2 py-1 rounded text-white font-medium transition-colors hidden ${activeTool === "geocode" ? "bg-second-primary-600 hover:bg-second-primary-700" : "bg-primary-600 hover:bg-primary-700"}`}
           >
             Geocode
           </button>
           <button
             onClick={() => setActiveTool("ai-style")}
-            className={`px-2 py-1 rounded text-white hidden`}
-            style={{
-              backgroundColor:
-                activeTool === "ai-style"
-                  ? "rgb(102, 102, 102)"
-                  : "rgb(64, 64, 64)",
-            }}
+            className={`px-2 py-1 rounded text-white font-medium transition-colors hidden ${activeTool === "ai-style" ? "bg-second-primary-600 hover:bg-second-primary-700" : "bg-primary-600 hover:bg-primary-700"}`}
           >
             AI Style
           </button>
@@ -549,13 +519,13 @@ export default function AgentInterface() {
                 ? "Describe how to style your layers (e.g., 'make it red', 'thick blue borders', 'transparent fill')..."
                 : `Type a ${activeTool} command...`
             }
-            className="w-full border border-gray-300 bg-gray-100 rounded px-4 py-3 pr-10 focus:outline-none focus:ring focus:ring-secondary-300 resize-none overflow-hidden"
+            className="w-full border border-primary-300 bg-white rounded px-4 py-3 pr-10 focus:outline-none focus:ring focus:ring-secondary-300 resize-none overflow-hidden text-primary-900"
             style={{ minHeight: "45px", maxHeight: "200px" }}
             rows={1}
           />
           <button
             type="submit"
-            className="absolute right-2 bottom-2 text-gray-500 hover:text-gray-900 transition-colors"
+            className="absolute right-2 bottom-2 text-secondary-600 hover:text-secondary-700 transition-colors"
             title="Send"
           >
             <ArrowUp size={20} />
@@ -564,23 +534,23 @@ export default function AgentInterface() {
       </div>
       {/* Overlay details panel */}
       {overlayData && (
-        <div className="fixed right-4 top-16 w-1/3 max-h-[70vh] overflow-y-auto bg-white shadow-lg rounded p-4 z-50">
+        <div className="fixed right-4 top-16 w-1/3 max-h-[70vh] overflow-y-auto bg-white shadow-lg rounded p-4 z-50 border border-primary-300">
           <div className="flex justify-between items-center mb-2">
-            <h3 className="text-lg font-bold">{overlayData.title}</h3>
-            <button onClick={() => setOverlayData(null)}>
+            <h3 className="text-lg font-bold text-primary-900">{overlayData.title}</h3>
+            <button onClick={() => setOverlayData(null)} className="text-primary-600 hover:text-primary-800">
               <X />
             </button>
           </div>
-          <p className="text-sm text-gray-700 mb-2">
+          <p className="text-sm text-primary-700 mb-2">
             {overlayData.llm_description}
           </p>
-          <div className="text-[10px] text-gray-500 mb-1">
+          <div className="text-[10px] text-primary-500 mb-1">
             Source: {overlayData.data_source}
           </div>
-          <div className="text-[10px] text-gray-500 mb-1">
+          <div className="text-[10px] text-primary-500 mb-1">
             Layer Type: {overlayData.layer_type}
           </div>
-          <div className="text-[10px] text-gray-500 mb-1">
+          <div className="text-[10px] text-primary-500 mb-1">
             <span
               style={getScoreStyle(
                 overlayData.score != null
@@ -595,7 +565,7 @@ export default function AgentInterface() {
             </span>
           </div>
           {overlayData.bounding_box && (
-            <pre className="text-[10px] text-gray-500 mt-2 whitespace-pre-wrap break-all">
+            <pre className="text-[10px] text-primary-500 mt-2 whitespace-pre-wrap break-all">
               BBox: {overlayData.bounding_box}
             </pre>
           )}

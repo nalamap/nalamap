@@ -550,34 +550,79 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden">
-      <div className="fixed left-0 top-0 bottom-0 w-[4%] bg-gray-800">
-        <Sidebar />
-      </div>
-      <main className="fixed top-0 left-[10%] right-[10%] bottom-0 w-[80%] overflow-auto p-6 space-y-8 scroll-smooth">
-        <h1 className="text-3xl font-semibold">Settings</h1>
-        {/* Export/Import Settings */}
-        <div className="flex space-x-4 mb-8">
+    <>
+      {/* Mobile menu toggle */}
+      <button
+        className="md:hidden fixed top-4 left-4 z-20 p-2 bg-primary-200 rounded-full hover:bg-primary-300"
+        onClick={() => {
+          const menu = document.getElementById("mobile-settings-menu");
+          if (menu) menu.classList.toggle("hidden");
+        }}
+      >
+        <svg
+          className="w-6 h-6 text-primary-700"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M4 6h16M4 12h16M4 18h16"
+          />
+        </svg>
+      </button>
+      <div
+        id="mobile-settings-menu"
+        className="hidden fixed inset-0 bg-black bg-opacity-50 z-20"
+      >
+        <div className="fixed top-0 left-0 bottom-0 w-64 bg-primary-800 z-30 text-white p-4">
           <button
-            onClick={exportSettings}
-            className="bg-green-600 text-white px-4 py-2 rounded"
+            className="absolute top-4 right-4"
+            onClick={() => {
+              const menu = document.getElementById("mobile-settings-menu");
+              if (menu) menu.classList.add("hidden");
+            }}
           >
-            Export Settings
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
-          <label className="bg-blue-600 text-white px-4 py-2 rounded cursor-pointer">
-            Import Settings
-            <input
-              type="file"
-              accept="application/json"
-              onChange={importSettings}
-              className="hidden"
-            />
-          </label>
+          <Sidebar />
+        </div>
+      </div>
+      <div className="flex h-screen w-screen overflow-hidden">
+        {/* Sidebar / Menu */}
+        <div className="hidden md:flex flex-none w-16 relative bg-primary-800">
+          <Sidebar />
         </div>
 
-        {/* Model Settings */}
-        <section className="space-y-4">
-          <h2 className="text-2xl">Model Settings</h2>
+        {/* Main content */}
+        <main className="flex-1 overflow-auto p-6 space-y-8 scroll-smooth bg-primary-50">
+          <h1 className="text-3xl font-bold text-primary-900">Settings</h1>
+          {/* Export/Import Settings */}
+          <div className="flex space-x-4 mb-8">
+            <button
+              onClick={exportSettings}
+              className="bg-tertiary-600 text-white px-4 py-2 rounded hover:bg-tertiary-700 font-medium"
+            >
+              Export Settings
+            </button>
+            <label className="bg-second-primary-600 text-white px-4 py-2 rounded cursor-pointer hover:bg-second-primary-700 font-medium">
+              Import Settings
+              <input
+                type="file"
+                accept="application/json"
+                onChange={importSettings}
+                className="hidden"
+              />
+            </label>
+          </div>
+
+          {/* Model Settings */}
+          <section className="space-y-4">
+            <h2 className="text-2xl font-semibold text-primary-800">Model Settings</h2>
           <div className="grid grid-cols-2 gap-4">
             <select
               value={modelSettings.model_provider}
@@ -592,7 +637,7 @@ export default function SettingsPage() {
                   setMaxTokens(models[0].max_tokens);
                 }
               }}
-              className="border rounded p-2"
+              className="border border-primary-300 rounded p-2 bg-white text-primary-900"
             >
               {availableProviders.map((prov) => (
                 <option key={prov} value={prov}>
@@ -603,7 +648,7 @@ export default function SettingsPage() {
             <select
               value={modelSettings.model_name}
               onChange={(e) => setModelName(e.target.value)}
-              className="border rounded p-2"
+              className="border border-primary-300 rounded p-2 bg-white text-primary-900"
             >
               {availableModelNames.map((name) => (
                 <option key={name} value={name}>
@@ -616,25 +661,25 @@ export default function SettingsPage() {
               value={modelSettings.max_tokens}
               onChange={(e) => setMaxTokens(Number(e.target.value))}
               placeholder="Max Tokens"
-              className="border rounded p-2"
+              className="border border-primary-300 rounded p-2 bg-white text-primary-900"
             />
             <textarea
               value={modelSettings.system_prompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
               placeholder="System Prompt"
-              className="border rounded p-2 col-span-2 h-24"
+              className="border border-primary-300 rounded p-2 col-span-2 h-24 bg-white text-primary-900"
             />
           </div>
         </section>
 
         {/* Tools Configuration */}
         <section className="space-y-4">
-          <h2 className="text-2xl">Tools Configuration</h2>
+          <h2 className="text-2xl font-semibold text-primary-800">Tools Configuration</h2>
           <div className="flex space-x-2 mb-4">
             <select
               value={newToolName}
               onChange={(e) => setNewToolName(e.target.value)}
-              className="border rounded p-2 flex-grow"
+              className="border border-primary-300 rounded p-2 flex-grow bg-white text-primary-900"
             >
               <option value="">Select tool to add</option>
               {availableTools.map((tool) => (
@@ -648,31 +693,31 @@ export default function SettingsPage() {
                 newToolName && addToolConfig(newToolName);
                 setNewToolName("");
               }}
-              className="bg-blue-600 text-white px-4 py-2 rounded"
+              className="bg-second-primary-600 text-white px-4 py-2 rounded hover:bg-second-primary-700 font-medium"
             >
               Add Tool
             </button>
           </div>
           <ul className="space-y-3">
             {tools.map((t, i) => (
-              <li key={i} className="border rounded p-4 space-y-2">
+              <li key={i} className="border border-primary-200 rounded p-4 space-y-2 bg-white">
                 <div className="flex justify-between items-center">
                   <label className="flex items-center space-x-2">
                     <input
                       type="checkbox"
                       checked={t.enabled}
                       onChange={() => toggleToolConfig(t.name)}
-                      className="form-checkbox h-5 w-5 text-green-600"
+                      className="form-checkbox h-5 w-5 text-tertiary-600"
                     />
                     <span
-                      className={`${t.enabled ? "text-gray-900" : "text-gray-400"}`}
+                      className={`font-medium ${t.enabled ? "text-primary-900" : "text-primary-400"}`}
                     >
                       {t.name}
                     </span>
                   </label>
                   <button
                     onClick={() => removeToolConfig(t.name)}
-                    className="text-red-600 hover:underline"
+                    className="text-red-600 hover:underline font-medium"
                   >
                     Remove
                   </button>
@@ -683,7 +728,7 @@ export default function SettingsPage() {
                     setToolPromptOverride(t.name, e.target.value)
                   }
                   placeholder="Prompt Override"
-                  className="border rounded p-2 w-full h-20"
+                  className="border border-primary-300 rounded p-2 w-full h-20 bg-white text-primary-900"
                 />
               </li>
             ))}
@@ -692,12 +737,12 @@ export default function SettingsPage() {
 
         {/* Geodata Portals */}
         <section className="space-y-4">
-          <h2 className="text-2xl">Geodata Portals</h2>
+          <h2 className="text-2xl font-semibold text-primary-800">Geodata Portals</h2>
           <div className="flex space-x-2 mb-4">
             <select
               value={newPortal}
               onChange={(e) => setNewPortal(e.target.value)}
-              className="border rounded p-2 flex-grow"
+              className="border border-primary-300 rounded p-2 flex-grow bg-white text-primary-900"
             >
               <option value="">Select portal to add</option>
               {availablePortals.map((portal) => (
@@ -711,7 +756,7 @@ export default function SettingsPage() {
                 newPortal && addPortal(newPortal);
                 setNewPortal("");
               }}
-              className="bg-blue-600 text-white px-4 py-2 rounded"
+              className="bg-second-primary-600 text-white px-4 py-2 rounded hover:bg-second-primary-700 font-medium"
             >
               Add Portal
             </button>
@@ -720,24 +765,24 @@ export default function SettingsPage() {
             {portals.map((p, i) => (
               <li
                 key={i}
-                className="flex justify-between items-center border rounded p-4"
+                className="flex justify-between items-center border border-primary-200 rounded p-4 bg-white"
               >
                 <label className="flex items-center space-x-2">
                   <input
                     type="checkbox"
                     checked={p.enabled}
                     onChange={() => togglePortal(p.url)}
-                    className="form-checkbox h-5 w-5 text-green-600"
+                    className="form-checkbox h-5 w-5 text-tertiary-600"
                   />
                   <span
-                    className={`${p.enabled ? "text-gray-900" : "text-gray-400"}`}
+                    className={`font-medium ${p.enabled ? "text-primary-900" : "text-primary-400"}`}
                   >
                     {p.url}
                   </span>
                 </label>
                 <button
                   onClick={() => removePortal(p.url)}
-                  className="text-red-600 hover:underline"
+                  className="text-red-600 hover:underline font-medium"
                 >
                   Remove
                 </button>
@@ -748,7 +793,7 @@ export default function SettingsPage() {
 
         {/* GeoServer Backends */}
         <section className="space-y-4">
-          <h2 className="text-2xl">GeoServer Backends</h2>
+          <h2 className="text-2xl font-semibold text-primary-800">GeoServer Backends</h2>
           <div className="space-y-3 mb-4">
             <input
               value={newBackend.url}
@@ -756,7 +801,7 @@ export default function SettingsPage() {
                 setNewBackend({ ...newBackend, url: e.target.value })
               }
               placeholder="GeoServer URL"
-              className="border rounded p-2 w-full"
+              className="border border-primary-300 rounded p-2 w-full bg-white text-primary-900"
             />
             <input
               value={newBackend.name}
@@ -764,7 +809,7 @@ export default function SettingsPage() {
                 setNewBackend({ ...newBackend, name: e.target.value })
               }
               placeholder="Name (optional)"
-              className="border rounded p-2 w-full"
+              className="border border-primary-300 rounded p-2 w-full bg-white text-primary-900"
             />
             <textarea
               value={newBackend.description}
@@ -772,7 +817,7 @@ export default function SettingsPage() {
                 setNewBackend({ ...newBackend, description: e.target.value })
               }
               placeholder="Description (optional)"
-              className="border rounded p-2 w-full h-20"
+              className="border border-primary-300 rounded p-2 w-full h-20 bg-white text-primary-900"
             />
             <input
               value={newBackend.username}
@@ -780,7 +825,7 @@ export default function SettingsPage() {
                 setNewBackend({ ...newBackend, username: e.target.value })
               }
               placeholder="Username (optional)"
-              className="border rounded p-2 w-full"
+              className="border border-primary-300 rounded p-2 w-full bg-white text-primary-900"
             />
             <input
               type="password"
@@ -789,12 +834,12 @@ export default function SettingsPage() {
                 setNewBackend({ ...newBackend, password: e.target.value })
               }
               placeholder="Password (optional)"
-              className="border rounded p-2 w-full"
+              className="border border-primary-300 rounded p-2 w-full bg-white text-primary-900"
             />
             <button
               onClick={handleAddBackend}
               disabled={backendLoading}
-              className={`bg-blue-600 text-white px-4 py-2 rounded ${backendLoading ? "opacity-50 cursor-not-allowed" : ""}`}
+              className={`bg-second-primary-600 text-white px-4 py-2 rounded font-medium ${backendLoading ? "opacity-50 cursor-not-allowed" : "hover:bg-second-primary-700"}`}
             >
               {backendLoading
                 ? importingBackends
@@ -803,46 +848,46 @@ export default function SettingsPage() {
                 : "Add Backend"}
             </button>
             {backendLoading && (
-              <div className="w-full mt-2 h-2 bg-gray-200 rounded">
-                <div className="h-2 bg-blue-500 rounded animate-pulse w-full" />
+              <div className="w-full mt-2 h-2 bg-primary-200 rounded">
+                <div className="h-2 bg-second-primary-500 rounded animate-pulse w-full" />
               </div>
             )}
             {backendError && (
-              <p className="text-red-600 text-sm">{backendError}</p>
+              <p className="text-red-600 text-sm font-medium">{backendError}</p>
             )}
             {backendSuccess && (
-              <p className="text-green-600 text-sm">{backendSuccess}</p>
+              <p className="text-tertiary-600 text-sm font-medium">{backendSuccess}</p>
             )}
           </div>
           <ul className="space-y-3">
             {backends.map((b, i) => (
               <li
                 key={i}
-                className="flex justify-between items-center border rounded p-4"
+                className="flex justify-between items-center border border-primary-200 rounded p-4 bg-white"
               >
                 <label className="flex items-center space-x-2">
                   <input
                     type="checkbox"
                     checked={b.enabled}
                     onChange={() => toggleBackend(b.url)}
-                    className="form-checkbox h-5 w-5 text-green-600"
+                    className="form-checkbox h-5 w-5 text-tertiary-600"
                   />
                   <div className="flex-1">
                     <p
-                      className={`${b.enabled ? "text-gray-900" : "text-gray-400"}`}
+                      className={`font-medium ${b.enabled ? "text-primary-900" : "text-primary-400"}`}
                     >
                       <strong>{b.name || "URL"}:</strong> {b.url}
                     </p>
                     {b.description && (
                       <p
-                        className={`${b.enabled ? "text-gray-700" : "text-gray-400"} text-sm`}
+                        className={`${b.enabled ? "text-primary-700" : "text-primary-400"} text-sm`}
                       >
                         {b.description}
                       </p>
                     )}
                     {b.username && (
                       <p
-                        className={`${b.enabled ? "text-gray-900" : "text-gray-400"}`}
+                        className={`${b.enabled ? "text-primary-900" : "text-primary-400"} text-sm`}
                       >
                         <strong>Username:</strong> {b.username}
                       </p>
@@ -860,15 +905,15 @@ export default function SettingsPage() {
                               className={
                                 embeddingStatus[b.url].complete ||
                                 embeddingStatus[b.url].state === "completed"
-                                  ? "text-green-600"
+                                  ? "text-tertiary-600 font-medium"
                                   : embeddingStatus[b.url].state === "error"
-                                    ? "text-red-600"
+                                    ? "text-red-600 font-medium"
                                     : embeddingStatus[b.url].state === "waiting"
-                                      ? "text-yellow-600"
+                                      ? "text-secondary-600 font-medium"
                                       : embeddingStatus[b.url].state ===
                                           "unknown"
-                                        ? "text-gray-500"
-                                        : "text-blue-600"
+                                        ? "text-primary-500 font-medium"
+                                        : "text-second-primary-600 font-medium"
                               }
                             >
                               {embeddingStatus[b.url].complete ||
@@ -896,7 +941,7 @@ export default function SettingsPage() {
                               )}
                             </span>
                             {embeddingStatus[b.url].total > 0 && (
-                              <span className="text-gray-600">
+                              <span className="text-primary-600 font-medium">
                                 {interpolatedProgress[b.url]
                                   ? interpolatedProgress[
                                       b.url
@@ -910,18 +955,18 @@ export default function SettingsPage() {
                             (embeddingStatus[b.url].total > 0 ||
                               embeddingStatus[b.url].state === "waiting" ||
                               embeddingStatus[b.url].state === "unknown") && (
-                              <div className="w-full h-2 bg-gray-200 rounded overflow-hidden">
+                              <div className="w-full h-2 bg-primary-200 rounded overflow-hidden">
                                 <div
                                   className={`h-full transition-all duration-100 ${
                                     embeddingStatus[b.url].complete ||
                                     embeddingStatus[b.url].state === "completed"
-                                      ? "bg-green-500"
+                                      ? "bg-tertiary-500"
                                       : embeddingStatus[b.url].state ===
                                           "waiting"
-                                        ? "bg-yellow-500 animate-pulse"
+                                        ? "bg-secondary-500 animate-pulse"
                                         : embeddingStatus[b.url].in_progress
-                                          ? "bg-blue-500"
-                                          : "bg-blue-500"
+                                          ? "bg-second-primary-500"
+                                          : "bg-second-primary-500"
                                   }`}
                                   style={{
                                     width: `${
@@ -944,7 +989,7 @@ export default function SettingsPage() {
                 </label>
                 <button
                   onClick={() => removeBackend(b.url)}
-                  className="text-red-600 hover:underline ml-2"
+                  className="text-red-600 hover:underline ml-2 font-medium"
                 >
                   Remove
                 </button>
@@ -952,7 +997,8 @@ export default function SettingsPage() {
             ))}
           </ul>
         </section>
-      </main>
-    </div>
+        </main>
+      </div>
+    </>
   );
 }

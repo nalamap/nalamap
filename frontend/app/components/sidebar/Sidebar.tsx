@@ -35,11 +35,11 @@ export default function Sidebar() {
         <meta name="description" content="geospatial insights, with ease" />
       </Head>
       {/* Top Icon Section */}
-      <div className="flex flex-col items-center justify-start py-4 space-y-4 h-full w-full">
+      <div className="flex flex-col items-center justify-start py-4 space-y-4 h-full w-full bg-primary-800">
         {/* Home Icon */}
         <Link href="/">
           <button
-            className="hover:bg-secondary-900 p-2 rounded focus:outline-none text-white"
+            className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors"
             title="Home"
           >
             <Home className="w-6 h-6" />
@@ -47,7 +47,7 @@ export default function Sidebar() {
         </Link>
         {/* Account Icon */}
         <button
-          className="hover:bg-secondary-900 p-2 rounded focus:outline-none text-white"
+          className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors"
           title="Account"
         >
           <User className="w-6 h-6" />
@@ -56,7 +56,7 @@ export default function Sidebar() {
         {/* Fullscreen Icon */}
         <button
           onClick={toggleFullscreen}
-          className="hover:bg-secondary-900 p-2 rounded focus:outline-none text-white"
+          className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors"
           title="Fullscreen Mode"
         >
           <Maximize className="w-6 h-6" />
@@ -64,7 +64,7 @@ export default function Sidebar() {
 
         {/* Reset Icon */}
         <button
-          className="hover:bg-secondary-900 p-2 rounded focus:outline-none text-white"
+          className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors"
           title="Reset App"
         >
           <RefreshCcw className="w-6 h-6" />
@@ -73,7 +73,7 @@ export default function Sidebar() {
         {/* Settings Icon */}
         <Link href="/settings">
           <button
-            className="hover:bg-secondary-900 p-2 rounded focus:outline-none text-white"
+            className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors"
             title="Settings"
           >
             <Settings className="w-6 h-6" />
