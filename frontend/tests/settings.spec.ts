@@ -8,10 +8,17 @@ const mockSettings = {
       settings: {},
     },
   },
-  search_portals: ["https://portal.example"],
+  example_geoserver_backends: [
+    {
+      url: "https://geoserver.mapx.org/geoserver/",
+      name: "MapX",
+      description: "Test GeoServer",
+    },
+  ],
   model_options: {
     MockProvider: [{ name: "mock-model", max_tokens: 999 }],
   },
+  session_id: "test-session-123",
 };
 
 test.describe("Settings page", () => {
