@@ -34,8 +34,7 @@ class SettingsSnapshot(BaseModel):
     search_portals: List[SearchPortal] = Field(
         default_factory=list,
         description=(
-            "[DEPRECATED] Configured data portal endpoints. "
-            "No longer used in the application."
+            "[DEPRECATED] Configured data portal endpoints. " "No longer used in the application."
         ),
     )
     geoserver_backends: List[GeoServerBackend] = Field(
