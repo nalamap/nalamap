@@ -8,7 +8,7 @@ import {
   GeoJSON,
   useMap,
 } from "react-leaflet";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, memo } from "react";
 // Fix leaflet's default icon path issue
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
@@ -21,6 +21,106 @@ import { ZoomToSelected } from "./ZoomToLayer";
 import Logger from "../../utils/logger";
 
 import { GeoDataObject, LayerStyle } from "../../models/geodatamodel";
+
+// ============================================
+// GeoJSON CACHE IMPLEMENTATION
+// ============================================
+
+interface CacheEntry {
+  data: any;
+  timestamp: number;
+  size: number;
+}
+
+class GeoJSONCache {
+  private cache = new Map<string, CacheEntry>();
+  private maxSize = 50 * 1024 * 1024; // 50MB cache limit
+  private maxAge = 30 * 60 * 1000; // 30 minutes
+  private currentSize = 0;
+
+  set(url: string, data: any): void {
+    // Estimate size (rough approximation)
+    const size = JSON.stringify(data).length;
+    
+    // Evict old entries if cache is full
+    while (this.currentSize + size > this.maxSize && this.cache.size > 0) {
+      this.evictOldest();
+    }
+
+    const entry: CacheEntry = {
+      data,
+      timestamp: Date.now(),
+      size,
+    };
+    
+    this.cache.set(url, entry);
+    this.currentSize += size;
+    
+    Logger.log(`[GeoJSONCache] Cached ${url} (${(size / 1024).toFixed(2)} KB). Cache size: ${(this.currentSize / 1024 / 1024).toFixed(2)} MB`);
+  }
+
+  get(url: string): any | null {
+    const entry = this.cache.get(url);
+    if (!entry) return null;
+
+    // Check if entry is expired
+    if (Date.now() - entry.timestamp > this.maxAge) {
+      this.delete(url);
+      return null;
+    }
+
+    Logger.log(`[GeoJSONCache] Cache HIT for ${url}`);
+    return entry.data;
+  }
+
+  delete(url: string): void {
+    const entry = this.cache.get(url);
+    if (entry) {
+      this.cache.delete(url);
+      this.currentSize -= entry.size;
+      Logger.log(`[GeoJSONCache] Deleted ${url}. Cache size: ${(this.currentSize / 1024 / 1024).toFixed(2)} MB`);
+    }
+  }
+
+  private evictOldest(): void {
+    let oldest: [string, CacheEntry] | null = null;
+    
+    for (const [url, entry] of this.cache.entries()) {
+      if (!oldest || entry.timestamp < oldest[1].timestamp) {
+        oldest = [url, entry];
+      }
+    }
+    
+    if (oldest) {
+      this.delete(oldest[0]);
+      Logger.log(`[GeoJSONCache] Evicted oldest entry: ${oldest[0]}`);
+    }
+  }
+
+  clear(): void {
+    this.cache.clear();
+    this.currentSize = 0;
+    Logger.log('[GeoJSONCache] Cache cleared');
+  }
+
+  getCacheStats(): { entries: number; size: number; maxSize: number } {
+    return {
+      entries: this.cache.size,
+      size: this.currentSize,
+      maxSize: this.maxSize,
+    };
+  }
+}
+
+// Global cache instance
+const geoJSONCache = new GeoJSONCache();
+
+// Expose cache to window for debugging in development
+if (typeof window !== "undefined") {
+  (window as any).geoJSONCache = geoJSONCache;
+  Logger.log("[GeoJSONCache] Cache exposed to window.geoJSONCache for debugging");
+}
+
 
 const defaultIcon = new L.Icon({
   iconUrl: "/marker-icon.png", // Make sure this is in /public folder
@@ -353,7 +453,8 @@ function parseWCSUrl(access_url: string) {
   }
 }
 
-function LeafletGeoJSONLayer({
+// Memoized component to prevent unnecessary re-renders
+const LeafletGeoJSONLayer = memo(function LeafletGeoJSONLayer({
   url,
   layerStyle,
 }: {
@@ -385,6 +486,16 @@ function LeafletGeoJSONLayer({
 
   useEffect(() => {
     let cancelled = false;
+    
+    // Check cache first
+    const cachedData = geoJSONCache.get(url);
+    if (cachedData) {
+      Logger.log(`[LeafletGeoJSONLayer] Using cached data for ${url}`);
+      setData(cachedData);
+      setIsLoading(false);
+      return;
+    }
+    
     setIsLoading(true);
     Logger.log(`[LeafletGeoJSONLayer] Starting fetch for ${url}`);
 
@@ -758,6 +869,8 @@ function LeafletGeoJSONLayer({
               return;
             }
             setData(processedCollection);
+            // Cache the processed data
+            geoJSONCache.set(url, processedCollection);
             setIsLoading(false);
             Logger.log(
               `[LeafletGeoJSONLayer] Successfully loaded data for ${url}, features:`,
@@ -790,7 +903,7 @@ function LeafletGeoJSONLayer({
     };
   }, [url]); // Only re-fetch when URL changes
 
-  const onEachFeature = (feature: any, layer: L.Layer) => {
+  const onEachFeature = useCallback((feature: any, layer: L.Layer) => {
     const props = feature.properties;
     if (!props) return;
 
@@ -846,11 +959,11 @@ function LeafletGeoJSONLayer({
         }
       },
     });
-  };
+  }, []); // Empty deps - this function doesn't depend on external state
 
   let geojsonRef: L.GeoJSON | null = null;
 
-  const handleGeoJsonRef = (layer: L.GeoJSON | null) => {
+  const handleGeoJsonRef = useCallback((layer: L.GeoJSON | null) => {
     if (!layer) return;
     geojsonRef = layer;
 
@@ -863,9 +976,9 @@ function LeafletGeoJSONLayer({
     } catch (error) {
       Logger.warn("Error fitting bounds for layer:", url, error);
     }
-  };
+  }, [map, url]);
 
-  const pointToLayer = (feature: any, latlng: L.LatLng) => {
+  const pointToLayer = useCallback((feature: any, latlng: L.LatLng) => {
     // Use custom radius if provided in style, default to 4 (half of previous 8)
     const radius = layerStyle?.radius || 4;
     return L.circleMarker(latlng, {
@@ -882,10 +995,10 @@ function LeafletGeoJSONLayer({
       lineCap: (layerStyle?.line_cap as any) || "round",
       lineJoin: (layerStyle?.line_join as any) || "round",
     });
-  };
+  }, [layerStyle]);
 
   // Create enhanced style function that uses layer style properties
-  const getFeatureStyle = (feature?: any) => {
+  const getFeatureStyle = useCallback((feature?: any) => {
     const baseStyle = {
       color: layerStyle?.stroke_color || "#3388ff",
       weight: layerStyle?.stroke_weight || 2,
@@ -918,7 +1031,7 @@ function LeafletGeoJSONLayer({
     }
 
     return baseStyle;
-  };
+  }, [layerStyle]);
 
   Logger.log(
     `[LeafletGeoJSONLayer] Render: url=${url}, hasData=${!!data}, isLoading=${isLoading}, features=${data?.features?.length || 0}`,
@@ -944,7 +1057,7 @@ function LeafletGeoJSONLayer({
       Logger.log(`[LeafletGeoJSONLayer] No data for ${url}`);
     return null;
   }
-}
+});
 
 // Component to add the fullscreen control to the map
 function FullscreenControl() {
@@ -1035,7 +1148,7 @@ function GetFeatureInfo({
 }
 
 // Legend component that displays a title above the legend image.
-function Legend({
+const Legend = memo(function Legend({
   wmsLayer,
   wmtsLayer,
   title,
@@ -1210,33 +1323,46 @@ function Legend({
       )}
     </div>
   );
-}
+});
 
 export default function LeafletMapComponent() {
   const basemap = useMapStore((state) => state.basemap);
   const layers = useLayerStore((state) => state.layers);
 
+  // Memoize visible layers to avoid recalculating on every render
+  const visibleLayers = useMemo(() => 
+    layers.filter((l) => l.visible),
+    [layers]
+  );
+
   // Use a stable key derived from the VISIBLE layer order so React knows when to recreate
   // the layer list. This ensures proper cleanup and reinitialization of layers
   // when their order changes. Only include visible layers since those are the only ones rendered.
-  const layerOrderKey = layers
-    .filter((l) => l.visible)
-    .map((l) => l.id)
-    .join("-");
+  const layerOrderKey = useMemo(() => 
+    visibleLayers.map((l) => l.id).join("-"),
+    [visibleLayers]
+  );
 
   // Get the first WMS layer from the layers array (if any) for GetFeatureInfo.
-  const wmsLayerData = layers.find(
-    (layer) => layer.layer_type?.toUpperCase() === "WMS" && layer.visible,
+  const wmsLayerData = useMemo(() => 
+    layers.find((layer) => layer.layer_type?.toUpperCase() === "WMS" && layer.visible),
+    [layers]
   );
-  const wmsLayer = wmsLayerData ? parseWMSUrl(wmsLayerData.data_link) : null;
+  const wmsLayer = useMemo(() => 
+    wmsLayerData ? parseWMSUrl(wmsLayerData.data_link) : null,
+    [wmsLayerData]
+  );
 
-  // Get all visible layers that can show legends (WMS and WMTS)
-  const visibleLayersWithLegends = layers.filter(
-    (layer) =>
-      layer.visible &&
-      (layer.layer_type?.toUpperCase() === "WMS" ||
-        layer.layer_type?.toUpperCase() === "WMTS" ||
-        layer.layer_type?.toUpperCase() === "WCS"),
+  // Get all visible layers that can show legends (WMS, WMTS, and WCS)
+  const visibleLayersWithLegends = useMemo(() =>
+    layers.filter(
+      (layer) =>
+        layer.visible &&
+        (layer.layer_type?.toUpperCase() === "WMS" ||
+          layer.layer_type?.toUpperCase() === "WMTS" ||
+          layer.layer_type?.toUpperCase() === "WCS"),
+    ),
+    [layers]
   );
 
   // Memoize legend components to prevent unnecessary re-renders
@@ -1302,7 +1428,24 @@ export default function LeafletMapComponent() {
         return null;
       })
       .filter(Boolean);
-  }, [visibleLayersWithLegends.map((l) => `${l.id}-${l.data_link}`).join(",")]);
+  }, [visibleLayersWithLegends]);
+
+  // Log cache statistics periodically for debugging
+  useEffect(() => {
+    const logCacheStats = () => {
+      const stats = geoJSONCache.getCacheStats();
+      Logger.log(
+        `[GeoJSONCache] Stats - Entries: ${stats.entries}, Size: ${(stats.size / 1024 / 1024).toFixed(2)}MB / ${(stats.maxSize / 1024 / 1024).toFixed(2)}MB`
+      );
+    };
+
+    // Log stats every 30 seconds
+    const intervalId = setInterval(logCacheStats, 30000);
+    
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, []);
 
   return (
     <div className="relative w-full h-full">
