@@ -17,7 +17,9 @@ def empty_state():
     return state
 
 
-def test_set_result_list_returns_matching_entries(empty_state, sample_river_layer, sample_building_layer):
+def test_set_result_list_returns_matching_entries(
+    empty_state, sample_river_layer, sample_building_layer
+):
     empty_state["global_geodata"] = [sample_river_layer, sample_building_layer]
 
     command = geostate_management.set_result_list.func(

@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 
 import pytest
 from fastapi import FastAPI, HTTPException
@@ -61,9 +60,7 @@ def test_stream_file_supports_range_requests(file_streaming_client, upload_dir):
     geojson = upload_dir / "range.geojson"
     geojson.write_bytes(contents)
 
-    response = file_streaming_client.get(
-        "/stream/range.geojson", headers={"Range": "bytes=2-5"}
-    )
+    response = file_streaming_client.get("/stream/range.geojson", headers={"Range": "bytes=2-5"})
     assert response.status_code == 206
     assert response.headers["Content-Range"] == f"bytes 2-5/{len(contents)}"
     assert response.content == contents[2:6]
@@ -71,7 +68,7 @@ def test_stream_file_supports_range_requests(file_streaming_client, upload_dir):
 
 def test_head_file_returns_metadata(file_streaming_client, upload_dir):
     geojson = upload_dir / "metadata.geojson"
-    geojson.write_text("{\n  \"type\": \"FeatureCollection\"\n}", encoding="utf-8")
+    geojson.write_text('{\n  "type": "FeatureCollection"\n}', encoding="utf-8")
 
     response = file_streaming_client.head("/stream/metadata.geojson")
     assert response.status_code == 200

@@ -88,9 +88,7 @@ def test_auto_style_layers_invokes_agent_and_returns_updated_layers(
     assert dummy_agent.invocations, "Agent was not invoked"
 
 
-def test_auto_style_layers_returns_original_for_pre_styled_layer(
-    auto_styling_client, monkeypatch
-):
+def test_auto_style_layers_returns_original_for_pre_styled_layer(auto_styling_client, monkeypatch):
     class DummyAgent:
         def invoke(self, state, debug=False):
             raise AssertionError("Agent should not be invoked for pre-styled layers")
@@ -109,10 +107,7 @@ def test_auto_style_layers_returns_original_for_pre_styled_layer(
     assert response.status_code == 200
     data = response.json()
     assert data["success"] is True
-    assert (
-        data["message"]
-        == "No layers need automatic styling - all already have custom styling"
-    )
+    assert data["message"] == "No layers need automatic styling - all already have custom styling"
     returned_style = data["styled_layers"][0]["style"]
     for key, value in custom_style.items():
         assert returned_style[key] == value
