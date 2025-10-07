@@ -274,6 +274,17 @@ export default function SettingsPage() {
         },
       }));
 
+      // Initialize interpolatedProgress so progress bar shows immediately
+      setInterpolatedProgress((prev) => ({
+        ...prev,
+        [normalizedBackend.url]: {
+          encoded: 0,
+          percentage: 0,
+          velocity: DEFAULT_VELOCITY,
+          lastUpdate: Date.now(),
+        },
+      }));
+
       setNewBackend({
         url: "",
         name: "",
@@ -327,13 +338,15 @@ export default function SettingsPage() {
               if (prevInterp && prevInterp.lastUpdate) {
                 const timeDelta = (now - prevInterp.lastUpdate) / 1000; // seconds
                 const layersDelta = status.encoded - prevInterp.encoded;
-                const velocity =
-                  timeDelta > 0 ? layersDelta / timeDelta : 0;
+                const velocity = timeDelta > 0 ? layersDelta / timeDelta : 0;
 
                 updated[url] = {
                   encoded: status.encoded,
                   percentage: status.percentage,
-                  velocity: velocity > 0 ? velocity : prevInterp.velocity || DEFAULT_VELOCITY,
+                  velocity:
+                    velocity > 0
+                      ? velocity
+                      : prevInterp.velocity || DEFAULT_VELOCITY,
                   lastUpdate: now,
                 };
               } else {
@@ -403,7 +416,7 @@ export default function SettingsPage() {
     }, 10000); // 10 seconds
 
     return () => clearInterval(interval);
-  }, [backends.map((b) => b.url).join(",")]);
+  }, [backends.map((b) => b.url).join(","), embeddingStatus]);
 
   // Smooth interpolation effect for progress bars
   // Configurable: interpolation FPS (3 = ~333ms updates, smoother but less CPU)
@@ -844,9 +857,10 @@ export default function SettingsPage() {
                                     ? "text-red-600"
                                     : embeddingStatus[b.url].state === "waiting"
                                       ? "text-yellow-600"
-                                    : embeddingStatus[b.url].state === "unknown"
-                                      ? "text-gray-500"
-                                      : "text-blue-600"
+                                      : embeddingStatus[b.url].state ===
+                                          "unknown"
+                                        ? "text-gray-500"
+                                        : "text-blue-600"
                               }
                             >
                               {embeddingStatus[b.url].complete ||
@@ -858,9 +872,9 @@ export default function SettingsPage() {
                                       "Unknown error")
                                   : embeddingStatus[b.url].state === "waiting"
                                     ? "⏱️ Waiting to start"
-                                  : embeddingStatus[b.url].state === "unknown"
-                                    ? "⏸️ Status unknown (checking...)"
-                                    : "⏳ Embedding in progress"}
+                                    : embeddingStatus[b.url].state === "unknown"
+                                      ? "⏸️ Status unknown (checking...)"
+                                      : "⏳ Embedding in progress"}
                               {embeddingStatus[b.url].total > 0 && (
                                 <>
                                   :{" "}
@@ -876,16 +890,18 @@ export default function SettingsPage() {
                             {embeddingStatus[b.url].total > 0 && (
                               <span className="text-gray-600">
                                 {interpolatedProgress[b.url]
-                                  ? interpolatedProgress[b.url].percentage.toFixed(
-                                      1,
-                                    )
+                                  ? interpolatedProgress[
+                                      b.url
+                                    ].percentage.toFixed(1)
                                   : embeddingStatus[b.url].percentage}
                                 %
                               </span>
                             )}
                           </div>
                           {embeddingStatus[b.url].state !== "error" &&
-                            embeddingStatus[b.url].total > 0 && (
+                            (embeddingStatus[b.url].total > 0 ||
+                              embeddingStatus[b.url].state === "waiting" ||
+                              embeddingStatus[b.url].state === "unknown") && (
                               <div className="w-full h-2 bg-gray-200 rounded overflow-hidden">
                                 <div
                                   className={`h-full transition-all duration-100 ${
