@@ -8,21 +8,14 @@ import pytest
 from shapely.geometry import Point
 
 from models.geodata import DataOrigin, DataType, GeoDataObject
-from services.tools.attribute_tools import (
-    _fc_from_gdf,
-    _load_gdf,
-    _save_gdf_as_geojson,
-    _slug,
-    build_schema_context,
-    describe_dataset_gdf,
-    filter_where_gdf,
-    list_fields_gdf,
-    parse_where,
-    select_fields_gdf,
-    sort_by_gdf,
-    summarize_gdf,
-    unique_values_gdf,
-)
+from services.tools.attribute_tools import (_fc_from_gdf, _load_gdf,
+                                            _save_gdf_as_geojson, _slug,
+                                            build_schema_context,
+                                            describe_dataset_gdf,
+                                            filter_where_gdf, list_fields_gdf,
+                                            parse_where, select_fields_gdf,
+                                            sort_by_gdf, summarize_gdf,
+                                            unique_values_gdf)
 
 
 @pytest.fixture
@@ -288,18 +281,35 @@ class TestFilterWhereGdf:
     """Test filter_where operation."""
 
     def test_filter_simple_comparison(self, sample_gdf):
-        result = filter_where_gdf(sample_gdf, "value > 15")
+        result, suggestions = filter_where_gdf(sample_gdf, "value > 15")
         assert len(result) == 2  # 20 and 30
         assert list(result["name"]) == ["Feature B", "Feature D"]
+        assert suggestions == {}  # No field corrections needed
 
     def test_filter_string_comparison(self, sample_gdf):
-        result = filter_where_gdf(sample_gdf, "name = 'Feature A'")
+        result, suggestions = filter_where_gdf(sample_gdf, "name = 'Feature A'")
         assert len(result) == 1
         assert result["name"].iloc[0] == "Feature A"
+        assert suggestions == {}
 
     def test_filter_invalid_field(self, sample_gdf):
-        with pytest.raises(ValueError, match="Unknown field"):
+        with pytest.raises(ValueError, match="not found"):
             filter_where_gdf(sample_gdf, "nonexistent > 10")
+
+    def test_filter_fuzzy_field_match(self, sample_gdf):
+        """Test that close field names are matched with fuzzy matching."""
+        # 'Value' should match 'value' (case-insensitive exact match)
+        result, suggestions = filter_where_gdf(sample_gdf, "Value > 15")
+        assert len(result) == 2
+        assert suggestions == {}  # Case-insensitive exact match, no suggestion needed
+
+    def test_filter_fuzzy_field_typo(self, sample_gdf):
+        """Test that typos in field names are corrected."""
+        # 'valu' should fuzzy match to 'value'
+        result, suggestions = filter_where_gdf(sample_gdf, "valu > 15")
+        assert len(result) == 2
+        assert "valu" in suggestions
+        assert suggestions["valu"] == "value"
 
 
 class TestSelectFieldsGdf:
@@ -499,36 +509,91 @@ class TestLoadGdfWFS:
             assert isinstance(result, gpd.GeoDataFrame)
 
 
+class TestLayerNameMatching:
+    """Test layer name/title matching functionality."""
+
+    def test_match_by_name(self, sample_layer):
+        """Test exact name matching."""
+        from services.tools.utils import match_layer_names
+
+        layers = [sample_layer]
+        matched = match_layer_names(layers, ["test-layer-id"])
+        assert len(matched) == 1
+        assert matched[0].id == "test-layer-id"
+
+    def test_match_by_title(self, sample_layer):
+        """Test exact title matching."""
+        from services.tools.utils import match_layer_names
+
+        layers = [sample_layer]
+        matched = match_layer_names(layers, ["Test Layer"])
+        assert len(matched) == 1
+        assert matched[0].id == "test-layer-id"
+
+    def test_match_by_title_case_insensitive(self, sample_layer):
+        """Test case-insensitive title matching."""
+        from services.tools.utils import match_layer_names
+
+        layers = [sample_layer]
+        matched = match_layer_names(layers, ["test layer"])
+        assert len(matched) == 1
+        assert matched[0].id == "test-layer-id"
+
+    def test_match_fuzzy_title(self, sample_layer):
+        """Test fuzzy matching on title."""
+        from services.tools.utils import match_layer_names
+
+        layers = [sample_layer]
+        # "Test Laye" should fuzzy match to "Test Layer"
+        matched = match_layer_names(layers, ["Test Laye"])
+        assert len(matched) == 1
+        assert matched[0].id == "test-layer-id"
+
+    def test_no_match(self, sample_layer):
+        """Test no match returns empty list."""
+        from services.tools.utils import match_layer_names
+
+        layers = [sample_layer]
+        matched = match_layer_names(layers, ["Completely Different Name"])
+        assert len(matched) == 0
+
+
 class TestAttributeToolIntegration:
     """Integration tests for the full attribute_tool workflow."""
 
     def test_filter_empty_result(self, sample_gdf):
         """Test filtering that returns no features."""
         # Filter for non-existent value
-        result = filter_where_gdf(sample_gdf, "value > 100")
+        result, suggestions = filter_where_gdf(sample_gdf, "value > 100")
         assert len(result) == 0
         assert isinstance(result, gpd.GeoDataFrame)
+        assert suggestions == {}
 
     def test_filter_partial_result(self, sample_gdf):
         """Test filtering that returns some features."""
         # Filter for value > 15 (should return 2 features: 20 and 30)
-        result = filter_where_gdf(sample_gdf, "value > 15")
+        result, suggestions = filter_where_gdf(sample_gdf, "value > 15")
         assert len(result) == 2
         assert list(result["value"]) == [20, 30]
+        assert suggestions == {}
 
     def test_filter_all_features(self, sample_gdf):
         """Test filtering that returns all features."""
         # Filter that matches everything
-        result = filter_where_gdf(sample_gdf, "value > 0")
+        result, suggestions = filter_where_gdf(sample_gdf, "value > 0")
         assert len(result) == 4
+        assert suggestions == {}
 
     @patch("services.tools.attribute_tools.store_file")
     def test_save_filtered_layer_with_proper_title(self, mock_store_file, sample_gdf):
         """Test that filtered layers get proper titles."""
-        mock_store_file.return_value = ("http://localhost:8000/api/stream/test.geojson", {})
+        mock_store_file.return_value = (
+            "http://localhost:8000/api/stream/test.geojson",
+            {},
+        )
 
         # Save filtered result
-        filtered = filter_where_gdf(sample_gdf, "value > 15")
+        filtered, _ = filter_where_gdf(sample_gdf, "value > 15")
         obj = _save_gdf_as_geojson(filtered, "Test Layer (filtered)", keep_geometry=True)
 
         assert obj.title == "Test Layer (filtered)"

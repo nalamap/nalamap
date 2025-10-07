@@ -1,3 +1,4 @@
+import difflib
 import json
 import logging
 import os
@@ -408,6 +409,41 @@ def parse_where(where: str):
 
 
 # ===================================
+# Field name fuzzy matching helper
+# ===================================
+def _find_closest_field(
+    field_name: str, available_fields: List[str], cutoff: float = 0.6
+) -> Tuple[Optional[str], bool]:
+    """
+    Find the closest matching field name in the available fields.
+
+    Args:
+        field_name: The field name to match
+        available_fields: List of available field names
+        cutoff: Similarity threshold for fuzzy matching (0 to 1)
+
+    Returns:
+        Tuple of (matched_field_name, is_exact_match)
+        Returns (None, False) if no match found above cutoff
+    """
+    # Try exact match first (case-sensitive)
+    if field_name in available_fields:
+        return (field_name, True)
+
+    # Try case-insensitive exact match
+    for field in available_fields:
+        if field.lower() == field_name.lower():
+            return (field, True)
+
+    # Try fuzzy matching
+    matches = difflib.get_close_matches(field_name, available_fields, n=1, cutoff=cutoff)
+    if matches:
+        return (matches[0], False)
+
+    return (None, False)
+
+
+# ===================================
 # GeoPandas-based operations & IO
 # ===================================
 def _load_gdf(link: str) -> gpd.GeoDataFrame:
@@ -752,41 +788,91 @@ def _series_cmp(a: pd.Series, op: str, b):
     raise ValueError(f"Unsupported op {op}")
 
 
-def _eval_ast_to_mask(ast, gdf: gpd.GeoDataFrame) -> pd.Series:
+def _eval_ast_to_mask(
+    ast, gdf: gpd.GeoDataFrame, field_suggestions: Optional[Dict[str, str]] = None
+) -> pd.Series:
+    """
+    Evaluate AST to boolean mask with fuzzy field matching.
+
+    Args:
+        ast: Parsed WHERE clause AST
+        gdf: GeoDataFrame to evaluate against
+        field_suggestions: Dict to track {requested_field: actual_field} mappings
+
+    Returns:
+        Boolean series mask
+    """
+    if field_suggestions is None:
+        field_suggestions = {}
+
     kind = ast[0]
     if kind == "cmp":
         _, fld, op, lit = ast
-        if fld not in gdf.columns:
-            raise ValueError(f"Unknown field: {fld}")
-        s = gdf[fld]
+        # Try fuzzy field matching
+        matched_field, is_exact = _find_closest_field(fld, list(gdf.columns))
+        if matched_field is None:
+            available = ", ".join(sorted(gdf.columns))
+            raise ValueError(f"Field '{fld}' not found. Available fields: {available}")
+        if not is_exact:
+            field_suggestions[fld] = matched_field
+            logger.info(f"Field '{fld}' not found, using close match '{matched_field}'")
+        s = gdf[matched_field]
         m = _series_cmp(s, op, lit)
         return m.fillna(False)
     if kind == "in":
         _, fld, values = ast
-        if fld not in gdf.columns:
-            raise ValueError(f"Unknown field: {fld}")
-        s = gdf[fld]
+        matched_field, is_exact = _find_closest_field(fld, list(gdf.columns))
+        if matched_field is None:
+            available = ", ".join(sorted(gdf.columns))
+            raise ValueError(f"Field '{fld}' not found. Available fields: {available}")
+        if not is_exact:
+            field_suggestions[fld] = matched_field
+            logger.info(f"Field '{fld}' not found, using close match '{matched_field}'")
+        s = gdf[matched_field]
         m = s.isin(set(values))
         return m.fillna(False)
     if kind == "isnull":
         _, fld, is_not = ast
-        if fld not in gdf.columns:
-            raise ValueError(f"Unknown field: {fld}")
-        m = gdf[fld].isna()
+        matched_field, is_exact = _find_closest_field(fld, list(gdf.columns))
+        if matched_field is None:
+            available = ", ".join(sorted(gdf.columns))
+            raise ValueError(f"Field '{fld}' not found. Available fields: {available}")
+        if not is_exact:
+            field_suggestions[fld] = matched_field
+            logger.info(f"Field '{fld}' not found, using close match '{matched_field}'")
+        m = gdf[matched_field].isna()
         return (~m) if is_not else m
     if kind == "and":
-        return (_eval_ast_to_mask(ast[1], gdf) & _eval_ast_to_mask(ast[2], gdf)).fillna(False)
+        return (
+            _eval_ast_to_mask(ast[1], gdf, field_suggestions)
+            & _eval_ast_to_mask(ast[2], gdf, field_suggestions)
+        ).fillna(False)
     if kind == "or":
-        return (_eval_ast_to_mask(ast[1], gdf) | _eval_ast_to_mask(ast[2], gdf)).fillna(False)
+        return (
+            _eval_ast_to_mask(ast[1], gdf, field_suggestions)
+            | _eval_ast_to_mask(ast[2], gdf, field_suggestions)
+        ).fillna(False)
     if kind == "not":
-        return (~_eval_ast_to_mask(ast[1], gdf)).fillna(False)
+        return (~_eval_ast_to_mask(ast[1], gdf, field_suggestions)).fillna(False)
     raise ValueError(f"Unknown node {kind}")
 
 
-def filter_where_gdf(gdf: gpd.GeoDataFrame, where: str) -> gpd.GeoDataFrame:
+def filter_where_gdf(gdf: gpd.GeoDataFrame, where: str) -> Tuple[gpd.GeoDataFrame, Dict[str, str]]:
+    """
+    Filter GeoDataFrame by WHERE clause with fuzzy field matching.
+
+    Args:
+        gdf: GeoDataFrame to filter
+        where: WHERE clause string
+
+    Returns:
+        Tuple of (filtered_gdf, field_suggestions_dict)
+        field_suggestions_dict maps {requested_field: actual_field_used}
+    """
     ast = parse_where(where)
-    mask = _eval_ast_to_mask(ast, gdf)
-    return gdf[mask].copy()
+    field_suggestions: Dict[str, str] = {}
+    mask = _eval_ast_to_mask(ast, gdf, field_suggestions)
+    return gdf[mask].copy(), field_suggestions
 
 
 # ===================================
@@ -1075,8 +1161,9 @@ def attribute_tool(
             )
 
         if op == "filter_where":
+            field_suggestions = {}
             try:
-                out_gdf = filter_where_gdf(gdf, params["where"])
+                out_gdf, field_suggestions = filter_where_gdf(gdf, params["where"])
             except Exception as e:
                 return Command(
                     update={
@@ -1116,7 +1203,7 @@ def attribute_tool(
             obj = _save_gdf_as_geojson(out_gdf, title, keep_geometry=True)
             new_results = (state.get("geodata_results") or []) + [obj]
 
-            # Build actionable layer info similar to geocoding tools
+            # Build actionable layer info with field suggestions
             actionable_layer_info = {
                 "name": obj.name,
                 "title": obj.title,
@@ -1127,12 +1214,20 @@ def attribute_tool(
                 "filter": params["where"],
             }
 
+            # Add field suggestion info if fuzzy matching was used
+            suggestion_info = ""
+            if field_suggestions:
+                suggestion_info = "\n\nNote: Field name corrections were applied:\n" + "\n".join(
+                    [f"  - '{req}' → '{actual}'" for req, actual in field_suggestions.items()]
+                )
+
             # Provide user guidance similar to geocoding tools
             tool_message_content = (
                 f"Successfully filtered '{layer.name}' using condition: {params['where']}. "
                 f"Result contains {len(out_gdf)} feature(s) out of {len(gdf)} original features. "
                 f"New layer '{obj.title}' created and stored in geodata_results. "
                 f"Actionable layer details: {json.dumps(actionable_layer_info)}. "
+                f"{suggestion_info}"
                 f"User response guidance: Call 'set_result_list' to make this filtered layer "
                 f"available for the user to select. In your textual response to the user, "
                 f"confirm the filtering success and mention the number of features that matched. "
