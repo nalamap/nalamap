@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import Sidebar from "../components/sidebar/Sidebar";
 import { GeoServerBackend, SettingsSnapshot } from "../stores/settingsStore";
+import { useUIStore } from "../stores/uiStore";
 
 import { useInitializedSettingsStore } from "../hooks/useInitializedSettingsStore";
 import { getApiBase } from "../utils/apiBase";
@@ -12,6 +13,9 @@ type BackendPrefetchInput = Omit<GeoServerBackend, "enabled"> & {
 };
 
 export default function SettingsPage() {
+  // UI store for layout
+  const sidebarWidth = useUIStore((s) => s.sidebarWidth);
+  
   // store hooks
   const portals = useInitializedSettingsStore((s) => s.search_portals);
   const addPortal = useInitializedSettingsStore((s) => s.addPortal);
@@ -594,7 +598,10 @@ export default function SettingsPage() {
       </div>
       <div className="flex h-screen w-screen overflow-hidden">
         {/* Sidebar / Menu */}
-        <div className="hidden md:flex flex-none w-16 relative bg-primary-800">
+        <div 
+          className="hidden md:flex flex-none relative bg-primary-800"
+          style={{ flexBasis: `${sidebarWidth}%` }}
+        >
           <Sidebar />
         </div>
 
@@ -605,11 +612,15 @@ export default function SettingsPage() {
           <div className="flex space-x-4 mb-8">
             <button
               onClick={exportSettings}
-              className="bg-tertiary-600 text-white px-4 py-2 rounded hover:bg-tertiary-700 font-medium"
+              className="bg-tertiary-600 text-white px-4 py-2 rounded hover:bg-tertiary-700 font-medium shadow-sm"
+              style={{ backgroundColor: 'var(--tertiary-600)' }}
             >
               Export Settings
             </button>
-            <label className="bg-second-primary-600 text-white px-4 py-2 rounded cursor-pointer hover:bg-second-primary-700 font-medium">
+            <label 
+              className="bg-second-primary-600 text-white px-4 py-2 rounded cursor-pointer hover:bg-second-primary-700 font-medium shadow-sm inline-block"
+              style={{ backgroundColor: 'var(--second-primary-600)' }}
+            >
               Import Settings
               <input
                 type="file"
@@ -693,7 +704,8 @@ export default function SettingsPage() {
                 newToolName && addToolConfig(newToolName);
                 setNewToolName("");
               }}
-              className="bg-second-primary-600 text-white px-4 py-2 rounded hover:bg-second-primary-700 font-medium"
+              className="bg-second-primary-600 text-white px-4 py-2 rounded hover:bg-second-primary-700 font-medium shadow-sm"
+              style={{ backgroundColor: 'var(--second-primary-600)' }}
             >
               Add Tool
             </button>
@@ -756,7 +768,8 @@ export default function SettingsPage() {
                 newPortal && addPortal(newPortal);
                 setNewPortal("");
               }}
-              className="bg-second-primary-600 text-white px-4 py-2 rounded hover:bg-second-primary-700 font-medium"
+              className="bg-second-primary-600 text-white px-4 py-2 rounded hover:bg-second-primary-700 font-medium shadow-sm"
+              style={{ backgroundColor: 'var(--second-primary-600)' }}
             >
               Add Portal
             </button>
@@ -839,7 +852,8 @@ export default function SettingsPage() {
             <button
               onClick={handleAddBackend}
               disabled={backendLoading}
-              className={`bg-second-primary-600 text-white px-4 py-2 rounded font-medium ${backendLoading ? "opacity-50 cursor-not-allowed" : "hover:bg-second-primary-700"}`}
+              className={`bg-second-primary-600 text-white px-4 py-2 rounded font-medium shadow-sm ${backendLoading ? "opacity-50 cursor-not-allowed" : "hover:bg-second-primary-700"}`}
+              style={{ backgroundColor: backendLoading ? undefined : 'var(--second-primary-600)' }}
             >
               {backendLoading
                 ? importingBackends

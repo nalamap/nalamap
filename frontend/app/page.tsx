@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Sidebar from "./components/sidebar/Sidebar";
 import LayerManagement from "./components/sidebar/LayerManagement";
 import MapComponent from "./components/maps/MapComponent";
 import AgentInterface from "./components/chat/AgentInterface";
+import { useUIStore } from "./stores/uiStore";
 import {
   ChevronLeft,
   ChevronRight,
@@ -15,7 +16,10 @@ import {
 } from "lucide-react";
 
 export default function Home() {
-  const [widths, setWidths] = useState<number[]>([4, 18, 56, 22]);
+  const getLayoutWidths = useUIStore((s) => s.getLayoutWidths);
+  const setLayoutWidths = useUIStore((s) => s.setLayoutWidths);
+  
+  const [widths, setWidths] = useState<number[]>(getLayoutWidths());
   const [layerCollapsed, setLayerCollapsed] = useState(false);
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -25,6 +29,11 @@ export default function Home() {
     startX: number;
     initialWidths: number[];
   }>({ active: false, handleIndex: 0, startX: 0, initialWidths: [0, 0, 0, 0] });
+
+  // Persist widths to store when they change
+  useEffect(() => {
+    setLayoutWidths(widths as [number, number, number, number]);
+  }, [widths, setLayoutWidths]);
 
   const onMouseMove = (e: MouseEvent) => {
     if (!dragInfo.current.active) return;
