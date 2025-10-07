@@ -46,20 +46,28 @@ logger = logging.getLogger(__name__)
 
 
 def _sanitize_crs_list(crs_options: Any) -> List[str]:
-    """Return a list of stringifiable CRS identifiers.
+    """Sanitize and filter CRS options to commonly used projections only.
 
-    owslib may return a heterogeneous container (set/list) including
-    owslib.crs.Crs objects which FastAPI/Pydantic cannot serialize directly.
-    We defensively cast each entry to a readable string, preferring an explicit
-    code attribute when present.
+    Many GeoServers report thousands of CRS codes, bloating responses.
+    We filter to only include commonly used web mapping projections.
     """
     sanitized: List[str] = []
-    if not crs_options:
-        return sanitized
-    try:  # pragma: no cover - optional import safety
+    try:
         from owslib.crs import Crs  # noqa: F401
     except Exception:  # pragma: no cover - ignore import failures
         pass
+
+    # Common web mapping CRS codes (not thousands of obscure local projections)
+    COMMON_CRS = {
+        "4326",  # WGS84 - Standard lat/lon
+        "3857",  # Web Mercator - Most web maps
+        "900913",  # Google Web Mercator (old)
+        "3395",  # World Mercator
+        "4269",  # NAD83
+        "3785",  # Popular Visualization CRS
+        "102100",  # Web Mercator (ESRI)
+        "102113",  # Web Mercator (ESRI old)
+    }
 
     def _one(item: Any) -> str:
         try:
@@ -76,12 +84,27 @@ def _sanitize_crs_list(crs_options: Any) -> List[str]:
         except Exception:
             return repr(item)
 
+    def _is_common(crs_str: str) -> bool:
+        """Check if CRS code is in common list."""
+        # Extract numeric code from formats like "EPSG:4326" or "4326"
+        code = crs_str.upper().replace("EPSG:", "").replace("CRS:", "").replace("AUTO:", "")
+        return code in COMMON_CRS
+
     # Normalize iterable
     if isinstance(crs_options, (list, tuple, set)):
         for c in crs_options:
-            sanitized.append(_one(c))
+            crs_str = _one(c)
+            if _is_common(crs_str):
+                sanitized.append(crs_str)
     else:
-        sanitized.append(_one(crs_options))
+        crs_str = _one(crs_options)
+        if _is_common(crs_str):
+            sanitized.append(crs_str)
+
+    # Ensure we always have at least EPSG:3857 (web mercator) if nothing matched
+    if not sanitized:
+        sanitized.append("EPSG:3857")
+
     return sanitized
 
 
