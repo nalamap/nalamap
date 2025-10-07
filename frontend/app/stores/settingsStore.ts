@@ -2,6 +2,14 @@ import { create } from "zustand";
 import { getApiBase } from "@/app/utils/apiBase";
 import Logger from "../utils/logger";
 
+export interface ExampleGeoServer {
+  url: string;
+  name: string;
+  description: string;
+  username?: string;
+  password?: string;
+}
+
 export interface GeoServerBackend {
   url: string;
   name?: string;
@@ -40,7 +48,7 @@ export interface ModelSettings {
 }
 
 export interface SettingsSnapshot {
-  search_portals: SearchPortal[];
+  search_portals?: SearchPortal[]; // DEPRECATED: No longer used in the application
   geoserver_backends: GeoServerBackend[];
   model_settings: ModelSettings;
   tools: ToolConfig[];
@@ -56,12 +64,12 @@ export interface SettingsState extends SettingsSnapshot {
   initializeSettingsFromRemote: (opts: {
     system_prompt: string;
     tool_options: Record<string, ToolOption>;
-    search_portals: string[];
+    example_geoserver_backends: ExampleGeoServer[];
     model_options: Record<string, ModelOption[]>;
     session_id: string;
   }) => void;
 
-  // Portal & Backend actions
+  // Portal & Backend actions (kept for backward compatibility, but deprecated)
   addPortal: (portal: string) => void;
   removePortal: (url: string) => void;
   togglePortal: (url: string) => void;
@@ -86,8 +94,8 @@ export interface SettingsState extends SettingsSnapshot {
   // Available options
   available_tools: string[];
   setAvailableTools: (tools: string[]) => void;
-  available_search_portals: string[];
-  setAvailableSearchPortals: (portals: string[]) => void;
+  available_example_geoservers: ExampleGeoServer[];
+  setAvailableExampleGeoServers: (geoservers: ExampleGeoServer[]) => void;
   available_model_providers: string[];
   setAvailableModelProviders: (providers: string[]) => void;
   available_model_names: string[];
@@ -147,7 +155,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       setAvailableTools,
       setToolOptions,
       addToolConfig,
-      setAvailableSearchPortals,
+      setAvailableExampleGeoServers,
       setAvailableModelProviders,
       setModelProvider,
       setModelOptions,
@@ -156,7 +164,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       setMaxTokens,
       model_settings,
       available_tools,
-      available_search_portals,
+      available_example_geoservers,
       model_options,
       setSessionId,
     } = get();
@@ -179,8 +187,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       tools.forEach(addToolConfig);
     }
 
-    if (available_search_portals.length === 0) {
-      setAvailableSearchPortals(opts.search_portals);
+    if (available_example_geoservers.length === 0) {
+      setAvailableExampleGeoServers(opts.example_geoserver_backends);
     }
 
     if (Object.keys(model_options).length === 0) {
@@ -212,7 +220,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   // available
   available_tools: [],
-  available_search_portals: [],
+  available_example_geoservers: [],
   available_model_providers: [],
   available_model_names: [],
 
@@ -223,17 +231,17 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   // portal & backend
   addPortal: (portal) =>
     set((state) => ({
-      search_portals: state.search_portals.some((p) => p.url === portal)
+      search_portals: (state.search_portals || []).some((p) => p.url === portal)
         ? state.search_portals
-        : [...state.search_portals, { url: portal, enabled: true }],
+        : [...(state.search_portals || []), { url: portal, enabled: true }],
     })),
   removePortal: (url) =>
     set((state) => ({
-      search_portals: state.search_portals.filter((p) => p.url !== url),
+      search_portals: (state.search_portals || []).filter((p) => p.url !== url),
     })),
   togglePortal: (url) =>
     set((state) => ({
-      search_portals: state.search_portals.map((p) =>
+      search_portals: (state.search_portals || []).map((p) =>
         p.url === url ? { ...p, enabled: !p.enabled } : p,
       ),
     })),
@@ -323,8 +331,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   // available options
   setAvailableTools: (tools) => set({ available_tools: tools }),
-  setAvailableSearchPortals: (portals) =>
-    set({ available_search_portals: portals }),
+  setAvailableExampleGeoServers: (geoservers) =>
+    set({ available_example_geoservers: geoservers }),
   setAvailableModelProviders: (providers) =>
     set({ available_model_providers: providers }),
   setAvailableModelNames: (names) => set({ available_model_names: names }),
@@ -335,7 +343,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   // bulk
   getSettings: () => ({
-    search_portals: get().search_portals,
+    search_portals: get().search_portals || [],
     geoserver_backends: get().geoserver_backends,
     model_settings: get().model_settings,
     tools: get().tools,
@@ -345,7 +353,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   }),
   setSettings: (settings) =>
     set((state) => ({
-      search_portals: settings.search_portals,
+      search_portals: settings.search_portals || [],
       geoserver_backends: settings.geoserver_backends,
       model_settings: settings.model_settings,
       tools: settings.tools,

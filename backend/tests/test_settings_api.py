@@ -34,6 +34,23 @@ def test_options_endpoint_creates_session_cookie(api_client):
     assert api_client.cookies.get("session_id") == data["session_id"]
 
 
+def test_options_endpoint_returns_example_geoservers(api_client):
+    response = api_client.get("/settings/options")
+    assert response.status_code == 200
+    data = response.json()
+    assert "example_geoserver_backends" in data
+    assert isinstance(data["example_geoserver_backends"], list)
+    assert len(data["example_geoserver_backends"]) > 0
+
+    # Check the first example (MapX)
+    mapx = data["example_geoserver_backends"][0]
+    assert "url" in mapx
+    assert "name" in mapx
+    assert "description" in mapx
+    assert mapx["name"] == "MapX"
+    assert mapx["url"] == "https://geoserver.mapx.org/geoserver/"
+
+
 def test_preload_endpoint_uses_session_cookie(api_client, monkeypatch):
     session_response = api_client.get("/settings/options")
     session_id = session_response.json()["session_id"]

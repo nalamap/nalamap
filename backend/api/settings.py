@@ -96,10 +96,18 @@ class ModelOption(BaseModel):
     max_tokens: int
 
 
+class ExampleGeoServer(BaseModel):
+    url: str
+    name: str
+    description: str
+    username: Optional[str] = None
+    password: Optional[str] = None
+
+
 class SettingsOptions(BaseModel):
     system_prompt: str
     tool_options: Dict[str, ToolOption]  # per-tool settings
-    search_portals: List[str]
+    example_geoserver_backends: List[ExampleGeoServer]
     model_options: Dict[str, List[ModelOption]]  # per-provider model list
     session_id: str
 
@@ -126,14 +134,31 @@ async def get_settings_options(request: Request, response: Response):
         available_tool_name: {"default_prompt": available_tool.description, "settings": {}}
         for available_tool_name, available_tool in DEFAULT_AVAILABLE_TOOLS.items()
     }
-    search_portals = [
-        "FAO",
-        "MapX",
+    example_geoserver_backends = [
+        ExampleGeoServer(
+            url="https://geoserver.mapx.org/geoserver/",
+            name="MapX",
+            description=(
+                "### MapX Geoserver Layer Description\n\n"
+                "MapX Geoserver hosts a diverse range of geospatial layers designed for "
+                "environmental monitoring, urban planning, disaster management, and more. "
+                "It provides access to satellite imagery, administrative boundaries, "
+                "topographic data, and land use/cover classifications. Environmental "
+                "monitoring layers include data on air and water quality, vegetation health, "
+                "and natural hazards like floods and wildfires. Transport infrastructure, "
+                "climate/weather data, and water resources layers are also available to "
+                "support infrastructure planning, resource management, and climate analysis. "
+                "Additionally, MapX features biodiversity and conservation data to aid in "
+                "ecological research and conservation efforts. These layers are accessible "
+                "in various formats for integration and analysis, helping users make "
+                "informed decisions based on up-to-date, accurate geospatial information."
+            ),
+        ),
     ]
     model_options: Dict[str, List[ModelOption]] = {
         "openai": [
-            {"name": "gpt-4-nano", "max_tokens": 50000},
-            {"name": "gpt-4-mini", "max_tokens": 100000},
+            ModelOption(name="gpt-4-nano", max_tokens=50000),
+            ModelOption(name="gpt-4-mini", max_tokens=100000),
         ],
     }
 
@@ -154,7 +179,7 @@ async def get_settings_options(request: Request, response: Response):
     return SettingsOptions(
         system_prompt=DEFAULT_SYSTEM_PROMPT,
         tool_options=tool_options,
-        search_portals=search_portals,
+        example_geoserver_backends=example_geoserver_backends,
         model_options=model_options,
         session_id=session_id,
     )

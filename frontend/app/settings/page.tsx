@@ -82,8 +82,8 @@ export default function SettingsPage() {
 
   // available & fetched options
   const availableTools = useInitializedSettingsStore((s) => s.available_tools);
-  const availablePortals = useInitializedSettingsStore(
-    (s) => s.available_search_portals,
+  const availableExampleGeoServers = useInitializedSettingsStore(
+    (s) => s.available_example_geoservers,
   );
   const availableProviders = useInitializedSettingsStore(
     (s) => s.available_model_providers,
@@ -97,8 +97,8 @@ export default function SettingsPage() {
   const setAvailableTools = useInitializedSettingsStore(
     (s) => s.setAvailableTools,
   );
-  const setAvailableSearchPortals = useInitializedSettingsStore(
-    (s) => s.setAvailableSearchPortals,
+  const setAvailableExampleGeoServers = useInitializedSettingsStore(
+    (s) => s.setAvailableExampleGeoServers,
   );
   const setAvailableModelProviders = useInitializedSettingsStore(
     (s) => s.setAvailableModelProviders,
@@ -116,6 +116,7 @@ export default function SettingsPage() {
   const setSettings = useInitializedSettingsStore((s) => s.setSettings);
   // local state
   const [newPortal, setNewPortal] = useState("");
+  const [selectedExampleGeoServer, setSelectedExampleGeoServer] = useState("");
   const [newBackend, setNewBackend] = useState<
     Omit<GeoServerBackend, "enabled">
   >({ url: "", name: "", description: "", username: "", password: "" });
@@ -784,61 +785,110 @@ export default function SettingsPage() {
           </ul>
         </section>
 
-        {/* Geodata Portals */}
+        {/* Example GeoServers */}
         <section className="space-y-4">
-          <h2 className="text-2xl font-semibold text-primary-800">Geodata Portals</h2>
+          <h2 className="text-2xl font-semibold text-primary-800">Example GeoServers</h2>
+          <p className="text-sm text-primary-600">
+            Choose from publicly available example GeoServers to quickly get started with geospatial data.
+          </p>
           <div className="flex space-x-2 mb-4">
             <select
-              value={newPortal}
-              onChange={(e) => setNewPortal(e.target.value)}
+              value={selectedExampleGeoServer}
+              onChange={(e) => setSelectedExampleGeoServer(e.target.value)}
               className="border border-primary-300 rounded p-2 flex-grow bg-white text-primary-900"
             >
-              <option value="">Select portal to add</option>
-              {availablePortals.map((portal) => (
-                <option key={portal} value={portal}>
-                  {portal}
+              <option value="">Select an example GeoServer</option>
+              {availableExampleGeoServers.map((geoserver) => (
+                <option key={geoserver.url} value={geoserver.url}>
+                  {geoserver.name} - {geoserver.url}
                 </option>
               ))}
             </select>
             <button
-              onClick={() => {
-                newPortal && addPortal(newPortal);
-                setNewPortal("");
+              onClick={async () => {
+                if (!selectedExampleGeoServer) return;
+                const selected = availableExampleGeoServers.find(
+                  (gs) => gs.url === selectedExampleGeoServer
+                );
+                if (!selected) return;
+
+                // Use the same add backend logic with the example geoserver values
+                setBackendError(null);
+                setBackendSuccess(null);
+                setBackendLoading(true);
+                setImportingBackends(false);
+
+                try {
+                  const normalizedBackend = normalizeBackend({
+                    url: selected.url,
+                    name: selected.name,
+                    description: selected.description,
+                    username: selected.username || "",
+                    password: selected.password || "",
+                    enabled: true,
+                  });
+                  addBackend(normalizedBackend);
+
+                  setEmbeddingStatus((prev) => ({
+                    ...prev,
+                    [normalizedBackend.url]: {
+                      total: 0,
+                      encoded: 0,
+                      percentage: 0,
+                      state: "waiting",
+                      in_progress: false,
+                      complete: false,
+                      error: null,
+                    },
+                  }));
+
+                  setInterpolatedProgress((prev) => ({
+                    ...prev,
+                    [normalizedBackend.url]: {
+                      encoded: 0,
+                      percentage: 0,
+                      velocity: DEFAULT_VELOCITY,
+                      lastUpdate: Date.now(),
+                    },
+                  }));
+
+                  setSelectedExampleGeoServer("");
+
+                  await prefetchBackend(normalizedBackend);
+                  await fetchEmbeddingStatus();
+
+                  setBackendSuccess(
+                    `Example backend "${selected.name}" added and queued for processing.`,
+                  );
+                } catch (err: any) {
+                  setBackendError(
+                    err?.message || "Failed to add example GeoServer backend.",
+                  );
+                } finally {
+                  setBackendLoading(false);
+                }
               }}
-              className="bg-second-primary-600 text-white px-4 py-2 rounded hover:bg-second-primary-700 font-medium shadow-sm cursor-pointer"
-              style={{ backgroundColor: 'var(--second-primary-600)' }}
+              disabled={!selectedExampleGeoServer || backendLoading}
+              className={`bg-second-primary-600 text-white px-4 py-2 rounded font-medium shadow-sm ${!selectedExampleGeoServer || backendLoading ? "opacity-50 cursor-not-allowed" : "hover:bg-second-primary-700 cursor-pointer"}`}
+              style={{ backgroundColor: (!selectedExampleGeoServer || backendLoading) ? undefined : 'var(--second-primary-600)' }}
             >
-              Add Portal
+              {backendLoading ? "Adding..." : "Add Example GeoServer"}
             </button>
           </div>
-          <ul className="space-y-3">
-            {portals.map((p, i) => (
-              <li
-                key={i}
-                className="flex justify-between items-center border border-primary-200 rounded p-4 bg-white"
-              >
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={p.enabled}
-                    onChange={() => togglePortal(p.url)}
-                    className="form-checkbox h-5 w-5 text-tertiary-600"
-                  />
-                  <span
-                    className={`font-medium ${p.enabled ? "text-primary-900" : "text-primary-400"}`}
-                  >
-                    {p.url}
-                  </span>
-                </label>
-                <button
-                  onClick={() => removePortal(p.url)}
-                  className="text-red-600 hover:underline font-medium"
-                >
-                  Remove
-                </button>
-              </li>
-            ))}
-          </ul>
+          {availableExampleGeoServers.map((geoserver) => (
+            <div
+              key={geoserver.url}
+              className="border border-primary-200 rounded p-4 bg-white space-y-2"
+            >
+              <h3 className="text-lg font-semibold text-primary-900">
+                {geoserver.name}
+              </h3>
+              <p className="text-sm text-primary-600">{geoserver.url}</p>
+              <div className="text-sm text-primary-700 prose prose-sm max-w-none">
+                {geoserver.description}
+              </div>
+            </div>
+          ))}
         </section>
 
         {/* GeoServer Backends */}
