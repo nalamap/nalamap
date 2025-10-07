@@ -4,6 +4,8 @@ from services.tools.geoserver.custom_geoserver import _sanitize_crs_list, _sanit
 
 
 def test_sanitize_crs_list_basic():
+    """Test that _sanitize_crs_list filters to common CRS codes only."""
+
     class FakeCrs:
         def __init__(self, code, proj4=None):
             self.code = code
@@ -12,13 +14,18 @@ def test_sanitize_crs_list_basic():
     crs_items = [
         FakeCrs("EPSG:4326"),
         "EPSG:3857",
-        FakeCrs(None, proj4="+proj=longlat +datum=WGS84"),
+        FakeCrs("EPSG:32610"),  # UTM zone - not in common list
+        FakeCrs(None, proj4="+proj=longlat +datum=WGS84"),  # No code - filtered out
     ]
     out = _sanitize_crs_list(crs_items)
+    # Only common CRS codes should be returned
     assert "EPSG:4326" in out
     assert "EPSG:3857" in out
-    # Fallback to proj4 str conversion
-    assert any("+proj=longlat" in x for x in out)
+    # UTM and proj4-only entries should be filtered out
+    assert not any("32610" in x for x in out)
+    assert not any("+proj=longlat" in x for x in out)
+    # Should have exactly 2 items (the common ones)
+    assert len(out) == 2
 
 
 def test_sanitize_properties_nested():
