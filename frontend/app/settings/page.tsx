@@ -111,6 +111,14 @@ export default function SettingsPage() {
 
   const API_BASE_URL = getApiBase();
 
+  // Constants for progress interpolation
+  const DEFAULT_VELOCITY = 3; // layers per second
+  const INTERPOLATION_FPS = 3; // frames per second
+  const INTERPOLATION_INTERVAL = 1000 / INTERPOLATION_FPS; // milliseconds
+
+  // Ref to track if we should continue polling
+  const shouldPollRef = React.useRef(true);
+
   const normalizeBackend = (
     backend: BackendPrefetchInput,
   ): GeoServerBackend => {
@@ -306,11 +314,12 @@ export default function SettingsPage() {
   };
 
   // Fetch embedding status for enabled backends
-  const fetchEmbeddingStatus = async () => {
+  const fetchEmbeddingStatus = React.useCallback(async () => {
     const enabledBackends = backends.filter((b) => b.enabled);
     if (enabledBackends.length === 0) {
       setEmbeddingStatus({});
       setInterpolatedProgress({});
+      shouldPollRef.current = false;
       return;
     }
 
@@ -372,59 +381,53 @@ export default function SettingsPage() {
         });
 
         setEmbeddingStatus(newStatus);
+
+        // Check if all backends are complete or errored - stop polling if so
+        const allComplete = Object.values(newStatus).every(
+          (status: any) =>
+            status.state === "completed" ||
+            status.state === "error" ||
+            status.complete === true,
+        );
+        if (allComplete && Object.keys(newStatus).length > 0) {
+          shouldPollRef.current = false;
+        }
       }
     } catch (err) {
       // Silently fail - embedding status is optional
       console.error("Failed to fetch embedding status:", err);
     }
-  };
+  }, [backends, API_BASE_URL, DEFAULT_VELOCITY]);
 
   // Poll embedding status every 10 seconds when there are enabled backends
   React.useEffect(() => {
     // Fetch initial status immediately when component mounts or backends change
     const enabledBackends = backends.filter((b) => b.enabled);
     if (enabledBackends.length > 0) {
+      shouldPollRef.current = true; // Reset polling flag when backends change
       fetchEmbeddingStatus();
+    } else {
+      shouldPollRef.current = false;
     }
 
-    // Determine if we should continue polling
-    const shouldPoll = () => {
+    // Set up polling interval
+    const interval = setInterval(() => {
       const currentEnabledBackends = backends.filter((b) => b.enabled);
       if (currentEnabledBackends.length === 0) {
-        return false; // No backends to poll
+        shouldPollRef.current = false;
+        return;
       }
 
-      // Check if any backend is in 'waiting', 'processing', or 'unknown' state
-      const hasActiveBackends = currentEnabledBackends.some((b) => {
-        const status = embeddingStatus[b.url];
-        return (
-          status &&
-          (status.state === "waiting" ||
-            status.state === "processing" ||
-            status.state === "unknown" ||
-            status.in_progress)
-        );
-      });
-
-      return hasActiveBackends;
-    };
-
-    const interval = setInterval(() => {
-      if (shouldPoll()) {
+      // Only poll if we haven't determined all backends are complete
+      if (shouldPollRef.current) {
         fetchEmbeddingStatus();
       }
     }, 10000); // 10 seconds
 
     return () => clearInterval(interval);
-  }, [backends.map((b) => b.url).join(","), embeddingStatus]);
+  }, [backends, fetchEmbeddingStatus]);
 
   // Smooth interpolation effect for progress bars
-  // Configurable: interpolation FPS (3 = ~333ms updates, smoother but less CPU)
-  const INTERPOLATION_FPS = 3;
-  const INTERPOLATION_INTERVAL = 1000 / INTERPOLATION_FPS; // milliseconds
-  // Default velocity before we have real data (layers per second)
-  const DEFAULT_VELOCITY = 3;
-
   React.useEffect(() => {
     let timeoutId: NodeJS.Timeout;
     let lastAnimationTime = Date.now();
