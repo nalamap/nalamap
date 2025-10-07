@@ -479,7 +479,15 @@ def _load_gdf(link: str) -> gpd.GeoDataFrame:
         # Download to temp file for reliable driver support
         resp = requests.get(request_url, timeout=30)
         resp.raise_for_status()
-        tmp = os.path.join(LOCAL_UPLOAD_DIR, f"tmp_{uuid.uuid4().hex[:8]}.geojson")
+        # Ensure upload dir exists (CI environments or tests may not create it).
+        # Use a local variable to avoid rebinding the module-level LOCAL_UPLOAD_DIR.
+        upload_dir = LOCAL_UPLOAD_DIR or "."
+        try:
+            os.makedirs(upload_dir, exist_ok=True)
+        except Exception:
+            upload_dir = "."
+
+        tmp = os.path.join(upload_dir, f"tmp_{uuid.uuid4().hex[:8]}.geojson")
         with open(tmp, "wb") as f:
             f.write(resp.content)
         try:
