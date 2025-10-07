@@ -8,7 +8,7 @@ const mockSettings = {
       settings: {},
     },
   },
-  search_portals: [],
+  example_geoserver_backends: [],
   geoserver_backends: [],
   model_options: {
     Provider: [{ name: "model-a", max_tokens: 512 }],
@@ -116,7 +116,6 @@ test.describe("GeoServer backend preload - Advanced scenarios", () => {
     page,
   }) => {
     const incompleteSnapshot = {
-      search_portals: ["https://example.com"],
       geoserver_backends: [
         {
           url: "https://geo.example/geoserver",
@@ -124,7 +123,7 @@ test.describe("GeoServer backend preload - Advanced scenarios", () => {
           enabled: true,
         },
       ],
-      // Missing model_settings, tools, tool_options, etc.
+      // Missing model_settings, tools, tool_options, search_portals, etc.
     };
 
     await page.route("**/settings/geoserver/preload", async (route) => {

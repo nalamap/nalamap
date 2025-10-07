@@ -9,7 +9,13 @@ const mockSettings = {
       settings: {},
     },
   },
-  search_portals: ["https://portal.example"],
+  example_geoserver_backends: [
+    {
+      url: "https://geoserver.mapx.org/geoserver/",
+      name: "MapX",
+      description: "Example GeoServer",
+    },
+  ],
   model_options: {
     Provider: [{ name: "model-a", max_tokens: 512 }],
   },

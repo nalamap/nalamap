@@ -16,7 +16,7 @@ import { expect, test } from "@playwright/test";
 const mockSettings = {
   system_prompt: "Test system prompt",
   tool_options: {},
-  search_portals: [],
+  example_geoserver_backends: [],
   model_providers: ["openai", "anthropic"],
   model_options: {},
   session_id: "test-session-id",
