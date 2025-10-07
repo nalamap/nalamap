@@ -303,6 +303,11 @@ export default function SettingsPage() {
 
       // Start preloading in background - user can now navigate away
       await prefetchBackend(normalizedBackend);
+
+      // Immediately fetch status to catch the "waiting" state
+      // (don't wait for the polling interval to trigger)
+      await fetchEmbeddingStatus();
+
       setBackendSuccess(
         `Backend queued for processing. Embedding will start shortly.`,
       );
