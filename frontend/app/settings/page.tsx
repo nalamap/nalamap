@@ -320,12 +320,13 @@ export default function SettingsPage() {
 
     // Determine if we should continue polling
     const shouldPoll = () => {
-      if (enabledBackends.length === 0) {
+      const currentEnabledBackends = backends.filter((b) => b.enabled);
+      if (currentEnabledBackends.length === 0) {
         return false; // No backends to poll
       }
 
       // Check if any backend is in 'waiting', 'processing', or 'unknown' state
-      const hasActiveBackends = enabledBackends.some((b) => {
+      const hasActiveBackends = currentEnabledBackends.some((b) => {
         const status = embeddingStatus[b.url];
         return (
           status &&
@@ -346,7 +347,7 @@ export default function SettingsPage() {
     }, 10000); // 10 seconds
 
     return () => clearInterval(interval);
-  }, [backends.map((b) => b.url).join(","), embeddingStatus]);
+  }, [backends.map((b) => b.url).join(",")]);
 
   /** Export JSON */
   const exportSettings = () => {
