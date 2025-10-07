@@ -83,7 +83,7 @@ export default function Home() {
     <>
       {/* Mobile menu toggle */}
       <button
-        className="md:hidden fixed top-4 right-4 z-20 p-2 bg-primary-200 rounded-full hover:bg-primary-300"
+        className="md:hidden fixed top-4 left-4 z-20 p-2 bg-primary-200 rounded-full hover:bg-primary-300"
         onClick={() => setMobileMenuOpen(true)}
       >
         <Menu className="w-6 h-6 text-primary-700" />
@@ -133,13 +133,12 @@ export default function Home() {
             />
           </div>
         ) : (
-          <div
-            className="flex-none flex items-center justify-center bg-primary-200 hover:bg-primary-300 cursor-pointer"
-            style={{ width: '48px' }}
+          <button
+            className="fixed bottom-4 left-4 p-3 bg-primary-800 rounded-full shadow z-20 hover:bg-primary-700"
             onClick={() => setLayerCollapsed(false)}
           >
-            <Layers className="w-6 h-6 text-primary-700" />
-          </div>
+            <Layers className="w-9 h-9 text-white" />
+          </button>
         )}
 
         {/* Map panel */}
@@ -171,10 +170,10 @@ export default function Home() {
           </div>
         ) : (
           <button
-            className="fixed bottom-4 right-4 p-3 bg-primary-200 rounded-full shadow z-20 hover:bg-primary-300"
+            className="fixed bottom-4 right-4 p-3 bg-primary-800 rounded-full shadow z-20 hover:bg-primary-700"
             onClick={() => setChatCollapsed(false)}
           >
-            <MessageCircle className="w-6 h-6 text-primary-700" />
+            <MessageCircle className="w-9 h-9 text-white" />
           </button>
         )}
       </div>
