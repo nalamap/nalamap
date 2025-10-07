@@ -75,7 +75,7 @@ test.describe("GeoServer backend preload", () => {
     await page.getByRole("button", { name: "Add Backend" }).click();
 
     await expect(
-      page.getByText("Prefetched 3 layers successfully."),
+      page.getByText("Backend queued for processing. Embedding will start shortly."),
     ).toBeVisible();
     await expect(page.getByText("GeoServer unreachable")).toHaveCount(0);
 
@@ -113,7 +113,7 @@ test.describe("GeoServer backend preload", () => {
       .fill("https://exports.example/geoserver");
     await page.getByRole("button", { name: "Add Backend" }).click();
     await expect(
-      page.getByText("Prefetched 2 layers successfully."),
+      page.getByText("Backend queued for processing. Embedding will start shortly."),
     ).toBeVisible();
 
     const downloadPromise = page.waitForEvent("download");

@@ -288,7 +288,7 @@ test.describe("GeoServer backend preload - Advanced scenarios", () => {
     await page.getByRole("button", { name: "Add Backend" }).click();
 
     await expect(
-      page.getByText("Prefetched 2 layers successfully."),
+      page.getByText("Backend queued for processing. Embedding will start shortly."),
     ).toBeVisible();
     await expect(
       page.getByRole("listitem").filter({ hasText: "Existing Backend" }),
