@@ -204,7 +204,7 @@ export default function AgentInterface() {
   return (
     <div className="h-full w-full bg-primary-50 p-4 flex flex-col overflow-hidden relative border-l border-primary-300">
       {/* Header */}
-      <h2 className="text-xl font-bold mb-4 text-primary-900">Map Assistant</h2>
+      <h2 className="text-xl font-bold mb-4 text-primary-900 text-center">Map Assistant</h2>
 
       {/* Chat content area */}
       <div

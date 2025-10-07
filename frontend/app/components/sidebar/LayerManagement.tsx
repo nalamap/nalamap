@@ -543,7 +543,7 @@ export default function LayerManagement() {
         setIsDragging(false);
       }}
     >
-      <h2 className="text-xl font-bold mb-4">Layer Management</h2>
+      <h2 className="text-xl font-bold mb-4 text-center">Layer Management</h2>
 
       {/* Upload Section */}
       <div className="mb-4">
