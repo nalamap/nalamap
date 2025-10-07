@@ -18,11 +18,19 @@ import {
 export default function Home() {
   const getLayoutWidths = useUIStore((s) => s.getLayoutWidths);
   const setLayoutWidths = useUIStore((s) => s.setLayoutWidths);
+  const sidebarWidth = useUIStore((s) => s.sidebarWidth);
   
   const [widths, setWidths] = useState<number[]>(getLayoutWidths());
   const [layerCollapsed, setLayerCollapsed] = useState(false);
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Set initial collapsed state based on screen size
+  useEffect(() => {
+    const isMobile = window.innerWidth < 768; // md breakpoint
+    setLayerCollapsed(isMobile);
+    setChatCollapsed(isMobile);
+  }, []);
   const dragInfo = useRef<{
     active: boolean;
     handleIndex: number;
@@ -107,7 +115,7 @@ export default function Home() {
           style={{ flexBasis: `${widths[0]}%` }}
           className="hidden md:flex flex-none relative bg-primary-800"
         >
-          <Sidebar />
+          <Sidebar onLayerToggle={() => setLayerCollapsed(!layerCollapsed)} />
           <div
             className="absolute top-0 right-0 bottom-0 w-1 hover:bg-primary-400 cursor-ew-resize z-10"
             onMouseDown={(e) => onHandleMouseDown(e, 0)}
@@ -134,7 +142,8 @@ export default function Home() {
           </div>
         ) : (
           <button
-            className="fixed bottom-4 left-4 p-3 bg-primary-800 rounded-full shadow z-20 hover:bg-primary-700"
+            className="fixed bottom-4 p-3 bg-primary-800 rounded-full shadow z-20 hover:bg-primary-700"
+            style={{ left: `calc(1rem + ${sidebarWidth}vw)` }}
             onClick={() => setLayerCollapsed(false)}
           >
             <Layers className="w-9 h-9 text-white" />

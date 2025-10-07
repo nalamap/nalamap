@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import Head from "next/head";
-import { User, Maximize, RefreshCcw, Settings, Home } from "lucide-react";
+import { User, Maximize, RefreshCcw, Settings, Home, Layers } from "lucide-react";
 
 const toggleFullscreen = () => {
   const elem = document.documentElement;
@@ -27,7 +27,7 @@ const toggleFullscreen = () => {
   }
 };
 
-export default function Sidebar() {
+export default function Sidebar({ onLayerToggle }: { onLayerToggle?: () => void }) {
   return (
     <>
       <Head>
@@ -45,6 +45,16 @@ export default function Sidebar() {
             <Home className="w-6 h-6" />
           </button>
         </Link>
+        {/* Layer Management Icon */}
+        {onLayerToggle && (
+          <button
+            onClick={onLayerToggle}
+            className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors cursor-pointer"
+            title="Layer Management"
+          >
+            <Layers className="w-6 h-6" />
+          </button>
+        )}
         {/* Account Icon */}
         <button
           className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors cursor-pointer"
