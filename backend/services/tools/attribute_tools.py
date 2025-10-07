@@ -1085,7 +1085,7 @@ def attribute_tool(
                         ]
                     }
                 )
-            
+
             # Check if filter returned any features
             if len(out_gdf) == 0:
                 return Command(
@@ -1103,11 +1103,11 @@ def attribute_tool(
                         ]
                     }
                 )
-            
+
             title = f"{layer.title or layer.name} (filtered)"
             obj = _save_gdf_as_geojson(out_gdf, title, keep_geometry=True)
             new_results = (state.get("geodata_results") or []) + [obj]
-            
+
             # Build actionable layer info similar to geocoding tools
             actionable_layer_info = {
                 "name": obj.name,
@@ -1118,7 +1118,7 @@ def attribute_tool(
                 "original_count": len(gdf),
                 "filter": params["where"],
             }
-            
+
             # Provide user guidance similar to geocoding tools
             tool_message_content = (
                 f"Successfully filtered '{layer.name}' using condition: {params['where']}. "
@@ -1134,7 +1134,7 @@ def attribute_tool(
                 f"layer has already been added to the map. Do NOT include direct file paths, "
                 f"sandbox links, or any other internal storage paths in your textual response."
             )
-            
+
             return Command(
                 update={
                     "messages": [

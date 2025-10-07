@@ -387,7 +387,7 @@ class TestLoadGdfWFS:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.raise_for_status = Mock()
-        
+
         # Create a simple GeoJSON for the response
         geojson_data = {
             "type": "FeatureCollection",
@@ -428,7 +428,7 @@ class TestLoadGdfWFS:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.raise_for_status = Mock()
-        
+
         geojson_data = {
             "type": "FeatureCollection",
             "features": [
@@ -468,7 +468,7 @@ class TestLoadGdfWFS:
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.raise_for_status = Mock()
-        
+
         geojson_data = {
             "type": "FeatureCollection",
             "features": [
@@ -526,11 +526,11 @@ class TestAttributeToolIntegration:
     def test_save_filtered_layer_with_proper_title(self, mock_store_file, sample_gdf):
         """Test that filtered layers get proper titles."""
         mock_store_file.return_value = ("http://localhost:8000/api/stream/test.geojson", {})
-        
+
         # Save filtered result
         filtered = filter_where_gdf(sample_gdf, "value > 15")
         obj = _save_gdf_as_geojson(filtered, "Test Layer (filtered)", keep_geometry=True)
-        
+
         assert obj.title == "Test Layer (filtered)"
         assert obj.data_type == DataType.GEOJSON
         assert obj.data_origin == DataOrigin.TOOL.value
