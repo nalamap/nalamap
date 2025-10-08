@@ -274,7 +274,7 @@ export default function AgentInterface() {
                 <div
                   className={`max-w-[80%] px-4 py-2 rounded-lg ${
                     isHuman
-                      ? "bg-second-primary-200 rounded-tr-none text-right"
+                      ? "bg-second-primary-200 rounded-tr-none text-right border border-primary-300"
                       : "bg-white rounded-tl-none border border-primary-200"
                   }`}
                 >
