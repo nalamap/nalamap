@@ -1110,18 +1110,12 @@ export default function SettingsPage() {
                             (embeddingStatus[b.url].total > 0 ||
                               embeddingStatus[b.url].state === "waiting" ||
                               embeddingStatus[b.url].state === "unknown") && (
-                              <div className="w-full h-2 bg-primary-200 rounded overflow-hidden">
+                              <div className="w-full h-2 bg-primary-200 rounded overflow-hidden" style={{ backgroundColor: 'var(--primary-200)' }}>
                                 <div
                                   className={`h-full transition-all duration-100 ${
-                                    embeddingStatus[b.url].complete ||
-                                    embeddingStatus[b.url].state === "completed"
-                                      ? "bg-tertiary-500"
-                                      : embeddingStatus[b.url].state ===
-                                          "waiting"
-                                        ? "bg-secondary-500 animate-pulse"
-                                        : embeddingStatus[b.url].in_progress
-                                          ? "bg-second-primary-500"
-                                          : "bg-second-primary-500"
+                                    embeddingStatus[b.url].state === "waiting"
+                                      ? "animate-pulse"
+                                      : ""
                                   }`}
                                   style={{
                                     width: `${
@@ -1134,6 +1128,13 @@ export default function SettingsPage() {
                                               .percentage
                                           : embeddingStatus[b.url].percentage
                                     }%`,
+                                    backgroundColor:
+                                      embeddingStatus[b.url].complete ||
+                                      embeddingStatus[b.url].state === "completed"
+                                        ? "var(--tertiary-500)"
+                                        : embeddingStatus[b.url].state === "waiting"
+                                          ? "var(--secondary-500)"
+                                          : "var(--second-primary-500)",
                                   }}
                                 />
                               </div>
