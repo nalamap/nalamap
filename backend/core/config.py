@@ -5,7 +5,9 @@ from typing import Optional
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-load_dotenv()
+# Load .env.local first (for local development), then .env (fallback)
+load_dotenv(".env.local", override=True)  # Local development overrides
+load_dotenv()  # Load .env if exists (won't override existing vars)
 # General config in a central place
 
 

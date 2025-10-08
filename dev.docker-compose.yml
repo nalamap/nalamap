@@ -16,6 +16,8 @@ services:
       - AZURE_CONN_STRING=${AZURE_CONN_STRING:-}
       - AZURE_CONTAINER=${AZURE_CONTAINER:-data}
       - AZURE_SAS_EXPIRY_HOURS=${AZURE_SAS_EXPIRY_HOURS:-24}
+      - ALLOWED_CORS_ORIGINS=http://localhost:3000,http://frontend:3000
+      - COOKIE_SECURE=false
     command: uvicorn main:app --reload --host 0.0.0.0 --port 8000 # auto-reload enabled
     ports:
       - "8000:8000"
