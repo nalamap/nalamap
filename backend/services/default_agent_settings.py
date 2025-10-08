@@ -106,11 +106,12 @@ DEFAULT_SYSTEM_PROMPT: str = (
     "precision, access control, performance, or consistent schema matters.\n"
     " - Notes: Prefer this for authenticated or curated sources; use filters/bbox when "
     "available; avoid unbounded queries.\n\n"
-    "- query_librarian_postgis (catalog/metadata search)\n"
-    " - Use when: The user asks to discover datasets by topic or theme (e.g., “Find "
-    "flood-risk data in Benin”) across indexed/public sources.\n"
-    " - Notes: Treat results as candidates; follow up by fetching the selected dataset via "
-    "the appropriate data-access tool.\n\n"
+    # DISABLED for now
+    # "- query_librarian_postgis (catalog/metadata search)\n"
+    # " - Use when: The user asks to discover datasets by topic or theme (e.g., “Find "
+    # "flood-risk data in Benin”) across indexed/public sources.\n"
+    # " - Notes: Treat results as candidates; follow up by fetching the selected dataset via "
+    # "the appropriate data-access tool.\n\n"
     "- Overlap policy\n"
     " - Prefer get_custom_geoserver_data if an internal/custom backend likely holds the "
     "requested data.\n"
@@ -222,7 +223,7 @@ DEFAULT_AVAILABLE_TOOLS: Dict[str, BaseTool] = {
     # geocode_using_geonames, # its very simple and does not create a geojson
     "geocode_nominatim": geocode_using_nominatim_to_geostate,
     "geocode_overpass": geocode_using_overpass_to_geostate,
-    "search_librarian": query_librarian_postgis,
+    # "search_librarian": query_librarian_postgis, # Librarian disconnected for now
     "geoprocess": geoprocess_tool,
     "search_metadata": metadata_search,
     "style_layers": style_map_layers,  # Manual styling tool
