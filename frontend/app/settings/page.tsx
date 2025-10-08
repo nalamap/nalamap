@@ -167,6 +167,10 @@ export default function SettingsPage() {
       url = `https://${url}`;
     }
 
+    // Strip trailing slashes to match backend normalization (backend calls rstrip('/'))
+    // This ensures URL keys match when querying embedding status
+    url = url.replace(/\/+$/, "");
+
     return {
       url,
       name: backend.name?.trim() || backend.name || undefined,
@@ -342,9 +346,9 @@ export default function SettingsPage() {
       // Start preloading in background - user can now navigate away
       await prefetchBackend(normalizedBackend);
 
-      // Immediately fetch status to catch the "waiting" state
-      // (don't wait for the polling interval to trigger)
-      await fetchEmbeddingStatus();
+      // Don't call fetchEmbeddingStatus() here - it will be called automatically
+      // by the useEffect when backends state updates. Calling it here causes issues
+      // because the state update hasn't happened yet, so backends array is still old.
 
       setBackendSuccess(
         `Backend queued for processing. Embedding will start shortly.`,
@@ -855,7 +859,8 @@ export default function SettingsPage() {
                   setSelectedExampleGeoServer("");
 
                   await prefetchBackend(normalizedBackend);
-                  await fetchEmbeddingStatus();
+                  // Don't call fetchEmbeddingStatus() here - it will be called automatically
+                  // by the useEffect when backends state updates
 
                   setBackendSuccess(
                     `Example backend "${selected.name}" added and queued for processing.`,

@@ -48,4 +48,136 @@ test.describe("Settings page", () => {
     const maxTokensInput = page.locator('main input[type="number"]').first();
     await expect(maxTokensInput).toHaveValue("999");
   });
+
+  test("example GeoServer shows loading bar and state when added", async ({
+    page,
+  }) => {
+    // Mock settings with example GeoServers
+    await page.route("**/settings/options", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockSettings),
+      });
+    });
+
+    // Mock the preload endpoint
+    await page.route("**/settings/geoserver/preload", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          session_id: "test-session-123",
+          backend_url: "https://geoserver.mapx.org/geoserver",
+          backend_name: "MapX",
+          total_layers: 10,
+          service_status: {},
+          service_counts: {},
+        }),
+      });
+    });
+
+    // Mock the embedding-status endpoint to return waiting state
+    let callCount = 0;
+    await page.route("**/settings/geoserver/embedding-status*", async (route) => {
+      const url = new URL(route.request().url());
+      const backendUrls = url.searchParams.get("backend_urls")?.split(",") || [];
+
+      callCount++;
+      const backends: Record<string, any> = {};
+
+      for (const backendUrl of backendUrls) {
+        if (callCount === 1) {
+          // First call: waiting state
+          backends[backendUrl] = {
+            total: 10,
+            encoded: 0,
+            percentage: 0,
+            state: "waiting",
+            in_progress: false,
+            complete: false,
+            error: null,
+          };
+        } else if (callCount === 2) {
+          // Second call: processing state
+          backends[backendUrl] = {
+            total: 10,
+            encoded: 5,
+            percentage: 50,
+            state: "processing",
+            in_progress: true,
+            complete: false,
+            error: null,
+          };
+        } else {
+          // Third call: completed state
+          backends[backendUrl] = {
+            total: 10,
+            encoded: 10,
+            percentage: 100,
+            state: "completed",
+            in_progress: false,
+            complete: true,
+            error: null,
+          };
+        }
+      }
+
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ session_id: "test-session-123", backends }),
+      });
+    });
+
+    await page.goto("/settings");
+    await page.waitForLoadState("networkidle");
+
+    // Find the Example GeoServers section
+    const exampleSection = page.locator("section:has(h2:text('Example GeoServers'))");
+    await expect(exampleSection).toBeVisible();
+
+    // Select MapX from the dropdown
+    const dropdown = exampleSection.locator("select");
+    await dropdown.selectOption("https://geoserver.mapx.org/geoserver/");
+
+    // Click the "Add Example GeoServer" button
+    await page.getByRole("button", { name: /Add Example GeoServer/i }).click();
+
+    // Wait for the backend to be added to the list
+    const backendsList = page.locator("section:has(h2:text('GeoServer Backends'))");
+    await expect(backendsList).toBeVisible();
+
+    // The added backend should appear in the GeoServer Backends section
+    const addedBackend = backendsList.locator("li:has-text('MapX')");
+    await expect(addedBackend).toBeVisible({ timeout: 5000 });
+
+    // Check that the loading bar and state are visible
+    // Should show "⏱️ Waiting to start" initially
+    await expect(addedBackend.locator("text=/⏱️ Waiting to start/")).toBeVisible({
+      timeout: 3000,
+    });
+
+    // Check that progress bar exists
+    const progressBar = addedBackend.locator("div.bg-primary-200");
+    await expect(progressBar).toBeVisible();
+
+    // Check that the progress bar shows some width (should be 5% for waiting state)
+    const progressFill = progressBar.locator("div.h-full");
+    await expect(progressFill).toBeVisible();
+
+    // Wait for processing state (polling interval is 10 seconds, so wait at least 12 seconds)
+    await expect(addedBackend.locator("text=/⏳ Embedding in progress/")).toBeVisible({
+      timeout: 15000,
+    });
+
+    // Check that the progress section shows layers count (e.g., "5 / 10 layers")
+    await expect(addedBackend.locator("text=/\/ 10 layers/")).toBeVisible({ timeout: 3000 });
+
+    // Wait for completion (another polling cycle)
+    await expect(addedBackend.locator("text=/✓ Embedding complete/")).toBeVisible({
+      timeout: 15000,
+    });
+  });
 });
+
