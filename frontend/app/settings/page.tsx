@@ -125,6 +125,10 @@ export default function SettingsPage() {
   const [backendSuccess, setBackendSuccess] = useState<string | null>(null);
   const [backendLoading, setBackendLoading] = useState(false);
   const [importingBackends, setImportingBackends] = useState(false);
+  const [toolsSectionCollapsed, setToolsSectionCollapsed] = useState(true);
+  const [toolPromptVisibility, setToolPromptVisibility] = useState<{
+    [toolName: string]: boolean;
+  }>({});
   const [embeddingStatus, setEmbeddingStatus] = useState<{
     [url: string]: {
       total: number;
@@ -727,66 +731,102 @@ export default function SettingsPage() {
 
         {/* Tools Configuration */}
         <section className="space-y-4">
-          <h2 className="text-2xl font-semibold text-primary-800">Tools Configuration</h2>
-          <div className="flex space-x-2 mb-4">
-            <select
-              value={newToolName}
-              onChange={(e) => setNewToolName(e.target.value)}
-              className="border border-primary-300 rounded p-2 flex-grow bg-white text-primary-900"
-            >
-              <option value="">Select tool to add</option>
-              {availableTools.map((tool) => (
-                <option key={tool} value={tool}>
-                  {tool}
-                </option>
-              ))}
-            </select>
+          <div className="flex justify-between items-center">
+            <h2 className="text-2xl font-semibold text-primary-800">Tools Configuration</h2>
             <button
-              onClick={() => {
-                newToolName && addToolConfig(newToolName);
-                setNewToolName("");
-              }}
-              className="bg-second-primary-600 text-white px-4 py-2 rounded hover:bg-second-primary-700 font-medium shadow-sm cursor-pointer"
-              style={{ backgroundColor: 'var(--second-primary-600)' }}
+              onClick={() => setToolsSectionCollapsed(!toolsSectionCollapsed)}
+              className="text-primary-600 hover:text-primary-800 font-medium flex items-center space-x-1"
             >
-              Add Tool
+              <span>{toolsSectionCollapsed ? "Show" : "Hide"}</span>
+              <svg
+                className={`w-5 h-5 transform transition-transform ${toolsSectionCollapsed ? "rotate-180" : ""}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
             </button>
           </div>
-          <ul className="space-y-3">
-            {tools.map((t, i) => (
-              <li key={i} className="border border-primary-200 rounded p-4 space-y-2 bg-white">
-                <div className="flex justify-between items-center">
-                  <label className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={t.enabled}
-                      onChange={() => toggleToolConfig(t.name)}
-                      className="form-checkbox h-5 w-5 text-tertiary-600"
-                    />
-                    <span
-                      className={`font-medium ${t.enabled ? "text-primary-900" : "text-primary-400"}`}
-                    >
-                      {t.name}
-                    </span>
-                  </label>
-                  <button
-                    onClick={() => removeToolConfig(t.name)}
-                    className="text-red-600 hover:underline font-medium"
-                  >
-                    Remove
-                  </button>
-                </div>
-                <textarea
-                  value={t.prompt_override}
-                  onChange={(e) =>
-                    setToolPromptOverride(t.name, e.target.value)
-                  }
-                  placeholder="Prompt Override"
-                  className="border border-primary-300 rounded p-2 w-full h-20 bg-white text-primary-900"
-                />
-              </li>
-            ))}
-          </ul>
+          
+          {!toolsSectionCollapsed && (
+            <>
+              <div className="flex space-x-2 mb-4">
+                <select
+                  value={newToolName}
+                  onChange={(e) => setNewToolName(e.target.value)}
+                  className="border border-primary-300 rounded p-2 flex-grow bg-white text-primary-900"
+                >
+                  <option value="">Select tool to add</option>
+                  {availableTools.map((tool) => (
+                    <option key={tool} value={tool}>
+                      {tool}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => {
+                    newToolName && addToolConfig(newToolName);
+                    setNewToolName("");
+                  }}
+                  className="bg-second-primary-600 text-white px-4 py-2 rounded hover:bg-second-primary-700 font-medium shadow-sm cursor-pointer"
+                  style={{ backgroundColor: 'var(--second-primary-600)' }}
+                >
+                  Add Tool
+                </button>
+              </div>
+              <ul className="space-y-3">
+                {tools.map((t, i) => (
+                  <li key={i} className="border border-primary-200 rounded p-4 space-y-2 bg-white">
+                    <div className="flex justify-between items-center">
+                      <label className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={t.enabled}
+                          onChange={() => toggleToolConfig(t.name)}
+                          className="form-checkbox h-5 w-5 text-tertiary-600"
+                        />
+                        <span
+                          className={`font-medium ${t.enabled ? "text-primary-900" : "text-primary-400"}`}
+                        >
+                          {t.name}
+                        </span>
+                      </label>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() =>
+                            setToolPromptVisibility((prev) => ({
+                              ...prev,
+                              [t.name]: !prev[t.name],
+                            }))
+                          }
+                          className="text-primary-600 hover:text-primary-800 font-medium text-sm"
+                        >
+                          {toolPromptVisibility[t.name] ? "Hide Prompt" : "Show Prompt"}
+                        </button>
+                        <button
+                          onClick={() => removeToolConfig(t.name)}
+                          className="text-red-600 hover:underline font-medium"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                    {toolPromptVisibility[t.name] && (
+                      <textarea
+                        value={t.prompt_override}
+                        onChange={(e) =>
+                          setToolPromptOverride(t.name, e.target.value)
+                        }
+                        placeholder="Prompt Override (leave empty to use default)"
+                        className="border border-primary-300 rounded p-2 w-full h-20 bg-white text-primary-900"
+                      />
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </section>
 
         {/* Example GeoServers */}
