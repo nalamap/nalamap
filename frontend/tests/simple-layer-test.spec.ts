@@ -5,6 +5,15 @@ test("simple layer rendering test", async ({ page }) => {
   const consoleMessages: string[] = [];
   page.on("console", (msg) => {
     const text = msg.text();
+    // Filter out expected warnings in test environment
+    if (
+      text.includes("Download the React DevTools") ||
+      text.includes("webpack-hmr") ||
+      text.includes("Exposed to window for testing") ||
+      text.includes("Cache exposed to window")
+    ) {
+      return; // Skip logging expected messages
+    }
     consoleMessages.push(`[${msg.type()}] ${text}`);
     console.log(`Browser [${msg.type()}]:`, text);
   });

@@ -246,7 +246,7 @@ export default function SettingsPage() {
       tools: snapshot.tools || currentSettings.tools,
       tool_options: snapshot.tool_options || currentSettings.tool_options,
       model_options: snapshot.model_options || currentSettings.model_options,
-      session_id: undefined, // Ignore imported session_id
+      session_id: currentSettings.session_id, // Preserve current session_id, ignore imported session_id
     };
     setSettings(sanitized);
 

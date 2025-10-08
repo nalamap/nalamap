@@ -1,9 +1,19 @@
 import { test, expect } from "@playwright/test";
 
 test("page should load without crashing", async ({ page }) => {
-  // Listen for console messages
+  // Listen for console messages but filter out expected warnings
   page.on("console", (msg) => {
-    console.log(`[Browser ${msg.type()}]:`, msg.text());
+    const text = msg.text();
+    // Filter out expected warnings in test environment
+    if (
+      text.includes("Download the React DevTools") ||
+      text.includes("webpack-hmr") ||
+      text.includes("Exposed to window for testing") ||
+      text.includes("Cache exposed to window")
+    ) {
+      return; // Skip logging expected messages
+    }
+    console.log(`[Browser ${msg.type()}]:`, text);
   });
 
   // Listen for page errors

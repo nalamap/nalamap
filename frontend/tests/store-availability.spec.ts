@@ -4,7 +4,17 @@ test("check if stores are exposed", async ({ page }) => {
   // Set up console and error listeners BEFORE navigation
   const consoleMessages: string[] = [];
   page.on("console", (msg) => {
-    consoleMessages.push(`[${msg.type()}] ${msg.text()}`);
+    const text = msg.text();
+    // Filter out expected warnings in test environment
+    if (
+      text.includes("Download the React DevTools") ||
+      text.includes("webpack-hmr") ||
+      text.includes("Exposed to window for testing") ||
+      text.includes("Cache exposed to window")
+    ) {
+      return; // Skip logging expected messages
+    }
+    consoleMessages.push(`[${msg.type()}] ${text}`);
   });
 
   const pageErrors: string[] = [];
