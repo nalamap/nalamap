@@ -1,14 +1,40 @@
 """Tests for color settings functionality in settings API."""
 
-import pytest
+import importlib
+import sys
+from pathlib import Path
+
+import pytest  # noqa: F401 - used for fixtures
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from api.settings import ColorScale, ColorSettings
+# Ensure backend package is importable
+BACKEND_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(BACKEND_ROOT))
 
 
-def test_get_settings_options_includes_color_settings(client: TestClient):
+@pytest.fixture
+def api_client(tmp_path, monkeypatch):
+    # Set test environment for local HTTP testing BEFORE importing
+    monkeypatch.setenv("COOKIE_SECURE", "false")
+    monkeypatch.setenv("COOKIE_HTTPONLY", "false")
+    monkeypatch.setenv("NALAMAP_GEOSERVER_VECTOR_DB", str(tmp_path / "vectors.db"))
+
+    # Force reload of config to pick up test environment variables
+    import core.config
+    importlib.reload(core.config)
+
+    # Now import the router
+    from api.settings import router as settings_router
+
+    app = FastAPI()
+    app.include_router(settings_router)
+    return TestClient(app)
+
+
+def test_get_settings_options_includes_color_settings(api_client):
     """Test that /settings/options returns default color settings."""
-    response = client.get("/settings/options")
+    response = api_client.get("/settings/options")
     assert response.status_code == 200
 
     data = response.json()
@@ -44,6 +70,8 @@ def test_get_settings_options_includes_color_settings(client: TestClient):
 
 def test_color_scale_model_validation():
     """Test that ColorScale model validates hex colors correctly."""
+    from api.settings import ColorScale
+
     # Valid color scale
     valid_scale = ColorScale(
         shade_50="#f7f7f8",
@@ -64,6 +92,8 @@ def test_color_scale_model_validation():
 
 def test_color_settings_model_validation():
     """Test that ColorSettings model contains all required scales."""
+    from api.settings import ColorScale, ColorSettings
+
     primary = ColorScale(
         shade_50="#f7f7f8",
         shade_100="#eeeef0",
@@ -91,9 +121,9 @@ def test_color_settings_model_validation():
     assert color_settings.tertiary == primary
 
 
-def test_default_color_settings_match_globals_css(client: TestClient):
+def test_default_color_settings_match_globals_css(api_client):
     """Test that default colors from API match the values in globals.css."""
-    response = client.get("/settings/options")
+    response = api_client.get("/settings/options")
     assert response.status_code == 200
 
     color_settings = response.json()["color_settings"]
@@ -117,9 +147,9 @@ def test_default_color_settings_match_globals_css(client: TestClient):
     assert tertiary["shade_600"] == "#598234"  # --tertiary
 
 
-def test_session_id_set_with_color_settings(client: TestClient):
+def test_session_id_set_with_color_settings(api_client):
     """Test that session_id is set alongside color settings."""
-    response = client.get("/settings/options")
+    response = api_client.get("/settings/options")
     assert response.status_code == 200
 
     data = response.json()
