@@ -36,26 +36,29 @@ test.describe("Settings page - Tools Configuration", () => {
     const toolsSection = page.locator("section:has(h2:text('Tools Configuration'))");
     await expect(toolsSection).toBeVisible();
 
-    // Initially, the section should be expanded (content visible)
+    // Section starts collapsed by default
     const addToolButton = toolsSection.getByRole("button", { name: "Add Tool" });
-    await expect(addToolButton).toBeVisible();
-
-    // Find and click the collapse/expand button
-    const toggleButton = toolsSection.locator("button:has-text('Hide')");
-    await expect(toggleButton).toBeVisible();
-    await toggleButton.click();
-
-    // After clicking, content should be hidden
     await expect(addToolButton).not.toBeVisible();
 
-    // Button text should change to "Show"
-    await expect(toolsSection.locator("button:has-text('Show')")).toBeVisible();
+    // Button should show "Show" text
+    const showButton = toolsSection.locator("button:has-text('Show')");
+    await expect(showButton).toBeVisible();
 
-    // Click again to expand
-    await page.locator("button:has-text('Show')").click();
+    // Click to expand
+    await showButton.click();
 
-    // Content should be visible again
+    // After clicking, content should be visible
     await expect(addToolButton).toBeVisible();
+
+    // Button text should change to "Hide"
+    const hideButton = toolsSection.locator("button:has-text('Hide')");
+    await expect(hideButton).toBeVisible();
+
+    // Click again to collapse
+    await hideButton.click();
+
+    // Content should be hidden again
+    await expect(addToolButton).not.toBeVisible();
   });
 
   test("individual tool prompts can be shown and hidden", async ({ page }) => {
@@ -71,6 +74,12 @@ test.describe("Settings page - Tools Configuration", () => {
     await page.waitForLoadState("networkidle");
 
     const toolsSection = page.locator("section:has(h2:text('Tools Configuration'))");
+
+    // Expand the section first (it starts collapsed by default)
+    const showButton = toolsSection.locator("button:has-text('Show')");
+    if (await showButton.isVisible()) {
+      await showButton.click();
+    }
 
     // Add a tool first
     const toolSelect = toolsSection.locator("select");

@@ -312,9 +312,9 @@ export default function SettingsPage() {
         ...newBackend,
         enabled: true,
       });
-      addBackend(normalizedBackend);
 
-      // Initialize embedding status to 'waiting' state so UI shows immediately
+      // Initialize embedding status to 'waiting' state BEFORE adding backend
+      // This ensures UI shows progress bar immediately when backend appears
       setEmbeddingStatus((prev) => ({
         ...prev,
         [normalizedBackend.url]: {
@@ -339,6 +339,9 @@ export default function SettingsPage() {
         },
       }));
 
+      // Add backend to list (this triggers useEffect to fetch status)
+      addBackend(normalizedBackend);
+
       setNewBackend({
         url: "",
         name: "",
@@ -350,9 +353,9 @@ export default function SettingsPage() {
       // Start preloading in background - user can now navigate away
       await prefetchBackend(normalizedBackend);
 
-      // Don't call fetchEmbeddingStatus() here - it will be called automatically
-      // by the useEffect when backends state updates. Calling it here causes issues
-      // because the state update hasn't happened yet, so backends array is still old.
+      // The prefetch returns total_layers=0 initially, actual total will come from
+      // embedding-status polling. The useEffect will call fetchEmbeddingStatus()
+      // automatically when the backends state updates.
 
       setBackendSuccess(
         `Backend queued for processing. Embedding will start shortly.`,
@@ -871,8 +874,9 @@ export default function SettingsPage() {
                     password: selected.password || "",
                     enabled: true,
                   });
-                  addBackend(normalizedBackend);
 
+                  // Initialize embedding status to 'waiting' state BEFORE adding backend
+                  // This ensures UI shows progress bar immediately when backend appears
                   setEmbeddingStatus((prev) => ({
                     ...prev,
                     [normalizedBackend.url]: {
@@ -896,11 +900,16 @@ export default function SettingsPage() {
                     },
                   }));
 
+                  // Add backend to list (this triggers useEffect to fetch status)
+                  addBackend(normalizedBackend);
+
                   setSelectedExampleGeoServer("");
 
                   await prefetchBackend(normalizedBackend);
-                  // Don't call fetchEmbeddingStatus() here - it will be called automatically
-                  // by the useEffect when backends state updates
+
+                  // The prefetch returns total_layers=0 initially, actual total will come from
+                  // embedding-status polling. The useEffect will call fetchEmbeddingStatus()
+                  // automatically when the backends state updates.
 
                   setBackendSuccess(
                     `Example backend "${selected.name}" added and queued for processing.`,
