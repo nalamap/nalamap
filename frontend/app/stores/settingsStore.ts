@@ -47,6 +47,27 @@ export interface ModelSettings {
   system_prompt: string;
 }
 
+export interface ColorScale {
+  shade_50: string;
+  shade_100: string;
+  shade_200: string;
+  shade_300: string;
+  shade_400: string;
+  shade_500: string;
+  shade_600: string;
+  shade_700: string;
+  shade_800: string;
+  shade_900: string;
+  shade_950: string;
+}
+
+export interface ColorSettings {
+  primary: ColorScale;
+  second_primary: ColorScale;
+  secondary: ColorScale;
+  tertiary: ColorScale;
+}
+
 export interface SettingsSnapshot {
   search_portals?: SearchPortal[]; // DEPRECATED: No longer used in the application
   geoserver_backends: GeoServerBackend[];
@@ -54,6 +75,7 @@ export interface SettingsSnapshot {
   tools: ToolConfig[];
   tool_options: Record<string, ToolOption>;
   model_options: Record<string, ModelOption[]>;
+  color_settings?: ColorSettings; // User-customizable colors
   session_id?: string;
 }
 
@@ -66,6 +88,7 @@ export interface SettingsState extends SettingsSnapshot {
     tool_options: Record<string, ToolOption>;
     example_geoserver_backends: ExampleGeoServer[];
     model_options: Record<string, ModelOption[]>;
+    color_settings: ColorSettings;
     session_id: string;
   }) => void;
 
@@ -106,6 +129,16 @@ export interface SettingsState extends SettingsSnapshot {
   setToolOptions: (opts: Record<string, ToolOption>) => void;
   model_options: Record<string, ModelOption[]>;
   setModelOptions: (opts: Record<string, ModelOption[]>) => void;
+
+  // Color settings
+  color_settings?: ColorSettings;
+  setColorSettings: (colors: ColorSettings) => void;
+  updateColorScale: (
+    scaleName: keyof ColorSettings,
+    shade: keyof ColorScale,
+    color: string,
+  ) => void;
+  resetColorSettings: () => void;
 
   // Bulk
   getSettings: () => SettingsSnapshot;
@@ -162,15 +195,22 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       setAvailableModelNames,
       setModelName,
       setMaxTokens,
+      setColorSettings,
       model_settings,
       available_tools,
       available_example_geoservers,
       model_options,
+      color_settings,
       setSessionId,
     } = get();
 
     if (opts.session_id) {
       setSessionId(opts.session_id);
+    }
+
+    // Initialize color settings if not already set
+    if (!color_settings && opts.color_settings) {
+      setColorSettings(opts.color_settings);
     }
 
     if (
@@ -341,6 +381,24 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setToolOptions: (opts) => set({ tool_options: opts }),
   setModelOptions: (opts) => set({ model_options: opts }),
 
+  // color settings
+  color_settings: undefined,
+  setColorSettings: (colors) => set({ color_settings: colors }),
+  updateColorScale: (scaleName, shade, color) =>
+    set((state) => {
+      if (!state.color_settings) return state;
+      return {
+        color_settings: {
+          ...state.color_settings,
+          [scaleName]: {
+            ...state.color_settings[scaleName],
+            [shade]: color,
+          },
+        },
+      };
+    }),
+  resetColorSettings: () => set({ color_settings: undefined }),
+
   // bulk
   getSettings: () => ({
     search_portals: get().search_portals || [],
@@ -349,6 +407,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     tools: get().tools,
     tool_options: get().tool_options,
     model_options: get().model_options,
+    color_settings: get().color_settings,
     session_id: get().session_id,
   }),
   setSettings: (settings) =>
@@ -359,6 +418,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       tools: settings.tools,
       tool_options: settings.tool_options,
       model_options: settings.model_options,
+      color_settings: settings.color_settings,
       session_id: state.session_id,
     })),
 }));

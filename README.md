@@ -13,6 +13,7 @@ NaLaMap is an open-source platform that helps users find and analyze geospatial 
 * Automated Geoprocessing using natural language (e.g buffer, centroids, intersections).
 * Create and share GIS-AI-Applications for people without geodata expertise based on custom use-cases, processing logic and data-sources.
 * Flexible Extension Possibilities of Toolbox e.g. for including document or web-search
+* **Color Customization**: Customize the application's color scheme to match corporate branding or personal preferences. See [Color Customization Guide](docs/color-customization.md).
 
 ## Roadmap
 

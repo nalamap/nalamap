@@ -104,12 +104,38 @@ class ExampleGeoServer(BaseModel):
     password: Optional[str] = None
 
 
+class ColorScale(BaseModel):
+    """Represents a color scale with 11 shades (50-950)"""
+
+    shade_50: str
+    shade_100: str
+    shade_200: str
+    shade_300: str
+    shade_400: str
+    shade_500: str
+    shade_600: str
+    shade_700: str
+    shade_800: str
+    shade_900: str
+    shade_950: str
+
+
+class ColorSettings(BaseModel):
+    """User-customizable color settings for the UI"""
+
+    primary: ColorScale
+    second_primary: ColorScale
+    secondary: ColorScale
+    tertiary: ColorScale
+
+
 class SettingsOptions(BaseModel):
     system_prompt: str
     tool_options: Dict[str, ToolOption]  # per-tool settings
     example_geoserver_backends: List[ExampleGeoServer]
     model_options: Dict[str, List[ModelOption]]  # per-provider model list
     session_id: str
+    color_settings: ColorSettings  # default color settings
 
 
 class GeoServerPreloadRequest(BaseModel):
@@ -176,6 +202,62 @@ async def get_settings_options(request: Request, response: Response):
         ],
     }
 
+    # Default color settings matching globals.css
+    default_color_settings = ColorSettings(
+        primary=ColorScale(
+            shade_50="#f7f7f8",
+            shade_100="#eeeef0",
+            shade_200="#d8d8df",
+            shade_300="#b7b9c2",
+            shade_400="#8f91a1",
+            shade_500="#717386",
+            shade_600="#5b5c6e",
+            shade_700="#505160",
+            shade_800="#40414c",
+            shade_900="#383842",
+            shade_950="#25252c",
+        ),
+        second_primary=ColorScale(
+            shade_50="#f5f8f9",
+            shade_100="#e8eef1",
+            shade_200="#d6e1e7",
+            shade_300="#baccd6",
+            shade_400="#99b2c1",
+            shade_500="#809bb1",
+            shade_600="#68829e",
+            shade_700="#627793",
+            shade_800="#546279",
+            shade_900="#465262",
+            shade_950="#2e343d",
+        ),
+        secondary=ColorScale(
+            shade_50="#fafaeb",
+            shade_100="#f2f4d3",
+            shade_200="#e6eaac",
+            shade_300="#d3db7b",
+            shade_400="#bec952",
+            shade_500="#aebd38",
+            shade_600="#7e8b25",
+            shade_700="#606a21",
+            shade_800="#4c551f",
+            shade_900="#41491e",
+            shade_950="#22270c",
+        ),
+        tertiary=ColorScale(
+            shade_50="#f4f8ed",
+            shade_100="#e5f0d7",
+            shade_200="#cde2b4",
+            shade_300="#adcf87",
+            shade_400="#8eba61",
+            shade_500="#719f43",
+            shade_600="#598234",
+            shade_700="#43612a",
+            shade_800="#394e26",
+            shade_900="#324324",
+            shade_950="#18240f",
+        ),
+    )
+
     session_id = request.cookies.get("session_id")
 
     # Validate existing session_id from cookie, or generate a new one
@@ -196,6 +278,7 @@ async def get_settings_options(request: Request, response: Response):
         example_geoserver_backends=example_geoserver_backends,
         model_options=model_options,
         session_id=session_id,
+        color_settings=default_color_settings,
     )
 
 

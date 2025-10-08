@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import Sidebar from "../components/sidebar/Sidebar";
 import { GeoServerBackend, SettingsSnapshot } from "../stores/settingsStore";
 import { useUIStore } from "../stores/uiStore";
+import ColorSettingsComponent from "../components/settings/ColorSettingsComponent";
 
 import { useInitializedSettingsStore } from "../hooks/useInitializedSettingsStore";
 import { getApiBase } from "../utils/apiBase";
@@ -730,6 +731,11 @@ export default function SettingsPage() {
               className="border border-primary-300 rounded p-2 col-span-2 h-24 bg-white text-primary-900"
             />
           </div>
+        </section>
+
+        {/* Color Customization */}
+        <section>
+          <ColorSettingsComponent />
         </section>
 
         {/* Tools Configuration */}
