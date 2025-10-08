@@ -5,6 +5,9 @@ import Sidebar from "../components/sidebar/Sidebar";
 import { GeoServerBackend, SettingsSnapshot } from "../stores/settingsStore";
 import { useUIStore } from "../stores/uiStore";
 import ColorSettingsComponent from "../components/settings/ColorSettingsComponent";
+import ModelSettingsComponent from "../components/settings/ModelSettingsComponent";
+import ToolSettingsComponent from "../components/settings/ToolSettingsComponent";
+import GeoServerSettingsComponent from "../components/settings/GeoServerSettingsComponent";
 
 import { useInitializedSettingsStore } from "../hooks/useInitializedSettingsStore";
 import { getApiBase } from "../utils/apiBase";
@@ -58,78 +61,28 @@ export default function SettingsPage() {
 
   const backends = useInitializedSettingsStore((s) => s.geoserver_backends);
   const addBackend = useInitializedSettingsStore((s) => s.addBackend);
-  const removeBackend = useInitializedSettingsStore((s) => s.removeBackend);
-  const toggleBackend = useInitializedSettingsStore((s) => s.toggleBackend);
 
-  const modelSettings = useInitializedSettingsStore((s) => s.model_settings);
-  const setModelProvider = useInitializedSettingsStore(
-    (s) => s.setModelProvider,
-  );
-  const setModelName = useInitializedSettingsStore((s) => s.setModelName);
-  const setMaxTokens = useInitializedSettingsStore((s) => s.setMaxTokens);
-  const setSystemPrompt = useInitializedSettingsStore((s) => s.setSystemPrompt);
-
-  const tools = useInitializedSettingsStore((s) => s.tools);
-  const addToolConfig = useInitializedSettingsStore((s) => s.addToolConfig);
-  const removeToolConfig = useInitializedSettingsStore(
-    (s) => s.removeToolConfig,
-  );
-  const toggleToolConfig = useInitializedSettingsStore(
-    (s) => s.toggleToolConfig,
-  );
-  const setToolPromptOverride = useInitializedSettingsStore(
-    (s) => s.setToolPromptOverride,
-  );
-
-  // available & fetched options
-  const availableTools = useInitializedSettingsStore((s) => s.available_tools);
-  const availableExampleGeoServers = useInitializedSettingsStore(
-    (s) => s.available_example_geoservers,
-  );
-  const availableProviders = useInitializedSettingsStore(
-    (s) => s.available_model_providers,
-  );
-  const availableModelNames = useInitializedSettingsStore(
-    (s) => s.available_model_names,
-  );
-  const toolOptions = useInitializedSettingsStore((s) => s.tool_options);
-  const modelOptions = useInitializedSettingsStore((s) => s.model_options);
-
-  const setAvailableTools = useInitializedSettingsStore(
-    (s) => s.setAvailableTools,
-  );
   const setAvailableExampleGeoServers = useInitializedSettingsStore(
     (s) => s.setAvailableExampleGeoServers,
   );
-  const setAvailableModelProviders = useInitializedSettingsStore(
-    (s) => s.setAvailableModelProviders,
-  );
-  const setAvailableModelNames = useInitializedSettingsStore(
-    (s) => s.setAvailableModelNames,
-  );
-  const setToolOptions = useInitializedSettingsStore((s) => s.setToolOptions);
-  const setModelOptions = useInitializedSettingsStore((s) => s.setModelOptions);
 
   const setSessionId = useInitializedSettingsStore((s) => s.setSessionId);
 
-  // Get Seetings
+  // Get Settings
   const getSettings = useInitializedSettingsStore((s) => s.getSettings);
   const setSettings = useInitializedSettingsStore((s) => s.setSettings);
+  const availableExampleGeoServers = useInitializedSettingsStore(
+    (s) => s.available_example_geoservers,
+  );
   // local state
-  const [newPortal, setNewPortal] = useState("");
   const [selectedExampleGeoServer, setSelectedExampleGeoServer] = useState("");
   const [newBackend, setNewBackend] = useState<
     Omit<GeoServerBackend, "enabled">
   >({ url: "", name: "", description: "", username: "", password: "" });
-  const [newToolName, setNewToolName] = useState("");
   const [backendError, setBackendError] = useState<string | null>(null);
   const [backendSuccess, setBackendSuccess] = useState<string | null>(null);
   const [backendLoading, setBackendLoading] = useState(false);
   const [importingBackends, setImportingBackends] = useState(false);
-  const [toolsSectionCollapsed, setToolsSectionCollapsed] = useState(true);
-  const [toolPromptVisibility, setToolPromptVisibility] = useState<{
-    [toolName: string]: boolean;
-  }>({});
   const [embeddingStatus, setEmbeddingStatus] = useState<{
     [url: string]: {
       total: number;
@@ -363,6 +316,77 @@ export default function SettingsPage() {
       );
     } catch (err: any) {
       setBackendError(err?.message || "Failed to preload GeoServer backend.");
+    } finally {
+      setBackendLoading(false);
+    }
+  };
+
+  const handleAddExampleGeoServer = async () => {
+    if (!selectedExampleGeoServer) return;
+    const selected = availableExampleGeoServers.find(
+      (gs) => gs.url === selectedExampleGeoServer
+    );
+    if (!selected) return;
+
+    // Use the same add backend logic with the example geoserver values
+    setBackendError(null);
+    setBackendSuccess(null);
+    setBackendLoading(true);
+    setImportingBackends(false);
+
+    try {
+      const normalizedBackend = normalizeBackend({
+        url: selected.url,
+        name: selected.name,
+        description: selected.description,
+        username: selected.username || "",
+        password: selected.password || "",
+        enabled: true,
+      });
+
+      // Initialize embedding status to 'waiting' state BEFORE adding backend
+      // This ensures UI shows progress bar immediately when backend appears
+      setEmbeddingStatus((prev) => ({
+        ...prev,
+        [normalizedBackend.url]: {
+          total: 0,
+          encoded: 0,
+          percentage: 0,
+          state: "waiting",
+          in_progress: false,
+          complete: false,
+          error: null,
+        },
+      }));
+
+      setInterpolatedProgress((prev) => ({
+        ...prev,
+        [normalizedBackend.url]: {
+          encoded: 0,
+          percentage: 0,
+          velocity: DEFAULT_VELOCITY,
+          lastUpdate: Date.now(),
+        },
+      }));
+
+      // Add backend to list (this triggers useEffect to fetch status)
+      addBackend(normalizedBackend);
+
+      setSelectedExampleGeoServer("");
+
+      await prefetchBackend(normalizedBackend);
+
+      // The prefetch returns total_layers=0 initially, actual total will come from
+      // embedding-status polling. The useEffect will call fetchEmbeddingStatus()
+      // automatically when the backends state updates.
+
+      setBackendSuccess(
+        `Example backend "${selected.name}" added and queued for processing.`,
+      );
+    } catch (err: any) {
+      setBackendError(
+        err?.message || "Failed to add example GeoServer backend.",
+      );
     } finally {
       setBackendLoading(false);
     }
@@ -682,483 +706,36 @@ export default function SettingsPage() {
           </div>
 
           {/* Model Settings */}
-          <section className="space-y-4">
-            <h2 className="text-2xl font-semibold text-primary-800">Model Settings</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <select
-              value={modelSettings.model_provider}
-              onChange={(e) => {
-                const prov = e.target.value;
-                setModelProvider(prov);
-                const models = modelOptions[prov] || [];
-                const names = models.map((m) => m.name);
-                setAvailableModelNames(names);
-                if (models.length) {
-                  setModelName(names[0]);
-                  setMaxTokens(models[0].max_tokens);
-                }
-              }}
-              className="border border-primary-300 rounded p-2 bg-white text-primary-900"
-            >
-              {availableProviders.map((prov) => (
-                <option key={prov} value={prov}>
-                  {prov}
-                </option>
-              ))}
-            </select>
-            <select
-              value={modelSettings.model_name}
-              onChange={(e) => setModelName(e.target.value)}
-              className="border border-primary-300 rounded p-2 bg-white text-primary-900"
-            >
-              {availableModelNames.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-            <input
-              type="number"
-              value={modelSettings.max_tokens}
-              onChange={(e) => setMaxTokens(Number(e.target.value))}
-              placeholder="Max Tokens"
-              className="border border-primary-300 rounded p-2 bg-white text-primary-900"
+          <section>
+            <ModelSettingsComponent />
+          </section>
+
+          {/* Color Customization */}
+          <section>
+            <ColorSettingsComponent />
+          </section>
+
+          {/* Tools Configuration */}
+          <section>
+            <ToolSettingsComponent />
+          </section>
+
+          {/* GeoServer Backends */}
+          <section>
+            <GeoServerSettingsComponent
+              newBackend={newBackend}
+              setNewBackend={setNewBackend}
+              handleAddBackend={handleAddBackend}
+              selectedExampleGeoServer={selectedExampleGeoServer}
+              setSelectedExampleGeoServer={setSelectedExampleGeoServer}
+              handleAddExampleGeoServer={handleAddExampleGeoServer}
+              backendLoading={backendLoading}
+              backendError={backendError}
+              backendSuccess={backendSuccess}
+              embeddingStatus={embeddingStatus}
+              interpolatedProgress={interpolatedProgress}
             />
-            <textarea
-              value={modelSettings.system_prompt}
-              onChange={(e) => setSystemPrompt(e.target.value)}
-              placeholder="System Prompt"
-              className="border border-primary-300 rounded p-2 col-span-2 h-24 bg-white text-primary-900"
-            />
-          </div>
-        </section>
-
-        {/* Color Customization */}
-        <section>
-          <ColorSettingsComponent />
-        </section>
-
-        {/* Tools Configuration */}
-        <section className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h2 className="text-2xl font-semibold text-primary-800">Tools Configuration</h2>
-            <button
-              onClick={() => setToolsSectionCollapsed(!toolsSectionCollapsed)}
-              className="text-primary-600 hover:text-primary-800 font-medium flex items-center space-x-1"
-            >
-              <span>{toolsSectionCollapsed ? "Show" : "Hide"}</span>
-              <svg
-                className={`w-5 h-5 transform transition-transform ${toolsSectionCollapsed ? "rotate-180" : ""}`}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-          </div>
-          
-          {!toolsSectionCollapsed && (
-            <>
-              <div className="flex space-x-2 mb-4">
-                <select
-                  value={newToolName}
-                  onChange={(e) => setNewToolName(e.target.value)}
-                  className="border border-primary-300 rounded p-2 flex-grow bg-white text-primary-900"
-                >
-                  <option value="">Select tool to add</option>
-                  {availableTools.map((tool) => (
-                    <option key={tool} value={tool}>
-                      {tool}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  onClick={() => {
-                    newToolName && addToolConfig(newToolName);
-                    setNewToolName("");
-                  }}
-                  className="bg-second-primary-600 text-white px-4 py-2 rounded hover:bg-second-primary-700 font-medium shadow-sm cursor-pointer"
-                  style={{ backgroundColor: 'var(--second-primary-600)' }}
-                >
-                  Add Tool
-                </button>
-              </div>
-              <ul className="space-y-3">
-                {tools.map((t, i) => (
-                  <li key={i} className="border border-primary-200 rounded p-4 space-y-2 bg-white">
-                    <div className="flex justify-between items-center">
-                      <label className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          checked={t.enabled}
-                          onChange={() => toggleToolConfig(t.name)}
-                          className="form-checkbox h-5 w-5 text-tertiary-600"
-                        />
-                        <span
-                          className={`font-medium ${t.enabled ? "text-primary-900" : "text-primary-400"}`}
-                        >
-                          {t.name}
-                        </span>
-                      </label>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() =>
-                            setToolPromptVisibility((prev) => ({
-                              ...prev,
-                              [t.name]: !prev[t.name],
-                            }))
-                          }
-                          className="text-primary-600 hover:text-primary-800 font-medium text-sm"
-                        >
-                          {toolPromptVisibility[t.name] ? "Hide Prompt" : "Show Prompt"}
-                        </button>
-                        <button
-                          onClick={() => removeToolConfig(t.name)}
-                          className="text-red-600 hover:underline font-medium"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                    {toolPromptVisibility[t.name] && (
-                      <textarea
-                        value={t.prompt_override}
-                        onChange={(e) =>
-                          setToolPromptOverride(t.name, e.target.value)
-                        }
-                        placeholder="Prompt Override (leave empty to use default)"
-                        className="border border-primary-300 rounded p-2 w-full h-20 bg-white text-primary-900"
-                      />
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </section>
-
-        {/* Example GeoServers */}
-        <section className="space-y-4">
-          <h2 className="text-2xl font-semibold text-primary-800">Example GeoServers</h2>
-          <p className="text-sm text-primary-600">
-            Choose from publicly available example GeoServers to quickly get started with geospatial data.
-          </p>
-          <div className="flex space-x-2 mb-4">
-            <select
-              value={selectedExampleGeoServer}
-              onChange={(e) => setSelectedExampleGeoServer(e.target.value)}
-              className="border border-primary-300 rounded p-2 flex-grow bg-white text-primary-900"
-            >
-              <option value="">Select an example GeoServer</option>
-              {availableExampleGeoServers.map((geoserver) => (
-                <option key={geoserver.url} value={geoserver.url}>
-                  {geoserver.name} - {geoserver.url}
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={async () => {
-                if (!selectedExampleGeoServer) return;
-                const selected = availableExampleGeoServers.find(
-                  (gs) => gs.url === selectedExampleGeoServer
-                );
-                if (!selected) return;
-
-                // Use the same add backend logic with the example geoserver values
-                setBackendError(null);
-                setBackendSuccess(null);
-                setBackendLoading(true);
-                setImportingBackends(false);
-
-                try {
-                  const normalizedBackend = normalizeBackend({
-                    url: selected.url,
-                    name: selected.name,
-                    description: selected.description,
-                    username: selected.username || "",
-                    password: selected.password || "",
-                    enabled: true,
-                  });
-
-                  // Initialize embedding status to 'waiting' state BEFORE adding backend
-                  // This ensures UI shows progress bar immediately when backend appears
-                  setEmbeddingStatus((prev) => ({
-                    ...prev,
-                    [normalizedBackend.url]: {
-                      total: 0,
-                      encoded: 0,
-                      percentage: 0,
-                      state: "waiting",
-                      in_progress: false,
-                      complete: false,
-                      error: null,
-                    },
-                  }));
-
-                  setInterpolatedProgress((prev) => ({
-                    ...prev,
-                    [normalizedBackend.url]: {
-                      encoded: 0,
-                      percentage: 0,
-                      velocity: DEFAULT_VELOCITY,
-                      lastUpdate: Date.now(),
-                    },
-                  }));
-
-                  // Add backend to list (this triggers useEffect to fetch status)
-                  addBackend(normalizedBackend);
-
-                  setSelectedExampleGeoServer("");
-
-                  await prefetchBackend(normalizedBackend);
-
-                  // The prefetch returns total_layers=0 initially, actual total will come from
-                  // embedding-status polling. The useEffect will call fetchEmbeddingStatus()
-                  // automatically when the backends state updates.
-
-                  setBackendSuccess(
-                    `Example backend "${selected.name}" added and queued for processing.`,
-                  );
-                } catch (err: any) {
-                  setBackendError(
-                    err?.message || "Failed to add example GeoServer backend.",
-                  );
-                } finally {
-                  setBackendLoading(false);
-                }
-              }}
-              disabled={!selectedExampleGeoServer || backendLoading}
-              className={`bg-second-primary-600 text-white px-4 py-2 rounded font-medium shadow-sm ${!selectedExampleGeoServer || backendLoading ? "opacity-50 cursor-not-allowed" : "hover:bg-second-primary-700 cursor-pointer"}`}
-              style={{ backgroundColor: (!selectedExampleGeoServer || backendLoading) ? undefined : 'var(--second-primary-600)' }}
-            >
-              {backendLoading ? "Adding..." : "Add Example GeoServer"}
-            </button>
-          </div>
-          {availableExampleGeoServers.map((geoserver) => (
-            <div
-              key={geoserver.url}
-              className="border border-primary-200 rounded p-4 bg-white space-y-2"
-            >
-              <h3 className="text-lg font-semibold text-primary-900">
-                {geoserver.name}
-              </h3>
-              <p className="text-sm text-primary-600">{geoserver.url}</p>
-              <div className="text-sm text-primary-700 prose prose-sm max-w-none">
-                {geoserver.description}
-              </div>
-            </div>
-          ))}
-        </section>
-
-        {/* GeoServer Backends */}
-        <section className="space-y-4">
-          <h2 className="text-2xl font-semibold text-primary-800">GeoServer Backends</h2>
-          <div className="space-y-3 mb-4">
-            <input
-              value={newBackend.url}
-              onChange={(e) =>
-                setNewBackend({ ...newBackend, url: e.target.value })
-              }
-              placeholder="GeoServer URL"
-              className="border border-primary-300 rounded p-2 w-full bg-white text-primary-900"
-            />
-            <input
-              value={newBackend.name}
-              onChange={(e) =>
-                setNewBackend({ ...newBackend, name: e.target.value })
-              }
-              placeholder="Name (optional)"
-              className="border border-primary-300 rounded p-2 w-full bg-white text-primary-900"
-            />
-            <textarea
-              value={newBackend.description}
-              onChange={(e) =>
-                setNewBackend({ ...newBackend, description: e.target.value })
-              }
-              placeholder="Description (optional)"
-              className="border border-primary-300 rounded p-2 w-full h-20 bg-white text-primary-900"
-            />
-            <input
-              value={newBackend.username}
-              onChange={(e) =>
-                setNewBackend({ ...newBackend, username: e.target.value })
-              }
-              placeholder="Username (optional)"
-              className="border border-primary-300 rounded p-2 w-full bg-white text-primary-900"
-            />
-            <input
-              type="password"
-              value={newBackend.password}
-              onChange={(e) =>
-                setNewBackend({ ...newBackend, password: e.target.value })
-              }
-              placeholder="Password (optional)"
-              className="border border-primary-300 rounded p-2 w-full bg-white text-primary-900"
-            />
-            <button
-              onClick={handleAddBackend}
-              disabled={backendLoading}
-              className={`bg-second-primary-600 text-white px-4 py-2 rounded font-medium shadow-sm ${backendLoading ? "opacity-50 cursor-not-allowed" : "hover:bg-second-primary-700 cursor-pointer"}`}
-              style={{ backgroundColor: backendLoading ? undefined : 'var(--second-primary-600)' }}
-            >
-              {backendLoading
-                ? importingBackends
-                  ? "Prefetching…"
-                  : "Checking…"
-                : "Add Backend"}
-            </button>
-            {backendLoading && (
-              <div className="w-full mt-2 h-2 bg-primary-200 rounded">
-                <div className="h-2 bg-second-primary-500 rounded animate-pulse w-full" />
-              </div>
-            )}
-            {backendError && (
-              <p className="text-red-600 text-sm font-medium">{backendError}</p>
-            )}
-            {backendSuccess && (
-              <p className="text-tertiary-600 text-sm font-medium">{backendSuccess}</p>
-            )}
-          </div>
-          <ul className="space-y-3">
-            {backends.map((b, i) => (
-              <li
-                key={i}
-                className="flex justify-between items-center border border-primary-200 rounded p-4 bg-white"
-              >
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={b.enabled}
-                    onChange={() => toggleBackend(b.url)}
-                    className="form-checkbox h-5 w-5 text-tertiary-600"
-                  />
-                  <div className="flex-1">
-                    <p
-                      className={`font-medium ${b.enabled ? "text-primary-900" : "text-primary-400"}`}
-                    >
-                      <strong>{b.name || "URL"}:</strong> {b.url}
-                    </p>
-                    {b.description && (
-                      <p
-                        className={`${b.enabled ? "text-primary-700" : "text-primary-400"} text-sm`}
-                      >
-                        {b.description}
-                      </p>
-                    )}
-                    {b.username && (
-                      <p
-                        className={`${b.enabled ? "text-primary-900" : "text-primary-400"} text-sm`}
-                      >
-                        <strong>Username:</strong> {b.username}
-                      </p>
-                    )}
-
-                    {/* Embedding Progress */}
-                    {b.enabled &&
-                      embeddingStatus[b.url] &&
-                      (embeddingStatus[b.url].total > 0 ||
-                        embeddingStatus[b.url].state === "waiting" ||
-                        embeddingStatus[b.url].state === "unknown") && (
-                        <div className="mt-2">
-                          <div className="flex justify-between items-center text-xs mb-1">
-                            <span
-                              className={
-                                embeddingStatus[b.url].complete ||
-                                embeddingStatus[b.url].state === "completed"
-                                  ? "text-tertiary-600 font-medium"
-                                  : embeddingStatus[b.url].state === "error"
-                                    ? "text-red-600 font-medium"
-                                    : embeddingStatus[b.url].state === "waiting"
-                                      ? "text-secondary-600 font-medium"
-                                      : embeddingStatus[b.url].state ===
-                                          "unknown"
-                                        ? "text-primary-500 font-medium"
-                                        : "text-second-primary-600 font-medium"
-                              }
-                            >
-                              {embeddingStatus[b.url].complete ||
-                              embeddingStatus[b.url].state === "completed"
-                                ? "✓ Embedding complete"
-                                : embeddingStatus[b.url].state === "error"
-                                  ? "✗ Error: " +
-                                    (embeddingStatus[b.url].error ||
-                                      "Unknown error")
-                                  : embeddingStatus[b.url].state === "waiting"
-                                    ? "⏱️ Waiting to start"
-                                    : embeddingStatus[b.url].state === "unknown"
-                                      ? "⏸️ Status unknown (checking...)"
-                                      : "⏳ Embedding in progress"}
-                              {embeddingStatus[b.url].total > 0 && (
-                                <>
-                                  :{" "}
-                                  {interpolatedProgress[b.url]
-                                    ? Math.floor(
-                                        interpolatedProgress[b.url].encoded,
-                                      )
-                                    : embeddingStatus[b.url].encoded}{" "}
-                                  / {embeddingStatus[b.url].total} layers
-                                </>
-                              )}
-                            </span>
-                            {embeddingStatus[b.url].total > 0 && (
-                              <span className="text-primary-600 font-medium">
-                                {interpolatedProgress[b.url]
-                                  ? interpolatedProgress[
-                                      b.url
-                                    ].percentage.toFixed(1)
-                                  : embeddingStatus[b.url].percentage}
-                                %
-                              </span>
-                            )}
-                          </div>
-                          {embeddingStatus[b.url].state !== "error" &&
-                            (embeddingStatus[b.url].total > 0 ||
-                              embeddingStatus[b.url].state === "waiting" ||
-                              embeddingStatus[b.url].state === "unknown") && (
-                              <div className="w-full h-2 bg-primary-200 rounded overflow-hidden" style={{ backgroundColor: 'var(--primary-200)' }}>
-                                <div
-                                  className={`h-full transition-all duration-100 ${
-                                    embeddingStatus[b.url].state === "waiting"
-                                      ? "animate-pulse"
-                                      : ""
-                                  }`}
-                                  style={{
-                                    width: `${
-                                      embeddingStatus[b.url].state ===
-                                        "waiting" ||
-                                      embeddingStatus[b.url].state === "unknown"
-                                        ? 5
-                                        : interpolatedProgress[b.url]
-                                          ? interpolatedProgress[b.url]
-                                              .percentage
-                                          : embeddingStatus[b.url].percentage
-                                    }%`,
-                                    backgroundColor:
-                                      embeddingStatus[b.url].complete ||
-                                      embeddingStatus[b.url].state === "completed"
-                                        ? "var(--tertiary-500)"
-                                        : embeddingStatus[b.url].state === "waiting"
-                                          ? "var(--secondary-500)"
-                                          : "var(--second-primary-500)",
-                                  }}
-                                />
-                              </div>
-                            )}
-                        </div>
-                      )}
-                  </div>
-                </label>
-                <button
-                  onClick={() => removeBackend(b.url)}
-                  className="text-red-600 hover:underline ml-2 font-medium"
-                >
-                  Remove
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
+          </section>
         </main>
       </div>
     </>
