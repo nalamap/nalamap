@@ -30,8 +30,8 @@ services:
     environment:
       - BACKEND_PROTOCOL=http
       - BACKEND_URL=backend:8000
-      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
-      - NEXT_PUBLIC_API_UPLOAD_URL=${NEXT_PUBLIC_API_UPLOAD_URL}
+      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://backend:8000/api}
+      - NEXT_PUBLIC_API_UPLOAD_URL=${NEXT_PUBLIC_API_UPLOAD_URL:-http://backend:8000/api/upload}
       - RUNTIME_ENV_PATH=/app/runtime-env/runtime-env.js
     ports:
       - "3000:3000"

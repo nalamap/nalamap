@@ -304,7 +304,6 @@ web_modules/
 .env.development.local
 .env.test.local
 .env.production.local
-.env.local
 
 # parcel-bundler cache (https://parceljs.org/)
 .parcel-cache
@@ -490,3 +489,8 @@ gradle-app.setting
 .ionide
 
 # End of https://www.toptal.com/developers/gitignore/api/python,react,reactnative,visualstudiocode,git
+
+
+
+# Local Development environment:
+!./frontend/.env.local
