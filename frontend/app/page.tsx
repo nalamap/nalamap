@@ -91,11 +91,11 @@ export default function Home() {
     <>
       {/* Mobile menu toggle - moved to top-right to avoid Leaflet controls */}
       <button
-        className="md:hidden fixed top-4 right-4 z-[25] p-2 bg-primary-800 rounded-md shadow-lg hover:bg-primary-700"
+        className="md:hidden fixed top-4 right-4 z-[25] p-3 bg-primary-800 rounded-md shadow-lg hover:bg-primary-700"
         onClick={() => setMobileMenuOpen(true)}
         aria-label="Open menu"
       >
-        <Menu className="w-5 h-5 text-white" />
+        <Menu className="w-8 h-8 text-white" />
       </button>
       {mobileMenuOpen && (
         <div 
