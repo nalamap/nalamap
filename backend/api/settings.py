@@ -139,19 +139,33 @@ async def get_settings_options(request: Request, response: Response):
             url="https://geoserver.mapx.org/geoserver/",
             name="MapX",
             description=(
-                "### MapX Geoserver Layer Description\n\n"
-                "MapX Geoserver hosts a diverse range of geospatial layers designed for "
-                "environmental monitoring, urban planning, disaster management, and more. "
-                "It provides access to satellite imagery, administrative boundaries, "
-                "topographic data, and land use/cover classifications. Environmental "
-                "monitoring layers include data on air and water quality, vegetation health, "
-                "and natural hazards like floods and wildfires. Transport infrastructure, "
-                "climate/weather data, and water resources layers are also available to "
-                "support infrastructure planning, resource management, and climate analysis. "
-                "Additionally, MapX features biodiversity and conservation data to aid in "
-                "ecological research and conservation efforts. These layers are accessible "
-                "in various formats for integration and analysis, helping users make "
-                "informed decisions based on up-to-date, accurate geospatial information."
+                "MapX is an open-source, web-based platform developed by UNEP/GRID-Geneva for "
+                "managing, visualizing, and analyzing geospatial data on natural resources and "
+                "environmental issues. It supports a wide range of applications such as "
+                "biodiversity planning, disaster risk reduction, and sustainable land-use "
+                "management. Designed for both experts and non-specialists, MapX offers intuitive "
+                "tools like dashboards and story maps to communicate data effectively. Built on "
+                "open standards, it ensures interoperability through OGC services and APIs, "
+                "allowing seamless integration with other geospatial systems. Overall, MapX "
+                "provides an accessible and collaborative environment to support evidence-based "
+                "environmental decision-making."
+            ),
+        ),
+        ExampleGeoServer(
+            url="https://ogc.worldpop.org/geoserver/",
+            name="WorldPop",
+            description=(
+                "WorldPop is a research-based geospatial platform developed at the University of "
+                "Southampton that provides high-resolution, open-access data on population "
+                "distribution, structure, and dynamics, with a focus on low- and middle-income "
+                "countries. Its datasets support applications in public health, disaster "
+                "management, development planning, and monitoring of the Sustainable Development "
+                "Goals. The platform ensures interoperability through REST APIs and OGC services, "
+                "enabling seamless integration with other GIS systems. WorldPop hosts an extensive "
+                "and regularly updated data repository, offering tools for visualization, "
+                "querying, and downloading. Its mission is to ensure that everyone, everywhere is "
+                "counted by filling demographic data gaps with transparent, fine-scale modelling "
+                "in collaboration with national partners."
             ),
         ),
     ]
