@@ -154,7 +154,7 @@ export default function SettingsPage() {
   const API_BASE_URL = getApiBase();
 
   // Constants for progress interpolation
-  const DEFAULT_VELOCITY = 3; // layers per second
+  const DEFAULT_VELOCITY = 1.5; // layers per second (conservative estimate)
   const INTERPOLATION_FPS = 3; // frames per second
   const INTERPOLATION_INTERVAL = 1000 / INTERPOLATION_FPS; // milliseconds
 
@@ -476,7 +476,7 @@ export default function SettingsPage() {
       if (shouldPollRef.current) {
         fetchEmbeddingStatus();
       }
-    }, 10000); // 10 seconds
+    }, 5000); // 5 seconds
 
     return () => clearInterval(interval);
   }, [backends, fetchEmbeddingStatus]);
