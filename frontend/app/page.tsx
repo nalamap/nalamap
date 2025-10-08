@@ -89,23 +89,39 @@ export default function Home() {
 
   return (
     <>
-      {/* Mobile menu toggle */}
+      {/* Mobile menu toggle - moved to top-right to avoid Leaflet controls */}
       <button
-        className="md:hidden fixed top-4 left-4 z-20 p-2 bg-primary-200 rounded-full hover:bg-primary-300"
+        className="md:hidden fixed top-4 right-4 z-[25] p-2 bg-primary-800 rounded-md shadow-lg hover:bg-primary-700"
         onClick={() => setMobileMenuOpen(true)}
+        aria-label="Open menu"
       >
-        <Menu className="w-6 h-6 text-primary-700" />
+        <Menu className="w-5 h-5 text-white" />
       </button>
       {mobileMenuOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-20">
-          <div className="fixed top-0 left-0 bottom-0 w-64 bg-primary-800 z-30 text-white p-4">
-            <button
-              className="absolute top-4 right-4"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              <X className="w-6 h-6" />
-            </button>
-            <Sidebar />
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-[30]"
+          onClick={() => setMobileMenuOpen(false)}
+        >
+          <div 
+            className="fixed top-0 right-0 bottom-0 w-full max-w-xs bg-primary-800 z-[31] text-white flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 border-b border-primary-700">
+              <h2 className="text-lg font-semibold">Menu</h2>
+              <button
+                className="p-1 hover:bg-primary-700 rounded"
+                onClick={() => setMobileMenuOpen(false)}
+                aria-label="Close menu"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <Sidebar onLayerToggle={() => {
+                setLayerCollapsed(!layerCollapsed);
+                setMobileMenuOpen(false);
+              }} />
+            </div>
           </div>
         </div>
       )}
@@ -142,9 +158,10 @@ export default function Home() {
           </div>
         ) : (
           <button
-            className="fixed bottom-4 p-3 bg-primary-800 rounded-full shadow z-20 hover:bg-primary-700"
+            className="fixed bottom-4 p-3 bg-primary-800 rounded-full shadow-lg z-[25] hover:bg-primary-700 touch-manipulation"
             style={{ left: `calc(1rem + ${sidebarWidth}vw)` }}
             onClick={() => setLayerCollapsed(false)}
+            aria-label="Open layer management"
           >
             <Layers className="w-9 h-9 text-white" />
           </button>
@@ -179,8 +196,9 @@ export default function Home() {
           </div>
         ) : (
           <button
-            className="fixed bottom-4 right-4 p-3 bg-primary-800 rounded-full shadow z-20 hover:bg-primary-700"
+            className="fixed bottom-4 right-4 p-3 bg-primary-800 rounded-full shadow-lg z-[25] hover:bg-primary-700 touch-manipulation"
             onClick={() => setChatCollapsed(false)}
+            aria-label="Open chat"
           >
             <MessageCircle className="w-9 h-9 text-white" />
           </button>

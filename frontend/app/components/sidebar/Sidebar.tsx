@@ -35,58 +35,64 @@ export default function Sidebar({ onLayerToggle }: { onLayerToggle?: () => void 
         <meta name="description" content="geospatial insights, with ease" />
       </Head>
       {/* Top Icon Section */}
-      <div className="flex flex-col items-center justify-start py-4 space-y-4 h-full w-full bg-primary-800">
+      <div className="flex flex-col md:flex-col items-center justify-start md:py-4 py-2 md:space-y-4 space-y-3 h-full w-full bg-primary-800">
         {/* Home Icon */}
         <Link href="/">
           <button
-            className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors cursor-pointer"
+            className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
             title="Home"
           >
-            <Home className="w-6 h-6" />
+            <Home className="w-6 h-6 md:mr-0 mr-3" />
+            <span className="md:hidden text-base">Home</span>
           </button>
         </Link>
         {/* Layer Management Icon */}
         {onLayerToggle && (
           <button
             onClick={onLayerToggle}
-            className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors cursor-pointer"
+            className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
             title="Layer Management"
           >
-            <Layers className="w-6 h-6" />
+            <Layers className="w-6 h-6 md:mr-0 mr-3" />
+            <span className="md:hidden text-base">Layer Management</span>
           </button>
         )}
         {/* Account Icon */}
         <button
-          className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors cursor-pointer"
+          className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
           title="Account"
         >
-          <User className="w-6 h-6" />
+          <User className="w-6 h-6 md:mr-0 mr-3" />
+          <span className="md:hidden text-base">Account</span>
         </button>
 
         {/* Fullscreen Icon */}
         <button
           onClick={toggleFullscreen}
-          className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors cursor-pointer"
+          className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
           title="Fullscreen Mode"
         >
-          <Maximize className="w-6 h-6" />
+          <Maximize className="w-6 h-6 md:mr-0 mr-3" />
+          <span className="md:hidden text-base">Fullscreen Mode</span>
         </button>
 
         {/* Reset Icon */}
         <button
-          className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors cursor-pointer"
+          className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
           title="Reset App"
         >
-          <RefreshCcw className="w-6 h-6" />
+          <RefreshCcw className="w-6 h-6 md:mr-0 mr-3" />
+          <span className="md:hidden text-base">Reset App</span>
         </button>
 
         {/* Settings Icon */}
         <Link href="/settings">
           <button
-            className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors cursor-pointer"
+            className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
             title="Settings"
           >
-            <Settings className="w-6 h-6" />
+            <Settings className="w-6 h-6 md:mr-0 mr-3" />
+            <span className="md:hidden text-base">Settings</span>
           </button>
         </Link>
       </div>
