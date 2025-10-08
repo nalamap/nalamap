@@ -37,6 +37,10 @@ services:
       - AZURE_CONN_STRING=${AZURE_CONN_STRING:-}
       - AZURE_CONTAINER=${AZURE_CONTAINER:-data}
       - AZURE_SAS_EXPIRY_HOURS=${AZURE_SAS_EXPIRY_HOURS:-24}
+      # Cookie security: Backend receives HTTP from nginx (HTTPS termination at nginx)
+      - COOKIE_SECURE=false
+      - COOKIE_HTTPONLY=true
+      - COOKIE_SAMESITE=lax
       # Backend runs on internal port 8000 (HTTP)
     ports:
       - "8000:8000"

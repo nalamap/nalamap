@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useRef } from 'react';
-import Sidebar from './components/sidebar/Sidebar';
-import LayerManagement from './components/sidebar/LayerManagement';
-import MapComponent from './components/maps/MapComponent';
-import AgentInterface from './components/chat/AgentInterface';
+import React, { useState, useRef, useEffect } from "react";
+import Sidebar from "./components/sidebar/Sidebar";
+import LayerManagement from "./components/sidebar/LayerManagement";
+import MapComponent from "./components/maps/MapComponent";
+import AgentInterface from "./components/chat/AgentInterface";
+import { useUIStore } from "./stores/uiStore";
 import {
   ChevronLeft,
   ChevronRight,
@@ -12,19 +13,35 @@ import {
   X,
   Layers,
   MessageCircle,
-} from 'lucide-react';
+} from "lucide-react";
 
 export default function Home() {
-  const [widths, setWidths] = useState<number[]>([4, 18, 56, 22]);
+  const getLayoutWidths = useUIStore((s) => s.getLayoutWidths);
+  const setLayoutWidths = useUIStore((s) => s.setLayoutWidths);
+  const sidebarWidth = useUIStore((s) => s.sidebarWidth);
+  
+  const [widths, setWidths] = useState<number[]>(getLayoutWidths());
   const [layerCollapsed, setLayerCollapsed] = useState(false);
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Set initial collapsed state based on screen size
+  useEffect(() => {
+    const isMobile = window.innerWidth < 768; // md breakpoint
+    setLayerCollapsed(isMobile);
+    setChatCollapsed(isMobile);
+  }, []);
   const dragInfo = useRef<{
     active: boolean;
     handleIndex: number;
     startX: number;
     initialWidths: number[];
   }>({ active: false, handleIndex: 0, startX: 0, initialWidths: [0, 0, 0, 0] });
+
+  // Persist widths to store when they change
+  useEffect(() => {
+    setLayoutWidths(widths as [number, number, number, number]);
+  }, [widths, setLayoutWidths]);
 
   const onMouseMove = (e: MouseEvent) => {
     if (!dragInfo.current.active) return;
@@ -54,8 +71,8 @@ export default function Home() {
 
   const onMouseUp = () => {
     dragInfo.current.active = false;
-    document.removeEventListener('mousemove', onMouseMove);
-    document.removeEventListener('mouseup', onMouseUp);
+    document.removeEventListener("mousemove", onMouseMove);
+    document.removeEventListener("mouseup", onMouseUp);
   };
 
   const onHandleMouseDown = (e: React.MouseEvent, idx: number) => {
@@ -66,29 +83,45 @@ export default function Home() {
       startX: e.clientX,
       initialWidths: [...widths],
     };
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
   };
 
   return (
     <>
-      {/* Mobile menu toggle */}
+      {/* Mobile menu toggle - moved to top-right to avoid Leaflet controls */}
       <button
-        className="md:hidden fixed top-4 right-4 z-20 p-2 bg-gray-200 rounded-full hover:bg-gray-300"
+        className="md:hidden fixed top-4 right-4 z-[25] p-3 bg-primary-800 rounded-md shadow-lg hover:bg-primary-700"
         onClick={() => setMobileMenuOpen(true)}
+        aria-label="Open menu"
       >
-        <Menu className="w-6 h-6 text-gray-700" />
+        <Menu className="w-8 h-8 text-white" />
       </button>
       {mobileMenuOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-20">
-          <div className="fixed top-0 left-0 bottom-0 w-64 bg-gray-800 z-30 text-white p-4">
-            <button
-              className="absolute top-4 right-4"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              <X className="w-6 h-6" />
-            </button>
-            <Sidebar />
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-[30]"
+          onClick={() => setMobileMenuOpen(false)}
+        >
+          <div 
+            className="fixed top-0 right-0 bottom-0 w-full max-w-xs bg-primary-800 z-[31] text-white flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 border-b border-primary-700">
+              <h2 className="text-lg font-semibold">Menu</h2>
+              <button
+                className="p-1 hover:bg-primary-700 rounded"
+                onClick={() => setMobileMenuOpen(false)}
+                aria-label="Close menu"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <Sidebar onLayerToggle={() => {
+                setLayerCollapsed(!layerCollapsed);
+                setMobileMenuOpen(false);
+              }} />
+            </div>
           </div>
         </div>
       )}
@@ -96,11 +129,11 @@ export default function Home() {
         {/* Sidebar / Menu */}
         <div
           style={{ flexBasis: `${widths[0]}%` }}
-          className="hidden md:flex flex-none relative"
+          className="hidden md:flex flex-none relative bg-primary-800"
         >
-          <Sidebar />
+          <Sidebar onLayerToggle={() => setLayerCollapsed(!layerCollapsed)} />
           <div
-            className="absolute top-0 right-0 bottom-0 w-1 hover:bg-gray-400 cursor-ew-resize z-10"
+            className="absolute top-0 right-0 bottom-0 w-1 hover:bg-primary-400 cursor-ew-resize z-10"
             onMouseDown={(e) => onHandleMouseDown(e, 0)}
           />
         </div>
@@ -109,63 +142,65 @@ export default function Home() {
         {!layerCollapsed ? (
           <div
             style={{ flexBasis: `${widths[1]}%` }}
-            className="flex-none relative min-w-[200px]"
+            className="flex-none relative min-w-[200px] bg-primary-100"
           >
             <button
-              className="absolute top-2 left-2 p-1 bg-gray-200 rounded shadow z-10"
+              className="absolute top-2 right-2 p-1 bg-primary-200 rounded shadow z-10 hover:bg-primary-300"
               onClick={() => setLayerCollapsed(true)}
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-4 h-4 text-primary-700" />
             </button>
             <LayerManagement />
             <div
-              className="absolute top-0 right-0 bottom-0 w-1 hover:bg-gray-400 cursor-ew-resize z-10"
+              className="absolute top-0 right-0 bottom-0 w-1 hover:bg-primary-400 cursor-ew-resize z-10"
               onMouseDown={(e) => onHandleMouseDown(e, 1)}
             />
           </div>
         ) : (
-          <div
-            className="flex-none flex items-center justify-center w-12 bg-gray-200 hover:bg-gray-300 cursor-pointer"
+          <button
+            className="fixed bottom-4 p-3 bg-primary-800 rounded-full shadow-lg z-[25] hover:bg-primary-700 touch-manipulation"
+            style={{ left: `calc(1rem + ${sidebarWidth}vw)` }}
             onClick={() => setLayerCollapsed(false)}
+            aria-label="Open layer management"
           >
-            <Layers className="w-6 h-6 text-gray-700" />
-          </div>
+            <Layers className="w-9 h-9 text-white" />
+          </button>
         )}
 
         {/* Map panel */}
         <div
-          style={{
-            flexBasis: `${widths[2] + (chatCollapsed ? widths[3] : 0)}%`,
-          }}
-          className="flex-none relative"
+          className="flex-1 relative"
         >
           <MapComponent />
-          <div
-            className="absolute top-0 right-0 bottom-0 w-1 hover:bg-gray-400 cursor-ew-resize z-10"
-            onMouseDown={(e) => onHandleMouseDown(e, 2)}
-          />
+          {!chatCollapsed && (
+            <div
+              className="absolute top-0 right-0 bottom-0 w-1 hover:bg-primary-400 cursor-ew-resize z-10"
+              onMouseDown={(e) => onHandleMouseDown(e, 2)}
+            />
+          )}
         </div>
 
         {/* Chat panel */}
         {!chatCollapsed ? (
           <div
             style={{ flexBasis: `${widths[3]}%` }}
-            className="flex-none relative min-w-[200px]"
+            className="flex-none relative min-w-[200px] bg-primary-50"
           >
             <button
-              className="absolute top-2 right-2 p-1 bg-gray-200 rounded shadow z-10"
+              className="absolute top-2 left-2 p-1 bg-primary-200 rounded shadow z-10 hover:bg-primary-300"
               onClick={() => setChatCollapsed(true)}
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-4 h-4 text-primary-700" />
             </button>
             <AgentInterface />
           </div>
         ) : (
           <button
-            className="fixed bottom-4 right-4 p-3 bg-gray-200 rounded-full shadow z-20 hover:bg-gray-300"
+            className="fixed bottom-4 right-4 p-3 bg-primary-800 rounded-full shadow-lg z-[25] hover:bg-primary-700 touch-manipulation"
             onClick={() => setChatCollapsed(false)}
+            aria-label="Open chat"
           >
-            <MessageCircle className="w-6 h-6 text-gray-700" />
+            <MessageCircle className="w-9 h-9 text-white" />
           </button>
         )}
       </div>

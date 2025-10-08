@@ -1,4 +1,5 @@
 import json
+import logging
 from typing import Any, Dict, List, Optional
 
 import openai  # Import openai for error handling
@@ -18,6 +19,8 @@ from models.settings_model import SettingsSnapshot
 from models.states import DataState, GeoDataAgentState
 from services.multi_agent_orch import multi_agent_executor
 from services.single_agent import create_geo_agent
+
+logger = logging.getLogger(__name__)
 
 
 def normalize_messages(raw: Optional[List[BaseMessage]]) -> List[BaseMessage]:
@@ -126,7 +129,6 @@ async def ask_nalamap(request: NaLaMapRequest):
     """
     Ask a question to the NaLaMap, which
     """
-    print(request)
     # TODO: Pass information to agent
 
     # TODO: Receive response and map to result
@@ -204,7 +206,7 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
             model_settings=options.model_settings, selected_tools=options.tools
         )
 
-        executor_result: GeoDataAgentState = single_agent.invoke(state, debug=True)
+        executor_result: GeoDataAgentState = single_agent.invoke(state)
 
         result_messages: List[BaseMessage] = executor_result.get("messages", [])
         results_title: Optional[str] = executor_result.get("results_title", "")
@@ -219,8 +221,8 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
                 AIMessage(content="Agent processed the request but returned no explicit messages.")
             ]
 
-    except openai.InternalServerError:
-        print("OpenAI Internal Server Error")
+    except openai.InternalServerError as e:
+        logger.error(f"OpenAI Internal Server Error: {e}")
         error_message = (
             "I encountered an issue with the AI model while processing your request. "
             "This might be a temporary problem. Please try again in a few moments. "
@@ -236,8 +238,8 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
         # global_geodata = state.get('global_geodata', [])
         result_options = options
 
-    except openai.APIError:
-        print("OpenAI API Error")
+    except openai.APIError as e:
+        logger.error(f"OpenAI API Error: {e}")
         error_message = (
             "I encountered an API error while trying to process your request. "
             "Please check your query or try again later."
@@ -250,8 +252,7 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
         result_options = options
 
     except Exception as e:  # Catch any other unexpected errors during agent execution
-        print("Unexpected error during agent execution")
-        print(e)
+        logger.exception(f"Unexpected error during agent execution: {e}")
         error_message = (
             "An unexpected error occurred while processing your request. " "Please try again."
         )

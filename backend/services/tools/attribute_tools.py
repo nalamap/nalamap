@@ -1,26 +1,27 @@
+import difflib
 import json
-import os
-import uuid
-import re
-import requests
 import logging
-from typing import Any, Dict, List, Optional, Union, Tuple
+import os
+import re
+import uuid
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-import pandas as pd
 import geopandas as gpd
-from shapely.geometry import mapping
-
+import pandas as pd
+import requests
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
 from langchain_core.tools.base import InjectedToolCallId
 from langgraph.prebuilt import InjectedState
 from langgraph.types import Command
+from shapely.geometry import mapping
 from typing_extensions import Annotated
 
 from core.config import BASE_URL, LOCAL_UPLOAD_DIR
 from models.geodata import DataOrigin, DataType, GeoDataObject
 from models.states import GeoDataAgentState
 from services.ai.llm_config import get_llm
+from services.storage.file_management import store_file
 from services.tools.utils import match_layer_names
 
 logger = logging.getLogger(__name__)
@@ -99,7 +100,8 @@ def _bbox(gdf: gpd.GeoDataFrame) -> Optional[List[float]]:
 
 def _suggest_next_steps(gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any]) -> List[str]:
     tips = []
-    # Note: geometry name could be used for field-specific suggestions if needed
+    # Note: geometry name could be used for field-specific suggestions
+    # if needed
     gtypes = set(_geometry_type_counts(gdf).keys())
     cols = [c["name"] for c in schema_ctx.get("columns", [])]
 
@@ -147,7 +149,8 @@ def _suggest_next_steps(gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any]) -> Li
         llm = get_llm()
         sys = (
             "You are a GIS data analysis assistant. "
-            "Given the dataset context, suggest up to 6 concrete next steps for analysis or visualization."
+            "Given the dataset context, suggest up to 6 concrete next steps "
+            "for analysis or visualization."
         )
         human = f"Dataset context: {json.dumps(context)}"
         msgs = [SystemMessage(content=sys), HumanMessage(content=human)]
@@ -160,7 +163,7 @@ def _suggest_next_steps(gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any]) -> Li
                 return llm_tips
         except Exception:
             # fallback to splitting
-            lines = [l.strip(" -") for l in text.splitlines() if l.strip()]
+            lines = [line.strip(" -") for line in text.splitlines() if line.strip()]
             return lines[:6]
     except Exception:
         pass
@@ -218,7 +221,10 @@ def describe_dataset_gdf(gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any]) -> D
     if crs:
         summary += f" CRS: {crs}."
     if bbox_vals:
-        summary += f" Bounding box: [{bbox_vals[0]:.4f}, {bbox_vals[1]:.4f}, {bbox_vals[2]:.4f}, {bbox_vals[3]:.4f}]."
+        summary += (
+            f" Bounding box: [{bbox_vals[0]:.4f}, {bbox_vals[1]:.4f}, "
+            f"{bbox_vals[2]:.4f}, {bbox_vals[3]:.4f}]."
+        )
 
     next_steps = _suggest_next_steps(gdf, schema_ctx)
     result = {
@@ -252,7 +258,8 @@ def describe_dataset_gdf(gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any]) -> D
         sys = (
             "You are a GIS data assistant. "
             "Provide a concise description and practical next steps for this specific dataset. "
-            "Respond in JSON with keys 'summary' (string) and 'suggested_next_steps' (list of strings)."
+            "Respond in JSON with keys 'summary' (string) and "
+            "'suggested_next_steps' (list of strings)."
         )
         context_obj = {"metadata": result, "sample_rows": sample_rows}
         human = f"Dataset context and sample rows: {json.dumps(context_obj, default=str)}"
@@ -402,21 +409,121 @@ def parse_where(where: str):
 
 
 # ===================================
+# Field name fuzzy matching helper
+# ===================================
+def _find_closest_field(
+    field_name: str, available_fields: List[str], cutoff: float = 0.6
+) -> Tuple[Optional[str], bool]:
+    """
+    Find the closest matching field name in the available fields.
+
+    Args:
+        field_name: The field name to match
+        available_fields: List of available field names
+        cutoff: Similarity threshold for fuzzy matching (0 to 1)
+
+    Returns:
+        Tuple of (matched_field_name, is_exact_match)
+        Returns (None, False) if no match found above cutoff
+    """
+    # Try exact match first (case-sensitive)
+    if field_name in available_fields:
+        return (field_name, True)
+
+    # Try case-insensitive exact match
+    for field in available_fields:
+        if field.lower() == field_name.lower():
+            return (field, True)
+
+    # Try fuzzy matching
+    matches = difflib.get_close_matches(field_name, available_fields, n=1, cutoff=cutoff)
+    if matches:
+        return (matches[0], False)
+
+    return (None, False)
+
+
+# ===================================
 # GeoPandas-based operations & IO
 # ===================================
 def _load_gdf(link: str) -> gpd.GeoDataFrame:
-    """Load GeoJSON (local or remote) into a GeoDataFrame."""
+    """Load GeoJSON (local or remote) into a GeoDataFrame.
+
+    Supports:
+    - Local upload directory files
+    - BASE_URL/uploads/ URLs (local dev)
+    - BASE_URL/api/stream/ URLs (local dev with central file management)
+    - Azure Blob Storage URLs (SAS tokens supported)
+    - HTTP/HTTPS URLs (external GeoJSON)
+    - WFS URLs (adds srsName=EPSG:4326 if missing)
+    - Local file paths
+    """
+    # Handle BASE_URL/uploads/ format (legacy local uploads)
     if link.startswith(f"{BASE_URL}/uploads/"):
         fn = os.path.basename(link)
         local_path = os.path.join(LOCAL_UPLOAD_DIR, fn)
-        return gpd.read_file(local_path)
+        if os.path.isfile(local_path):
+            return gpd.read_file(local_path)
+
+    # Handle BASE_URL/api/stream/ format (central file management local)
+    if link.startswith(f"{BASE_URL}/api/stream/"):
+        fn = os.path.basename(link)
+        local_path = os.path.join(LOCAL_UPLOAD_DIR, fn)
+        if os.path.isfile(local_path):
+            return gpd.read_file(local_path)
+
+    # Handle direct local file paths
     if os.path.isfile(link):
         return gpd.read_file(link)
+
+    # Handle HTTP/HTTPS URLs (including Azure Blob Storage with SAS tokens)
     if link.startswith("http://") or link.startswith("https://"):
-        # requests -> temp file -> read_file (handles streaming + drivers reliably)
-        resp = requests.get(link, timeout=20)
+        request_url = link
+        # For WFS requests, ensure srsName=EPSG:4326 is set for consistent coordinate system
+        try:
+            from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+
+            parsed = urlparse(link)
+            params = parse_qs(parsed.query)
+
+            # Check if this is a WFS request
+            is_wfs = (
+                "wfs" in parsed.path.lower()
+                or "wfs" in parsed.query.lower()
+                or (params.get("service", [""])[0].upper() == "WFS")
+            )
+
+            # Add srsName if WFS and not already present
+            if is_wfs and "srsName" not in params and "srsname" not in params:
+                params["srsName"] = ["EPSG:4326"]
+                # Rebuild URL with updated params
+                new_query = urlencode(params, doseq=True)
+                request_url = urlunparse(
+                    (
+                        parsed.scheme,
+                        parsed.netloc,
+                        parsed.path,
+                        parsed.params,
+                        new_query,
+                        parsed.fragment,
+                    )
+                )
+                logger.info(f"Added srsName=EPSG:4326 to WFS URL: {request_url}")
+        except Exception as e:
+            logger.warning(f"Failed to parse URL for WFS detection: {e}")
+
+        # Download to temp file for reliable driver support
+        resp = requests.get(request_url, timeout=30)
         resp.raise_for_status()
-        tmp = os.path.join(LOCAL_UPLOAD_DIR, f"tmp_{uuid.uuid4().hex[:8]}.geojson")
+        # Ensure upload dir exists (CI environments or tests may not create it).
+        # Use a local variable to avoid rebinding the module-level LOCAL_UPLOAD_DIR.
+        upload_dir = LOCAL_UPLOAD_DIR or "."
+        try:
+            os.makedirs(upload_dir, exist_ok=True)
+        except Exception:
+            upload_dir = "."
+
+        tmp = os.path.join(upload_dir, f"tmp_{uuid.uuid4().hex[:8]}.geojson")
         with open(tmp, "wb") as f:
             f.write(resp.content)
         try:
@@ -426,7 +533,8 @@ def _load_gdf(link: str) -> gpd.GeoDataFrame:
                 os.remove(tmp)
             except Exception:
                 pass
-    raise IOError(f"Unsupported path: {link}")
+
+    raise IOError(f"Unsupported path or URL: {link}")
 
 
 def _jsonify_scalar(v):
@@ -446,13 +554,13 @@ def _jsonify_scalar(v):
 def _fc_from_gdf(gdf: gpd.GeoDataFrame, keep_geometry: bool = True) -> Dict[str, Any]:
     """Convert a GeoDataFrame to a GeoJSON FeatureCollection dict."""
     features = []
-    geom_col = gdf.geometry.name if keep_geometry and gdf.geometry is not None else None
+    geom_col = gdf.geometry.name if gdf.geometry is not None else None
 
-    # Build clean properties (only JSON-serializable)
-    prop_cols = [c for c in gdf.columns if c != geom_col] if geom_col else list(gdf.columns)
+    # Build clean properties (only JSON-serializable, exclude geometry column)
+    prop_cols = [c for c in gdf.columns if c != geom_col]
     for _, row in gdf.iterrows():
         props = {c: _jsonify_scalar(row[c]) for c in prop_cols}
-        geom = mapping(row[geom_col]) if geom_col else None
+        geom = mapping(row[geom_col]) if keep_geometry and geom_col else None
         features.append({"type": "Feature", "properties": props, "geometry": geom})
     return {"type": "FeatureCollection", "features": features}
 
@@ -467,14 +575,17 @@ def _slug(text: str) -> str:
 def _save_gdf_as_geojson(
     gdf: gpd.GeoDataFrame, display_title: str, keep_geometry: bool = True
 ) -> GeoDataObject:
+    """Save a GeoDataFrame as GeoJSON using central file management."""
     fc = _fc_from_gdf(gdf, keep_geometry=keep_geometry)
-    sid = uuid.uuid4().hex[:8]
     slug = _slug(display_title)
-    filename = f"{slug}_{sid}.geojson"
-    path = os.path.join(LOCAL_UPLOAD_DIR, filename)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(fc, f)
-    url = f"{BASE_URL}/uploads/{filename}"
+    filename = f"{slug}_{uuid.uuid4().hex[:8]}.geojson"
+
+    # Convert to JSON bytes
+    content = json.dumps(fc).encode("utf-8")
+
+    # Use central file management (supports both local and Azure Blob)
+    url, _ = store_file(filename, content)
+
     return GeoDataObject(
         id=uuid.uuid4().hex,
         data_source_id="attribute",
@@ -677,41 +788,91 @@ def _series_cmp(a: pd.Series, op: str, b):
     raise ValueError(f"Unsupported op {op}")
 
 
-def _eval_ast_to_mask(ast, gdf: gpd.GeoDataFrame) -> pd.Series:
+def _eval_ast_to_mask(
+    ast, gdf: gpd.GeoDataFrame, field_suggestions: Optional[Dict[str, str]] = None
+) -> pd.Series:
+    """
+    Evaluate AST to boolean mask with fuzzy field matching.
+
+    Args:
+        ast: Parsed WHERE clause AST
+        gdf: GeoDataFrame to evaluate against
+        field_suggestions: Dict to track {requested_field: actual_field} mappings
+
+    Returns:
+        Boolean series mask
+    """
+    if field_suggestions is None:
+        field_suggestions = {}
+
     kind = ast[0]
     if kind == "cmp":
         _, fld, op, lit = ast
-        if fld not in gdf.columns:
-            raise ValueError(f"Unknown field: {fld}")
-        s = gdf[fld]
+        # Try fuzzy field matching
+        matched_field, is_exact = _find_closest_field(fld, list(gdf.columns))
+        if matched_field is None:
+            available = ", ".join(sorted(gdf.columns))
+            raise ValueError(f"Field '{fld}' not found. Available fields: {available}")
+        if not is_exact:
+            field_suggestions[fld] = matched_field
+            logger.info(f"Field '{fld}' not found, using close match '{matched_field}'")
+        s = gdf[matched_field]
         m = _series_cmp(s, op, lit)
         return m.fillna(False)
     if kind == "in":
         _, fld, values = ast
-        if fld not in gdf.columns:
-            raise ValueError(f"Unknown field: {fld}")
-        s = gdf[fld]
+        matched_field, is_exact = _find_closest_field(fld, list(gdf.columns))
+        if matched_field is None:
+            available = ", ".join(sorted(gdf.columns))
+            raise ValueError(f"Field '{fld}' not found. Available fields: {available}")
+        if not is_exact:
+            field_suggestions[fld] = matched_field
+            logger.info(f"Field '{fld}' not found, using close match '{matched_field}'")
+        s = gdf[matched_field]
         m = s.isin(set(values))
         return m.fillna(False)
     if kind == "isnull":
         _, fld, is_not = ast
-        if fld not in gdf.columns:
-            raise ValueError(f"Unknown field: {fld}")
-        m = gdf[fld].isna()
+        matched_field, is_exact = _find_closest_field(fld, list(gdf.columns))
+        if matched_field is None:
+            available = ", ".join(sorted(gdf.columns))
+            raise ValueError(f"Field '{fld}' not found. Available fields: {available}")
+        if not is_exact:
+            field_suggestions[fld] = matched_field
+            logger.info(f"Field '{fld}' not found, using close match '{matched_field}'")
+        m = gdf[matched_field].isna()
         return (~m) if is_not else m
     if kind == "and":
-        return (_eval_ast_to_mask(ast[1], gdf) & _eval_ast_to_mask(ast[2], gdf)).fillna(False)
+        return (
+            _eval_ast_to_mask(ast[1], gdf, field_suggestions)
+            & _eval_ast_to_mask(ast[2], gdf, field_suggestions)
+        ).fillna(False)
     if kind == "or":
-        return (_eval_ast_to_mask(ast[1], gdf) | _eval_ast_to_mask(ast[2], gdf)).fillna(False)
+        return (
+            _eval_ast_to_mask(ast[1], gdf, field_suggestions)
+            | _eval_ast_to_mask(ast[2], gdf, field_suggestions)
+        ).fillna(False)
     if kind == "not":
-        return (~_eval_ast_to_mask(ast[1], gdf)).fillna(False)
+        return (~_eval_ast_to_mask(ast[1], gdf, field_suggestions)).fillna(False)
     raise ValueError(f"Unknown node {kind}")
 
 
-def filter_where_gdf(gdf: gpd.GeoDataFrame, where: str) -> gpd.GeoDataFrame:
+def filter_where_gdf(gdf: gpd.GeoDataFrame, where: str) -> Tuple[gpd.GeoDataFrame, Dict[str, str]]:
+    """
+    Filter GeoDataFrame by WHERE clause with fuzzy field matching.
+
+    Args:
+        gdf: GeoDataFrame to filter
+        where: WHERE clause string
+
+    Returns:
+        Tuple of (filtered_gdf, field_suggestions_dict)
+        field_suggestions_dict maps {requested_field: actual_field_used}
+    """
     ast = parse_where(where)
-    mask = _eval_ast_to_mask(ast, gdf)
-    return gdf[mask].copy()
+    field_suggestions: Dict[str, str] = {}
+    mask = _eval_ast_to_mask(ast, gdf, field_suggestions)
+    return gdf[mask].copy(), field_suggestions
 
 
 # ===================================
@@ -722,7 +883,8 @@ ATTR_OPS_AND_PARAMS = [
     "operation: summarize params: fields=<list_of_strings>",
     "operation: unique_values params: field=<string>, top_k=<number|null>",
     "operation: filter_where params: where=<CQL_lite_string>",
-    "operation: select_fields params: include=<list_of_strings|null>, exclude=<list_of_strings|null>, keep_geometry=<bool|true>",
+    "operation: select_fields params: include=<list_of_strings|null>, "
+    "exclude=<list_of_strings|null>, keep_geometry=<bool|true>",
     "operation: sort_by params: fields=<list_of_[field,asc|desc]>",
     "operation: describe_dataset params: ",
 ]
@@ -730,7 +892,8 @@ ATTR_OPS_AND_PARAMS = [
 PLANNER_SCHEMA_EXAMPLE = """
 Return ONLY JSON with EXACT structure:
 {
-  "operation": "<one of: list_fields | summarize | unique_values | filter_where | select_fields | sort_by | describe_dataset>",
+  "operation": "<one of: list_fields | summarize | unique_values | "
+  "filter_where | select_fields | sort_by | describe_dataset>",
   "params": { /* parameters for the chosen operation */ },
   "target_layer_names": ["optional layer name(s) if the user specifies which"] ,
   "result_handling": "<'chat' | 'layer'>"
@@ -738,9 +901,12 @@ Return ONLY JSON with EXACT structure:
 Rules:
 - If the user asks for a filter/subset, set result_handling = "layer".
 - If the user wants a table/description/summary, set result_handling = "chat".
-- If the user asks e.g. 'countries of layer A with gdp over 100', choose filter_where with where="gdp > 100" and result_handling="layer".
-- If the user asks “what is this layer”, “explain/describe this dataset”, or seems unsure/naive, choose describe_dataset with result_handling = "chat".
-- Prefer field names as they appear; do NOT invent fields. If unsure, use list_fields first with result_handling="chat".
+- If the user asks e.g. 'countries of layer A with gdp over 100', choose filter_where
+  with where="gdp > 100" and result_handling="layer".
+- If the user asks “what is this layer”, “explain/describe this dataset”, or seems unsure/naive,
+  choose describe_dataset with result_handling = "chat".
+- Prefer field names as they appear; do NOT invent fields. If unsure, use list_fields first
+  with result_handling="chat".
 - For unique categories or value counts -> unique_values (chat).
 - For stats on numeric fields -> summarize (chat).
 - For 'keep only columns X,Y' -> select_fields (layer).
@@ -754,17 +920,23 @@ def attribute_plan_from_prompt(
     llm = get_llm()
     sys = (
         "You convert a user's natural-language request about a GeoJSON attribute table "
-        "into ONE attribute operation. Use the provided COLUMN/VALUE context to pick the correct field(s) and value(s). "
-        "If the referenced value clearly appears under a specific text column's top_values, use that column."
+        "into ONE attribute operation. Use the provided COLUMN/VALUE context to pick the correct "
+        "field(s) and value(s). "
+        "If the referenced value clearly appears under a specific text column's top_values, "
+        "use that column."
         "\nAvailable operations:\n"
         + json.dumps(ATTR_OPS_AND_PARAMS)
         + "\n"
         + PLANNER_SCHEMA_EXAMPLE
         + "\nGuidance:\n"
-        "- Prefer exact matches between user-mentioned entity names and 'top_values' of text columns.\n"
-        "- If multiple columns contain the same value, choose the one named like a name/label field (e.g., name, name_en, river, waterway, label).\n"
-        "- If no plausible column is found, plan `list_fields` with result_handling='chat' and explain uncertainty.\n"
-        "Use the provided schema_context to produce helpful explanations without guessing. Avoid inventing fields."
+        "- Prefer exact matches between user-mentioned entity names and 'top_values' "
+        "of text columns.\n"
+        "- If multiple columns contain the same value, choose the one named like a name/label "
+        "field (e.g., name, name_en, river, waterway, label).\n"
+        "- If no plausible column is found, plan `list_fields` with result_handling='chat' "
+        "and explain uncertainty.\n"
+        "Use the provided schema_context to produce helpful explanations without guessing. "
+        "Avoid inventing fields."
     )
     msg = {
         "query": query,
@@ -814,7 +986,8 @@ def attribute_tool(
                 "messages": [
                     ToolMessage(
                         name="attribute_tool",
-                        content="Error: No geodata layers found in state. Add/select a layer first.",
+                        content="Error: No geodata layers found in state. "
+                        "Add/select a layer first.",
                         tool_call_id=tool_call_id,
                         status="error",
                     )
@@ -822,7 +995,7 @@ def attribute_tool(
             }
         )
 
-    layer_meta = [{"name": l.name, "title": l.title} for l in layers]
+    layer_meta = [{"name": layer.name, "title": layer.title} for layer in layers]
 
     def _last_user(ms):
         for m in reversed(ms):
@@ -833,7 +1006,7 @@ def attribute_tool(
     query = _last_user(messages) or ""
     selected = match_layer_names(layers, target_layer_names) if target_layer_names else layers[:1]
     if not selected:
-        avail = [{"name": l.name, "title": l.title} for l in layers]
+        avail = [{"name": layer.name, "title": layer.title} for layer in layers]
         return Command(
             update={
                 "messages": [
@@ -929,7 +1102,10 @@ def attribute_tool(
                         "messages": [
                             ToolMessage(
                                 name="attribute_tool",
-                                content=f"Error: Unknown fields in summarize: {missing}. Available: {sorted(gdf.columns.tolist())}",
+                                content=(
+                                    f"Error: Unknown fields in summarize: {missing}. "
+                                    f"Available: {sorted(gdf.columns.tolist())}"
+                                ),
                                 tool_call_id=tool_call_id,
                                 status="error",
                             )
@@ -959,7 +1135,10 @@ def attribute_tool(
                         "messages": [
                             ToolMessage(
                                 name="attribute_tool",
-                                content=f"Error: Unknown field '{fld}'. Available: {sorted(gdf.columns.tolist())}",
+                                content=(
+                                    f"Error: Unknown field '{fld}'. "
+                                    f"Available: {sorted(gdf.columns.tolist())}"
+                                ),
                                 tool_call_id=tool_call_id,
                                 status="error",
                             )
@@ -982,30 +1161,89 @@ def attribute_tool(
             )
 
         if op == "filter_where":
+            field_suggestions = {}
             try:
-                out_gdf = filter_where_gdf(gdf, params["where"])
+                out_gdf, field_suggestions = filter_where_gdf(gdf, params["where"])
             except Exception as e:
                 return Command(
                     update={
                         "messages": [
                             ToolMessage(
                                 name="attribute_tool",
-                                content=f"Error parsing/applying WHERE: {e}. Available fields: {sorted(gdf.columns.tolist())}",
+                                content=(
+                                    f"Error parsing/applying WHERE: {e}. "
+                                    f"Available fields: {sorted(gdf.columns.tolist())}"
+                                ),
                                 tool_call_id=tool_call_id,
                                 status="error",
                             )
                         ]
                     }
                 )
-            title = f"{layer.name}-filtered"
+
+            # Check if filter returned any features
+            if len(out_gdf) == 0:
+                return Command(
+                    update={
+                        "messages": [
+                            ToolMessage(
+                                name="attribute_tool",
+                                content=(
+                                    f"Filter applied to '{layer.name}' but no features matched "
+                                    f"the condition: {params['where']}. "
+                                    f"Original layer had {len(gdf)} features."
+                                ),
+                                tool_call_id=tool_call_id,
+                            )
+                        ]
+                    }
+                )
+
+            title = f"{layer.title or layer.name} (filtered)"
             obj = _save_gdf_as_geojson(out_gdf, title, keep_geometry=True)
             new_results = (state.get("geodata_results") or []) + [obj]
+
+            # Build actionable layer info with field suggestions
+            actionable_layer_info = {
+                "name": obj.name,
+                "title": obj.title,
+                "id": obj.id,
+                "data_source_id": obj.data_source_id,
+                "feature_count": len(out_gdf),
+                "original_count": len(gdf),
+                "filter": params["where"],
+            }
+
+            # Add field suggestion info if fuzzy matching was used
+            suggestion_info = ""
+            if field_suggestions:
+                suggestion_info = "\n\nNote: Field name corrections were applied:\n" + "\n".join(
+                    [f"  - '{req}' → '{actual}'" for req, actual in field_suggestions.items()]
+                )
+
+            # Provide user guidance similar to geocoding tools
+            tool_message_content = (
+                f"Successfully filtered '{layer.name}' using condition: {params['where']}. "
+                f"Result contains {len(out_gdf)} feature(s) out of {len(gdf)} original features. "
+                f"New layer '{obj.title}' created and stored in geodata_results. "
+                f"Actionable layer details: {json.dumps(actionable_layer_info)}. "
+                f"{suggestion_info}"
+                f"User response guidance: Call 'set_result_list' to make this filtered layer "
+                f"available for the user to select. In your textual response to the user, "
+                f"confirm the filtering success and mention the number of features that matched. "
+                f"State that the filtered layer is now listed and can be selected by the user "
+                f"to be added to the map. Ensure your response clearly indicates the user needs "
+                f"to take an action to add the layer to the map. Do NOT state or imply that the "
+                f"layer has already been added to the map. Do NOT include direct file paths, "
+                f"sandbox links, or any other internal storage paths in your textual response."
+            )
+
             return Command(
                 update={
                     "messages": [
                         ToolMessage(
                             name="attribute_tool",
-                            content=f"Filter applied. New layer: {obj.title}",
+                            content=tool_message_content,
                             tool_call_id=tool_call_id,
                         )
                     ],
@@ -1023,7 +1261,10 @@ def attribute_tool(
                         "messages": [
                             ToolMessage(
                                 name="attribute_tool",
-                                content=f"Error: Unknown fields in select_fields: {missing}. Available: {sorted(gdf.columns.tolist())}",
+                                content=(
+                                    f"Error: Unknown fields in select_fields: {missing}. "
+                                    f"Available: {sorted(gdf.columns.tolist())}"
+                                ),
                                 tool_call_id=tool_call_id,
                                 status="error",
                             )

@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useEffect } from 'react';
-import { useLayerStore } from '../stores/layerStore';
-import { useSettingsStore } from '../stores/settingsStore';
+import { useEffect } from "react";
+import { useLayerStore } from "../stores/layerStore";
+import { useSettingsStore } from "../stores/settingsStore";
 
 /**
  * Client component that ensures stores are initialized and exposed
@@ -11,11 +11,11 @@ import { useSettingsStore } from '../stores/settingsStore';
 export default function StoreProvider() {
   useEffect(() => {
     // Expose stores to window for E2E testing
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       (window as any).useLayerStore = useLayerStore;
       (window as any).useSettingsStore = useSettingsStore;
     }
   }, []);
-  
+
   return null;
 }

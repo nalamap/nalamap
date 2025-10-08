@@ -1,9 +1,10 @@
-import pytest
 from unittest.mock import MagicMock, patch
 
+import pytest
 from langchain_core.messages import ToolMessage
+from langgraph.types import Command
 
-from models.geodata import GeoDataObject, DataType, DataOrigin
+from models.geodata import DataOrigin, DataType, GeoDataObject
 from models.settings_model import (
     GeoServerBackend,
     ModelSettings,
@@ -19,8 +20,9 @@ from services.tools.geoserver.custom_geoserver import (
     parse_wfs_capabilities,
     parse_wms_capabilities,
     parse_wmts_capabilities,
+    preload_backend_layers,
 )
-from langgraph.types import Command
+from services.tools.geoserver.vector_store import reset_vector_store_for_tests
 
 # Mock URLs
 MOCK_GEOSERVER_URL = "http://mockgeoserver.com/"
@@ -124,6 +126,7 @@ def mock_settings_snapshot() -> SettingsSnapshot:
             system_prompt="You are a helpful assistant.",
         ),
         tools=[ToolConfig(name="mock_tool", enabled=True, prompt_override="")],
+        session_id="test-session",
     )
 
 
@@ -139,6 +142,15 @@ def initial_agent_state(mock_settings_snapshot) -> GeoDataAgentState:
         "geodata_results": [],
         "remaining_steps": 0,
     }
+
+
+@pytest.fixture(autouse=True)
+def temp_vector_store(tmp_path, monkeypatch):
+    db_path = tmp_path / "geoserver_vectors.db"
+    monkeypatch.setenv("NALAMAP_GEOSERVER_VECTOR_DB", str(db_path))
+    reset_vector_store_for_tests()
+    yield
+    reset_vector_store_for_tests()
 
 
 def test_parse_wms_capabilities(mock_wms_service):
@@ -222,85 +234,88 @@ def test_fetch_all_service_capabilities(
     assert any(layer.id == "wmts_workspace:layer1" for layer in layers)
 
 
-@patch("services.tools.geoserver.custom_geoserver.fetch_all_service_capabilities")
-def test_get_custom_geoserver_data(mock_fetch, initial_agent_state):
-    """Test the main tool entry point."""
-    mock_layer = GeoDataObject(
+@patch("services.tools.geoserver.custom_geoserver.fetch_all_service_capabilities_with_status")
+def test_prefetch_and_query_returns_layers(mock_fetch, initial_agent_state):
+    """Prefetched layers should be returned by the tool."""
+    backend = initial_agent_state["options"].geoserver_backends[0]
+    session_id = initial_agent_state["options"].session_id
+
+    layer = GeoDataObject(
         id="wms_layer1",
-        name="Test Layer",
-        title="Test Layer",
+        name="Rivers",
+        title="Major Rivers",
         data_type=DataType.RASTER,
         data_origin=DataOrigin.TOOL.value,
         data_source="test",
         data_source_id="test_source_1",
         data_link="http://mock.link",
     )
-    mock_fetch.return_value = [mock_layer]
-    tool_call_id = "test_tool_call"
+    mock_fetch.return_value = ([layer], {"WMS": True, "WFS": False, "WCS": False, "WMTS": False})
 
+    preload_backend_layers(session_id, backend)
+
+    tool_call_id = "prefetch_call"
     result = _get_custom_geoserver_data(state=initial_agent_state, tool_call_id=tool_call_id)
-
     assert not isinstance(result, ToolMessage)
-    # support tools returning a Command(update=...) or a plain dict
-    if isinstance(result, Command):
-        result_dict = result.update or {}
-    else:
-        result_dict = result
 
-    # Tool should NOT modify geodata_layers; results go to geodata_results
-    assert "geodata_results" in result_dict
-    layers = result_dict["geodata_results"]
+    result_dict = result.update if isinstance(result, Command) else result
+    layers = result_dict.get("geodata_results", [])
     assert len(layers) == 1
-    assert layers[0].id == "wms_layer1"
-    # geodata_layers not included / unchanged (should not be set by tool)
-    assert "geodata_layers" not in result_dict or result_dict.get("geodata_layers") == []
-    mock_fetch.assert_called_once_with(
-        initial_agent_state["options"].geoserver_backends[0], search_term=None
-    )
+    assert layers[0].name == "Rivers"
 
 
-@patch("services.tools.geoserver.custom_geoserver.fetch_all_service_capabilities")
-def test_get_custom_geoserver_data_with_params(mock_fetch, initial_agent_state):
-    """Test the tool with search and max_results parameters."""
-    mock_layers = [
+@patch("services.tools.geoserver.custom_geoserver.fetch_all_service_capabilities_with_status")
+def test_prefetch_and_query_with_search(mock_fetch, initial_agent_state):
+    backend = initial_agent_state["options"].geoserver_backends[0]
+    session_id = initial_agent_state["options"].session_id
+
+    layers = [
         GeoDataObject(
-            id=f"wms_layer{i}",
-            name=f"Test Layer {i}",
-            title=f"Test Layer {i}",
+            id="wms_layer1",
+            name="Forests",
+            title="Forest Coverage",
             data_type=DataType.RASTER,
             data_origin=DataOrigin.TOOL.value,
             data_source="test",
-            data_source_id=f"test_source_{i}",
-            data_link="http://mock.link",
-        )
-        for i in range(5)
+            data_source_id="source_1",
+            data_link="http://mock.link/1",
+        ),
+        GeoDataObject(
+            id="wms_layer2",
+            name="Rivers",
+            title="River Basins",
+            data_type=DataType.RASTER,
+            data_origin=DataOrigin.TOOL.value,
+            data_source="test",
+            data_source_id="source_2",
+            data_link="http://mock.link/2",
+        ),
     ]
-    mock_fetch.return_value = mock_layers
-    tool_call_id = "test_tool_call"
+    mock_fetch.return_value = (layers, {"WMS": True, "WFS": False, "WCS": False, "WMTS": False})
 
-    # The tool itself handles the max_results logic, so the mock can return all.
+    preload_backend_layers(session_id, backend)
+
+    tool_call_id = "search_call"
     result = _get_custom_geoserver_data(
         state=initial_agent_state,
         tool_call_id=tool_call_id,
-        search_term="Test",
-        max_results=3,
+        search_term="river",
+        max_results=1,
     )
 
     assert not isinstance(result, ToolMessage)
-    # support tools returning a Command(update=...) or a plain dict
-    if isinstance(result, Command):
-        result_dict = result.update or {}
-    else:
-        result_dict = result
+    result_dict = result.update if isinstance(result, Command) else result
+    layers = result_dict.get("geodata_results", [])
+    assert len(layers) == 1
+    assert layers[0].id == "wms_layer2"
 
-    assert "geodata_results" in result_dict
-    layers = result_dict["geodata_results"]
-    assert len(layers) == 3
-    # geodata_layers unchanged / not provided in update
-    assert "geodata_layers" not in result_dict or result_dict.get("geodata_layers") == []
-    mock_fetch.assert_called_once_with(
-        initial_agent_state["options"].geoserver_backends[0], search_term="Test"
-    )
+
+def test_get_custom_geoserver_data_requires_prefetch(initial_agent_state):
+    """Without prefetching the tool should instruct the caller to preload."""
+    tool_call_id = "needs_prefetch"
+    result = _get_custom_geoserver_data(state=initial_agent_state, tool_call_id=tool_call_id)
+    assert isinstance(result, ToolMessage)
+    assert "No prefetched GeoServer layers" in result.content
 
 
 def test_get_custom_geoserver_data_no_backends(initial_agent_state):
@@ -323,3 +338,13 @@ def test_get_custom_geoserver_data_no_enabled_backends(initial_agent_state):
 
     assert isinstance(result, ToolMessage)
     assert "All configured GeoServer backends are disabled" in result.content
+
+
+def test_get_custom_geoserver_data_missing_session(initial_agent_state):
+    initial_agent_state["options"].session_id = None
+    tool_call_id = "missing_session"
+
+    result = _get_custom_geoserver_data(state=initial_agent_state, tool_call_id=tool_call_id)
+
+    assert isinstance(result, ToolMessage)
+    assert "Missing session identifier" in result.content

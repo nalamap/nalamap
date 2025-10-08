@@ -1,8 +1,8 @@
+import gzip
 import os
 import uuid
-import gzip
 from datetime import datetime, timedelta
-from typing import Tuple, BinaryIO
+from typing import BinaryIO, Tuple
 
 from core.config import (
     AZ_CONN,
@@ -57,7 +57,7 @@ def _generate_sas_url(blob_url: str, blob_name: str) -> str:
         SAS URL with time-limited access token
     """
     try:
-        from azure.storage.blob import generate_blob_sas, BlobSasPermissions
+        from azure.storage.blob import BlobSasPermissions, generate_blob_sas
 
         # Parse connection string to extract account credentials
         conn_parts = dict(part.split("=", 1) for part in AZ_CONN.split(";") if "=" in part)

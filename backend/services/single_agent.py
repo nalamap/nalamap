@@ -8,6 +8,7 @@ from models.settings_model import ModelSettings, ToolConfig
 from models.states import GeoDataAgentState, get_minimal_debug_state
 from services.ai.llm_config import get_llm
 from services.default_agent_settings import DEFAULT_AVAILABLE_TOOLS, DEFAULT_SYSTEM_PROMPT
+from services.tools.attribute_tools import attribute_tool
 from services.tools.geocoding import (
     geocode_using_nominatim_to_geostate,
     geocode_using_overpass_to_geostate,
@@ -21,9 +22,7 @@ from services.tools.styling_tools import (
     check_and_auto_style_layers,
     style_map_layers,
 )
-from services.tools.attribute_tools import attribute_tool
 from utility.tool_configurator import create_configured_tools
-
 
 tools: List[BaseTool] = [
     # set_result_list,

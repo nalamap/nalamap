@@ -1,17 +1,16 @@
-"""
-Pytest configuration and fixtures for styling tools tests.
-"""
-
 import sys
 from pathlib import Path
-
-import pytest
 
 # Add the backend root directory to Python path first
 backend_root = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_root))
 
-# Now import after path is set
+"""
+Pytest configuration and fixtures for styling tools tests.
+"""
+
+import pytest
+
 from models.geodata import DataOrigin, DataType, GeoDataObject, LayerStyle
 
 

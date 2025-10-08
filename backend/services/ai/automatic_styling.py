@@ -4,8 +4,8 @@ Automatic styling system that applies appropriate colors and styles based on lay
 
 import logging
 import re
-from typing import Any, Dict, List, Optional
 from difflib import SequenceMatcher
+from typing import Any, Dict, List, Optional
 
 try:
     import matplotlib.colors as mcolors

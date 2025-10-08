@@ -1,5 +1,6 @@
 # Implementation for Mistral AI
 from os import getenv
+
 from langchain_mistralai import ChatMistralAI
 
 

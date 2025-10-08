@@ -1,5 +1,6 @@
 # Implementation for Google Generative AI
 from os import getenv
+
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 

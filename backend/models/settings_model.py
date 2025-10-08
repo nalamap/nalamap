@@ -1,4 +1,5 @@
 from typing import List, Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -30,9 +31,21 @@ class ToolConfig(BaseModel):
 
 
 class SettingsSnapshot(BaseModel):
-    search_portals: List[SearchPortal] = Field(..., description="Configured data portal endpoints")
+    search_portals: List[SearchPortal] = Field(
+        default_factory=list,
+        description=(
+            "[DEPRECATED] Configured data portal endpoints. " "No longer used in the application."
+        ),
+    )
     geoserver_backends: List[GeoServerBackend] = Field(
         ..., description="Configured GeoServer backends"
     )
     model_settings: ModelSettings = Field(..., description="Configuration for LLM model usage")
     tools: List[ToolConfig] = Field(..., description="Per-tool configuration overrides")
+    session_id: Optional[str] = Field(
+        None,
+        description=(
+            "Server-issued identifier used to scope cached resources such as prefetched"
+            " GeoServer layers."
+        ),
+    )

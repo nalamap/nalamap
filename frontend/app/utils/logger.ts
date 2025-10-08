@@ -3,11 +3,11 @@
  * Automatically suppresses logs in production unless explicitly enabled
  */
 
-const isDevelopment = process.env.NODE_ENV === 'development';
-const isTest = process.env.NODE_ENV === 'test';
+const isDevelopment = process.env.NODE_ENV === "development";
+const isTest = process.env.NODE_ENV === "test";
 
 // Allow force-enabling logs in production via environment variable
-const forceLogging = process.env.NEXT_PUBLIC_ENABLE_LOGGING === 'true';
+const forceLogging = process.env.NEXT_PUBLIC_ENABLE_LOGGING === "true";
 
 const shouldLog = isDevelopment || isTest || forceLogging;
 
@@ -88,6 +88,7 @@ export class Logger {
 }
 
 // Export convenience functions
-export const { log, warn, error, debug, component, perf, group, table } = Logger;
+export const { log, warn, error, debug, component, perf, group, table } =
+  Logger;
 
 export default Logger;

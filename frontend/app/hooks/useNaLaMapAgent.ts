@@ -1,8 +1,13 @@
 // hooks/useNaLaMap.ts
 "use client";
 
-import { ChatMessage, GeoDataObject, NaLaMapRequest, NaLaMapResponse } from "../models/geodatamodel";
-import { useLayerStore } from '../stores/layerStore'
+import {
+  ChatMessage,
+  GeoDataObject,
+  NaLaMapRequest,
+  NaLaMapResponse,
+} from "../models/geodatamodel";
+import { useLayerStore } from "../stores/layerStore";
 import { useChatInterfaceStore } from "../stores/chatInterfaceStore";
 import { useSettingsStore } from "../stores/settingsStore";
 import Logger from "../utils/logger";
@@ -76,12 +81,9 @@ function normalizeSettings(raw: Record<string, any>): Record<string, any> {
   return out;
 }
 
-
 export function useNaLaMapAgent(apiUrl: string) {
   const layerStore = useLayerStore();
   const chatInterfaceStore = useChatInterfaceStore();
-
-
 
   const appendHumanMessage = (query: string) => {
     /* // Don't normalize for now to keep all arguments
@@ -98,42 +100,51 @@ export function useNaLaMapAgent(apiUrl: string) {
     chatInterfaceStore.setMessages([...chatInterfaceStore.messages, humanMsg]);
   };
 
-
   async function queryNaLaMapAgent(
     endpoint: "chat" | "search" | "geocode" | "geoprocess" | "ai-style",
     layerUrls: string[] = [],
-    options?: { portal?: string; bboxWkt?: string }
+    options?: { portal?: string; bboxWkt?: string },
   ) {
-    const params = new URLSearchParams({ query: chatInterfaceStore.input, endpoint }); // unused at the moment? -> Move to Settingsstore
+    const params = new URLSearchParams({
+      query: chatInterfaceStore.input,
+      endpoint,
+    }); // unused at the moment? -> Move to Settingsstore
     chatInterfaceStore.setLoading(true);
     chatInterfaceStore.setError("");
 
-    await useSettingsStore.getState().initializeIfNeeded()
-    const rawSettings = useSettingsStore.getState().getSettings()
+    await useSettingsStore.getState().initializeIfNeeded();
+    const rawSettings = useSettingsStore.getState().getSettings();
     //Logger.log(rawSettings);
     const settingsMap = new Map<string, Set<any>>(
       Object.entries(rawSettings)
         // drop methods and any non-arrays
         .filter(([, value]) => Array.isArray(value))
         // for each key, convert its array into a Set
-        .map(([key, value]) => [key, new Set(value as any[])] as const)
-    )
+        .map(([key, value]) => [key, new Set(value as any[])] as const),
+    );
     //Logger.log(settingsMap)
     const settingsObjOld: Record<string, unknown[]> = Object.fromEntries(
       Array.from(settingsMap.entries()).map(([key, set]) => [
         key,
-        Array.from(set),        // turn Set → Array
-      ])
+        Array.from(set), // turn Set → Array
+      ]),
     );
-    const settingsObj = normalizeSettings(rawSettings)
-    Logger.log("SettingsObject:")
-    Logger.log(settingsObj)
+    const settingsObj = normalizeSettings(rawSettings);
+    Logger.log("SettingsObject:");
+    Logger.log(settingsObj);
 
     try {
       let response = null;
-      let fullQuery = chatInterfaceStore.input
-      if (endpoint === "geoprocess" || endpoint === "chat" || endpoint === "geocode" || endpoint === "search") {
-        const selectedLayers = useLayerStore.getState().layers.filter((l) => l.selected);
+      let fullQuery = chatInterfaceStore.input;
+      if (
+        endpoint === "geoprocess" ||
+        endpoint === "chat" ||
+        endpoint === "geocode" ||
+        endpoint === "search"
+      ) {
+        const selectedLayers = useLayerStore
+          .getState()
+          .layers.filter((l) => l.selected);
         appendHumanMessage(chatInterfaceStore.input);
         const payload: NaLaMapRequest = {
           messages: chatInterfaceStore.messages,
@@ -141,16 +152,17 @@ export function useNaLaMapAgent(apiUrl: string) {
           geodata_last_results: chatInterfaceStore.geoDataList,
           geodata_layers: layerStore.layers,
           // global_geodata: layerStore.globalGeodata,
-          options: settingsObj
-        }
+          options: settingsObj,
+        };
         chatInterfaceStore.setInput("");
         Logger.log("payload");
         Logger.log(payload);
         response = await fetch(`${apiUrl}/${endpoint}`, {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
+          credentials: "include",
           body: JSON.stringify(payload),
         });
       } else if (endpoint === "ai-style") {
@@ -161,21 +173,22 @@ export function useNaLaMapAgent(apiUrl: string) {
           messages: chatInterfaceStore.messages,
           geodata_layers: layerStore.layers,
           geodata_last_results: chatInterfaceStore.geoDataList,
-        }
+        };
         chatInterfaceStore.setInput("");
         Logger.log("AI Style payload:", payload);
         response = await fetch(`${apiUrl}/${endpoint}`, {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
+          credentials: "include",
           body: JSON.stringify(payload),
         });
       } else {
         throw new Error("Unknown Tool");
       }
       if (!response.ok) {
-        Logger.log(response)
+        Logger.log(response);
         throw new Error("Network response was not ok");
       }
 
@@ -194,7 +207,10 @@ export function useNaLaMapAgent(apiUrl: string) {
 
         // Add AI message to conversation
         if (data.response) {
-          chatInterfaceStore.setMessages([...chatInterfaceStore.messages, { type: "ai", content: data.response }]);
+          chatInterfaceStore.setMessages([
+            ...chatInterfaceStore.messages,
+            { type: "ai", content: data.response },
+          ]);
         }
 
         // Don't update geoDataList for styling operations
@@ -202,7 +218,7 @@ export function useNaLaMapAgent(apiUrl: string) {
       }
 
       const data: NaLaMapResponse = await response.json();
-      Logger.log(data)
+      Logger.log(data);
       if (!data.geodata_results) {
         throw new Error("Response was missing GeoData");
       }
@@ -216,14 +232,18 @@ export function useNaLaMapAgent(apiUrl: string) {
         layerStore.synchronizeLayersFromBackend(data.geodata_layers);
 
       // Check if this was a styling operation by looking for style_map_layers in messages
-      const isStyleOperation = data.messages.some(msg =>
-        msg.type === "tool" && msg.content?.includes("Successfully applied styling")
+      const isStyleOperation = data.messages.some(
+        (msg) =>
+          msg.type === "tool" &&
+          msg.content?.includes("Successfully applied styling"),
       );
 
       if (data.geodata_layers) {
         if (isStyleOperation) {
           // For styling operations, use updateLayersFromBackend to preserve existing layers
-          Logger.log("Detected styling operation, using updateLayersFromBackend");
+          Logger.log(
+            "Detected styling operation, using updateLayersFromBackend",
+          );
           Logger.log("Styling data.geodata_layers:", data.geodata_layers);
           layerStore.updateLayersFromBackend(data.geodata_layers);
         } else {
@@ -241,6 +261,13 @@ export function useNaLaMapAgent(apiUrl: string) {
     }
   }
 
-  return { input: chatInterfaceStore.input, setInput: chatInterfaceStore.setInput, messages: chatInterfaceStore.messages, geoDataList: chatInterfaceStore.geoDataList, loading: chatInterfaceStore.loading, error: chatInterfaceStore.error, queryNaLaMapAgent };
-
+  return {
+    input: chatInterfaceStore.input,
+    setInput: chatInterfaceStore.setInput,
+    messages: chatInterfaceStore.messages,
+    geoDataList: chatInterfaceStore.geoDataList,
+    loading: chatInterfaceStore.loading,
+    error: chatInterfaceStore.error,
+    queryNaLaMapAgent,
+  };
 }

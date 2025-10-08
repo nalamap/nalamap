@@ -1,6 +1,6 @@
 /**
  * Custom React Hook for fetching and processing GeoJSON layer data
- * 
+ *
  * Handles:
  * - Fetching GeoJSON from URLs
  * - Normalizing various GeoJSON formats
@@ -9,10 +9,10 @@
  * - Loading states and error handling
  */
 
-import { useState, useEffect } from 'react';
-import Logger from '../utils/logger';
-import { GeoJSONNormalizer } from '../utils/geojson-normalizer';
-import { CoordinateProjection } from '../utils/coordinate-projection';
+import { useState, useEffect } from "react";
+import Logger from "../utils/logger";
+import { GeoJSONNormalizer } from "../utils/geojson-normalizer";
+import { CoordinateProjection } from "../utils/coordinate-projection";
 
 export interface UseLayerDataOptions {
   url: string;
@@ -26,16 +26,16 @@ export interface UseLayerDataResult {
   refetch: () => void;
 }
 
-export function useLayerData({ 
-  url, 
-  preferEPSG4326 = true 
+export function useLayerData({
+  url,
+  preferEPSG4326 = true,
 }: UseLayerDataOptions): UseLayerDataResult {
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [refetchTrigger, setRefetchTrigger] = useState(0);
 
-  const refetch = () => setRefetchTrigger(prev => prev + 1);
+  const refetch = () => setRefetchTrigger((prev) => prev + 1);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,12 +52,13 @@ export function useLayerData({
         if (preferEPSG4326) {
           try {
             const urlObj = new URL(url);
-            const isWFS = /wfs/i.test(urlObj.search) || 
-                          urlObj.searchParams.get('service')?.toUpperCase() === 'WFS';
-            const hasSrsName = urlObj.searchParams.has('srsName');
+            const isWFS =
+              /wfs/i.test(urlObj.search) ||
+              urlObj.searchParams.get("service")?.toUpperCase() === "WFS";
+            const hasSrsName = urlObj.searchParams.has("srsName");
 
             if (isWFS && !hasSrsName) {
-              urlObj.searchParams.set('srsName', 'EPSG:4326');
+              urlObj.searchParams.set("srsName", "EPSG:4326");
               requestUrl = urlObj.toString();
             }
           } catch (e) {
@@ -68,7 +69,7 @@ export function useLayerData({
         // Fetch data
         let response = await fetch(requestUrl, {
           headers: {
-            Accept: 'application/json, application/geo+json, */*;q=0.1',
+            Accept: "application/json, application/geo+json, */*;q=0.1",
           },
         });
 
@@ -76,7 +77,7 @@ export function useLayerData({
         if (!response.ok && requestUrl !== url) {
           response = await fetch(url, {
             headers: {
-              Accept: 'application/json, application/geo+json, */*;q=0.1',
+              Accept: "application/json, application/geo+json, */*;q=0.1",
             },
           });
         }
@@ -86,10 +87,13 @@ export function useLayerData({
         }
 
         // Parse response
-        const contentType = response.headers.get('content-type') || '';
+        const contentType = response.headers.get("content-type") || "";
         let json: any;
 
-        if (contentType.includes('application/json') || contentType.includes('geo+json')) {
+        if (
+          contentType.includes("application/json") ||
+          contentType.includes("geo+json")
+        ) {
           json = await response.json();
         } else {
           // Try to parse as JSON anyway
@@ -97,7 +101,9 @@ export function useLayerData({
           try {
             json = JSON.parse(text);
           } catch (parseError) {
-            throw new Error(`Response is not valid JSON: ${text.slice(0, 200)}`);
+            throw new Error(
+              `Response is not valid JSON: ${text.slice(0, 200)}`,
+            );
           }
         }
 
@@ -107,34 +113,41 @@ export function useLayerData({
         let normalized = GeoJSONNormalizer.normalize(json);
 
         if (!normalized) {
-          throw new Error('Could not normalize GeoJSON data');
+          throw new Error("Could not normalize GeoJSON data");
         }
 
         // Extract declared CRS
-        const declaredCrs = GeoJSONNormalizer.extractCRS(json) || 
-                           GeoJSONNormalizer.extractCRS(normalized) ||
-                           undefined;
+        const declaredCrs =
+          GeoJSONNormalizer.extractCRS(json) ||
+          GeoJSONNormalizer.extractCRS(normalized) ||
+          undefined;
 
         // Auto-detect and reproject if needed
-        normalized = CoordinateProjection.autoReproject(normalized, declaredCrs);
+        normalized = CoordinateProjection.autoReproject(
+          normalized,
+          declaredCrs,
+        );
 
         // Final validation
         if (!GeoJSONNormalizer.validateLatLonCoordinates(normalized)) {
-          Logger.warn('Coordinates validation failed, attempting fallback fetch');
-          
+          Logger.warn(
+            "Coordinates validation failed, attempting fallback fetch",
+          );
+
           // Fallback: refetch original without modifications
           timeoutId = setTimeout(() => {
             fetch(url)
-              .then(res => res.json())
-              .then(originalJson => {
-                const fallbackNormalized = GeoJSONNormalizer.normalize(originalJson);
+              .then((res) => res.json())
+              .then((originalJson) => {
+                const fallbackNormalized =
+                  GeoJSONNormalizer.normalize(originalJson);
                 if (fallbackNormalized) {
                   setData(fallbackNormalized);
                   setIsLoading(false);
                 }
               })
               .catch(() => {
-                setError(new Error('Fallback fetch failed'));
+                setError(new Error("Fallback fetch failed"));
                 setIsLoading(false);
               });
           }, 0);
@@ -144,7 +157,7 @@ export function useLayerData({
         setData(normalized);
       } catch (err) {
         if (!cancelled) {
-          Logger.error('Error fetching layer data:', err);
+          Logger.error("Error fetching layer data:", err);
           setError(err instanceof Error ? err : new Error(String(err)));
         }
       } finally {

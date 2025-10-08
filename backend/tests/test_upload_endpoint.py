@@ -1,7 +1,7 @@
+import importlib
 import io
 import os
 import sys
-import importlib
 from pathlib import Path
 from urllib.parse import quote
 
@@ -9,7 +9,6 @@ import pytest
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.testclient import TestClient
-
 
 # Ensure backend package is importable
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
@@ -28,8 +27,8 @@ def build_minimal_app(tmp_path: Path) -> TestClient:
     if "services.storage.file_management" in sys.modules:
         importlib.reload(sys.modules["services.storage.file_management"])  # type: ignore[arg-type]
 
-    from core.config import LOCAL_UPLOAD_DIR  # noqa: E402
     from api.data_management import router as upload_router  # noqa: E402
+    from core.config import LOCAL_UPLOAD_DIR  # noqa: E402
 
     app = FastAPI()
     os.makedirs(LOCAL_UPLOAD_DIR, exist_ok=True)

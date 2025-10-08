@@ -9,23 +9,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from api import (
-    ai_style,
-    auto_styling,
-    data_management,
-    debug,
-    file_streaming,
-    nalamap,
-    settings,
-)
+from api import ai_style, auto_styling, data_management, debug, file_streaming, nalamap, settings
 
 # from sqlalchemy.ext.asyncio import AsyncSession
-from core.config import LOCAL_UPLOAD_DIR, ALLOWED_CORS_ORIGINS
+from core.config import ALLOWED_CORS_ORIGINS, LOCAL_UPLOAD_DIR
 from services.database.database import close_db, init_db
 
-# Configure logging to show info level messages for debugging
+# Configure logging with environment variable support
+# Set LOG_LEVEL=WARNING in production to reduce noise, DEBUG for verbose output
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, log_level, logging.INFO),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 

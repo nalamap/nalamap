@@ -1,5 +1,5 @@
-import json
 import hashlib
+import json
 from typing import Any, Dict, List, Optional, Union
 
 import requests
@@ -184,13 +184,16 @@ def geocode_using_nominatim_to_geostate(
     geojson: bool = True,
     maxRows: int = 5,
 ) -> Union[Dict[str, Any], Command]:
-    """Geocode an address using OpenStreetMap Nominatim API. Returns Bounding Box for further request and GeoJson of the area to show to the user.
-    Use for:  Geocoding specific addresses or when detailed data (e.g., place types) is needed.
+    """Geocode an address using OpenStreetMap Nominatim API. Returns Bounding Box for further
+    request and GeoJson of the area to show to the user.
+    Use for: Geocoding specific addresses or when detailed data (e.g., place types) is needed.
     Strengths:
-    * Provides detailed polygon data as GeoJSON (e.g. polygons of countries, states, cities) which can be used for map visualization and further analysis.
+    * Provides detailed polygon data as GeoJSON (e.g. polygons of countries, states, cities)
+      which can be used for map visualization and further analysis.
     * For forward geocoding: Converts place names or addresses into geographic coordinates.
     * Detailed address data, including house numbers, street names, neighborhoods, and postcodes.
-    * Provides the geographical extent (min/max latitude and longitude) for places, including cities, countries, and sometimes smaller features like neighborhoods
+    * Provides the geographical extent (min/max latitude and longitude) for places, including
+      cities, countries, and sometimes smaller features like neighborhoods
     * Categorizes results by OSM tags, indicating the type of place (e.g., city, street, building, amenity, shop)
     * Reverse geocoding: Converts geographic coordinates into detailed address information.
     Limitations:
