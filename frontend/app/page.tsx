@@ -145,7 +145,7 @@ export default function Home() {
             className="flex-none relative min-w-[200px] bg-primary-100"
           >
             <button
-              className="absolute top-2 left-2 p-1 bg-primary-200 rounded shadow z-10 hover:bg-primary-300"
+              className="absolute top-2 right-2 p-1 bg-primary-200 rounded shadow z-10 hover:bg-primary-300"
               onClick={() => setLayerCollapsed(true)}
             >
               <ChevronLeft className="w-4 h-4 text-primary-700" />
@@ -187,7 +187,7 @@ export default function Home() {
             className="flex-none relative min-w-[200px] bg-primary-50"
           >
             <button
-              className="absolute top-2 right-2 p-1 bg-primary-200 rounded shadow z-10 hover:bg-primary-300"
+              className="absolute top-2 left-2 p-1 bg-primary-200 rounded shadow z-10 hover:bg-primary-300"
               onClick={() => setChatCollapsed(true)}
             >
               <ChevronRight className="w-4 h-4 text-primary-700" />
