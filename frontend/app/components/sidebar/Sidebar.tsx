@@ -39,7 +39,7 @@ export default function Sidebar({ onLayerToggle }: { onLayerToggle?: () => void 
         {/* Home Icon */}
         <Link href="/">
           <button
-            className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
+            className="hover:bg-secondary-800 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
             title="Home"
           >
             <Home className="w-6 h-6 md:mr-0 mr-3" />
@@ -50,7 +50,7 @@ export default function Sidebar({ onLayerToggle }: { onLayerToggle?: () => void 
         {onLayerToggle && (
           <button
             onClick={onLayerToggle}
-            className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
+            className="hover:bg-secondary-800 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
             title="Layer Management"
           >
             <Layers className="w-6 h-6 md:mr-0 mr-3" />
@@ -59,7 +59,7 @@ export default function Sidebar({ onLayerToggle }: { onLayerToggle?: () => void 
         )}
         {/* Account Icon */}
         <button
-          className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
+          className="hover:bg-secondary-800 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
           title="Account"
         >
           <User className="w-6 h-6 md:mr-0 mr-3" />
@@ -69,7 +69,7 @@ export default function Sidebar({ onLayerToggle }: { onLayerToggle?: () => void 
         {/* Fullscreen Icon */}
         <button
           onClick={toggleFullscreen}
-          className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
+          className="hover:bg-secondary-800 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
           title="Fullscreen Mode"
         >
           <Maximize className="w-6 h-6 md:mr-0 mr-3" />
@@ -78,7 +78,7 @@ export default function Sidebar({ onLayerToggle }: { onLayerToggle?: () => void 
 
         {/* Reset Icon */}
         <button
-          className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
+          className="hover:bg-secondary-800 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
           title="Reset App"
         >
           <RefreshCcw className="w-6 h-6 md:mr-0 mr-3" />
@@ -88,7 +88,7 @@ export default function Sidebar({ onLayerToggle }: { onLayerToggle?: () => void 
         {/* Settings Icon */}
         <Link href="/settings">
           <button
-            className="hover:bg-secondary-800 p-2 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
+            className="hover:bg-secondary-800 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
             title="Settings"
           >
             <Settings className="w-6 h-6 md:mr-0 mr-3" />

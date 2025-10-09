@@ -111,15 +111,29 @@ def test_color_settings_model_validation():
 
     color_settings = ColorSettings(
         primary=primary,
-        second_primary=primary,  # Using same for brevity
+        second_primary=primary,
         secondary=primary,
         tertiary=primary,
+        danger=primary,
+        warning=primary,
+        info=primary,
+        neutral=primary,
+        corporate_1=primary,
+        corporate_2=primary,
+        corporate_3=primary,
     )
 
     assert color_settings.primary == primary
     assert color_settings.second_primary == primary
     assert color_settings.secondary == primary
     assert color_settings.tertiary == primary
+    assert color_settings.danger == primary
+    assert color_settings.warning == primary
+    assert color_settings.info == primary
+    assert color_settings.neutral == primary
+    assert color_settings.corporate_1 == primary
+    assert color_settings.corporate_2 == primary
+    assert color_settings.corporate_3 == primary
 
 
 def test_default_color_settings_match_globals_css(api_client):
@@ -129,23 +143,23 @@ def test_default_color_settings_match_globals_css(api_client):
 
     color_settings = response.json()["color_settings"]
 
-    # Verify primary colors match globals.css defaults
+    # Verify primary colors match globals.css defaults (IUCN Green List tuned)
     primary = color_settings["primary"]
-    assert primary["shade_50"] == "#f7f7f8"
-    assert primary["shade_700"] == "#505160"  # --first-primary
-    assert primary["shade_950"] == "#25252c"
+    assert primary["shade_50"] == "#FAFBFA"  # Updated from old #f7f7f8
+    assert primary["shade_700"] == "#545454"  # Updated from old #505160
+    assert primary["shade_950"] == "#181B19"  # Updated from old #25252c
 
-    # Verify second primary colors
+    # Verify second primary colors (leaf green)
     second_primary = color_settings["second_primary"]
-    assert second_primary["shade_600"] == "#68829e"  # --second-primary
+    assert second_primary["shade_600"] == "#66A660"  # Updated from old #68829e
 
-    # Verify secondary colors
+    # Verify secondary colors (seafoam/teal)
     secondary = color_settings["secondary"]
-    assert secondary["shade_500"] == "#aebd38"  # --secondary
+    assert secondary["shade_500"] == "#86BEAA"  # Updated from old #aebd38
 
-    # Verify tertiary colors
+    # Verify tertiary colors (forest green)
     tertiary = color_settings["tertiary"]
-    assert tertiary["shade_600"] == "#598234"  # --tertiary
+    assert tertiary["shade_600"] == "#477951"  # Updated from old #598234
 
 
 def test_session_id_set_with_color_settings(api_client):

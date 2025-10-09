@@ -5,6 +5,7 @@ import Sidebar from "../components/sidebar/Sidebar";
 import { GeoServerBackend, SettingsSnapshot } from "../stores/settingsStore";
 import { useUIStore } from "../stores/uiStore";
 import ColorSettingsComponent from "../components/settings/ColorSettingsComponent";
+import ThemeToggleComponent from "../components/settings/ThemeToggleComponent";
 import ModelSettingsComponent from "../components/settings/ModelSettingsComponent";
 import ToolSettingsComponent from "../components/settings/ToolSettingsComponent";
 import GeoServerSettingsComponent from "../components/settings/GeoServerSettingsComponent";
@@ -708,6 +709,11 @@ export default function SettingsPage() {
           {/* Model Settings */}
           <section>
             <ModelSettingsComponent />
+          </section>
+
+          {/* Theme Preference */}
+          <section>
+            <ThemeToggleComponent />
           </section>
 
           {/* Color Customization */}

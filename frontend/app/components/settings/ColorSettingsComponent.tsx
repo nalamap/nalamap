@@ -2,21 +2,22 @@
 
 import { useState } from "react";
 import { useSettingsStore } from "../../stores/settingsStore";
-import { ChevronDown, ChevronUp, RotateCcw, Info } from "lucide-react";
+import { ChevronDown, ChevronUp, RotateCcw, Info, Wand2 } from "lucide-react";
 import { ColorScale, ColorSettings } from "../../stores/settingsStore";
+import { generateColorScale } from "../../utils/colorGenerator";
 
 const COLOR_SCALE_LABELS: Record<keyof ColorScale, string> = {
-  shade_50: "50",
+  shade_50: "50 - Lightest",
   shade_100: "100",
   shade_200: "200",
   shade_300: "300",
   shade_400: "400",
-  shade_500: "500",
+  shade_500: "500 - Base",
   shade_600: "600",
   shade_700: "700",
   shade_800: "800",
   shade_900: "900",
-  shade_950: "950",
+  shade_950: "950 - Darkest",
 };
 
 // Organized color groups
@@ -70,14 +71,22 @@ interface ColorScaleEditorProps {
   scaleName: keyof ColorSettings;
   scale: ColorScale;
   onUpdate: (shade: keyof ColorScale, color: string) => void;
+  onAutoGenerate: (baseColor: string) => void;
 }
 
 function ColorScaleEditor({
   scaleName,
   scale,
   onUpdate,
+  onAutoGenerate,
 }: ColorScaleEditorProps) {
   const [expanded, setExpanded] = useState(false);
+  const [showQuickPicker, setShowQuickPicker] = useState(false);
+
+  const handleQuickColorChange = (color: string) => {
+    onAutoGenerate(color);
+    setShowQuickPicker(false);
+  };
 
   return (
     <div className="border border-primary-300 rounded p-3 bg-neutral-50">
@@ -106,12 +115,48 @@ function ColorScaleEditor({
             </div>
           </div>
         </div>
-        {expanded ? (
-          <ChevronUp className="w-4 h-4 text-primary-600 flex-shrink-0" />
-        ) : (
-          <ChevronDown className="w-4 h-4 text-primary-600 flex-shrink-0" />
-        )}
+        <div className="flex items-center space-x-2 flex-shrink-0">
+          {/* Quick Color Picker Button */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowQuickPicker(!showQuickPicker);
+            }}
+            className="p-1.5 bg-secondary-100 hover:bg-secondary-200 rounded transition-colors"
+            title="Quick set color (auto-generates all shades)"
+          >
+            <Wand2 className="w-4 h-4 text-secondary-700" />
+          </button>
+          {expanded ? (
+            <ChevronUp className="w-4 h-4 text-primary-600" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-primary-600" />
+          )}
+        </div>
       </button>
+
+      {/* Quick Color Picker */}
+      {showQuickPicker && (
+        <div className="mt-3 p-3 bg-secondary-50 border border-secondary-200 rounded">
+          <div className="flex items-center space-x-3">
+            <input
+              type="color"
+              value={scale.shade_500}
+              onChange={(e) => handleQuickColorChange(e.target.value)}
+              className="w-16 h-16 rounded cursor-pointer border-2 border-secondary-300"
+              title="Pick main color - all shades will be generated automatically"
+            />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-secondary-900 mb-1">
+                🪄 Quick Color Set
+              </p>
+              <p className="text-xs text-secondary-800">
+                Pick your main color and we'll automatically generate all 11 shades (lighter to darker).
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {expanded && (
         <div className="mt-3 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
@@ -141,7 +186,7 @@ function ColorScaleEditor({
 }
 
 export default function ColorSettingsComponent() {
-  const [isOpen, setIsOpen] = useState(true);
+  const [isOpen, setIsOpen] = useState(false); // Start collapsed by default
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const color_settings = useSettingsStore((state) => state.color_settings);
   const updateColorScale = useSettingsStore((state) => state.updateColorScale);
@@ -158,6 +203,14 @@ export default function ColorSettingsComponent() {
   const handleReset = () => {
     resetColorSettings();
     setShowResetConfirm(false);
+  };
+
+  const handleAutoGenerate = (scaleName: keyof ColorSettings, baseColor: string) => {
+    const generatedScale = generateColorScale(baseColor);
+    // Update all shades at once
+    Object.entries(generatedScale).forEach(([shade, color]) => {
+      updateColorScale(scaleName, shade as keyof ColorScale, color);
+    });
   };
 
   return (
@@ -193,6 +246,9 @@ export default function ColorSettingsComponent() {
                   Customize your app's color scheme
                 </p>
                 <ul className="text-xs space-y-1 text-info-800">
+                  <li>
+                    • Click the <strong>🪄 magic wand</strong> icon for quick color generation
+                  </li>
                   <li>
                     • Changes apply instantly across the entire application
                   </li>
@@ -235,6 +291,9 @@ export default function ColorSettingsComponent() {
                     onUpdate={(shade, color) =>
                       updateColorScale(scaleName, shade, color)
                     }
+                    onAutoGenerate={(baseColor) =>
+                      handleAutoGenerate(scaleName, baseColor)
+                    }
                   />
                 ))}
               </div>
@@ -249,7 +308,7 @@ export default function ColorSettingsComponent() {
                 className="flex items-center space-x-2 px-4 py-2 bg-primary-200 text-primary-700 rounded hover:bg-primary-300 transition-colors font-medium"
               >
                 <RotateCcw className="w-4 h-4" />
-                <span>Reset to Default Colors</span>
+                <span>Reset</span>
               </button>
             ) : (
               <div className="flex items-center space-x-2">
@@ -260,7 +319,7 @@ export default function ColorSettingsComponent() {
                   onClick={handleReset}
                   className="px-3 py-1 bg-danger-600 text-neutral-50 rounded hover:bg-danger-700 transition-colors font-medium text-sm"
                 >
-                  Yes, Reset
+                  Confirm
                 </button>
                 <button
                   onClick={() => setShowResetConfirm(false)}
@@ -274,10 +333,14 @@ export default function ColorSettingsComponent() {
 
           {/* Usage Tips */}
           <div className="bg-warning-50 border border-warning-200 rounded p-3 text-xs text-warning-900">
-            <p className="font-medium mb-1">💡 Color Selection Tips:</p>
+            <p className="font-medium mb-1">Tips for Color Selection:</p>
             <ul className="space-y-1">
               <li>
-                • Maintain sufficient contrast between text and background
+                • Use lighter shades (50-300) for backgrounds, darker (700-950)
+                for text
+              </li>
+              <li>
+                • Maintain sufficient contrast for accessibility between text and background
                 colors
               </li>
               <li>
@@ -285,10 +348,6 @@ export default function ColorSettingsComponent() {
               </li>
               <li>
                 • Test colors with color blindness simulators for accessibility
-              </li>
-              <li>
-                • Use lighter shades (50-300) for backgrounds, darker (700-950)
-                for text
               </li>
               <li>
                 • Danger (red) should remain red-ish for universal recognition

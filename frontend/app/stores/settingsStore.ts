@@ -83,6 +83,7 @@ export interface SettingsSnapshot {
   tool_options: Record<string, ToolOption>;
   model_options: Record<string, ModelOption[]>;
   color_settings?: ColorSettings; // User-customizable colors
+  theme?: "light" | "dark"; // Theme preference
   session_id?: string;
 }
 
@@ -146,6 +147,11 @@ export interface SettingsState extends SettingsSnapshot {
     color: string,
   ) => void;
   resetColorSettings: () => void;
+
+  // Theme settings
+  theme: "light" | "dark";
+  setTheme: (theme: "light" | "dark") => void;
+  toggleTheme: () => void;
 
   // Bulk
   getSettings: () => SettingsSnapshot;
@@ -406,6 +412,20 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }),
   resetColorSettings: () => set({ color_settings: undefined }),
 
+  // theme settings
+  theme: (typeof window !== "undefined" && localStorage.getItem("theme") === "dark") ? "dark" : "light",
+  setTheme: (theme) => {
+    set({ theme });
+    if (typeof window !== "undefined") {
+      localStorage.setItem("theme", theme);
+      document.documentElement.classList.toggle("dark", theme === "dark");
+    }
+  },
+  toggleTheme: () => {
+    const newTheme = get().theme === "light" ? "dark" : "light";
+    get().setTheme(newTheme);
+  },
+
   // bulk
   getSettings: () => ({
     search_portals: get().search_portals || [],
@@ -415,19 +435,28 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     tool_options: get().tool_options,
     model_options: get().model_options,
     color_settings: get().color_settings,
+    theme: get().theme,
     session_id: get().session_id,
   }),
   setSettings: (settings) =>
-    set((state) => ({
-      search_portals: settings.search_portals || [],
-      geoserver_backends: settings.geoserver_backends,
-      model_settings: settings.model_settings,
-      tools: settings.tools,
-      tool_options: settings.tool_options,
-      model_options: settings.model_options,
-      color_settings: settings.color_settings,
-      session_id: state.session_id,
-    })),
+    set((state) => {
+      const newState = {
+        search_portals: settings.search_portals || [],
+        geoserver_backends: settings.geoserver_backends,
+        model_settings: settings.model_settings,
+        tools: settings.tools,
+        tool_options: settings.tool_options,
+        model_options: settings.model_options,
+        color_settings: settings.color_settings,
+        theme: settings.theme || state.theme,
+        session_id: state.session_id,
+      };
+      // Apply theme if changed
+      if (settings.theme && settings.theme !== state.theme) {
+        state.setTheme(settings.theme);
+      }
+      return newState;
+    }),
 }));
 
 // Expose store to window for E2E testing
