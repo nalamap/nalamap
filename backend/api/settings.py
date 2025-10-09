@@ -203,63 +203,63 @@ async def get_settings_options(request: Request, response: Response):
     }
 
     # Default color settings matching globals.css
-    # IUCN Green List–styled color settings
+    # IUCN Green List–matched color settings (tuned to NalaMap usage)
     default_color_settings = ColorSettings(
-        # Neutral greys (for text, borders, backgrounds) — cool, slightly natural tint
+        # Neutral greys (text, borders, light backgrounds)
         primary=ColorScale(
-            shade_50="#f7f8f7",
-            shade_100="#dfe1e0",
-            shade_200="#c6cbc8",
-            shade_300="#aeb5b0",
-            shade_400="#969f99",
-            shade_500="#7e8981",
-            shade_600="#67716a",
-            shade_700="#515953",
-            shade_800="#3b403d",
-            shade_900="#252826",
-            shade_950="#0e100f",
+            shade_50="#FAFBFA",   # app backgrounds (very light)
+            shade_100="#E3E7E4",  # light panels / chat backgrounds
+            shade_200="#DEE1DF",  # light dividers / subtle fills
+            shade_300="#C9CECC",  # borders (maps to your primary-300 use)
+            shade_400="#9F9F9F",  # disabled text, handles
+            shade_500="#7D807E",  # secondary text / metadata
+            shade_600="#646464",  # interactive icons/links (default)
+            shade_700="#545454",  # hover/darker interactive
+            shade_800="#3B3E3C",  # sidebar bg / section headings (slate)
+            shade_900="#2F3530",  # main text / strong emphasis
+            shade_950="#181B19",
         ),
-        # Main accent (buttons, active states) — Green List leaf green
+        # Main accent (buttons, active states, progress) — leaf green
         second_primary=ColorScale(
-            shade_50="#cfe8d3",
-            shade_100="#b8ddbd",
-            shade_200="#a1d2a8",
-            shade_300="#89c692",
-            shade_400="#72bb7d",
-            shade_500="#5bb067",
-            shade_600="#4c9d57",
-            shade_700="#41864b",
-            shade_800="#356f3e",
-            shade_900="#2a5831",
-            shade_950="#1f4124",
+            shade_50="#F3FAF3",
+            shade_100="#E6F3E6",
+            shade_200="#D5E8D3",   # user message bg
+            shade_300="#B9D8B8",
+            shade_400="#96C691",
+            shade_500="#79B472",
+            shade_600="#66A660",   # ACTION BUTTONS / active — your 600
+            shade_700="#4F8E4F",   # button hover — your 700
+            shade_800="#3D7040",
+            shade_900="#2F5732",
+            shade_950="#1D3820",
         ),
-        # Supporting accent (hover fills, subtle highlights) — muted seafoam/teal from GL UI
+        # Supporting accent (focus rings, subtle highlights, hovers) — seafoam/teal
         secondary=ColorScale(
-            shade_50="#d9e5e0",
-            shade_100="#c5d8d0",
-            shade_200="#b2cbc0",
-            shade_300="#9ebeb1",
-            shade_400="#8bb0a1",
-            shade_500="#77a391",
-            shade_600="#659581",
-            shade_700="#588170",
-            shade_800="#4a6e5f",
-            shade_900="#3d5a4e",
-            shade_950="#30473d",
+            shade_50="#F0F5F2",
+            shade_100="#E3EDE8",
+            shade_200="#CDE1D8",
+            shade_300="#B6D5C9",   # textarea/input focus ring
+            shade_400="#9EC9B9",
+            shade_500="#86BEAA",   # waiting progress bar
+            shade_600="#6BAE97",   # waiting status text / send button
+            shade_700="#559D85",   # send hover
+            shade_800="#3C8C74",   # sidebar item hover bg
+            shade_900="#2F6F5C",
+            shade_950="#204F42",
         ),
-        # Success / confirmation — deeper forest green aligned with GL icons & badges
+        # Success / confirmations — deeper forest green
         tertiary=ColorScale(
-            shade_50="#b3daca",
-            shade_100="#9dcfbb",
-            shade_200="#87c5ac",
-            shade_300="#72ba9d",
-            shade_400="#5cb08e",
-            shade_500="#4d9e7d",
-            shade_600="#43896c",
-            shade_700="#38735b",
-            shade_800="#2e5d4a",
-            shade_900="#234839",
-            shade_950="#183228",
+            shade_50="#EAF4ED",
+            shade_100="#D8E8DE",
+            shade_200="#B9D5C4",
+            shade_300="#99C2AA",
+            shade_400="#79AE90",
+            shade_500="#5D9A7A",
+            shade_600="#477951",   # success text, checkboxes, completed
+            shade_700="#3D6948",   # export hover (darker success)
+            shade_800="#32573C",
+            shade_900="#284832",
+            shade_950="#1A2F22",
         ),
     )
 
