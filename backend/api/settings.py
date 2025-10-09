@@ -207,7 +207,7 @@ async def get_settings_options(request: Request, response: Response):
     default_color_settings = ColorSettings(
         # Neutral greys (text, borders, light backgrounds)
         primary=ColorScale(
-            shade_50="#FAFBFA",   # app backgrounds (very light)
+            shade_50="#FAFBFA",  # app backgrounds (very light)
             shade_100="#E3E7E4",  # light panels / chat backgrounds
             shade_200="#DEE1DF",  # light dividers / subtle fills
             shade_300="#C9CECC",  # borders (maps to your primary-300 use)
@@ -223,12 +223,12 @@ async def get_settings_options(request: Request, response: Response):
         second_primary=ColorScale(
             shade_50="#F3FAF3",
             shade_100="#E6F3E6",
-            shade_200="#D5E8D3",   # user message bg
+            shade_200="#D5E8D3",  # user message bg
             shade_300="#B9D8B8",
             shade_400="#96C691",
             shade_500="#79B472",
-            shade_600="#66A660",   # ACTION BUTTONS / active — your 600
-            shade_700="#4F8E4F",   # button hover — your 700
+            shade_600="#66A660",  # ACTION BUTTONS / active — your 600
+            shade_700="#4F8E4F",  # button hover — your 700
             shade_800="#3D7040",
             shade_900="#2F5732",
             shade_950="#1D3820",
@@ -238,12 +238,12 @@ async def get_settings_options(request: Request, response: Response):
             shade_50="#F0F5F2",
             shade_100="#E3EDE8",
             shade_200="#CDE1D8",
-            shade_300="#B6D5C9",   # textarea/input focus ring
+            shade_300="#B6D5C9",  # textarea/input focus ring
             shade_400="#9EC9B9",
-            shade_500="#86BEAA",   # waiting progress bar
-            shade_600="#6BAE97",   # waiting status text / send button
-            shade_700="#559D85",   # send hover
-            shade_800="#3C8C74",   # sidebar item hover bg
+            shade_500="#86BEAA",  # waiting progress bar
+            shade_600="#6BAE97",  # waiting status text / send button
+            shade_700="#559D85",  # send hover
+            shade_800="#3C8C74",  # sidebar item hover bg
             shade_900="#2F6F5C",
             shade_950="#204F42",
         ),
@@ -255,8 +255,8 @@ async def get_settings_options(request: Request, response: Response):
             shade_300="#99C2AA",
             shade_400="#79AE90",
             shade_500="#5D9A7A",
-            shade_600="#477951",   # success text, checkboxes, completed
-            shade_700="#3D6948",   # export hover (darker success)
+            shade_600="#477951",  # success text, checkboxes, completed
+            shade_700="#3D6948",  # export hover (darker success)
             shade_800="#32573C",
             shade_900="#284832",
             shade_950="#1A2F22",
