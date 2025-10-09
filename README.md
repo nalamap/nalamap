@@ -61,6 +61,9 @@ nalamap/
 │   └── public/           # Static assets
 └── nginx/                # Nginx configuration for serving the application
 ```
+
+> 📖 **For detailed architecture documentation**, see [ARCHITECTURE.md](ARCHITECTURE.md)  
+> 🤖 **For AI agent development guidelines**, see [AGENTS.md](AGENTS.md)
 ## Simplified Entitiy Relationship Model
 The following model was created to give you a high level overview of how NaLaMap works. It shows an example user-request to change the sytling of a vector layer in the map. 
 <img width="950" height="534" alt="image" src="https://github.com/user-attachments/assets/6a09918a-fbd0-4860-a362-a5d4f55e871a" />
@@ -230,14 +233,42 @@ docker-compose -f dev.docker-compose.yml up --build
 
 ## Tests
 
-The project includes a test suite for the backend components. To run the tests:
+The project includes comprehensive test suites for both backend and frontend components.
 
-1. Navigate to the backend directory and make sure you have setup the backend before:
-   ```bash
-   poetry run pytest tests/
-   ```
+### Backend Tests (pytest)
 
-Note: Some tests may require a running server or mock data. If you encounter connection errors, it's likely because the test is trying to access resources that aren't available in the test environment.
+Navigate to the backend directory and run the tests:
+```bash
+cd backend
+poetry run pytest tests/
+
+# Run with verbose output
+poetry run pytest tests/ -v
+
+# Run specific test markers (unit, integration, styling, etc.)
+poetry run pytest tests/ -m unit
+```
+
+### Frontend Tests (Playwright)
+
+Navigate to the frontend directory and run the E2E tests:
+```bash
+cd frontend
+
+# Install Playwright browsers (first time only)
+npx playwright install --with-deps
+
+# Run all tests
+npm test
+
+# Run in interactive UI mode
+npx playwright test --ui
+```
+
+> 📖 **For detailed testing guidelines**, see [AGENTS.md](AGENTS.md#testing-guidelines)  
+> 📖 **For frontend test documentation**, see [frontend/tests/README.md](frontend/tests/README.md)
+
+**Note**: Some tests may require environment variables (e.g., `OPENAI_API_KEY`). Mock data is used where possible to avoid external dependencies.
 
 ## Troubleshooting
 
@@ -278,13 +309,44 @@ Note: Some tests may require a running server or mock data. If you encounter con
 **Reporting Security Vulnerabilities:**
 If you discover a security vulnerability, please send an email to [info@nalamap.org] instead of using the issue tracker.
 
+## Documentation
+
+NaLaMap has comprehensive documentation to help you get started and contribute:
+
+### Core Documentation
+- **[README.md](README.md)** (this file) - Project overview and quick start guide
+- **[AGENTS.md](AGENTS.md)** - Development guidelines for AI agents and developers
+  - How to run components (backend, frontend, Docker)
+  - Testing guidelines (pytest, Playwright)
+  - Code quality & linting (flake8, black)
+  - Development workflow and best practices
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture and design
+  - High-level architecture overview
+  - Backend and frontend structure
+  - AI agent system (LangGraph)
+  - Data flow and communication patterns
+  - Deployment architecture
+
+### Additional Documentation
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - How to contribute to the project
+- **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)** - Community guidelines
+- **[frontend/tests/README.md](frontend/tests/README.md)** - Frontend testing guide
+- **[docs/](docs/)** - Feature-specific documentation
+  - Color customization
+  - Azure deployment
+  - Performance optimizations
+  - And more...
+
 ## Contributing
 
-We welcome contributions from the community! If you're interested in helping improve NaLaMap, please check out our [Contributing Guide](CONTRIBUTING.md) for information on how to get started.
+We welcome contributions from the community! If you're interested in helping improve NaLaMap, please check out our documentation:
 
-Please also review our [Code of Conduct](CODE_OF_CONDUCT.md) to ensure a positive and inclusive environment for all contributors.
+- **[Contributing Guide](CONTRIBUTING.md)** - Guidelines for contributing
+- **[AGENTS.md](AGENTS.md)** - Development workflow and best practices for AI agents and developers
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture and component structure
+- **[Code of Conduct](CODE_OF_CONDUCT.md)** - Community guidelines
 
-Fell also fee to join our [community channel (Discord)](http://discord.nalamap.org/) to get to know us. We have regular meetings where we discuss the roadmap, feature requirements and ongoing work. 
+Feel also free to join our [community channel (Discord)](http://discord.nalamap.org/) to get to know us. We have regular meetings where we discuss the roadmap, feature requirements and ongoing work. 
 
 ## License
 
