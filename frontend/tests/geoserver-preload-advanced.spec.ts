@@ -1,4 +1,12 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, Page } from "@playwright/test";
+
+// Helper function to expand the GeoServer Backends section
+async function expandGeoServerSection(page: Page) {
+  const geoserverButton = page.locator("button:has-text('GeoServer Backends')");
+  await expect(geoserverButton).toBeVisible({ timeout: 5000 });
+  await geoserverButton.click();
+  await page.waitForTimeout(300);
+}
 
 const mockSettings = {
   system_prompt: "Assist helpfully.",
@@ -86,6 +94,7 @@ test.describe("GeoServer backend preload - Advanced scenarios", () => {
     );
 
     await page.goto("/settings");
+    await expandGeoServerSection(page);
 
     await page.setInputFiles('input[type="file"]', {
       name: "settings.json",
@@ -138,6 +147,7 @@ test.describe("GeoServer backend preload - Advanced scenarios", () => {
     });
 
     await page.goto("/settings");
+    await expandGeoServerSection(page);
 
     // Page should not crash
     await expect(
@@ -166,6 +176,7 @@ test.describe("GeoServer backend preload - Advanced scenarios", () => {
     };
 
     await page.goto("/settings");
+    await expandGeoServerSection(page);
 
     await page.setInputFiles('input[type="file"]', {
       name: "settings.json",
@@ -207,6 +218,7 @@ test.describe("GeoServer backend preload - Advanced scenarios", () => {
     });
 
     await page.goto("/settings");
+    await expandGeoServerSection(page);
 
     // Try to import twice quickly
     const file1Promise = page.setInputFiles('input[type="file"]', {
@@ -248,6 +260,7 @@ test.describe("GeoServer backend preload - Advanced scenarios", () => {
     };
 
     await page.goto("/settings");
+    await expandGeoServerSection(page);
 
     await page.setInputFiles('input[type="file"]', {
       name: "settings.json",
@@ -277,6 +290,7 @@ test.describe("GeoServer backend preload - Advanced scenarios", () => {
     });
 
     await page.goto("/settings");
+    await expandGeoServerSection(page);
 
     await page
       .getByPlaceholder("GeoServer URL")
@@ -340,6 +354,7 @@ test.describe("GeoServer backend preload - Advanced scenarios", () => {
     });
 
     await page.goto("/settings");
+    await expandGeoServerSection(page);
 
     await page.setInputFiles('input[type="file"]', {
       name: "settings.json",

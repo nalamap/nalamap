@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, Page } from "@playwright/test";
 
 /**
  * Test suite for GeoServer backend immediate addition and progress tracking
@@ -12,6 +12,14 @@ import { expect, test } from "@playwright/test";
  *
  * Note: These tests mock the backend API responses to simulate the embedding workflow.
  */
+
+// Helper function to expand the GeoServer Backends section
+async function expandGeoServerSection(page: Page) {
+  const geoserverButton = page.locator("button:has-text('GeoServer Backends')");
+  await expect(geoserverButton).toBeVisible({ timeout: 5000 });
+  await geoserverButton.click();
+  await page.waitForTimeout(300);
+}
 
 const mockSettings = {
   system_prompt: "Test system prompt",
@@ -106,6 +114,8 @@ test.describe("GeoServer Backend Immediate Addition", () => {
     // Navigate to settings page
     await page.goto("/settings");
     await page.waitForLoadState("networkidle");
+    // Expand the GeoServer Backends section
+    await expandGeoServerSection(page);
   });
 
   test("backend appears immediately when added", async ({ page }) => {
