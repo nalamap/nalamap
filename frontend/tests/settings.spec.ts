@@ -32,12 +32,23 @@ test.describe("Settings page", () => {
     });
 
     await page.goto("/settings");
+    await page.waitForLoadState("networkidle");
 
     await expect(
       page.getByRole("heading", { level: 1, name: "Settings" }),
     ).toBeVisible();
 
+    // Expand Model Settings component first
+    const modelSettingsButton = page.locator("button:has-text('Model Settings')");
+    await modelSettingsButton.scrollIntoViewIfNeeded();
+    await expect(modelSettingsButton).toBeVisible();
+    await modelSettingsButton.click();
+
+    // Wait for the section to expand
+    await page.waitForTimeout(500);
+
     const providerSelect = page.locator("main select").first();
+    await expect(providerSelect).toBeVisible({ timeout: 5000 });
     await expect(providerSelect).toContainText("MockProvider");
     await expect(providerSelect).toHaveValue("MockProvider");
 
@@ -133,23 +144,29 @@ test.describe("Settings page", () => {
     await page.goto("/settings");
     await page.waitForLoadState("networkidle");
 
-    // Find the Example GeoServers section
-    const exampleSection = page.locator("section:has(h2:text('Example GeoServers'))");
-    await expect(exampleSection).toBeVisible();
+    // Expand GeoServer Backends component first
+    const geoserverButton = page.locator("button:has-text('GeoServer Backends')");
+    await geoserverButton.scrollIntoViewIfNeeded();
+    await expect(geoserverButton).toBeVisible();
+    await geoserverButton.click();
+
+    // Wait for the section to expand
+    await page.waitForTimeout(500);
+
+    // Find the Example GeoServers section within the expanded component
+    const exampleSection = page.locator("h3:has-text('Example GeoServers')");
+    await expect(exampleSection).toBeVisible({ timeout: 5000 });
 
     // Select MapX from the dropdown
-    const dropdown = exampleSection.locator("select");
+    const dropdown = page.locator("select").filter({ hasText: "Select an example GeoServer" });
     await dropdown.selectOption("https://geoserver.mapx.org/geoserver/");
 
     // Click the "Add Example GeoServer" button
     await page.getByRole("button", { name: /Add Example GeoServer/i }).click();
 
     // Wait for the backend to be added to the list
-    const backendsList = page.locator("section:has(h2:text('GeoServer Backends'))");
-    await expect(backendsList).toBeVisible();
-
-    // The added backend should appear in the GeoServer Backends section
-    const addedBackend = backendsList.locator("li:has-text('MapX')");
+    // The added backend should appear in the GeoServer Backends list
+    const addedBackend = page.locator("li:has-text('MapX')");
     await expect(addedBackend).toBeVisible({ timeout: 5000 });
 
     // Check that the loading bar and state are visible
