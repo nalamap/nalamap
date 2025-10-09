@@ -22,6 +22,7 @@ def api_client(tmp_path, monkeypatch):
 
     # Force reload of config to pick up test environment variables
     import core.config
+
     importlib.reload(core.config)
 
     # Now import the router
