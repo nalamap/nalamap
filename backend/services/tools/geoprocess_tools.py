@@ -21,8 +21,11 @@ from models.geodata import DataOrigin, DataType, GeoDataObject
 from models.states import GeoDataAgentState
 from services.ai.llm_config import get_llm
 from services.storage.file_management import store_file
+from services.tools.geoprocessing.ops.area import op_area
 from services.tools.geoprocessing.ops.buffer import op_buffer
 from services.tools.geoprocessing.ops.centroid import op_centroid
+from services.tools.geoprocessing.ops.clip import op_clip
+from services.tools.geoprocessing.ops.dissolve import op_dissolve
 from services.tools.geoprocessing.ops.merge import op_merge
 from services.tools.geoprocessing.ops.overlay import op_overlay
 from services.tools.geoprocessing.ops.simplify import op_simplify
@@ -92,11 +95,14 @@ logging.basicConfig(level=logging.INFO)
 
 # Registry of available tools
 TOOL_REGISTRY = {
+    "area": op_area,
     "buffer": op_buffer,
     "centroid": op_centroid,
-    "simplify": op_simplify,
-    "overlay": op_overlay,
+    "clip": op_clip,
+    "dissolve": op_dissolve,
     "merge": op_merge,
+    "overlay": op_overlay,
+    "simplify": op_simplify,
     "sjoin": op_sjoin,
     "sjoin_nearest": op_sjoin_nearest,
 }
@@ -448,13 +454,34 @@ def geoprocess_tool(
         "query": query,
         "input_layers": input_layers,
         "available_operations_and_params": [
-            "operation: buffer params: radius=<number>, radius_unit=<meters|kilometers|miles>, buffer_crs=<string>",
+            (
+                "operation: area params: unit=<square_meters|square_kilometers|"
+                "hectares|square_miles|acres>, crs=<string>, "
+                "area_column=<string>"
+            ),
+            (
+                "operation: buffer params: radius=<number>, "
+                "radius_unit=<meters|kilometers|miles>, buffer_crs=<string>, "
+                "dissolve=<bool>"
+            ),
             "operation: centroid params:",
-            "operation: simplify params: tolerance=<number>, preserve_topology=<bool>",
-            "operation: overlay params: how=<intersection|union|difference|symmetric_difference|identity>, crs=<string>",
-            "operation: merge params: on=<list_of_strings>|null, how=<inner|left|right|outer>",
-            "operation: sjoin params: how=<inner|left|right>, predicate=<string>",
-            "operation: sjoin_nearest params: how=<inner|left|right>, max_distance=<number>|null, distance_col=<string>|null",
+            "operation: clip params: crs=<string>",
+            (
+                "operation: dissolve params: by=<string>|null, "
+                "aggfunc=<first|last|sum|mean|min|max>, crs=<string>"
+            ),
+            ("operation: merge params: on=<list_of_strings>|null, " "how=<inner|left|right|outer>"),
+            (
+                "operation: overlay params: "
+                "how=<intersection|union|difference|symmetric_difference|identity>, "
+                "crs=<string>"
+            ),
+            ("operation: simplify params: tolerance=<number>, " "preserve_topology=<bool>"),
+            ("operation: sjoin params: how=<inner|left|right>, " "predicate=<string>"),
+            (
+                "operation: sjoin_nearest params: how=<inner|left|right>, "
+                "max_distance=<number>|null, distance_col=<string>|null"
+            ),
         ],
         "tool_sequence": [],  # will be filled by the executor
     }
