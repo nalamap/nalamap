@@ -33,8 +33,12 @@ function applyCSSVariables(colors: ColorSettings) {
   // Helper function to apply a color scale
   const applyScale = (scale: any, prefix: string) => {
     Object.entries(scale).forEach(([key, value]) => {
-      const cssVarName = `--${prefix}-${key.replace("shade_", "")}`;
-      root.style.setProperty(cssVarName, value as string);
+      const shade = key.replace("shade_", "");
+      // Set both variable formats to ensure compatibility:
+      // 1. --color-* for Tailwind v4 @theme
+      root.style.setProperty(`--color-${prefix}-${shade}`, value as string);
+      // 2. --* for legacy :root variables and dark mode overrides
+      root.style.setProperty(`--${prefix}-${shade}`, value as string);
     });
   };
 

@@ -659,6 +659,225 @@
   }
 }
 
+/* Dark mode styles - applies when .dark class is on html element */
+.dark {
+  color-scheme: dark;
+}
+
+.dark body {
+  color: var(--neutral-200);
+  background: var(--primary-950);
+}
+
+/* Dark mode utility overrides */
+.dark .bg-neutral-50 {
+  background-color: var(--primary-900);
+}
+
+.dark .bg-neutral-100 {
+  background-color: var(--primary-800);
+}
+
+.dark .bg-neutral-200 {
+  background-color: var(--primary-700);
+}
+
+.dark .bg-primary-50 {
+  background-color: var(--primary-900);
+}
+
+.dark .bg-primary-100 {
+  background-color: var(--primary-800);
+}
+
+.dark .bg-primary-200 {
+  background-color: var(--primary-700);
+}
+
+.dark .bg-secondary-50 {
+  background-color: var(--secondary-900);
+}
+
+.dark .bg-secondary-100 {
+  background-color: var(--secondary-800);
+}
+
+.dark .bg-info-50 {
+  background-color: var(--info-900);
+}
+
+.dark .bg-info-100 {
+  background-color: var(--info-800);
+}
+
+/* Dark mode text colors */
+.dark .text-primary-900 {
+  color: var(--neutral-100);
+}
+
+.dark .text-primary-800 {
+  color: var(--neutral-200);
+}
+
+.dark .text-primary-700 {
+  color: var(--neutral-300);
+}
+
+.dark .text-primary-600 {
+  color: var(--neutral-400);
+}
+
+.dark .text-neutral-900 {
+  color: var(--neutral-100);
+}
+
+.dark .text-neutral-800 {
+  color: var(--neutral-200);
+}
+
+.dark .text-neutral-700 {
+  color: var(--neutral-300);
+}
+
+.dark .text-secondary-900 {
+  color: var(--secondary-200);
+}
+
+.dark .text-info-900 {
+  color: var(--info-200);
+}
+
+.dark .text-info-800 {
+  color: var(--info-300);
+}
+
+/* Dark mode borders */
+.dark .border-primary-300 {
+  border-color: var(--primary-700);
+}
+
+.dark .border-primary-200 {
+  border-color: var(--primary-800);
+}
+
+.dark .border-info-200 {
+  border-color: var(--info-800);
+}
+
+/* Dark mode hover states */
+.dark .hover\:border-primary-400:hover {
+  border-color: var(--primary-600);
+}
+
+.dark .hover\:bg-primary-100:hover {
+  background-color: var(--primary-700);
+}
+
+.dark .hover\:bg-primary-200:hover {
+  background-color: var(--primary-700);
+}
+
+.dark .hover\:bg-primary-300:hover {
+  background-color: var(--primary-600);
+}
+
+.dark .hover\:bg-primary-700:hover {
+  background-color: var(--primary-600);
+}
+
+.dark .hover\:bg-primary-800:hover {
+  background-color: var(--primary-700);
+}
+
+/* Dark mode buttons and interactive elements */
+.dark .bg-primary-800 {
+  background-color: var(--primary-700);
+}
+
+.dark .bg-primary-700 {
+  background-color: var(--primary-600);
+}
+
+.dark .bg-second-primary-200 {
+  background-color: var(--second-primary-700);
+}
+
+.dark .bg-secondary-600 {
+  background-color: var(--secondary-500);
+}
+
+.dark .text-secondary-600 {
+  color: var(--secondary-400);
+}
+
+.dark .text-info-600 {
+  color: var(--info-400);
+}
+
+.dark .bg-info-600 {
+  background-color: var(--info-500);
+}
+
+/* Dark mode settings panels */
+.dark .bg-info-100 {
+  background-color: var(--info-900);
+  color: var(--neutral-200);
+}
+
+.dark .text-info-800 {
+  color: var(--info-300);
+}
+
+/* Keep white text in dark mode */
+.dark .text-white {
+  color: var(--neutral-50);
+}
+
+/* Dark mode input and form elements */
+.dark input[type="text"],
+.dark input[type="email"],
+.dark input[type="password"],
+.dark input[type="search"],
+.dark input[type="color"],
+.dark textarea,
+.dark select {
+  background-color: var(--primary-800);
+  color: var(--neutral-200);
+  border-color: var(--primary-700);
+}
+
+.dark input[type="text"]:focus,
+.dark input[type="email"]:focus,
+.dark input[type="password"]:focus,
+.dark input[type="search"]:focus,
+.dark textarea:focus,
+.dark select:focus {
+  border-color: var(--secondary-500);
+  background-color: var(--primary-750);
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: var(--neutral-500);
+}
+
+/* Dark mode secondary color adjustments */
+.dark .hover\:bg-secondary-800:hover {
+  background-color: var(--secondary-700);
+}
+
+.dark .bg-secondary-50 {
+  background-color: var(--secondary-800);
+}
+
+.dark .border-secondary-500 {
+  border-color: var(--secondary-500);
+}
+
+.dark .text-secondary-900 {
+  color: var(--secondary-200);
+}
+
 body {
   color: var(--primary-700);
   background: var(--primary-100);
@@ -743,5 +962,50 @@ body {
 
 .chat-message-tool {
   @apply bg-info-50 rounded border border-info-200;
+}
+
+/* Dark mode chat messages */
+.dark .chat-message-user {
+  background-color: var(--second-primary-700);
+  border-color: var(--second-primary-600);
+  color: var(--neutral-100);
+}
+
+.dark .chat-message-ai {
+  background-color: var(--primary-800);
+  border-color: var(--primary-700);
+  color: var(--neutral-200);
+}
+
+.dark .chat-message-loading {
+  background-color: var(--primary-800);
+  border-color: var(--primary-700);
+  color: var(--neutral-200);
+}
+
+.dark .chat-message-tool {
+  background-color: var(--info-900);
+  border-color: var(--info-700);
+  color: var(--neutral-200);
+}
+
+/* Dark mode markdown content */
+.dark .chat-markdown code {
+  background-color: var(--primary-700);
+  color: var(--neutral-200);
+}
+
+.dark .chat-markdown pre {
+  background-color: var(--primary-700);
+  color: var(--neutral-200);
+}
+
+.dark .chat-markdown a {
+  color: var(--info-400);
+}
+
+.dark .chat-markdown blockquote {
+  border-color: var(--primary-600);
+  color: var(--neutral-300);
 }
 /* End of chat message classes */
