@@ -1,194 +1,69 @@
 "use client";
 
 import { useState } from "react";
-import { useInitializedSettingsStore } from "../../hooks/useInitializedSettingsStore";
+import { useSettingsStore } from "../../stores/settingsStore";
 import { ChevronDown, ChevronUp, RotateCcw, Info } from "lucide-react";
 import { ColorScale, ColorSettings } from "../../stores/settingsStore";
 
 const COLOR_SCALE_LABELS: Record<keyof ColorScale, string> = {
-  shade_50: "50 - Lightest",
+  shade_50: "50",
   shade_100: "100",
   shade_200: "200",
   shade_300: "300",
   shade_400: "400",
-  shade_500: "500 - Base",
+  shade_500: "500",
   shade_600: "600",
   shade_700: "700",
   shade_800: "800",
   shade_900: "900",
-  shade_950: "950 - Darkest",
+  shade_950: "950",
+};
+
+// Organized color groups
+const COLOR_GROUPS = {
+  core: {
+    title: "Core Colors",
+    description: "Primary UI colors for text, backgrounds, and main actions",
+    scales: ["primary", "second_primary", "secondary", "tertiary"] as (keyof ColorSettings)[],
+  },
+  semantic: {
+    title: "Semantic Colors",
+    description: "Status and feedback colors",
+    scales: ["danger", "warning", "info", "neutral"] as (keyof ColorSettings)[],
+  },
+  corporate: {
+    title: "Corporate/Brand Colors",
+    description: "Your brand colors for layer styling and custom elements",
+    scales: ["corporate_1", "corporate_2", "corporate_3"] as (keyof ColorSettings)[],
+  },
 };
 
 const COLOR_SCALE_NAMES: Record<keyof ColorSettings, string> = {
-  primary: "Primary",
-  second_primary: "Second Primary",
-  secondary: "Secondary",
-  tertiary: "Tertiary",
+  primary: "Primary (Text & Borders)",
+  second_primary: "Second Primary (Actions)",
+  secondary: "Secondary (Accents)",
+  tertiary: "Tertiary (Success)",
+  danger: "Danger (Errors)",
+  warning: "Warning",
+  info: "Info",
+  neutral: "Neutral (White/Black)",
+  corporate_1: "Corporate 1 (Rose)",
+  corporate_2: "Corporate 2 (Sky)",
+  corporate_3: "Corporate 3 (Purple)",
 };
 
-// Color usage documentation
-const COLOR_USAGE: Record<
-  keyof ColorSettings,
-  Record<keyof ColorScale, { used: boolean; locations: string[] }>
-> = {
-  primary: {
-    shade_50: {
-      used: true,
-      locations: [
-        "Settings page background",
-        "Chat interface background",
-        "Info panel backgrounds",
-      ],
-    },
-    shade_100: {
-      used: true,
-      locations: ["Layer list background", "System message backgrounds"],
-    },
-    shade_200: {
-      used: true,
-      locations: [
-        "Mobile menu buttons",
-        "Progress bars",
-        "Reset button",
-        "Toggle buttons",
-      ],
-    },
-    shade_300: {
-      used: true,
-      locations: [
-        "Form input borders",
-        "Component borders",
-        "Chat interface borders",
-      ],
-    },
-    shade_400: {
-      used: true,
-      locations: ["Resize handles", "Disabled text"],
-    },
-    shade_500: {
-      used: true,
-      locations: ["Secondary text", "Status messages", "Hex code display"],
-    },
-    shade_600: {
-      used: true,
-      locations: [
-        "Interactive links and buttons",
-        "Chevron icons",
-        "Percentage displays",
-      ],
-    },
-    shade_700: {
-      used: true,
-      locations: [
-        "Icon colors",
-        "Description text",
-        "Hover states",
-        "Shade labels",
-      ],
-    },
-    shade_800: {
-      used: true,
-      locations: ["Sidebar background", "Section headings"],
-    },
-    shade_900: {
-      used: true,
-      locations: ["Main text", "Page headings", "Strong emphasis"],
-    },
-    shade_950: {
-      used: false,
-      locations: [],
-    },
-  },
-  second_primary: {
-    shade_50: { used: false, locations: [] },
-    shade_100: { used: false, locations: [] },
-    shade_200: {
-      used: true,
-      locations: ["User message backgrounds in chat"],
-    },
-    shade_300: { used: false, locations: [] },
-    shade_400: { used: false, locations: [] },
-    shade_500: {
-      used: true,
-      locations: ["Loading progress bar fill"],
-    },
-    shade_600: {
-      used: true,
-      locations: [
-        "Action buttons (Import, Add)",
-        "Active tool indicators",
-        "Send button",
-        "Loading spinner",
-      ],
-    },
-    shade_700: {
-      used: true,
-      locations: ["Button hover states"],
-    },
-    shade_800: { used: false, locations: [] },
-    shade_900: { used: false, locations: [] },
-    shade_950: { used: false, locations: [] },
-  },
-  secondary: {
-    shade_50: { used: false, locations: [] },
-    shade_100: {
-      used: true,
-      locations: ["Badge backgrounds (e.g. Corporate Branding)"],
-    },
-    shade_200: {
-      used: true,
-      locations: ["Info box borders (Color tips section)"],
-    },
-    shade_300: {
-      used: true,
-      locations: ["Input focus rings (chat textarea)"],
-    },
-    shade_400: { used: false, locations: [] },
-    shade_500: {
-      used: true,
-      locations: ["Waiting state progress bar"],
-    },
-    shade_600: {
-      used: true,
-      locations: ["Waiting status text", "Send button icon"],
-    },
-    shade_700: {
-      used: true,
-      locations: ["Send button hover state"],
-    },
-    shade_800: {
-      used: true,
-      locations: ["Sidebar menu item hover background"],
-    },
-    shade_900: { used: false, locations: [] },
-    shade_950: { used: false, locations: [] },
-  },
-  tertiary: {
-    shade_50: { used: false, locations: [] },
-    shade_100: { used: false, locations: [] },
-    shade_200: { used: false, locations: [] },
-    shade_300: { used: false, locations: [] },
-    shade_400: { used: false, locations: [] },
-    shade_500: {
-      used: true,
-      locations: ["Completed embedding progress bars"],
-    },
-    shade_600: {
-      used: true,
-      locations: [
-        "Success messages",
-        "Form checkboxes",
-        "Completed status indicators",
-      ],
-    },
-    shade_700: {
-      used: true,
-      locations: ["Export button hover state"],
-    },
-    shade_800: { used: false, locations: [] },
-    shade_900: { used: false, locations: [] },
-    shade_950: { used: false, locations: [] },
-  },
+const COLOR_USAGE_HINTS: Record<keyof ColorSettings, string> = {
+  primary: "Used for main text (900), backgrounds (50-100), borders (300), icons (600-700), and sidebar (800)",
+  second_primary: "Action buttons (600), hover states (700), user messages (200), progress bars (500)",
+  secondary: "Focus rings (300), waiting states (500-600), sidebar hover (800), badges (100)",
+  tertiary: "Success messages (600), completed states, checkboxes, export button (700)",
+  danger: "Error messages, delete/remove buttons (600), error backgrounds (100), hover (700)",
+  warning: "Warning messages and alerts (600), warning backgrounds (100-200)",
+  info: "Informational messages and hints (600), info backgrounds (100-200)",
+  neutral: "Pure white (50), pure black (950), overlay backgrounds, neutral grays",
+  corporate_1: "Your first brand color - used for layer type styling (rose/pink tones)",
+  corporate_2: "Your second brand color - used for layer type styling (sky/blue tones)",
+  corporate_3: "Your third brand color - used for layer type styling (purple tones)",
 };
 
 interface ColorScaleEditorProps {
@@ -203,91 +78,62 @@ function ColorScaleEditor({
   onUpdate,
 }: ColorScaleEditorProps) {
   const [expanded, setExpanded] = useState(false);
-  const [hoveredShade, setHoveredShade] = useState<keyof ColorScale | null>(
-    null,
-  );
 
   return (
-    <div className="border border-primary-300 rounded p-3 bg-white">
+    <div className="border border-primary-300 rounded p-3 bg-neutral-50">
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center justify-between text-left"
       >
-        <div className="flex items-center space-x-3">
-          <div className="flex space-x-1">
+        <div className="flex items-center space-x-3 flex-1">
+          {/* Gradient preview */}
+          <div className="flex space-x-0.5">
             {Object.entries(scale).map(([shade, color]) => (
               <div
                 key={shade}
-                className="w-4 h-8 border border-gray-300 rounded-sm"
+                className="w-3 h-8 first:rounded-l last:rounded-r"
                 style={{ backgroundColor: color }}
                 title={`${shade}: ${color}`}
               />
             ))}
           </div>
-          <span className="font-medium text-primary-900">
-            {COLOR_SCALE_NAMES[scaleName]}
-          </span>
+          <div className="flex-1">
+            <div className="font-medium text-primary-900 text-sm">
+              {COLOR_SCALE_NAMES[scaleName]}
+            </div>
+            <div className="text-xs text-primary-600 mt-0.5">
+              {COLOR_USAGE_HINTS[scaleName]}
+            </div>
+          </div>
         </div>
         {expanded ? (
-          <ChevronUp className="w-5 h-5 text-primary-600" />
+          <ChevronUp className="w-4 h-4 text-primary-600 flex-shrink-0" />
         ) : (
-          <ChevronDown className="w-5 h-5 text-primary-600" />
+          <ChevronDown className="w-4 h-4 text-primary-600 flex-shrink-0" />
         )}
       </button>
 
       {expanded && (
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          {Object.entries(scale).map(([shade, color]) => {
-            const usage = COLOR_USAGE[scaleName][shade as keyof ColorScale];
-            return (
-              <div
-                key={shade}
-                className="flex items-center space-x-2 relative"
-                onMouseEnter={() => setHoveredShade(shade as keyof ColorScale)}
-                onMouseLeave={() => setHoveredShade(null)}
-              >
-                <input
-                  type="color"
-                  value={color}
-                  onChange={(e) =>
-                    onUpdate(shade as keyof ColorScale, e.target.value)
-                  }
-                  className="w-10 h-8 rounded border border-primary-300 cursor-pointer"
-                />
-                <div className="flex-1 text-xs">
-                  <div className="text-primary-700 font-medium flex items-center space-x-1">
-                    <span>{COLOR_SCALE_LABELS[shade as keyof ColorScale]}</span>
-                    {usage.used ? (
-                      <Info className="w-3 h-3 text-second-primary-600" />
-                    ) : (
-                      <span className="text-primary-400 text-[10px]">
-                        (unused)
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-primary-500 font-mono">{color}</div>
-                </div>
-
-                {/* Usage Tooltip */}
-                {hoveredShade === shade && usage.used && (
-                  <div className="absolute left-0 top-full mt-1 z-50 w-64 p-3 bg-primary-900 text-white text-xs rounded shadow-lg">
-                    <div className="font-semibold mb-2">
-                      Used in {usage.locations.length} location
-                      {usage.locations.length !== 1 ? "s" : ""}:
-                    </div>
-                    <ul className="space-y-1">
-                      {usage.locations.map((location, idx) => (
-                        <li key={idx} className="flex items-start">
-                          <span className="mr-1">•</span>
-                          <span>{location}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            );
-          })}
+        <div className="mt-3 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+          {Object.entries(scale).map(([shade, color]) => (
+            <div key={shade} className="flex flex-col items-center space-y-1">
+              <input
+                type="color"
+                value={color}
+                onChange={(e) =>
+                  onUpdate(shade as keyof ColorScale, e.target.value)
+                }
+                className="w-12 h-12 rounded cursor-pointer border border-primary-300"
+                title={`Edit ${shade}`}
+              />
+              <span className="text-xs text-primary-700 font-mono">
+                {COLOR_SCALE_LABELS[shade as keyof ColorScale]}
+              </span>
+              <span className="text-[10px] text-primary-500 font-mono">
+                {color}
+              </span>
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -295,103 +141,157 @@ function ColorScaleEditor({
 }
 
 export default function ColorSettingsComponent() {
-  const [collapsed, setCollapsed] = useState(true);
+  const [isOpen, setIsOpen] = useState(true);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const color_settings = useSettingsStore((state) => state.color_settings);
+  const updateColorScale = useSettingsStore((state) => state.updateColorScale);
+  const resetColorSettings = useSettingsStore((state) => state.resetColorSettings);
 
-  const colorSettings = useInitializedSettingsStore((s) => s.color_settings);
-  const updateColorScale = useInitializedSettingsStore(
-    (s) => s.updateColorScale,
-  );
-  const resetColorSettings = useInitializedSettingsStore(
-    (s) => s.resetColorSettings,
-  );
-
-  if (!colorSettings) {
+  if (!color_settings) {
     return (
-      <div className="border border-primary-300 rounded p-4 bg-white">
-        <p className="text-sm text-primary-600">
-          Loading color settings...
-        </p>
+      <div className="border border-primary-300 rounded p-4 bg-neutral-50">
+        <p className="text-primary-600">Loading color settings...</p>
       </div>
     );
   }
 
+  const handleReset = () => {
+    resetColorSettings();
+    setShowResetConfirm(false);
+  };
+
   return (
-    <div className="border border-primary-300 rounded bg-white overflow-hidden">
+    <div className="border border-primary-300 rounded bg-neutral-50 overflow-hidden">
+      {/* Header */}
       <button
-        onClick={() => setCollapsed(!collapsed)}
-        className="w-full flex items-center justify-between p-4 hover:bg-primary-50 transition-colors"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-4 py-3 bg-primary-100 hover:bg-primary-200 transition-colors flex items-center justify-between"
       >
         <div className="flex items-center space-x-2">
-          <h2 className="text-2xl font-semibold text-primary-800">
+          <h2 className="text-lg font-semibold text-primary-900">
             Color Customization
           </h2>
-          <span className="text-xs text-primary-600 bg-secondary-100 px-2 py-1 rounded">
+          <span className="text-xs bg-secondary-100 text-secondary-800 px-2 py-0.5 rounded-full font-medium">
             Corporate Branding
           </span>
         </div>
-        {collapsed ? (
-          <ChevronDown className="w-6 h-6 text-primary-600" />
+        {isOpen ? (
+          <ChevronUp className="w-5 h-5 text-primary-700" />
         ) : (
-          <ChevronUp className="w-6 h-6 text-primary-600" />
+          <ChevronDown className="w-5 h-5 text-primary-700" />
         )}
       </button>
 
-      {!collapsed && (
-        <div className="p-4 pt-0 space-y-4">
-          <div className="flex items-start justify-between">
-            <p className="text-sm text-primary-600">
-              Customize the application's color scheme to match your corporate
-              branding. Changes apply immediately and are saved with your
-              settings.
-            </p>
-            <button
-              onClick={() => {
-                if (
-                  confirm(
-                    "Are you sure you want to reset all colors to defaults?",
-                  )
-                ) {
-                  resetColorSettings();
-                }
-              }}
-              className="flex items-center space-x-1 px-3 py-1 text-sm bg-primary-200 hover:bg-primary-300 text-primary-800 rounded transition-colors"
-              title="Reset to default colors"
-            >
-              <RotateCcw className="w-4 h-4" />
-              <span>Reset</span>
-            </button>
+      {isOpen && (
+        <div className="p-4 space-y-4">
+          {/* Info Box */}
+          <div className="bg-info-50 border border-info-200 rounded p-3 text-sm">
+            <div className="flex items-start space-x-2">
+              <Info className="w-4 h-4 text-info-600 mt-0.5 flex-shrink-0" />
+              <div className="text-info-900">
+                <p className="font-medium mb-1">
+                  Customize your app's color scheme
+                </p>
+                <ul className="text-xs space-y-1 text-info-800">
+                  <li>
+                    • Changes apply instantly across the entire application
+                  </li>
+                  <li>
+                    • Use <strong>Core Colors</strong> for main UI elements
+                  </li>
+                  <li>
+                    • <strong>Semantic Colors</strong> provide status feedback
+                  </li>
+                  <li>
+                    • <strong>Corporate Colors</strong> for layer styling and
+                    branding
+                  </li>
+                  <li>
+                    • Each color has 11 shades (50=lightest, 950=darkest)
+                  </li>
+                  <li>
+                    • Export your settings to save your custom color scheme
+                  </li>
+                </ul>
+              </div>
+            </div>
           </div>
 
-          <div className="space-y-3">
-            {Object.entries(colorSettings).map(([scaleName, scale]) => (
-              <ColorScaleEditor
-                key={scaleName}
-                scaleName={scaleName as keyof ColorSettings}
-                scale={scale}
-                onUpdate={(shade, color) =>
-                  updateColorScale(
-                    scaleName as keyof ColorSettings,
-                    shade,
-                    color,
-                  )
-                }
-              />
-            ))}
+          {/* Color Groups */}
+          {Object.entries(COLOR_GROUPS).map(([groupKey, group]) => (
+            <div key={groupKey} className="space-y-2">
+              <div className="border-b border-primary-200 pb-1">
+                <h3 className="text-sm font-semibold text-primary-800">
+                  {group.title}
+                </h3>
+                <p className="text-xs text-primary-600">{group.description}</p>
+              </div>
+              <div className="space-y-2">
+                {group.scales.map((scaleName) => (
+                  <ColorScaleEditor
+                    key={scaleName}
+                    scaleName={scaleName}
+                    scale={color_settings[scaleName]}
+                    onUpdate={(shade, color) =>
+                      updateColorScale(scaleName, shade, color)
+                    }
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {/* Reset Button */}
+          <div className="pt-4 border-t border-primary-200">
+            {!showResetConfirm ? (
+              <button
+                onClick={() => setShowResetConfirm(true)}
+                className="flex items-center space-x-2 px-4 py-2 bg-primary-200 text-primary-700 rounded hover:bg-primary-300 transition-colors font-medium"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>Reset to Default Colors</span>
+              </button>
+            ) : (
+              <div className="flex items-center space-x-2">
+                <p className="text-sm text-primary-700">
+                  Reset all colors to defaults?
+                </p>
+                <button
+                  onClick={handleReset}
+                  className="px-3 py-1 bg-danger-600 text-neutral-50 rounded hover:bg-danger-700 transition-colors font-medium text-sm"
+                >
+                  Yes, Reset
+                </button>
+                <button
+                  onClick={() => setShowResetConfirm(false)}
+                  className="px-3 py-1 bg-primary-300 text-primary-900 rounded hover:bg-primary-400 transition-colors font-medium text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
           </div>
 
-          <div className="mt-4 p-3 bg-secondary-50 border border-secondary-200 rounded">
-            <h4 className="text-sm font-semibold text-primary-800 mb-2">
-              💡 Tips for Color Selection
-            </h4>
-            <ul className="text-xs text-primary-700 space-y-1">
-              <li>• Use lighter shades (50-300) for backgrounds</li>
-              <li>• Use middle shades (400-600) for borders and accents</li>
-              <li>• Use darker shades (700-950) for text and emphasis</li>
+          {/* Usage Tips */}
+          <div className="bg-warning-50 border border-warning-200 rounded p-3 text-xs text-warning-900">
+            <p className="font-medium mb-1">💡 Color Selection Tips:</p>
+            <ul className="space-y-1">
               <li>
-                • Maintain sufficient contrast for accessibility (WCAG AA)
+                • Maintain sufficient contrast between text and background
+                colors
               </li>
               <li>
-                • Test your colors with the UI before finalizing changes
+                • Keep your brand colors consistent with corporate guidelines
+              </li>
+              <li>
+                • Test colors with color blindness simulators for accessibility
+              </li>
+              <li>
+                • Use lighter shades (50-300) for backgrounds, darker (700-950)
+                for text
+              </li>
+              <li>
+                • Danger (red) should remain red-ish for universal recognition
               </li>
             </ul>
           </div>

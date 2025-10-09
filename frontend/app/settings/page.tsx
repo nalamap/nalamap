@@ -649,9 +649,9 @@ export default function SettingsPage() {
       </button>
       <div
         id="mobile-settings-menu"
-        className="hidden fixed inset-0 bg-black bg-opacity-50 z-20"
+        className="hidden fixed inset-0 bg-neutral-950 bg-opacity-50 z-20"
       >
-        <div className="fixed top-0 left-0 bottom-0 w-64 bg-primary-800 z-30 text-white p-4">
+        <div className="fixed top-0 left-0 bottom-0 w-64 bg-primary-800 z-30 text-neutral-50 p-4">
           <button
             className="absolute top-4 right-4"
             onClick={() => {
@@ -686,13 +686,13 @@ export default function SettingsPage() {
           <div className="flex space-x-4 mb-8">
             <button
               onClick={exportSettings}
-              className="bg-tertiary-600 text-white px-4 py-2 rounded hover:bg-tertiary-700 font-medium shadow-sm cursor-pointer"
+              className="bg-tertiary-600 text-neutral-50 px-4 py-2 rounded hover:bg-tertiary-700 font-medium shadow-sm cursor-pointer"
               style={{ backgroundColor: 'var(--tertiary-600)' }}
             >
               Export Settings
             </button>
             <label 
-              className="bg-second-primary-600 text-white px-4 py-2 rounded cursor-pointer hover:bg-second-primary-700 font-medium shadow-sm inline-block"
+              className="bg-second-primary-600 text-neutral-50 px-4 py-2 rounded cursor-pointer hover:bg-second-primary-700 font-medium shadow-sm inline-block"
               style={{ backgroundColor: 'var(--second-primary-600)' }}
             >
               Import Settings

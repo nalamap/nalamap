@@ -112,7 +112,7 @@ const QuickActionsButtons: React.FC<QuickActionsProps> = ({
         onClick={() => updateLayerStyle(layerId, button.style)}
         className={
           button.className ||
-          "px-2 py-1 bg-gray-500 text-white text-xs rounded hover:bg-gray-600"
+          "px-2 py-1 bg-neutral-500 text-neutral-50 text-xs rounded hover:bg-neutral-600"
         }
       >
         {button.label}
@@ -139,7 +139,7 @@ const ADVANCED_QUICK_ACTIONS: QuickActionButton[] = [
       fill_opacity: 0.1,
     },
     className:
-      "px-2 py-1 bg-rose-500 text-white text-xs rounded hover:bg-rose-600",
+      "px-2 py-1 bg-corporate-1-500 text-neutral-50 text-xs rounded hover:bg-corporate-1-600",
   },
   {
     label: "Subtle Blue",
@@ -151,7 +151,7 @@ const ADVANCED_QUICK_ACTIONS: QuickActionButton[] = [
       fill_opacity: 0.15,
     },
     className:
-      "px-2 py-1 bg-sky-500 text-white text-xs rounded hover:bg-sky-600",
+      "px-2 py-1 bg-corporate-2-500 text-neutral-50 text-xs rounded hover:bg-corporate-2-600",
   },
   {
     label: "Green Outline",
@@ -163,7 +163,7 @@ const ADVANCED_QUICK_ACTIONS: QuickActionButton[] = [
       fill_opacity: 0.0,
     },
     className:
-      "px-2 py-1 bg-emerald-500 text-white text-xs rounded hover:bg-emerald-600",
+      "px-2 py-1 bg-corporate-2-500 text-neutral-50 text-xs rounded hover:bg-corporate-2-600",
   },
   {
     label: "Highlight Points",
@@ -175,7 +175,7 @@ const ADVANCED_QUICK_ACTIONS: QuickActionButton[] = [
       fill_opacity: 0.6,
     },
     className:
-      "px-2 py-1 bg-amber-500 text-white text-xs rounded hover:bg-amber-600",
+      "px-2 py-1 bg-warning-500 text-neutral-50 text-xs rounded hover:bg-warning-600",
   },
 ];
 
@@ -534,7 +534,7 @@ export default function LayerManagement() {
 
   return (
     <div
-      className="w-full h-full bg-gray-100 p-4 border-r overflow-auto"
+      className="w-full h-full bg-neutral-100 p-4 border-r overflow-auto"
       onDragOver={(e) => e.preventDefault()}
       onDrop={() => {
         // Reset all drag and drop state on any drop within container
@@ -549,7 +549,7 @@ export default function LayerManagement() {
       <div className="mb-4">
         <h3 className="font-semibold mb-2">Upload Data</h3>
         <div
-          className={`border border-dashed border-gray-400 p-4 rounded bg-white text-center cursor-pointer ${isUploading ? "opacity-75" : ""}`}
+          className={`border border-dashed border-neutral-400 p-4 rounded bg-neutral-50 text-center cursor-pointer ${isUploading ? "opacity-75" : ""}`}
           onClick={() => !isUploading && fileInputRef.current?.click()}
         >
           <input
@@ -563,26 +563,26 @@ export default function LayerManagement() {
           />
           {isUploading ? (
             <div className="flex flex-col items-center justify-center">
-              <div className="w-full max-w-xs bg-gray-200 rounded-full h-2.5 mb-2">
+              <div className="w-full max-w-xs bg-neutral-200 rounded-full h-2.5 mb-2">
                 <div
-                  className="bg-blue-500 h-2.5 rounded-full transition-all duration-300"
+                  className="bg-info-600 h-2.5 rounded-full transition-all duration-300"
                   style={{ width: `${uploadProgress}%` }}
                 ></div>
               </div>
-              <p className="text-sm text-blue-500">
+              <p className="text-sm text-info-600">
                 {uploadProgress}% Complete
               </p>
               {totalFiles > 1 && (
-                <p className="text-xs text-gray-600">
+                <p className="text-xs text-neutral-600">
                   File {currentFileIndex} of {totalFiles}
                 </p>
               )}
               {currentFileName && (
-                <p className="text-xs text-gray-500 mt-1 truncate max-w-xs">
+                <p className="text-xs text-neutral-500 mt-1 truncate max-w-xs">
                   {currentFileName}
                 </p>
               )}
-              <p className="text-xs text-gray-400 mt-1 text-center italic">
+              <p className="text-xs text-neutral-400 mt-1 text-center italic">
                 {funnyMessage ||
                   (uploadProgress < 70
                     ? "Uploading..."
@@ -595,25 +595,25 @@ export default function LayerManagement() {
                   e.stopPropagation(); // Prevent triggering the file input click
                   cancelUpload();
                 }}
-                className="mt-2 px-3 py-1 bg-red-100 text-red-700 text-xs rounded hover:bg-red-200 transition-colors"
+                className="mt-2 px-3 py-1 bg-danger-100 text-danger-700 text-xs rounded hover:bg-danger-200 transition-colors"
               >
                 Cancel Upload
               </button>
             </div>
           ) : (
             <>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-neutral-500">
                 Drag & drop or click to upload GeoJSON files
               </p>
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-neutral-400 mt-1">
                 Supports multiple files • Max size: {MAX_FILE_SIZE_FORMATTED}
               </p>
-              <p className="text-xs text-gray-400">Format: .geojson only</p>
+              <p className="text-xs text-neutral-400">Format: .geojson only</p>
             </>
           )}
         </div>
         {uploadError && (
-          <div className="mt-2 p-2 bg-red-100 border border-red-400 text-red-700 text-sm rounded">
+          <div className="mt-2 p-2 bg-danger-100 border border-danger-400 text-danger-700 text-sm rounded">
             {uploadError}
           </div>
         )}
@@ -672,13 +672,13 @@ export default function LayerManagement() {
                         className="absolute w-full h-4 -top-4 flex items-center justify-center"
                         style={{ pointerEvents: "none" }}
                       >
-                        <div className="h-1.5 bg-blue-500 w-full rounded-full animate-pulse"></div>
+                        <div className="h-1.5 bg-info-600 w-full rounded-full animate-pulse"></div>
                       </div>
                     )}
 
                     <div
-                      className={`bg-white rounded shadow flex items-center justify-between transition-all ${
-                        isDropTarget ? "border-2 border-blue-400" : ""
+                      className={`bg-neutral-50 rounded shadow flex items-center justify-between transition-all ${
+                        isDropTarget ? "border-2 border-info-400" : ""
                       } ${isRecentlyMoved ? "highlight-animation" : ""}`}
                       draggable
                       onDragStart={(e) => {
@@ -772,14 +772,14 @@ export default function LayerManagement() {
                       title="Drag to reorder"
                     >
                       <div className="flex items-center p-2 flex-1 min-w-0">
-                        <div className="mr-2 text-gray-400 cursor-grab flex-shrink-0">
+                        <div className="mr-2 text-neutral-400 cursor-grab flex-shrink-0">
                           <GripVertical size={16} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="font-bold text-gray-800 whitespace-normal break-words">
+                          <div className="font-bold text-neutral-800 whitespace-normal break-words">
                             {layer.title || layer.name}
                           </div>
-                          <div className="text-xs text-gray-500">
+                          <div className="text-xs text-neutral-500">
                             {layer.data_type}{" "}
                             {layer.layer_type && ` (${layer.layer_type})`}
                           </div>
@@ -788,14 +788,14 @@ export default function LayerManagement() {
                           <button
                             onClick={() => setZoomTo(layer.id)}
                             title="Zoom to this layer"
-                            className="text-gray-600 hover:text-blue-600"
+                            className="text-neutral-600 hover:text-info-600"
                           >
                             <Search size={16} />
                           </button>
                           <button
                             onClick={() => toggleLayerVisibility(layer.id)}
                             title="Toggle Visibility"
-                            className="text-gray-600 hover:text-blue-600"
+                            className="text-neutral-600 hover:text-info-600"
                           >
                             {layer.visible ? (
                               <Eye size={16} />
@@ -810,14 +810,14 @@ export default function LayerManagement() {
                               )
                             }
                             title="Style Layer"
-                            className={`${stylePanelOpen === layer.id ? "text-blue-600" : "text-gray-600 hover:text-blue-600"}`}
+                            className={`${stylePanelOpen === layer.id ? "text-info-600" : "text-neutral-600 hover:text-info-600"}`}
                           >
                             <Palette size={16} />
                           </button>
                           <button
                             onClick={() => removeLayer(layer.id)}
                             title="Remove Layer"
-                            className="text-red-500 hover:text-red-700"
+                            className="text-danger-500 hover:text-danger-700"
                           >
                             <Trash2 size={16} />
                           </button>
@@ -827,14 +827,14 @@ export default function LayerManagement() {
 
                     {/* Style Panel */}
                     {stylePanelOpen === layer.id && (
-                      <div className="mt-2 p-3 bg-gray-50 rounded border-l-4 border-blue-400">
+                      <div className="mt-2 p-3 bg-neutral-50 rounded border-l-4 border-info-400">
                         <h4 className="font-semibold text-sm mb-2">
                           Style Options
                         </h4>
                         <div className="grid grid-cols-2 gap-2 text-xs">
                           {/* Stroke Color */}
                           <div>
-                            <label className="block text-gray-700">
+                            <label className="block text-neutral-700">
                               Stroke Color
                             </label>
                             <input
@@ -1111,7 +1111,7 @@ export default function LayerManagement() {
 
                         {/* Preset buttons */}
                         <div className="mt-3">
-                          <h4 className="text-xs font-semibold text-gray-600 mb-2">
+                          <h4 className="text-xs font-semibold text-neutral-600 mb-2">
                             Quick Presets
                           </h4>
                           <div className="flex flex-wrap gap-1 mb-2">
@@ -1123,7 +1123,7 @@ export default function LayerManagement() {
                                   fill_opacity: 0.2,
                                 })
                               }
-                              className="px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600"
+                              className="px-2 py-1 bg-danger-500 text-neutral-50 text-xs rounded hover:bg-danger-600"
                             >
                               Red
                             </button>
@@ -1135,7 +1135,7 @@ export default function LayerManagement() {
                                   fill_opacity: 0.2,
                                 })
                               }
-                              className="px-2 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600"
+                              className="px-2 py-1 bg-corporate-2-500 text-neutral-50 text-xs rounded hover:bg-corporate-2-600"
                             >
                               Green
                             </button>
@@ -1147,7 +1147,7 @@ export default function LayerManagement() {
                                   fill_opacity: 0.2,
                                 })
                               }
-                              className="px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
+                              className="px-2 py-1 bg-info-600 text-neutral-50 text-xs rounded hover:bg-info-700"
                             >
                               Blue
                             </button>
@@ -1159,7 +1159,7 @@ export default function LayerManagement() {
                                   fill_opacity: 0.2,
                                 })
                               }
-                              className="px-2 py-1 bg-yellow-500 text-white text-xs rounded hover:bg-yellow-600"
+                              className="px-2 py-1 bg-warning-500 text-neutral-50 text-xs rounded hover:bg-warning-600"
                             >
                               Yellow
                             </button>
@@ -1171,7 +1171,7 @@ export default function LayerManagement() {
                                   fill_opacity: 0.2,
                                 })
                               }
-                              className="px-2 py-1 bg-purple-500 text-white text-xs rounded hover:bg-purple-600"
+                              className="px-2 py-1 bg-corporate-3-500 text-neutral-50 text-xs rounded hover:bg-corporate-3-600"
                             >
                               Purple
                             </button>
@@ -1183,7 +1183,7 @@ export default function LayerManagement() {
                                   fill_opacity: 0.2,
                                 })
                               }
-                              className="px-2 py-1 bg-orange-500 text-white text-xs rounded hover:bg-orange-600"
+                              className="px-2 py-1 bg-warning-500 text-neutral-50 text-xs rounded hover:bg-warning-600"
                             >
                               Orange
                             </button>
@@ -1205,7 +1205,7 @@ export default function LayerManagement() {
 
                           {/* Geometry-specific quick actions */}
                           <div className="mt-2">
-                            <h4 className="text-xs font-semibold text-gray-600 mb-1">
+                            <h4 className="text-xs font-semibold text-neutral-600 mb-1">
                               Quick Actions
                             </h4>
                             <QuickActionsButtons
@@ -1227,7 +1227,7 @@ export default function LayerManagement() {
                         className="absolute w-full h-4 -bottom-4 flex items-center justify-center"
                         style={{ pointerEvents: "none" }}
                       >
-                        <div className="h-1.5 bg-blue-500 w-full rounded-full animate-pulse"></div>
+                        <div className="h-1.5 bg-info-600 w-full rounded-full animate-pulse"></div>
                       </div>
                     )}
                   </li>

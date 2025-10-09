@@ -123,10 +123,17 @@ class ColorScale(BaseModel):
 class ColorSettings(BaseModel):
     """User-customizable color settings for the UI"""
 
-    primary: ColorScale
-    second_primary: ColorScale
-    secondary: ColorScale
-    tertiary: ColorScale
+    primary: ColorScale  # Main neutral/text colors
+    second_primary: ColorScale  # Main action buttons
+    secondary: ColorScale  # Supporting accents
+    tertiary: ColorScale  # Success states
+    danger: ColorScale  # Error/delete actions
+    warning: ColorScale  # Warning states
+    info: ColorScale  # Informational states
+    neutral: ColorScale  # Pure neutral (white/black/gray)
+    corporate_1: ColorScale  # Corporate brand color 1
+    corporate_2: ColorScale  # Corporate brand color 2
+    corporate_3: ColorScale  # Corporate brand color 3
 
 
 class SettingsOptions(BaseModel):
@@ -260,6 +267,104 @@ async def get_settings_options(request: Request, response: Response):
             shade_800="#32573C",
             shade_900="#284832",
             shade_950="#1A2F22",
+        ),
+        # Danger / error states — red
+        danger=ColorScale(
+            shade_50="#FEF2F2",
+            shade_100="#FEE2E2",
+            shade_200="#FECACA",
+            shade_300="#FCA5A5",
+            shade_400="#F87171",
+            shade_500="#EF4444",
+            shade_600="#DC2626",  # main error/delete color
+            shade_700="#B91C1C",  # hover state
+            shade_800="#991B1B",
+            shade_900="#7F1D1D",
+            shade_950="#450A0A",
+        ),
+        # Warning states — amber/orange
+        warning=ColorScale(
+            shade_50="#FFFBEB",
+            shade_100="#FEF3C7",
+            shade_200="#FDE68A",
+            shade_300="#FCD34D",
+            shade_400="#FBBF24",
+            shade_500="#F59E0B",
+            shade_600="#D97706",  # main warning color
+            shade_700="#B45309",
+            shade_800="#92400E",
+            shade_900="#78350F",
+            shade_950="#451A03",
+        ),
+        # Info states — blue
+        info=ColorScale(
+            shade_50="#EFF6FF",
+            shade_100="#DBEAFE",
+            shade_200="#BFDBFE",
+            shade_300="#93C5FD",
+            shade_400="#60A5FA",
+            shade_500="#3B82F6",
+            shade_600="#2563EB",  # main info color
+            shade_700="#1D4ED8",
+            shade_800="#1E40AF",
+            shade_900="#1E3A8A",
+            shade_950="#172554",
+        ),
+        # Neutral (pure white/black/grays) for backgrounds and overlays
+        neutral=ColorScale(
+            shade_50="#FFFFFF",  # pure white
+            shade_100="#F9FAFB",
+            shade_200="#F3F4F6",
+            shade_300="#E5E7EB",
+            shade_400="#D1D5DB",
+            shade_500="#9CA3AF",
+            shade_600="#6B7280",
+            shade_700="#4B5563",
+            shade_800="#374151",
+            shade_900="#1F2937",
+            shade_950="#000000",  # pure black
+        ),
+        # Corporate Color 1 - for layer type styling (rose)
+        corporate_1=ColorScale(
+            shade_50="#FFF1F2",
+            shade_100="#FFE4E6",
+            shade_200="#FECDD3",
+            shade_300="#FDA4AF",
+            shade_400="#FB7185",
+            shade_500="#F43F5E",
+            shade_600="#E11D48",
+            shade_700="#BE123C",
+            shade_800="#9F1239",
+            shade_900="#881337",
+            shade_950="#4C0519",
+        ),
+        # Corporate Color 2 - for layer type styling (sky)
+        corporate_2=ColorScale(
+            shade_50="#F0F9FF",
+            shade_100="#E0F2FE",
+            shade_200="#BAE6FD",
+            shade_300="#7DD3FC",
+            shade_400="#38BDF8",
+            shade_500="#0EA5E9",
+            shade_600="#0284C7",
+            shade_700="#0369A1",
+            shade_800="#075985",
+            shade_900="#0C4A6E",
+            shade_950="#082F49",
+        ),
+        # Corporate Color 3 - for layer type styling (purple)
+        corporate_3=ColorScale(
+            shade_50="#FAF5FF",
+            shade_100="#F3E8FF",
+            shade_200="#E9D5FF",
+            shade_300="#D8B4FE",
+            shade_400="#C084FC",
+            shade_500="#A855F7",
+            shade_600="#9333EA",
+            shade_700="#7E22CE",
+            shade_800="#6B21A8",
+            shade_900="#581C87",
+            shade_950="#3B0764",
         ),
     )
 

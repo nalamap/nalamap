@@ -13,7 +13,7 @@
   --secondary: #AEBD38;
   --tertiary: #598234;
 
-  /* Primary Gradient Scale (for First Primary) */
+  /* Primary Gradient Scale (Main neutral/text colors) */
   --primary-50: #f7f7f8;
   --primary-100: #eeeef0;
   --primary-200: #d8d8df;
@@ -26,7 +26,7 @@
   --primary-900: #383842;
   --primary-950: #25252c;
 
-  /* Second Primary Gradient Scale (for Second Primary) */
+  /* Second Primary Gradient Scale (Main action buttons) */
   --second-primary-50: #f5f8f9;
   --second-primary-100: #e8eef1;
   --second-primary-200: #d6e1e7;
@@ -39,7 +39,7 @@
   --second-primary-900: #465262;
   --second-primary-950: #2e343d;
 
-  /* Secondary Gradient Scale */
+  /* Secondary Gradient Scale (Supporting accents) */
   --secondary-50: #fafaeb;
   --secondary-100: #f2f4d3;
   --secondary-200: #e6eaac;
@@ -52,7 +52,7 @@
   --secondary-900: #41491e;
   --secondary-950: #22270c;
 
-  /* Tertiary Gradient Scale */
+  /* Tertiary Gradient Scale (Success states) */
   --tertiary-50: #f4f8ed;
   --tertiary-100: #e5f0d7;
   --tertiary-200: #cde2b4;
@@ -64,6 +64,97 @@
   --tertiary-800: #394e26;
   --tertiary-900: #324324;
   --tertiary-950: #18240f;
+
+  /* Danger Gradient Scale (Error/delete states) */
+  --danger-50: #fef2f2;
+  --danger-100: #fee2e2;
+  --danger-200: #fecaca;
+  --danger-300: #fca5a5;
+  --danger-400: #f87171;
+  --danger-500: #ef4444;
+  --danger-600: #dc2626;
+  --danger-700: #b91c1c;
+  --danger-800: #991b1b;
+  --danger-900: #7f1d1d;
+  --danger-950: #450a0a;
+
+  /* Warning Gradient Scale (Warning states) */
+  --warning-50: #fffbeb;
+  --warning-100: #fef3c7;
+  --warning-200: #fde68a;
+  --warning-300: #fcd34d;
+  --warning-400: #fbbf24;
+  --warning-500: #f59e0b;
+  --warning-600: #d97706;
+  --warning-700: #b45309;
+  --warning-800: #92400e;
+  --warning-900: #78350f;
+  --warning-950: #451a03;
+
+  /* Info Gradient Scale (Informational states) */
+  --info-50: #eff6ff;
+  --info-100: #dbeafe;
+  --info-200: #bfdbfe;
+  --info-300: #93c5fd;
+  --info-400: #60a5fa;
+  --info-500: #3b82f6;
+  --info-600: #2563eb;
+  --info-700: #1d4ed8;
+  --info-800: #1e40af;
+  --info-900: #1e3a8a;
+  --info-950: #172554;
+
+  /* Neutral Gradient Scale (Pure whites/blacks/grays) */
+  --neutral-50: #ffffff;
+  --neutral-100: #f9fafb;
+  --neutral-200: #f3f4f6;
+  --neutral-300: #e5e7eb;
+  --neutral-400: #d1d5db;
+  --neutral-500: #9ca3af;
+  --neutral-600: #6b7280;
+  --neutral-700: #4b5563;
+  --neutral-800: #374151;
+  --neutral-900: #1f2937;
+  --neutral-950: #000000;
+
+  /* Corporate Color 1 (Rose - for layer types) */
+  --corporate-1-50: #fff1f2;
+  --corporate-1-100: #ffe4e6;
+  --corporate-1-200: #fecdd3;
+  --corporate-1-300: #fda4af;
+  --corporate-1-400: #fb7185;
+  --corporate-1-500: #f43f5e;
+  --corporate-1-600: #e11d48;
+  --corporate-1-700: #be123c;
+  --corporate-1-800: #9f1239;
+  --corporate-1-900: #881337;
+  --corporate-1-950: #4c0519;
+
+  /* Corporate Color 2 (Sky - for layer types) */
+  --corporate-2-50: #f0f9ff;
+  --corporate-2-100: #e0f2fe;
+  --corporate-2-200: #bae6fd;
+  --corporate-2-300: #7dd3fc;
+  --corporate-2-400: #38bdf8;
+  --corporate-2-500: #0ea5e9;
+  --corporate-2-600: #0284c7;
+  --corporate-2-700: #0369a1;
+  --corporate-2-800: #075985;
+  --corporate-2-900: #0c4a6e;
+  --corporate-2-950: #082f49;
+
+  /* Corporate Color 3 (Purple - for layer types) */
+  --corporate-3-50: #faf5ff;
+  --corporate-3-100: #f3e8ff;
+  --corporate-3-200: #e9d5ff;
+  --corporate-3-300: #d8b4fe;
+  --corporate-3-400: #c084fc;
+  --corporate-3-500: #a855f7;
+  --corporate-3-600: #9333ea;
+  --corporate-3-700: #7e22ce;
+  --corporate-3-800: #6b21a8;
+  --corporate-3-900: #581c87;
+  --corporate-3-950: #3b0764;
 }
 
 /* Primary Color Utility Classes */
@@ -499,3 +590,25 @@ body {
 }
 
 /* End of custom markdown styling */
+
+/* Chat Message Classes */
+.chat-message {
+  @apply max-w-[80%] px-4 py-2 rounded-lg;
+}
+
+.chat-message-user {
+  @apply bg-second-primary-200 rounded-tr-none text-right border border-primary-300;
+}
+
+.chat-message-ai {
+  @apply bg-neutral-50 rounded-tl-none border border-primary-200;
+}
+
+.chat-message-loading {
+  @apply bg-neutral-50 rounded-tl-none border border-primary-200;
+}
+
+.chat-message-tool {
+  @apply bg-info-50 rounded border border-info-200;
+}
+/* End of chat message classes */

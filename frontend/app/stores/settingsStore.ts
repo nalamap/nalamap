@@ -66,6 +66,13 @@ export interface ColorSettings {
   second_primary: ColorScale;
   secondary: ColorScale;
   tertiary: ColorScale;
+  danger: ColorScale;
+  warning: ColorScale;
+  info: ColorScale;
+  neutral: ColorScale;
+  corporate_1: ColorScale;
+  corporate_2: ColorScale;
+  corporate_3: ColorScale;
 }
 
 export interface SettingsSnapshot {

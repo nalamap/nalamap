@@ -30,27 +30,24 @@ export default function ColorInjector() {
 function applyCSSVariables(colors: ColorSettings) {
   const root = document.documentElement;
 
-  // Apply primary colors
-  Object.entries(colors.primary).forEach(([key, value]) => {
-    const cssVarName = `--primary-${key.replace("shade_", "")}`;
-    root.style.setProperty(cssVarName, value);
-  });
+  // Helper function to apply a color scale
+  const applyScale = (scale: any, prefix: string) => {
+    Object.entries(scale).forEach(([key, value]) => {
+      const cssVarName = `--${prefix}-${key.replace("shade_", "")}`;
+      root.style.setProperty(cssVarName, value as string);
+    });
+  };
 
-  // Apply second primary colors
-  Object.entries(colors.second_primary).forEach(([key, value]) => {
-    const cssVarName = `--second-primary-${key.replace("shade_", "")}`;
-    root.style.setProperty(cssVarName, value);
-  });
-
-  // Apply secondary colors
-  Object.entries(colors.secondary).forEach(([key, value]) => {
-    const cssVarName = `--secondary-${key.replace("shade_", "")}`;
-    root.style.setProperty(cssVarName, value);
-  });
-
-  // Apply tertiary colors
-  Object.entries(colors.tertiary).forEach(([key, value]) => {
-    const cssVarName = `--tertiary-${key.replace("shade_", "")}`;
-    root.style.setProperty(cssVarName, value);
-  });
+  // Apply all color scales
+  applyScale(colors.primary, "primary");
+  applyScale(colors.second_primary, "second-primary");
+  applyScale(colors.secondary, "secondary");
+  applyScale(colors.tertiary, "tertiary");
+  applyScale(colors.danger, "danger");
+  applyScale(colors.warning, "warning");
+  applyScale(colors.info, "info");
+  applyScale(colors.neutral, "neutral");
+  applyScale(colors.corporate_1, "corporate-1");
+  applyScale(colors.corporate_2, "corporate-2");
+  applyScale(colors.corporate_3, "corporate-3");
 }
