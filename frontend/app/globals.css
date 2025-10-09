@@ -1077,4 +1077,36 @@ body {
   border-color: var(--primary-600);
   color: var(--neutral-300);
 }
+
+/* Dark mode for collapsible settings components - prevent white flash during transitions */
+.dark .border.border-primary-300.rounded.bg-white.overflow-hidden {
+  background-color: var(--primary-900) !important;
+  border-color: var(--primary-700) !important;
+}
+
+.dark .border.border-primary-300.rounded.bg-white.overflow-hidden button:hover {
+  background-color: var(--primary-800) !important;
+}
+
+.dark .border.border-primary-300.rounded.bg-white.overflow-hidden button {
+  background-color: var(--primary-900) !important;
+  color: var(--neutral-200) !important;
+}
+
+/* Ensure all settings containers have dark backgrounds in dark mode */
+.dark div[class*="border border-primary-300 rounded bg-white"] {
+  background-color: var(--primary-900) !important;
+  border-color: var(--primary-700) !important;
+}
+
+/* Dark mode for settings component headers */
+.dark .text-2xl.font-semibold.text-primary-800 {
+  color: var(--neutral-100) !important;
+}
+
+/* Dark mode for chevron icons in settings */
+.dark .text-primary-600 {
+  color: var(--neutral-400) !important;
+}
+
 /* End of chat message classes */
