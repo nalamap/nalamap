@@ -623,6 +623,6 @@ docker-compose restart backend
 
 ---
 
-**Last Updated**: January 2025  
+**Last Updated**: October 2025  
 **Maintainers**: NaLaMap Development Team  
 **Contact**: [info@nalamap.org](mailto:info@nalamap.org)

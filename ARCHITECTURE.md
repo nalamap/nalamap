@@ -129,11 +129,12 @@ backend/
 │       └── chat_messages.py  # NaLaMapRequest, NaLaMapResponse
 │
 ├── services/                  # Business logic
-│   ├── multi_agent_orch.py   # Multi-agent orchestration
-│   ├── single_agent.py       # Single agent implementation
+│   ├── single_agent.py       # Single ReAct agent (current)
+│   ├── multi_agent_orch.py   # Multi-agent orchestration (legacy)
 │   ├── background_tasks.py   # Async background tasks
+│   ├── default_agent_settings.py # Default agent configuration
 │   │
-│   ├── agents/               # AI agent implementations
+│   ├── agents/               # AI agent implementations (legacy)
 │   │   ├── nala_map_ai.py   # Main geospatial AI agent
 │   │   ├── langgraph_agent.py # LangGraph-based agent
 │   │   ├── supervisor_agent.py # Agent supervisor/router
@@ -199,45 +200,105 @@ async def chat_with_nalamap(request: NaLaMapRequest) -> NaLaMapResponse:
 
 **Location**: `backend/services/`
 
-The service layer contains business logic and orchestrates AI agents.
+The service layer contains business logic and orchestrates the AI agent system.
 
-#### Agent System
+#### Single Agent System (Current)
 
-**Multi-Agent Architecture** (`services/multi_agent_orch.py`):
-- **Supervisor Agent**: Routes requests to specialized agents
-- **Geo Helper Agent**: Handles geospatial queries and operations
-- **Librarian Agent**: Searches and discovers external data sources
+**File**: `services/single_agent.py`
 
-**Agent Workflow**:
-```
-User Query → Supervisor → [Geo Helper | Librarian | ...] → Response
-```
+The current implementation uses a **single ReAct agent** created with LangGraph's `create_react_agent`:
 
-#### AI Tools
+- **GeoAgent**: A unified agent with access to all tools
+- **Tool Selection**: Agent reasons about which tools to use based on context
+- **Configurable**: Tools and system prompt can be customized per session
+- **State Management**: Uses `GeoDataAgentState` to track layers, results, and conversation
+
+**Key Function**: `create_geo_agent(model_settings, selected_tools)`
+- Creates and returns a configured ReAct agent
+- Dynamically loads tools based on settings
+- Applies custom system prompt if provided
+
+**Default Tools** (`services/default_agent_settings.py`):
+- Geocoding tools (Nominatim, Overpass)
+- Geoprocessing tools (buffer, clip, union, etc.)
+- Styling tools (manual, auto-style, color schemes)
+- Attribute tools (query, filter, summarize)
+- State management tools (metadata search, describe)
+- Data discovery tools (GeoServer, PostGIS)
+
+#### Multi-Agent Architecture (Legacy)
+
+**File**: `services/multi_agent_orch.py`
+
+The legacy multi-agent system used a supervisor to route queries:
+- **Supervisor Agent**: Routed requests to specialized agents
+- **Geo Helper Agent**: Handled geospatial queries and operations
+- **Librarian Agent**: Searched and discovered external data sources
+
+**Status**: Currently deprecated in favor of the single agent approach. Available via `/chat2` endpoint for compatibility.
+
+#### Agent Workflow
+
+The single agent follows this pattern:
+1. User query received
+2. Agent created with configured tools and prompt
+3. Agent enters ReAct loop (Reason → Act → Observe)
+4. Tools called as needed to fulfill request
+5. Response generated and returned to frontend
+
+### AI Tools
 
 **Location**: `backend/services/tools/`
 
-Tools are functions that AI agents can call to perform actions:
+Tools are functions that the AI agent can call to perform actions. All tools are registered in `services/default_agent_settings.py` and can be dynamically configured per session.
 
-- **Geocoding**: `geocoding.py` - Location search and reverse geocoding
-- **Styling**: `styling_tools.py` - Change layer colors, symbols
-- **Geoprocessing**: `geoprocess_tools.py` - Buffer, clip, union, etc.
-- **Attributes**: `attribute_tools.py` - Analyze feature attributes
-- **State Management**: `geostate_management.py` - Add/remove layers
-- **Data Discovery**: `librarian_tools.py` - Find external data sources
+#### Tool Categories
+
+- **Geocoding** (`geocoding.py`):
+  - `geocode_using_nominatim_to_geostate`: Location search using OpenStreetMap Nominatim
+  - `geocode_using_overpass_to_geostate`: POI search using Overpass API (restaurants, hospitals, etc.)
+
+- **Geoprocessing** (`geoprocess_tools.py`):
+  - `geoprocess_tool`: Unified tool for spatial operations (buffer, clip, union, intersect, centroid, etc.)
+  - Operations work on existing layers in the session state
+
+- **Styling** (`styling_tools.py`):
+  - `style_map_layers`: Manual styling with explicit parameters
+  - `auto_style_new_layers`: Intelligent auto-styling for new layers
+  - `check_and_auto_style_layers`: Automatic style checker and updater
+  - `apply_intelligent_color_scheme`: Apply color theory-based styling
+
+- **Attributes** (`attribute_tools.py`):
+  - `attribute_tool`: Unified tool for attribute operations
+  - Query layer attributes, filter features, summarize numeric columns
+  - Uses safe CQL-lite predicate language for filtering
+
+- **State Management** (`geostate_management.py`):
+  - `metadata_search`: Search through available datasets using semantic similarity
+  - `describe_geodata_object`: Get detailed information about a specific layer
+
+- **Data Discovery**:
+  - `get_custom_geoserver_data` (`geoserver/custom_geoserver.py`): Fetch data from custom GeoServer instances
+  - `query_librarian_postgis` (`librarian_tools.py`): Search PostGIS databases for relevant datasets
 
 **Tool Definition Pattern**:
 ```python
+from langchain.tools import tool
+
 @tool
-def geocode_location(location: str) -> dict:
+def geocode_using_nominatim_to_geostate(
+    state: GeoDataAgentState,
+    location: str
+) -> dict:
     """
-    Geocode a location name to coordinates.
+    Geocode a location name to coordinates using Nominatim.
     
     Args:
+        state: Current agent state
         location: Location name or address
         
     Returns:
-        dict with coordinates and metadata
+        dict with coordinates, bounding box, and GeoJSON
     """
     # Implementation
     return result
@@ -439,29 +500,42 @@ Chat Store (Zustand)
 POST /api/chat (Backend)
     │
     ▼
-Supervisor Agent
+Create Single Agent (create_geo_agent)
     │
-    ├─→ Geo Helper Agent
-    │       │
-    │       ├─→ Tool: Geocoding
-    │       ├─→ Tool: Styling
-    │       ├─→ Tool: Geoprocessing
-    │       └─→ Tool: State Management
-    │
-    └─→ Librarian Agent
-            │
-            └─→ Tool: Data Discovery
+    ├─→ Configure LLM
+    ├─→ Load System Prompt
+    └─→ Load Enabled Tools (from settings)
     │
     ▼
-Response (JSON)
+ReAct Agent Loop
+    │
+    ├─→ Reason about next action
+    ├─→ Select and call tool(s)
+    │       │
+    │       ├─→ geocode_using_nominatim_to_geostate
+    │       ├─→ geocode_using_overpass_to_geostate
+    │       ├─→ geoprocess_tool
+    │       ├─→ style_map_layers
+    │       ├─→ attribute_tool
+    │       └─→ metadata_search
+    │
+    ├─→ Observe tool results
+    └─→ Repeat until answer is ready
+    │
+    ▼
+Agent Response (JSON)
     │
     ▼
 Frontend Updates State
     │
     ├─→ Chat Store (new message)
-    ├─→ Map Store (new layers)
+    ├─→ Map Store (new layers/results)
     └─→ UI Update (re-render)
 ```
+
+**Key Endpoints**:
+- `/api/chat`: Main endpoint using single ReAct agent (current)
+- `/api/chat2`: Legacy endpoint using multi-agent orchestration (deprecated)
 
 ### Layer Management Flow
 
@@ -512,68 +586,143 @@ UI Updates (colors, tools, etc.)
 
 ## 🤖 AI Agent Architecture
 
-### LangGraph Multi-Agent System
+### Single Agent System with LangGraph
 
-**Location**: `backend/services/multi_agent_orch.py`
+**Location**: `backend/services/single_agent.py`
 
-NaLaMap uses LangGraph to orchestrate multiple specialized AI agents:
+NaLaMap uses a **single ReAct agent** built with LangGraph's `create_react_agent` that has access to multiple specialized tools. The agent uses a reasoning loop to decide which tools to call based on user queries.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                  Supervisor Agent                       │
-│         (Routes queries to specialized agents)          │
+│              Single ReAct Agent (GeoAgent)              │
+│         (Reasons and selects appropriate tools)         │
 └─────────────────────────────────────────────────────────┘
                           │
-          ┌───────────────┼───────────────┐
-          │               │               │
+          ┌───────────────┼───────────────┬──────────────┐
+          │               │               │              │
+          ▼               ▼               ▼              ▼
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│ Geocoding    │  │ Geoprocessing│  │   Styling    │  │  Attributes  │
+│   Tools      │  │    Tools     │  │    Tools     │  │    Tools     │
+│              │  │              │  │              │  │              │
+│ - Nominatim  │  │ - Buffer     │  │ - Manual     │  │ - Query      │
+│ - Overpass   │  │ - Clip       │  │ - Auto-style │  │ - Filter     │
+│              │  │ - Intersect  │  │ - Color      │  │ - Summarize  │
+└──────────────┘  └──────────────┘  └──────────────┘  └──────────────┘
+
           ▼               ▼               ▼
 ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-│ Geo Helper   │  │  Librarian   │  │   Future:    │
-│   Agent      │  │   Agent      │  │  Other       │
-│              │  │              │  │  Agents      │
-│ - Geocoding  │  │ - Search OGC │  └──────────────┘
-│ - Styling    │  │ - Find data  │
-│ - Geoprocess │  │ - Metadata   │
-│ - Analysis   │  │              │
-└──────────────┘  └──────────────┘
+│  Metadata    │  │  Geoserver   │  │  Librarian   │
+│   Search     │  │   Tools      │  │    Tools     │
+│              │  │              │  │              │
+│ - Describe   │  │ - Custom     │  │ - PostGIS    │
+│ - Search     │  │   Geoserver  │  │   Search     │
+└──────────────┘  └──────────────┘  └──────────────┘
+```
+
+### Available Tools
+
+**Location**: `backend/services/tools/`
+
+The agent has access to the following tool categories:
+
+| Category | Tools | Purpose |
+|----------|-------|---------|
+| **Geocoding** | `geocode_using_nominatim_to_geostate`, `geocode_using_overpass_to_geostate` | Convert location names to coordinates, find POIs |
+| **Geoprocessing** | `geoprocess_tool` | Spatial operations (buffer, clip, union, intersect) |
+| **Styling** | `style_map_layers`, `auto_style_new_layers`, `check_and_auto_style_layers`, `apply_intelligent_color_scheme` | Visual customization of map layers |
+| **Attributes** | `attribute_tool` | Query, filter, and analyze layer attributes |
+| **State Management** | `metadata_search`, `describe_geodata_object` | Search and describe existing layers |
+| **Data Discovery** | `get_custom_geoserver_data`, `query_librarian_postgis` | Find external data sources |
+
+**Tool Configuration**: Tools can be enabled/disabled per session via settings, allowing customization of agent capabilities.
+
+### Agent Creation
+
+**Function**: `create_geo_agent()` in `single_agent.py`
+
+The agent is created with:
+- **LLM**: Configured via `get_llm()` (supports multiple providers)
+- **Tools**: Dynamically configured based on user settings
+- **State Schema**: `GeoDataAgentState` (tracks messages, layers, results)
+- **System Prompt**: Configurable instructions for agent behavior
+- **Tool Binding**: Tools are bound with `parallel_tool_calls=False` for sequential execution
+
+```python
+def create_geo_agent(
+    model_settings: Optional[ModelSettings] = None,
+    selected_tools: Optional[List[ToolConfig]] = None,
+) -> CompiledStateGraph:
+    llm = get_llm()
+    system_prompt = DEFAULT_SYSTEM_PROMPT  # or custom from settings
+    tools_dict = create_configured_tools(DEFAULT_AVAILABLE_TOOLS, selected_tools)
+    tools = list(tools_dict.values())
+    
+    return create_react_agent(
+        name="GeoAgent",
+        state_schema=GeoDataAgentState,
+        tools=tools,
+        model=llm.bind_tools(tools, parallel_tool_calls=False),
+        prompt=system_prompt,
+    )
 ```
 
 ### Agent State
 
-**DataState** (`models/states.py`):
+**GeoDataAgentState** (`models/states.py`):
 ```python
-class DataState(TypedDict):
-    messages: List[BaseMessage]  # Conversation history
-    geodata: List[GeoDataObject] # Current map layers
-    session_id: str              # User session identifier
+class GeoDataAgentState(TypedDict):
+    messages: List[BaseMessage]           # Conversation history
+    geodata_layers: List[GeoDataObject]   # Current map layers
+    geodata_results: List[GeoDataObject]  # Query results
+    geodata_last_results: List[GeoDataObject]  # Previous results
+    results_title: str                    # Title for results
+    options: SettingsSnapshot             # User settings
+    remaining_steps: int                  # Max reasoning steps
 ```
 
-### Tool Calling Pattern
+### ReAct Loop
 
-Agents use LangChain's tool calling mechanism:
+The agent follows a **ReAct (Reasoning + Acting)** pattern:
 
-1. **LLM receives user query** + available tools
-2. **LLM decides which tool(s) to call** and with what parameters
-3. **Backend executes tool(s)**
-4. **Tool results returned to LLM**
-5. **LLM generates final response** using tool results
+1. **User Query** → Agent receives the query
+2. **Reasoning** → Agent thinks about which tool(s) to use
+3. **Action** → Agent calls appropriate tool(s)
+4. **Observation** → Agent receives tool results
+5. **Repeat** → Steps 2-4 until answer is found
+6. **Response** → Agent generates final response
 
 **Example Flow**:
 ```
 User: "Show hospitals in Berlin"
     ↓
-LLM decides: Call geocode_location("Berlin")
+Agent Reasoning: "I need to geocode Berlin and find hospitals"
     ↓
-Tool returns: {lat: 52.52, lon: 13.405}
+Action 1: Call geocode_using_nominatim_to_geostate("Berlin")
     ↓
-LLM decides: Call overpass_search("hospital", bbox)
+Observation: {lat: 52.52, lon: 13.405, bbox: [...]}
     ↓
-Tool returns: [list of hospitals]
+Agent Reasoning: "Now I'll search for hospitals in this area"
     ↓
-LLM decides: Call add_layer(geojson_data)
+Action 2: Call geocode_using_overpass_to_geostate("hospital", bbox)
+    ↓
+Observation: [list of 50 hospitals as GeoJSON]
+    ↓
+Agent Reasoning: "I have the data, I'll respond"
     ↓
 Response: "I've added 50 hospitals in Berlin to the map"
 ```
+
+### Multi-Agent Architecture (Legacy)
+
+> **Note**: The multi-agent orchestration system (`services/multi_agent_orch.py`) with supervisor and specialized agents is **currently not in use**. The `/chat2` endpoint uses this legacy system, but the main `/chat` endpoint uses the single agent approach described above.
+
+The multi-agent system included:
+- **Supervisor Agent**: Routed requests to specialized agents
+- **Geo Helper Agent**: Handled geospatial queries
+- **Librarian Agent**: Searched for external data
+
+This architecture may be revisited in the future for more complex use cases.
 
 ### LLM Provider Abstraction
 
@@ -841,5 +990,5 @@ def my_new_tool(param: str) -> dict:
 
 ---
 
-**Last Updated**: January 2025  
+**Last Updated**: October 2025  
 **Maintainers**: NaLaMap Development Team
