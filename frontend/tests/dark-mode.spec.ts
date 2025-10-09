@@ -169,25 +169,18 @@ async function goToSettings(page: Page) {
   await page.waitForLoadState("networkidle");
 }
 
-// Helper function to expand theme settings
-async function expandThemeSettings(page: Page) {
-  const themeButton = page.locator("button:has-text('Theme Preference')");
-  await themeButton.scrollIntoViewIfNeeded();
-  
-  // Check if already expanded by looking for Light Mode button
-  const lightModeButton = page.getByRole("button", { name: /Light Mode/i });
-  const isExpanded = await lightModeButton.isVisible().catch(() => false);
-  
-  if (!isExpanded) {
-    await themeButton.click();
-    await page.waitForTimeout(300);
-  }
+// Helper function to scroll to theme settings (no expansion needed - always visible)
+async function scrollToThemeSettings(page: Page) {
+  // Theme settings is always visible, just scroll to it
+  const themeHeading = page.locator("h2:has-text('Theme Preference')");
+  await themeHeading.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(300);
 }
 
 test.describe("Dark Mode Tests", () => {
   test("should toggle between light and dark mode", async ({ page }) => {
     await goToSettings(page);
-    await expandThemeSettings(page);
+    await scrollToThemeSettings(page);
 
     // Verify we start in light mode
     const htmlElement = page.locator("html");
@@ -221,7 +214,7 @@ test.describe("Dark Mode Tests", () => {
 
   test("should apply dark background colors", async ({ page }) => {
     await goToSettings(page);
-    await expandThemeSettings(page);
+    await scrollToThemeSettings(page);
 
     // Switch to dark mode
     const darkModeButton = page.getByRole("button", { name: /Dark Mode/i });
@@ -244,7 +237,7 @@ test.describe("Dark Mode Tests", () => {
 
   test("should apply dark text colors for readability", async ({ page }) => {
     await goToSettings(page);
-    await expandThemeSettings(page);
+    await scrollToThemeSettings(page);
 
     // Switch to dark mode
     const darkModeButton = page.getByRole("button", { name: /Dark Mode/i });
@@ -268,7 +261,7 @@ test.describe("Dark Mode Tests", () => {
 
   test("should persist theme preference", async ({ page }) => {
     await goToSettings(page);
-    await expandThemeSettings(page);
+    await scrollToThemeSettings(page);
 
     // Switch to dark mode
     const darkModeButton = page.getByRole("button", { name: /Dark Mode/i });
@@ -301,7 +294,7 @@ test.describe("Dark Mode Tests", () => {
 
   test("should show theme badge correctly", async ({ page }) => {
     await goToSettings(page);
-    await expandThemeSettings(page);
+    await scrollToThemeSettings(page);
 
     // Check initial badge (Light Mode)
     let badge = page.locator("span:has-text('Light Mode')");
@@ -319,7 +312,7 @@ test.describe("Dark Mode Tests", () => {
 
   test("should display active indicator on selected theme", async ({ page }) => {
     await goToSettings(page);
-    await expandThemeSettings(page);
+    await scrollToThemeSettings(page);
 
     // Light mode should have Active indicator
     const lightButton = page.getByRole("button", { name: /Light Mode/i });
@@ -339,7 +332,7 @@ test.describe("Dark Mode Tests", () => {
 
   test("should apply dark mode to panels and borders", async ({ page }) => {
     await goToSettings(page);
-    await expandThemeSettings(page);
+    await scrollToThemeSettings(page);
 
     // Switch to dark mode
     const darkModeButton = page.getByRole("button", { name: /Dark Mode/i });
@@ -387,7 +380,7 @@ test.describe("Dark Mode Tests", () => {
     await page.waitForTimeout(500);
 
     // Switch to dark mode
-    await expandThemeSettings(page);
+    await scrollToThemeSettings(page);
     const darkModeButton = page.getByRole("button", { name: /Dark Mode/i });
     await darkModeButton.click();
     await page.waitForTimeout(500);
@@ -413,7 +406,7 @@ test.describe("Dark Mode Tests", () => {
 
   test("should have proper contrast between dark backgrounds and text", async ({ page }) => {
     await goToSettings(page);
-    await expandThemeSettings(page);
+    await scrollToThemeSettings(page);
 
     // Switch to dark mode
     const darkModeButton = page.getByRole("button", { name: /Dark Mode/i });
@@ -461,7 +454,7 @@ test.describe("Dark Mode Tests", () => {
 
   test("theme toggle should be accessible", async ({ page }) => {
     await goToSettings(page);
-    await expandThemeSettings(page);
+    await scrollToThemeSettings(page);
 
     // Check that theme buttons are keyboard accessible
     const lightModeButton = page.getByRole("button", { name: /Light Mode/i });
