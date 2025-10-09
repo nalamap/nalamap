@@ -10,7 +10,7 @@ from services.tools.geocoding import (
 from services.tools.geoprocess_tools import geoprocess_tool
 from services.tools.geoserver.custom_geoserver import get_custom_geoserver_data
 from services.tools.geostate_management import metadata_search
-from services.tools.librarian_tools import query_librarian_postgis
+# from services.tools.librarian_tools import query_librarian_postgis
 from services.tools.styling_tools import (
     apply_intelligent_color_scheme,
     auto_style_new_layers,
