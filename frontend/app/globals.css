@@ -870,12 +870,66 @@
   background-color: var(--secondary-800);
 }
 
+.dark .bg-secondary-100 {
+  background-color: var(--secondary-800);
+}
+
+.dark .bg-secondary-200 {
+  background-color: var(--secondary-700);
+}
+
+.dark .hover\:bg-secondary-200:hover {
+  background-color: var(--secondary-600);
+}
+
+.dark .text-secondary-700 {
+  color: var(--secondary-300);
+}
+
+.dark .border-secondary-200 {
+  border-color: var(--secondary-700);
+}
+
+.dark .border-secondary-300 {
+  border-color: var(--secondary-600);
+}
+
 .dark .border-secondary-500 {
   border-color: var(--secondary-500);
 }
 
 .dark .text-secondary-900 {
   color: var(--secondary-200);
+}
+
+/* Dark mode for white backgrounds and containers */
+.dark .bg-white {
+  background-color: var(--primary-900);
+}
+
+.dark .hover\:bg-neutral-100:hover {
+  background-color: var(--primary-700);
+}
+
+.dark .hover\:bg-neutral-400:hover {
+  background-color: var(--neutral-600);
+}
+
+.dark .hover\:bg-info-700:hover {
+  background-color: var(--info-600);
+}
+
+/* Dark mode for settings components */
+.dark .hover\:bg-primary-50:hover {
+  background-color: var(--primary-800);
+}
+
+.dark .text-neutral-900 {
+  color: var(--neutral-100);
+}
+
+.dark .bg-neutral-300 {
+  background-color: var(--neutral-700);
 }
 
 body {
@@ -987,6 +1041,21 @@ body {
   background-color: var(--info-900);
   border-color: var(--info-700);
   color: var(--neutral-200);
+}
+
+/* Dark mode for inline styled elements (AgentInterface details popup) */
+.dark [style*="backgroundColor: white"],
+.dark [style*="background-color: white"] {
+  background-color: var(--primary-800) !important;
+  color: var(--neutral-200) !important;
+}
+
+.dark [style*="color: #333"] {
+  color: var(--neutral-200) !important;
+}
+
+.dark [style*="border: 1px solid #ddd"] {
+  border-color: var(--primary-700) !important;
 }
 
 /* Dark mode markdown content */
