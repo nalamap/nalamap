@@ -95,14 +95,44 @@ function ColorScaleEditor({
         className="w-full flex items-center justify-between text-left"
       >
         <div className="flex items-center space-x-3 flex-1">
-          {/* Gradient preview */}
+          {/* Gradient preview - clickable to select colors */}
           <div className="flex space-x-0.5">
             {Object.entries(scale).map(([shade, color]) => (
               <div
                 key={shade}
-                className="w-3 h-8 first:rounded-l last:rounded-r"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!expanded) {
+                    setExpanded(true);
+                  }
+                  // Create a temporary color input to trigger color picker
+                  const input = document.createElement('input');
+                  input.type = 'color';
+                  input.value = color;
+                  input.style.position = 'absolute';
+                  input.style.opacity = '0';
+                  input.style.pointerEvents = 'none';
+                  document.body.appendChild(input);
+                  
+                  input.addEventListener('change', (event) => {
+                    const newColor = (event.target as HTMLInputElement).value;
+                    onUpdate(shade as keyof ColorScale, newColor);
+                    document.body.removeChild(input);
+                  });
+                  
+                  input.addEventListener('blur', () => {
+                    setTimeout(() => {
+                      if (document.body.contains(input)) {
+                        document.body.removeChild(input);
+                      }
+                    }, 100);
+                  });
+                  
+                  input.click();
+                }}
+                className="w-3 h-8 first:rounded-l last:rounded-r cursor-pointer hover:ring-2 hover:ring-secondary-500 hover:z-10 transition-all"
                 style={{ backgroundColor: color }}
-                title={`${shade}: ${color}`}
+                title={`${shade}: ${color} - Click to change`}
               />
             ))}
           </div>
