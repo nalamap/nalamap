@@ -12,8 +12,6 @@ import { useState, useEffect, useRef, useMemo, useCallback, memo } from "react";
 // Fix leaflet's default icon path issue
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
-import "leaflet-fullscreen/dist/leaflet.fullscreen.css";
-import "leaflet-fullscreen";
 
 import { useMapStore } from "../../stores/mapStore";
 import { useLayerStore } from "../../stores/layerStore";
@@ -132,27 +130,6 @@ const defaultIcon = new L.Icon({
   tooltipAnchor: [16, -28],
   shadowSize: [41, 41],
 });
-
-// Extend the global L object to include fullscreen functionality
-declare global {
-  interface FullscreenOptions {
-    position?: L.ControlPosition;
-    title?: {
-      false: string;
-      true: string;
-    };
-  }
-
-  namespace L {
-    namespace control {
-      function fullscreen(options?: FullscreenOptions): Control;
-    }
-
-    interface Map {
-      fullscreenControl?: Control;
-    }
-  }
-}
 
 function useZoomToLayer(layers: GeoDataObject[]) {
   const map = useMap();
@@ -1059,38 +1036,6 @@ const LeafletGeoJSONLayer = memo(function LeafletGeoJSONLayer({
   }
 });
 
-// Component to add the fullscreen control to the map
-function FullscreenControl() {
-  const map = useMap();
-
-  useEffect(() => {
-    if (!map.fullscreenControl) {
-      // Add fullscreen control below the zoom control
-      const fullscreenControl = L.control.fullscreen({
-        position: "topleft",
-        title: {
-          false: "View Fullscreen",
-          true: "Exit Fullscreen",
-        },
-      });
-
-      map.addControl(fullscreenControl);
-
-      // Store a reference to the control
-      map.fullscreenControl = fullscreenControl;
-    }
-
-    return () => {
-      if (map.fullscreenControl) {
-        map.removeControl(map.fullscreenControl);
-        map.fullscreenControl = undefined;
-      }
-    };
-  }, [map]);
-
-  return null;
-}
-
 // Custom component to handle GetFeatureInfo requests for WMS layers.
 function GetFeatureInfo({
   wmsLayer,
@@ -1454,11 +1399,8 @@ export default function LeafletMapComponent() {
           center={[0, 0]}
           zoom={2}
           style={{ height: "100%", width: "100%" }}
-          fullscreenControl={true}
           preferCanvas={false}
         >
-          {/* Add the fullscreen control */}
-          <FullscreenControl />
           {/* Ensure map tiles redraw after panel resize */}
           <InvalidateMapOnResize />
           <ZoomToSelected />
