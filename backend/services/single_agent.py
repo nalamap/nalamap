@@ -31,7 +31,7 @@ tools: List[BaseTool] = [
     # geocode_using_geonames, # its very simple and does not create a geojson
     geocode_using_nominatim_to_geostate,
     geocode_using_overpass_to_geostate,
-    query_librarian_postgis,
+    # query_librarian_postgis,
     geoprocess_tool,
     metadata_search,
     style_map_layers,  # Manual styling tool
