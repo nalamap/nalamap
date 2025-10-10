@@ -87,7 +87,7 @@ const ColorScaleEditor = memo(function ColorScaleEditor({
 
   const handleQuickColorChange = (color: string) => {
     onAutoGenerate(color);
-    setShowQuickPicker(false);
+    // Keep the quick picker open so users can try multiple colors
   };
 
   return (

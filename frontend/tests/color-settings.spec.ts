@@ -491,12 +491,13 @@ test.describe("Color Settings", () => {
   });
 
   test("should keep quick color picker open when selecting color", async ({ page }) => {
-    // Test that the quick color picker (magic wand) stays open when changing color
+    // Test that the quick color picker stays open when changing color
+    // allowing users to try multiple colors before manually closing
 
     await expandColorSettings(page);
 
-    // Find the Primary color scale
-    const primarySection = page.locator("div").filter({ hasText: "Primary (Text & Borders)" }).first();
+    // Find the Primary color scale container that has both the title button and magic wand button
+    const primarySection = page.locator('div.border-primary-300.rounded.p-3.bg-neutral-50').filter({ hasText: 'Primary (Text & Borders)' }).first();
     await primarySection.scrollIntoViewIfNeeded();
 
     // Click the magic wand button to open quick picker
@@ -516,8 +517,12 @@ test.describe("Color Settings", () => {
     await quickColorInput.fill("#00ff00");
     await page.waitForTimeout(100);
 
-    // Verify the quick picker is still visible after color change
+    // Verify the quick picker stays open after color selection
     await expect(quickPickerText).toBeVisible();
     await expect(quickColorInput).toBeVisible();
+
+    // Verify the color scale shows the updated colors
+    const colorSwatches = primarySection.locator('div[style*="background-color"]');
+    await expect(colorSwatches.first()).toBeVisible();
   });
 });
