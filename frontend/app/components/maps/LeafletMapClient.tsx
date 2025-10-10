@@ -907,7 +907,14 @@ const LeafletGeoJSONLayer = memo(function LeafletGeoJSONLayer({
       </div>
     `;
 
-    layer.bindPopup(popupContent);
+    // Bind popup with size constraints to prevent clipping
+    layer.bindPopup(popupContent, {
+      maxWidth: 600,  // Maximum popup width (will be further constrained by CSS)
+      maxHeight: 400, // Maximum popup height (will be further constrained by CSS)
+      autoPan: true,  // Automatically pan map to fit popup
+      autoPanPadding: [50, 50], // Padding from map edges
+      keepInView: true, // Keep popup in view when map is panned
+    });
 
     // Remove tooltip while popup is open
     layer.on("popupopen", () => {

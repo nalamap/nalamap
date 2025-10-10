@@ -92,9 +92,17 @@ const ColorScaleEditor = memo(function ColorScaleEditor({
 
   return (
     <div className="border border-primary-300 rounded p-3 bg-neutral-50">
-      <button
+      <div
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between text-left"
+        className="w-full flex items-center justify-between cursor-pointer"
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setExpanded(!expanded);
+          }
+        }}
       >
         <div className="flex items-center space-x-3 flex-1">
           {/* Gradient preview - clickable to select colors */}
@@ -165,7 +173,7 @@ const ColorScaleEditor = memo(function ColorScaleEditor({
             <ChevronDown className="w-4 h-4 text-primary-600" />
           )}
         </div>
-      </button>
+      </div>
 
       {/* Quick Color Picker */}
       {showQuickPicker && (
