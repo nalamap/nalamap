@@ -94,6 +94,12 @@ class ToolOption(BaseModel):
 class ModelOption(BaseModel):
     name: str
     max_tokens: int
+    input_cost_per_million: Optional[float] = None
+    output_cost_per_million: Optional[float] = None
+    cache_cost_per_million: Optional[float] = None
+    description: Optional[str] = None
+    supports_tools: bool = True
+    supports_vision: bool = False
 
 
 class ExampleGeoServer(BaseModel):
@@ -162,11 +168,14 @@ class GeoServerPreloadResponse(BaseModel):
 
 @router.get("/options", response_model=SettingsOptions)
 async def get_settings_options(request: Request, response: Response):
-    # TODO: replace hardcoded with dynamic calls to the different tools and providers
+    """Get available settings options including dynamically discovered LLM providers and models."""
+    # Get available tools
     tool_options = {
         available_tool_name: {"default_prompt": available_tool.description, "settings": {}}
         for available_tool_name, available_tool in DEFAULT_AVAILABLE_TOOLS.items()
     }
+
+    # Example GeoServer backends
     example_geoserver_backends = [
         ExampleGeoServer(
             url="https://geoserver.mapx.org/geoserver/",
@@ -202,12 +211,44 @@ async def get_settings_options(request: Request, response: Response):
             ),
         ),
     ]
-    model_options: Dict[str, List[ModelOption]] = {
-        "openai": [
-            ModelOption(name="gpt-4-nano", max_tokens=50000),
-            ModelOption(name="gpt-4-mini", max_tokens=100000),
-        ],
-    }
+
+    # Dynamically discover available LLM providers and models
+    from services.ai.provider_interface import get_all_providers
+
+    providers_info = get_all_providers()
+
+    # Convert provider info to model_options format
+    model_options: Dict[str, List[ModelOption]] = {}
+    for provider_name, provider_info in providers_info.items():
+        if provider_info.available and provider_info.models:
+            model_options[provider_name] = [
+                ModelOption(
+                    name=model.name,
+                    max_tokens=model.max_tokens,
+                    input_cost_per_million=model.input_cost_per_million,
+                    output_cost_per_million=model.output_cost_per_million,
+                    cache_cost_per_million=model.cache_cost_per_million,
+                    description=model.description,
+                    supports_tools=model.supports_tools,
+                    supports_vision=model.supports_vision,
+                )
+                for model in provider_info.models
+            ]
+
+    # If no providers are available, fall back to minimal OpenAI options for UI testing
+    if not model_options:
+        logger.warning("No LLM providers available, using fallback model options")
+        model_options = {
+            "openai": [
+                ModelOption(
+                    name="gpt-5-mini",
+                    max_tokens=100000,
+                    input_cost_per_million=0.25,
+                    output_cost_per_million=0.025,
+                    description="GPT-5 Mini (fallback - configure API key)",
+                ),
+            ],
+        }
 
     # Default color settings matching globals.css
     # IUCN Green List–matched color settings (tuned to NalaMap usage)

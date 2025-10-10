@@ -27,6 +27,12 @@ export interface SearchPortal {
 export interface ModelOption {
   name: string;
   max_tokens: number;
+  input_cost_per_million?: number | null;
+  output_cost_per_million?: number | null;
+  cache_cost_per_million?: number | null;
+  description?: string | null;
+  supports_tools?: boolean;
+  supports_vision?: boolean;
 }
 
 export interface ToolOption {

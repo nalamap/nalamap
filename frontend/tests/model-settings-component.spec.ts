@@ -76,8 +76,8 @@ test.describe("Model Settings Component", () => {
     await expect(providerSelect).toBeVisible();
 
     // Check that providers are in the dropdown
-    await expect(providerSelect).toContainText("openai");
-    await expect(providerSelect).toContainText("anthropic");
+    await expect(providerSelect).toContainText("Openai");
+    await expect(providerSelect).toContainText("Anthropic");
   });
 
   test("should display models for selected provider", async ({ page }) => {
