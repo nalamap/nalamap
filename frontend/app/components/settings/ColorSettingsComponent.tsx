@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, memo } from "react";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { ChevronDown, ChevronUp, RotateCcw, Info, Wand2 } from "lucide-react";
 import { ColorScale, ColorSettings } from "../../stores/settingsStore";
@@ -74,7 +74,9 @@ interface ColorScaleEditorProps {
   onAutoGenerate: (baseColor: string) => void;
 }
 
-function ColorScaleEditor({
+// Memoize the ColorScaleEditor to prevent re-renders when parent state changes
+// This ensures the expanded/collapsed state persists when colors are updated
+const ColorScaleEditor = memo(function ColorScaleEditor({
   scaleName,
   scale,
   onUpdate,
@@ -213,7 +215,7 @@ function ColorScaleEditor({
       )}
     </div>
   );
-}
+});
 
 export default function ColorSettingsComponent() {
   const [isOpen, setIsOpen] = useState(false); // Start collapsed by default

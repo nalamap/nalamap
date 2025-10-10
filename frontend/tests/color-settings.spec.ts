@@ -454,4 +454,70 @@ test.describe("Color Settings", () => {
     const colorButton = page.locator("button:has-text('Color Customization')");
     await expect(colorButton).toBeVisible();
   });
+
+  test("should keep color picker panel open when changing color", async ({ page }) => {
+    // This test verifies the fix for the bug where changing a color
+    // closes the color picker panel due to component re-rendering
+
+    await expandColorSettings(page);
+
+    // Find and expand the Primary color scale
+    const primaryButton = page.locator("button").filter({ hasText: "Primary (Text & Borders)" }).first();
+    await primaryButton.scrollIntoViewIfNeeded();
+    await primaryButton.click();
+    await page.waitForTimeout(300);
+
+    // Verify the expanded view with individual color inputs is visible
+    const colorInputs = page.locator('input[type="color"]');
+    const initialCount = await colorInputs.count();
+    expect(initialCount).toBeGreaterThan(0);
+
+    // Find the first color input (shade 50)
+    const firstColorInput = colorInputs.first();
+    await expect(firstColorInput).toBeVisible();
+
+    // Change the color
+    await firstColorInput.fill("#ff0000");
+    await page.waitForTimeout(100);
+
+    // Verify the panel is still expanded and the color inputs are still visible
+    const afterChangeCount = await colorInputs.count();
+    expect(afterChangeCount).toBe(initialCount);
+    await expect(firstColorInput).toBeVisible();
+
+    // Verify another color input is also still visible (confirming panel didn't collapse)
+    const secondColorInput = colorInputs.nth(1);
+    await expect(secondColorInput).toBeVisible();
+  });
+
+  test("should keep quick color picker open when selecting color", async ({ page }) => {
+    // Test that the quick color picker (magic wand) stays open when changing color
+
+    await expandColorSettings(page);
+
+    // Find the Primary color scale
+    const primarySection = page.locator("div").filter({ hasText: "Primary (Text & Borders)" }).first();
+    await primarySection.scrollIntoViewIfNeeded();
+
+    // Click the magic wand button to open quick picker
+    const magicWandButton = primarySection.locator('button[title*="Quick set color"]');
+    await magicWandButton.click();
+    await page.waitForTimeout(300);
+
+    // Verify quick picker is visible
+    const quickPickerText = page.getByText("🪄 Quick Color Set");
+    await expect(quickPickerText).toBeVisible();
+
+    // Find the large color input in the quick picker
+    const quickColorInput = primarySection.locator('input[type="color"]').filter({ hasText: "" }).first();
+    await expect(quickColorInput).toBeVisible();
+
+    // Change the color
+    await quickColorInput.fill("#00ff00");
+    await page.waitForTimeout(100);
+
+    // Verify the quick picker is still visible after color change
+    await expect(quickPickerText).toBeVisible();
+    await expect(quickColorInput).toBeVisible();
+  });
 });
