@@ -268,14 +268,9 @@ test.describe("Dark Mode Tests", () => {
     await darkModeButton.click();
     await page.waitForTimeout(500);
 
-    // Check localStorage
+    // Check localStorage - theme is stored directly with key "theme"
     const theme = await page.evaluate(() => {
-      const stored = localStorage.getItem("settings-store");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        return parsed.state?.theme;
-      }
-      return null;
+      return localStorage.getItem("theme");
     });
 
     expect(theme).toBe("dark");
@@ -316,7 +311,7 @@ test.describe("Dark Mode Tests", () => {
 
     // Light mode should have Active indicator
     const lightButton = page.getByRole("button", { name: /Light Mode/i });
-    await expect(lightButton.locator("div:has-text('Active')")).toBeVisible();
+    await expect(lightButton.locator("div.text-xs.bg-secondary-600.text-neutral-50.px-2.py-0.5.rounded.font-medium:has-text('Active')")).toBeVisible();
 
     // Switch to dark mode
     const darkModeButton = page.getByRole("button", { name: /Dark Mode/i });
@@ -324,10 +319,10 @@ test.describe("Dark Mode Tests", () => {
     await page.waitForTimeout(300);
 
     // Dark mode should now have Active indicator
-    await expect(darkModeButton.locator("div:has-text('Active')")).toBeVisible();
+    await expect(darkModeButton.locator("div.text-xs.bg-info-600.text-neutral-50.px-2.py-0.5.rounded.font-medium:has-text('Active')")).toBeVisible();
 
     // Light mode should NOT have Active indicator anymore
-    await expect(lightButton.locator("div:has-text('Active')")).not.toBeVisible();
+    await expect(lightButton.locator("div.text-xs.bg-secondary-600.text-neutral-50.px-2.py-0.5.rounded.font-medium:has-text('Active')")).not.toBeVisible();
   });
 
   test("should apply dark mode to panels and borders", async ({ page }) => {
@@ -367,8 +362,9 @@ test.describe("Dark Mode Tests", () => {
       },
     };
 
-    await page.route("**/api/settings", (route) => {
-      route.fulfill({
+    // Mock the settings/options endpoint (same as color-settings test)
+    await page.route("**/settings/options", async (route) => {
+      await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify(customSettings),
@@ -377,6 +373,7 @@ test.describe("Dark Mode Tests", () => {
 
     await page.goto("/settings");
     await page.waitForLoadState("networkidle");
+    await page.waitForTimeout(500);
     await page.waitForTimeout(500);
 
     // Switch to dark mode
