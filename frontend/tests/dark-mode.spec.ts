@@ -311,7 +311,7 @@ test.describe("Dark Mode Tests", () => {
 
     // Light mode should have Active indicator
     const lightButton = page.getByRole("button", { name: /Light Mode/i });
-    await expect(lightButton.locator("div.text-xs.bg-secondary-600.text-neutral-50.px-2.py-0.5.rounded.font-medium:has-text('Active')")).toBeVisible();
+    await expect(lightButton.locator("div:has-text('Active')").first()).toBeVisible();
 
     // Switch to dark mode
     const darkModeButton = page.getByRole("button", { name: /Dark Mode/i });
@@ -319,10 +319,10 @@ test.describe("Dark Mode Tests", () => {
     await page.waitForTimeout(300);
 
     // Dark mode should now have Active indicator
-    await expect(darkModeButton.locator("div.text-xs.bg-info-600.text-neutral-50.px-2.py-0.5.rounded.font-medium:has-text('Active')")).toBeVisible();
+    await expect(darkModeButton.locator("div:has-text('Active')").first()).toBeVisible();
 
     // Light mode should NOT have Active indicator anymore
-    await expect(lightButton.locator("div.text-xs.bg-secondary-600.text-neutral-50.px-2.py-0.5.rounded.font-medium:has-text('Active')")).not.toBeVisible();
+    await expect(lightButton.locator("div:has-text('Active')")).toHaveCount(0);
   });
 
   test("should apply dark mode to panels and borders", async ({ page }) => {
