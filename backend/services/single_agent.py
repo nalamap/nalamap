@@ -4,6 +4,8 @@ from langchain_core.tools import BaseTool
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 
+import logging
+
 from models.settings_model import ModelSettings, ToolConfig
 from models.states import GeoDataAgentState, get_minimal_debug_state
 from services.ai.llm_config import get_llm
@@ -22,6 +24,8 @@ from services.tools.styling_tools import (
     style_map_layers,
 )
 from utility.tool_configurator import create_configured_tools
+
+logger = logging.getLogger(__name__)
 
 tools: List[BaseTool] = [
     # set_result_list,
@@ -62,13 +66,16 @@ def create_geo_agent(
     )
     tools: List[BaseTool] = tools_dict.values()
 
+    # Enable langgraph debug logging when global log level is DEBUG
+    debug_enabled = logger.isEnabledFor(logging.DEBUG)
+    
     return create_react_agent(
         name="GeoAgent",
         state_schema=GeoDataAgentState,
         tools=tools,
         model=llm.bind_tools(tools, parallel_tool_calls=False),
         prompt=system_prompt,
-        # debug=True,
+        debug=debug_enabled,
         # config_schema=GeoData,
         # response_format=GeoData
     )
