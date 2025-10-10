@@ -191,7 +191,7 @@ def describe_dataset_gdf(gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any]) -> D
     crs = str(gdf.crs) if gdf.crs is not None else None
     bbox_vals = _bbox(gdf)
 
-    # Pick 100 "key" columns to preview (prefer name-like then numeric/text variety)
+    # Pick 5 "key" columns to preview (prefer name-like then numeric/text variety)
     cols_meta = schema_ctx.get("columns", [])
     name_like = [
         c
@@ -199,7 +199,7 @@ def describe_dataset_gdf(gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any]) -> D
         if c.get("type") != "geometry" and re.search(r"(name|label|title)", c["name"], re.I)
     ]
     others = [c for c in cols_meta if c not in name_like and c.get("type") != "geometry"]
-    key_cols = (name_like + others)[:100]
+    key_cols = (name_like + others)[:5]
     # attach a few top values if present
     preview_cols = []
     for c in key_cols:
