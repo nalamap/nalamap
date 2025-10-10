@@ -534,7 +534,7 @@ export default function LayerManagement() {
 
   return (
     <div
-      className="w-full h-full bg-neutral-100 p-4 border-r overflow-auto"
+      className="w-full h-full bg-primary-50 p-4 border-r border-primary-300 overflow-auto"
       onDragOver={(e) => e.preventDefault()}
       onDrop={() => {
         // Reset all drag and drop state on any drop within container
@@ -549,7 +549,7 @@ export default function LayerManagement() {
       <div className="mb-4">
         <h3 className="font-semibold mb-2">Upload Data</h3>
         <div
-          className={`border border-dashed border-neutral-400 p-4 rounded bg-neutral-50 text-center cursor-pointer ${isUploading ? "opacity-75" : ""}`}
+          className={`border border-dashed border-primary-400 p-4 rounded bg-primary-100 text-center cursor-pointer ${isUploading ? "opacity-75" : ""}`}
           onClick={() => !isUploading && fileInputRef.current?.click()}
         >
           <input
@@ -563,7 +563,7 @@ export default function LayerManagement() {
           />
           {isUploading ? (
             <div className="flex flex-col items-center justify-center">
-              <div className="w-full max-w-xs bg-neutral-200 rounded-full h-2.5 mb-2">
+              <div className="w-full max-w-xs bg-primary-200 rounded-full h-2.5 mb-2">
                 <div
                   className="bg-info-600 h-2.5 rounded-full transition-all duration-300"
                   style={{ width: `${uploadProgress}%` }}
