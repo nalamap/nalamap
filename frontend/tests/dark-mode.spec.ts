@@ -169,12 +169,22 @@ async function goToSettings(page: Page) {
   await page.waitForLoadState("networkidle");
 }
 
-// Helper function to scroll to theme settings (no expansion needed - always visible)
+// Helper function to scroll to and expand theme settings
 async function scrollToThemeSettings(page: Page) {
-  // Theme settings is always visible, just scroll to it
+  // Scroll to theme section
   const themeHeading = page.locator("h2:has-text('Theme Preference')");
   await themeHeading.scrollIntoViewIfNeeded();
   await page.waitForTimeout(300);
+  
+  // Expand the theme section if it's collapsed
+  const themeButton = page.locator("button").filter({ has: page.locator("h2:has-text('Theme Preference')") });
+  const chevronDown = themeButton.locator("svg.lucide-chevron-down");
+  const isCollapsed = await chevronDown.count() > 0;
+  
+  if (isCollapsed) {
+    await themeButton.click();
+    await page.waitForTimeout(300);
+  }
 }
 
 test.describe("Dark Mode Tests", () => {
@@ -454,8 +464,13 @@ test.describe("Dark Mode Tests", () => {
     await scrollToThemeSettings(page);
 
     // Check that theme buttons are keyboard accessible
-    const lightModeButton = page.getByRole("button", { name: /Light Mode/i });
-    const darkModeButton = page.getByRole("button", { name: /Dark Mode/i });
+    // Use exact text matches for the theme mode buttons (not the header button)
+    const lightModeButton = page
+      .getByRole("button", { name: "Light Mode Bright and clear" })
+      .first();
+    const darkModeButton = page
+      .getByRole("button", { name: "Dark Mode Easy on the eyes" })
+      .first();
 
     await expect(lightModeButton).toBeVisible();
     await expect(darkModeButton).toBeVisible();

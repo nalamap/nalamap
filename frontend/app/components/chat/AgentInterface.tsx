@@ -353,16 +353,9 @@ export default function AgentInterface() {
                     </button>*/}
                       {/* Layer Type Button */}
                       <button
-                        className="px-2 py-1 text-xs rounded"
-                        style={getScoreStyle(
-                          result.score != null
-                            ? Math.round(result.score * 100)
-                            : undefined,
-                        )}
+                        className="px-2 py-1 text-xs rounded bg-primary-200 text-primary-900 hover:bg-primary-300"
                         onClick={(e) => {
                           e.stopPropagation();
-                          // If score button were to have its own pop-up via activeScoreInfoId:
-                          // setActiveScoreInfoId(activeScoreInfoId === result.id ? null : result.id);
                           setActiveDetailsId(null); // Close details if score is clicked
                         }}
                       >

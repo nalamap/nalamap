@@ -59,12 +59,12 @@ export default function GeoServerSettingsComponent({
   );
 
   return (
-    <div className="border border-primary-300 rounded bg-white overflow-hidden">
+    <div className="border border-primary-300 rounded bg-neutral-50 dark:bg-neutral-900 overflow-hidden">
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="w-full flex items-center justify-between p-4 hover:bg-primary-50 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 bg-primary-100 hover:bg-primary-200 dark:bg-primary-900 dark:hover:bg-primary-800 transition-colors"
       >
-        <h2 className="text-2xl font-semibold text-primary-800">
+        <h2 className="text-lg font-semibold text-primary-900 dark:text-primary-100">
           GeoServer Backends
         </h2>
         {collapsed ? (

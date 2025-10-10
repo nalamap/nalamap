@@ -246,17 +246,17 @@ export default function ColorSettingsComponent() {
   };
 
   return (
-    <div className="border border-primary-300 rounded bg-neutral-50 overflow-hidden">
+    <div className="border border-primary-300 rounded bg-neutral-50 dark:bg-neutral-900 overflow-hidden">
       {/* Header */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-4 py-3 bg-primary-100 hover:bg-primary-200 transition-colors flex items-center justify-between"
+        className="w-full px-4 py-3 bg-primary-100 hover:bg-primary-200 dark:bg-primary-900 dark:hover:bg-primary-800 transition-colors flex items-center justify-between"
       >
         <div className="flex items-center space-x-2">
-          <h2 className="text-lg font-semibold text-primary-900">
+          <h2 className="text-lg font-semibold text-primary-900 dark:text-primary-100">
             Color Customization
           </h2>
-          <span className="text-xs bg-secondary-100 text-secondary-800 px-2 py-0.5 rounded-full font-medium">
+          <span className="text-xs bg-secondary-100 dark:bg-secondary-900 text-secondary-800 dark:text-secondary-100 px-2 py-0.5 rounded-full font-medium">
             Corporate Branding
           </span>
         </div>

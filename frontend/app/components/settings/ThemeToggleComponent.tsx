@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useMapStore } from "../../stores/mapStore";
-import { Moon, Sun, Monitor } from "lucide-react";
+import { Moon, Sun, Monitor, ChevronDown, ChevronUp } from "lucide-react";
 
 const BASEMAPS = {
   light: {
@@ -23,6 +23,7 @@ export default function ThemeToggleComponent() {
   const setTheme = useSettingsStore((state) => state.setTheme);
   const setBasemap = useMapStore((state) => state.setBasemap);
   const [mounted, setMounted] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   // Avoid hydration mismatch
   useEffect(() => {
@@ -43,20 +44,31 @@ export default function ThemeToggleComponent() {
   }
 
   return (
-    <div className="border border-primary-300 rounded bg-neutral-50 overflow-hidden">
-      {/* Header */}
-      <div className="px-4 py-3 bg-primary-100">
-        <div className="flex items-center space-x-2">
-          <h2 className="text-lg font-semibold text-primary-900">
-            Theme Preference
-          </h2>
-          <span className="text-xs bg-info-100 text-info-800 px-2 py-0.5 rounded-full font-medium">
-            {theme === "dark" ? "Dark Mode" : "Light Mode"}
-          </span>
+    <div className="border border-primary-300 rounded bg-neutral-50 dark:bg-neutral-900 overflow-hidden">
+      {/* Header - Clickable to expand/collapse */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full px-4 py-3 bg-primary-100 hover:bg-primary-200 dark:bg-primary-900 dark:hover:bg-primary-800 transition-colors"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <h2 className="text-lg font-semibold text-primary-900 dark:text-primary-100">
+              Theme Preference
+            </h2>
+            <span className="text-xs bg-info-100 dark:bg-info-900 text-info-800 dark:text-info-100 px-2 py-0.5 rounded-full font-medium">
+              {theme === "dark" ? "Dark Mode" : "Light Mode"}
+            </span>
+          </div>
+          {expanded ? (
+            <ChevronUp className="w-5 h-5 text-primary-600" />
+          ) : (
+            <ChevronDown className="w-5 h-5 text-primary-600" />
+          )}
         </div>
-      </div>
+      </button>
 
-      <div className="p-4 space-y-4">
+      {expanded && (
+        <div className="p-4 space-y-4">
         {/* Theme Buttons */}
         <div className="grid grid-cols-2 gap-3">
           {/* Light Mode */}
@@ -153,7 +165,8 @@ export default function ThemeToggleComponent() {
             </div>
           </div>
         </div>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
