@@ -9,7 +9,7 @@ def get_llm(max_tokens: int = 6000):
         # For testing/development without AI features
         api_key = "sk-test-key-not-set"
     return ChatOpenAI(
-        model=getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        model=getenv("OPENAI_MODEL", "gpt-5-mini"),
         temperature=0,
         max_tokens=max_tokens,
         timeout=None,
