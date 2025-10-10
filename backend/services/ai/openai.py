@@ -20,14 +20,14 @@ def get_available_models() -> list[ModelInfo]:
     """
     return [
         ModelInfo(
-            name="gpt-5",
+            name="gpt-5-nano",
             max_tokens=50000,
-            input_cost_per_million=1.25,
-            output_cost_per_million=0.125,
-            cache_cost_per_million=10.00,
-            description="GPT-5 - Most capable model for complex tasks",
+            input_cost_per_million=0.05,
+            output_cost_per_million=0.005,
+            cache_cost_per_million=0.40,
+            description="GPT-5 Nano - Fast and efficient for simple tasks",
             supports_tools=True,
-            supports_vision=True,
+            supports_vision=False,
         ),
         ModelInfo(
             name="gpt-5-mini",
@@ -40,14 +40,14 @@ def get_available_models() -> list[ModelInfo]:
             supports_vision=True,
         ),
         ModelInfo(
-            name="gpt-5-nano",
+            name="gpt-5",
             max_tokens=50000,
-            input_cost_per_million=0.05,
-            output_cost_per_million=0.005,
-            cache_cost_per_million=0.40,
-            description="GPT-5 Nano - Fast and efficient for simple tasks",
+            input_cost_per_million=1.25,
+            output_cost_per_million=0.125,
+            cache_cost_per_million=10.00,
+            description="GPT-5 - Most capable model for complex tasks",
             supports_tools=True,
-            supports_vision=False,
+            supports_vision=True,
         ),
         ModelInfo(
             name="gpt-5-chat-latest",
