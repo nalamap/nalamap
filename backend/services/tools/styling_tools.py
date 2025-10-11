@@ -436,7 +436,7 @@ def auto_style_new_layers(
         # Remove None values
         layer_dict["style"] = {k: v for k, v in layer_dict["style"].items() if v is not None}
 
-        # Track used colors
+        # Track used colors - safe upper() calls
         if auto_style.fill_color:
             used_colors.add(auto_style.fill_color.upper())
         if auto_style.stroke_color:
