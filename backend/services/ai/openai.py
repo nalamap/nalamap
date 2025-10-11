@@ -131,7 +131,7 @@ def get_available_models() -> list[ModelInfo]:
         ),
         ModelInfo(
             name="gpt-4o-mini",
-            max_tokens=50000,
+            max_tokens=16438,
             input_cost_per_million=0.15,
             output_cost_per_million=0.075,
             cache_cost_per_million=0.60,
@@ -198,11 +198,11 @@ def get_llm(max_tokens: int = 6000, model_name: Optional[str] = None):
         api_key = "sk-test-key-not-set"
 
     # Use provided model_name, fall back to env var, or default
-    model = model_name or getenv("OPENAI_MODEL", "gpt-5-mini")
+    model = model_name or getenv("OPENAI_MODEL", "gpt-4o-mini")
 
     return ChatOpenAI(
         model=model,
-        temperature=1,
+        temperature=0,
         max_tokens=max_tokens,
         timeout=None,
         max_retries=3,
