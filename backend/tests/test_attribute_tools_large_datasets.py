@@ -198,9 +198,7 @@ class TestComplexWhereFilters:
 
     def test_filter_with_and_operator(self, large_attribute_gdf):
         """Test filtering with AND operator."""
-        result, _ = filter_where_gdf(
-            large_attribute_gdf, "GIS_AREA > 20000 AND IUCN_CAT = 'II'"
-        )
+        result, _ = filter_where_gdf(large_attribute_gdf, "GIS_AREA > 20000 AND IUCN_CAT = 'II'")
 
         assert len(result) > 0
         assert all(result["GIS_AREA"] > 20000)
@@ -208,9 +206,7 @@ class TestComplexWhereFilters:
 
     def test_filter_with_or_operator(self, large_attribute_gdf):
         """Test filtering with OR operator."""
-        result, _ = filter_where_gdf(
-            large_attribute_gdf, "IUCN_CAT = 'II' OR IUCN_CAT = 'IV'"
-        )
+        result, _ = filter_where_gdf(large_attribute_gdf, "IUCN_CAT = 'II' OR IUCN_CAT = 'IV'")
 
         assert len(result) == 20  # 10 + 10
         assert all(result["IUCN_CAT"].isin(["II", "IV"]))
@@ -234,9 +230,7 @@ class TestComplexWhereFilters:
     def test_filter_with_in_operator(self, large_attribute_gdf):
         """Test filtering with IN operator."""
         # First, let's check if parse_where supports IN
-        result, _ = filter_where_gdf(
-            large_attribute_gdf, "IUCN_CAT IN ('II', 'IV', 'Ia')"
-        )
+        result, _ = filter_where_gdf(large_attribute_gdf, "IUCN_CAT IN ('II', 'IV', 'Ia')")
 
         assert len(result) == 30  # 10 + 10 + 10
         assert all(result["IUCN_CAT"].isin(["II", "IV", "Ia"]))
@@ -527,9 +521,7 @@ class TestGetAttributeValues:
     def test_get_attribute_values_with_filter(self, large_attribute_gdf):
         """Test retrieval with WHERE clause filtering."""
         result = get_attribute_values_gdf(
-            large_attribute_gdf,
-            ["NAME", "GIS_AREA"],
-            row_filter="GIS_AREA > 5000"
+            large_attribute_gdf, ["NAME", "GIS_AREA"], row_filter="GIS_AREA > 5000"
         )
 
         assert "row_count" in result
@@ -549,10 +541,7 @@ class TestGetAttributeValues:
 
     def test_get_attribute_values_missing_column(self, large_attribute_gdf):
         """Test error handling for non-existent columns."""
-        result = get_attribute_values_gdf(
-            large_attribute_gdf,
-            ["NAME", "NONEXISTENT_FIELD"]
-        )
+        result = get_attribute_values_gdf(large_attribute_gdf, ["NAME", "NONEXISTENT_FIELD"])
 
         assert "missing_columns" in result
         assert "NONEXISTENT_FIELD" in result["missing_columns"]
@@ -563,8 +552,7 @@ class TestGetAttributeValues:
     def test_get_attribute_values_numeric_fields(self, large_attribute_gdf):
         """Test retrieval of numeric attribute values."""
         result = get_attribute_values_gdf(
-            large_attribute_gdf,
-            ["GIS_AREA", "REP_AREA", "bii_2020_mean"]
+            large_attribute_gdf, ["GIS_AREA", "REP_AREA", "bii_2020_mean"]
         )
 
         assert len(result["columns"]) == 3
@@ -574,8 +562,7 @@ class TestGetAttributeValues:
     def test_get_attribute_values_with_nulls(self, protected_area_with_nulls_gdf):
         """Test retrieval when fields contain null values."""
         result = get_attribute_values_gdf(
-            protected_area_with_nulls_gdf,
-            ["NAME", "IUCN_CAT", "MANG_PLAN"]
+            protected_area_with_nulls_gdf, ["NAME", "IUCN_CAT", "MANG_PLAN"]
         )
 
         assert "columns" in result
@@ -601,9 +588,7 @@ class TestGetAttributeValues:
     def test_get_attribute_values_filtered_to_zero_rows(self, large_attribute_gdf):
         """Test retrieval when filter matches no rows."""
         result = get_attribute_values_gdf(
-            large_attribute_gdf,
-            ["NAME", "GIS_AREA"],
-            row_filter="GIS_AREA > 999999"
+            large_attribute_gdf, ["NAME", "GIS_AREA"], row_filter="GIS_AREA > 999999"
         )
 
         assert result["row_count"] == 0
@@ -617,8 +602,7 @@ class TestGetAttributeValues:
 
         start = time.time()
         result = get_attribute_values_gdf(
-            large_attribute_gdf,
-            ["NAME", "IUCN_CAT", "GIS_AREA", "bii_2020_mean"]
+            large_attribute_gdf, ["NAME", "IUCN_CAT", "GIS_AREA", "bii_2020_mean"]
         )
         elapsed = time.time() - start
 
@@ -634,8 +618,9 @@ class TestMultiLayerAggregation:
     @pytest.fixture
     def mock_state_with_layers(self, large_attribute_gdf, protected_area_with_nulls_gdf):
         """Create a mock state with multiple layers."""
-        from models.geodata import GeoDataObject, DataOrigin, DataType
         import tempfile
+
+        from models.geodata import DataOrigin, DataType, GeoDataObject
 
         # Save GeoDataFrames to temporary files
         temp_dir = tempfile.mkdtemp()

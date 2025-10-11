@@ -1,9 +1,9 @@
 import os
 import sys
 
+from api.ai_style import parse_color
 from models.geodata import GeoDataObject, LayerStyle
 from services.tools.styling_tools import normalize_color
-from api.ai_style import parse_color
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -28,11 +28,11 @@ def test_normalize_color_lowercase():
     assert normalize_color("green").lower() == "#00ff00"
     assert normalize_color("yellow").lower() == "#ffff00"
     assert normalize_color("orange").lower() == "#ffa500"
-    
+
     # Test uppercase should also work
     assert normalize_color("RED").lower() == "#ff0000"
     assert normalize_color("BLUE").lower() == "#0000ff"
-    
+
     # Test mixed case
     assert normalize_color("Red").lower() == "#ff0000"
     assert normalize_color("Blue").lower() == "#0000ff"
@@ -47,7 +47,7 @@ def test_parse_color_function():
     assert parse_color("cyan") == "#00ffff", "Cyan should be #00ffff, not #00fff"
     assert parse_color("magenta") == "#ff00ff", "Magenta should be #ff00ff, not #ff00f"
     assert parse_color("aqua") == "#00ffff", "Aqua should be #00ffff, not #00fff"
-    
+
     # Test lowercase normalization
     assert parse_color("RED") == "#ff0000"
     assert parse_color("BLUE") == "#0000ff"
@@ -58,12 +58,12 @@ def test_color_hex_format():
     """Test that all hex codes are properly formatted (6 characters after #)."""
     # All normalized colors should have exactly 7 characters (#RRGGBB)
     colors_to_test = ["red", "blue", "green", "yellow", "cyan", "magenta", "white", "black"]
-    
+
     for color_name in colors_to_test:
         normalized = normalize_color(color_name)
         assert normalized.startswith("#"), f"{color_name} should start with #"
         assert len(normalized) == 7, f"{color_name} normalized to {normalized} should be 7 chars"
-        
+
         # Also test parse_color
         parsed = parse_color(color_name)
         assert parsed.startswith("#"), f"{color_name} from parse_color should start with #"

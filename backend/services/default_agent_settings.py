@@ -2,9 +2,9 @@ from typing import Dict
 
 from langchain_core.tools import BaseTool
 
-from services.tools.attribute_tools import attribute_tool
 from services.tools.attribute_tool2 import attribute_tool2
 from services.tools.attribute_tool3 import attribute_tool3
+from services.tools.attribute_tools import attribute_tool
 from services.tools.geocoding import (
     geocode_using_nominatim_to_geostate,
     geocode_using_overpass_to_geostate,
@@ -155,12 +155,12 @@ DEFAULT_SYSTEM_PROMPT: str = (
     " - The attribute_tool has fuzzy field matching; close matches may still work.\n"
     " - If uncertain about field names, use list_fields first rather than guessing.\n\n"
     "- Pattern-Based Field Selection:\n"
-    " - For requests like \"summarize all land cover fields\" or \"show all biodiversity "
-    "indicators\":\n"
+    ' - For requests like "summarize all land cover fields" or "show all biodiversity '
+    'indicators":\n'
     "  1. First, call list_fields to discover available columns\n"
     "  2. Identify fields matching the pattern (e.g., 'Landcover *', 'BII *', 'LULC_*')\n"
     "  3. Summarize all matched fields in ONE call (not separate calls per field)\n"
-    " - Example: For \"summarize land cover\", if you find 28 fields like 'Landcover "
+    ' - Example: For "summarize land cover", if you find 28 fields like \'Landcover '
     "Cropland hectares', 'Landcover Forest hectares', etc., pass all 28 field names to a "
     "single summarize operation.\n"
     " - This is more efficient than multiple tool calls and provides better context.\n\n"
@@ -169,18 +169,18 @@ DEFAULT_SYSTEM_PROMPT: str = (
     "responses.\n"
     " - Provide context and interpretation, not just raw numbers.\n"
     " - For temporal data (e.g., comparing 2015 vs 2020 values), explain trends in plain "
-    "language (\"improved from X to Y\" or \"declined by Z%\").\n"
-    " - For categorical data, highlight key findings (\"predominantly forest\" or \"mostly "
-    "cropland\").\n"
+    'language ("improved from X to Y" or "declined by Z%").\n'
+    ' - For categorical data, highlight key findings ("predominantly forest" or "mostly '
+    'cropland").\n'
     " - Use domain-appropriate units and terminology the user will understand.\n\n"
     "- Multi-Field Analysis:\n"
     " - When comparing or analyzing multiple related fields, call summarize ONCE with all "
     "fields rather than multiple separate calls.\n"
-    " - Example: For \"compare biodiversity in 2015 and 2020\", pass both 'BII 2015 Mean "
+    ' - Example: For "compare biodiversity in 2015 and 2020", pass both \'BII 2015 Mean '
     "Value' and 'BII 2020 Mean Value' to one summarize call.\n"
     " - This reduces tool call overhead and provides better comparative context.\n\n"
     "- Efficient Field Retrieval:\n"
-    " - For specific attribute queries (\"what is the IUCN category?\"), use "
+    ' - For specific attribute queries ("what is the IUCN category?"), use '
     "get_attribute_values operation to retrieve exact values for specific columns.\n"
     " - This is more efficient than summarize when you need specific values, not statistics.\n"
     " - Example: get_attribute_values with fields=['IUCN Category', 'Management Authority', "
