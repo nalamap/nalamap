@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Script from "next/script";
+import ColorInjector from "./components/ColorInjector";
+import SettingsInitializer from "./components/SettingsInitializer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,6 +33,10 @@ export default function RootLayout({
       >
         {/* Runtime environment variables injected at container start */}
         <Script src="/runtime-env.js" strategy="beforeInteractive" />
+        {/* Initialize settings early to load custom colors */}
+        <SettingsInitializer />
+        {/* Dynamic CSS color injection */}
+        <ColorInjector />
         {children}
       </body>
     </html>

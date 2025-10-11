@@ -1,0 +1,46 @@
+# Local development files - not needed in production containers
+.env.local
+
+# Git and version control
+.git
+.gitignore
+
+# Python cache and virtual environments
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env
+venv
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Testing
+.pytest_cache
+.coverage
+htmlcov/
+.tox/
+.cache
+nosetests.xml
+coverage.xml
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+
+# Uploads directory (will be mounted as volume in production)
+uploads/

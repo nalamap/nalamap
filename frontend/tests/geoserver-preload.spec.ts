@@ -1,5 +1,13 @@
 import { promises as fs } from "fs";
-import { test, expect } from "@playwright/test";
+import { test, expect, Page } from "@playwright/test";
+
+// Helper function to expand the GeoServer Backends section
+async function expandGeoServerSection(page: Page) {
+  const geoserverButton = page.locator("button:has-text('GeoServer Backends')");
+  await expect(geoserverButton).toBeVisible({ timeout: 5000 });
+  await geoserverButton.click();
+  await page.waitForTimeout(300);
+}
 
 const mockSettings = {
   system_prompt: "Assist helpfully.",
@@ -45,6 +53,7 @@ test.describe("GeoServer backend preload", () => {
     });
 
     await page.goto("/settings");
+    await expandGeoServerSection(page);
 
     await page
       .getByPlaceholder("GeoServer URL")
@@ -70,6 +79,7 @@ test.describe("GeoServer backend preload", () => {
     });
 
     await page.goto("/settings");
+    await expandGeoServerSection(page);
 
     await page.getByPlaceholder("GeoServer URL").fill("https://demo.geo");
     await page
@@ -113,6 +123,7 @@ test.describe("GeoServer backend preload", () => {
     });
 
     await page.goto("/settings");
+    await expandGeoServerSection(page);
 
     await page
       .getByPlaceholder("GeoServer URL")
@@ -121,6 +132,10 @@ test.describe("GeoServer backend preload", () => {
     await expect(
       page.getByText("Backend queued for processing. Embedding will start shortly."),
     ).toBeVisible();
+
+    // Scroll to top to access export button
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(300);
 
     const downloadPromise = page.waitForEvent("download");
     await page.getByRole("button", { name: "Export Settings" }).click();
@@ -186,6 +201,9 @@ test.describe("GeoServer backend preload", () => {
     );
 
     await page.goto("/settings");
+    
+    // Expand GeoServer section first
+    await expandGeoServerSection(page);
 
     await page.setInputFiles('input[type="file"]', {
       name: "settings.json",

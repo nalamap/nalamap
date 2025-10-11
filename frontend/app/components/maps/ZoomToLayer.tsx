@@ -52,28 +52,8 @@ function parseBoundingBoxArray(bbox: any): L.LatLngBounds | null {
 }
 
 export function ZoomToLayer({ layers }: { layers: GeoDataObject[] }) {
-  const map = useMap();
-  const zoomedLayers = useRef<Set<string | number>>(new Set());
-
-  useEffect(() => {
-    layers.forEach(async (layer) => {
-      if (!layer.visible || zoomedLayers.current.has(layer.id)) return;
-
-      if (layer.layer_type?.toUpperCase() === "WMS") {
-        if (layer.bounding_box) {
-          if (typeof layer.bounding_box === "string") {
-            const bounds = parseBoundingBoxWKT(layer.bounding_box);
-            if (bounds) {
-              map.fitBounds(bounds);
-              zoomedLayers.current.add(layer.id);
-            }
-          }
-          zoomedLayers.current.add(layer.id);
-        }
-      }
-    });
-  }, [layers, map]);
-
+  // Auto-zoom has been removed - users can manually zoom using the zoom button
+  // This prevents disorienting automatic map movements when adding layers
   return null;
 }
 

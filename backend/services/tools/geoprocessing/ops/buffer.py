@@ -2,23 +2,30 @@ import json
 import logging
 
 import geopandas as gpd
+from shapely.ops import unary_union
 
 logger = logging.getLogger(__name__)
 
 
-def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857", radius_unit="meters"):
+def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857", radius_unit="meters", dissolve=False):
     """
-    Buffers features of a single input layer item individually.
+    Buffers features of a single input layer item individually or dissolved.
     If multiple layers are provided, this function will raise a ValueError.
     Input geometries are assumed in EPSG:4326. This function:
-      1) Expects `layers` to be a list containing a single layer item (FeatureCollection or Feature).
+      1) Expects `layers` to be a list containing a single layer item
+         (FeatureCollection or Feature).
       2) Converts radius to meters based on radius_unit (default is "meters").
       3) Extracts features from the single layer item.
       4) Creates a GeoDataFrame from these features.
-      5) Reprojects the GeoDataFrame to buffer_crs (default EPSG:3857, which uses meters).
+      5) Reprojects the GeoDataFrame to buffer_crs (default EPSG:3857,
+         which uses meters).
       6) Applies buffer to each feature geometry with the meter-based radius.
-      7) Reprojects the GeoDataFrame (with buffered features) back to EPSG:4326.
-      8) Returns a list containing one FeatureCollection with the individually buffered features.
+      7) Optionally dissolves all buffered geometries into a single geometry
+         if dissolve=True.
+      8) Reprojects the GeoDataFrame (with buffered features) back to
+         EPSG:4326.
+      9) Returns a list containing one FeatureCollection with the individually
+         buffered features (or single dissolved feature if dissolve=True).
     Supported radius_unit: "meters", "kilometers", "miles".
     """
     if not layers:
@@ -77,7 +84,24 @@ def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857", radius_unit="meters"
 
         gdf_reprojected = gdf.to_crs(buffer_crs)
         gdf_reprojected["geometry"] = gdf_reprojected.geometry.buffer(actual_radius_meters)
-        gdf_buffered_individual = gdf_reprojected.to_crs("EPSG:4326")
+
+        # If dissolve is True, merge all buffered geometries into one
+        if dissolve:
+            dissolved_geom = unary_union(gdf_reprojected.geometry)
+            # Create a new GeoDataFrame with the dissolved geometry
+            # Keep properties from the first feature
+            props = {}
+            if len(gdf.columns) > 1:
+                for col in gdf.columns:
+                    if col != "geometry":
+                        props[col] = gdf[col].iloc[0]
+            gdf_buffered_individual = gpd.GeoDataFrame(
+                [props], geometry=[dissolved_geom], crs=gdf_reprojected.crs
+            )
+        else:
+            gdf_buffered_individual = gdf_reprojected
+
+        gdf_buffered_individual = gdf_buffered_individual.to_crs("EPSG:4326")
 
         if gdf_buffered_individual.empty:
             return []  # Resulting GeoDataFrame is empty

@@ -37,7 +37,7 @@ def parse_color(color_name: str) -> str:
     """Convert color names to hex values"""
     color_map = {
         "red": "#ff0000",
-        "blue": "#0000f",
+        "blue": "#0000ff",  # Fixed: was "#0000f"
         "green": "#00ff00",
         "yellow": "#ffff00",
         "orange": "#ffa500",
@@ -45,18 +45,18 @@ def parse_color(color_name: str) -> str:
         "pink": "#ffc0cb",
         "brown": "#a52a2a",
         "black": "#000000",
-        "white": "#fffff",
+        "white": "#ffffff",  # Fixed: was "#fffff"
         "gray": "#808080",
         "grey": "#808080",
-        "cyan": "#00fff",
-        "magenta": "#ff00f",
+        "cyan": "#00ffff",  # Fixed: was "#00fff"
+        "magenta": "#ff00ff",  # Fixed: was "#ff00f"
         "lime": "#00ff00",
         "navy": "#000080",
         "silver": "#c0c0c0",
         "maroon": "#800000",
         "olive": "#808000",
         "teal": "#008080",
-        "aqua": "#00fff",
+        "aqua": "#00ffff",  # Fixed: was "#00fff"
     }
     return color_map.get(color_name.lower(), color_name)
 

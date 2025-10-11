@@ -4,6 +4,139 @@
 @theme {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  /* Color scales - defining them in @theme makes them available as Tailwind utilities */
+  --color-primary-50: #f7f7f8;
+  --color-primary-100: #eeeef0;
+  --color-primary-200: #d8d8df;
+  --color-primary-300: #b7b9c2;
+  --color-primary-400: #8f91a1;
+  --color-primary-500: #717386;
+  --color-primary-600: #5b5c6e;
+  --color-primary-700: #505160;
+  --color-primary-800: #40414c;
+  --color-primary-900: #383842;
+  --color-primary-950: #25252c;
+
+  --color-second-primary-50: #f5f8f9;
+  --color-second-primary-100: #e8eef1;
+  --color-second-primary-200: #d6e1e7;
+  --color-second-primary-300: #baccd6;
+  --color-second-primary-400: #99b2c1;
+  --color-second-primary-500: #809bb1;
+  --color-second-primary-600: #68829e;
+  --color-second-primary-700: #627793;
+  --color-second-primary-800: #546279;
+  --color-second-primary-900: #465262;
+  --color-second-primary-950: #2e343d;
+
+  --color-secondary-50: #fafaeb;
+  --color-secondary-100: #f2f4d3;
+  --color-secondary-200: #e6eaac;
+  --color-secondary-300: #d3db7b;
+  --color-secondary-400: #bec952;
+  --color-secondary-500: #aebd38;
+  --color-secondary-600: #7e8b25;
+  --color-secondary-700: #606a21;
+  --color-secondary-800: #4c551f;
+  --color-secondary-900: #41491e;
+  --color-secondary-950: #22270c;
+
+  --color-tertiary-50: #f4f8ed;
+  --color-tertiary-100: #e5f0d7;
+  --color-tertiary-200: #cde2b4;
+  --color-tertiary-300: #adcf87;
+  --color-tertiary-400: #8eba61;
+  --color-tertiary-500: #719f43;
+  --color-tertiary-600: #598234;
+  --color-tertiary-700: #43612a;
+  --color-tertiary-800: #394e26;
+  --color-tertiary-900: #324324;
+  --color-tertiary-950: #18240f;
+
+  --color-danger-50: #fef2f2;
+  --color-danger-100: #fee2e2;
+  --color-danger-200: #fecaca;
+  --color-danger-300: #fca5a5;
+  --color-danger-400: #f87171;
+  --color-danger-500: #ef4444;
+  --color-danger-600: #dc2626;
+  --color-danger-700: #b91c1c;
+  --color-danger-800: #991b1b;
+  --color-danger-900: #7f1d1d;
+  --color-danger-950: #450a0a;
+
+  --color-warning-50: #fffbeb;
+  --color-warning-100: #fef3c7;
+  --color-warning-200: #fde68a;
+  --color-warning-300: #fcd34d;
+  --color-warning-400: #fbbf24;
+  --color-warning-500: #f59e0b;
+  --color-warning-600: #d97706;
+  --color-warning-700: #b45309;
+  --color-warning-800: #92400e;
+  --color-warning-900: #78350f;
+  --color-warning-950: #451a03;
+
+  --color-info-50: #eff6ff;
+  --color-info-100: #dbeafe;
+  --color-info-200: #bfdbfe;
+  --color-info-300: #93c5fd;
+  --color-info-400: #60a5fa;
+  --color-info-500: #3b82f6;
+  --color-info-600: #2563eb;
+  --color-info-700: #1d4ed8;
+  --color-info-800: #1e40af;
+  --color-info-900: #1e3a8a;
+  --color-info-950: #172554;
+
+  --color-neutral-50: #ffffff;
+  --color-neutral-100: #f9fafb;
+  --color-neutral-200: #f3f4f6;
+  --color-neutral-300: #e5e7eb;
+  --color-neutral-400: #d1d5db;
+  --color-neutral-500: #9ca3af;
+  --color-neutral-600: #6b7280;
+  --color-neutral-700: #4b5563;
+  --color-neutral-800: #374151;
+  --color-neutral-900: #1f2937;
+  --color-neutral-950: #000000;
+
+  --color-corporate-1-50: #fff1f2;
+  --color-corporate-1-100: #ffe4e6;
+  --color-corporate-1-200: #fecdd3;
+  --color-corporate-1-300: #fda4af;
+  --color-corporate-1-400: #fb7185;
+  --color-corporate-1-500: #f43f5e;
+  --color-corporate-1-600: #e11d48;
+  --color-corporate-1-700: #be123c;
+  --color-corporate-1-800: #9f1239;
+  --color-corporate-1-900: #881337;
+  --color-corporate-1-950: #4c0519;
+
+  --color-corporate-2-50: #f0f9ff;
+  --color-corporate-2-100: #e0f2fe;
+  --color-corporate-2-200: #bae6fd;
+  --color-corporate-2-300: #7dd3fc;
+  --color-corporate-2-400: #38bdf8;
+  --color-corporate-2-500: #0ea5e9;
+  --color-corporate-2-600: #0284c7;
+  --color-corporate-2-700: #0369a1;
+  --color-corporate-2-800: #075985;
+  --color-corporate-2-900: #0c4a6e;
+  --color-corporate-2-950: #082f49;
+
+  --color-corporate-3-50: #faf5ff;
+  --color-corporate-3-100: #f3e8ff;
+  --color-corporate-3-200: #e9d5ff;
+  --color-corporate-3-300: #d8b4fe;
+  --color-corporate-3-400: #c084fc;
+  --color-corporate-3-500: #a855f7;
+  --color-corporate-3-600: #9333ea;
+  --color-corporate-3-700: #7e22ce;
+  --color-corporate-3-800: #6b21a8;
+  --color-corporate-3-900: #581c87;
+  --color-corporate-3-950: #3b0764;
 }
 /* Global Design Parameters and Gradient Scales https://tailwindcss.com, gradients by https://uicolors.app/create, other color documentation: https://tailwindcss.com/docs/color */
 :root {
@@ -13,7 +146,7 @@
   --secondary: #AEBD38;
   --tertiary: #598234;
 
-  /* Primary Gradient Scale (for First Primary) */
+  /* Primary Gradient Scale (Main neutral/text colors) */
   --primary-50: #f7f7f8;
   --primary-100: #eeeef0;
   --primary-200: #d8d8df;
@@ -26,7 +159,7 @@
   --primary-900: #383842;
   --primary-950: #25252c;
 
-  /* Second Primary Gradient Scale (for Second Primary) */
+  /* Second Primary Gradient Scale (Main action buttons) */
   --second-primary-50: #f5f8f9;
   --second-primary-100: #e8eef1;
   --second-primary-200: #d6e1e7;
@@ -39,7 +172,7 @@
   --second-primary-900: #465262;
   --second-primary-950: #2e343d;
 
-  /* Secondary Gradient Scale */
+  /* Secondary Gradient Scale (Supporting accents) */
   --secondary-50: #fafaeb;
   --secondary-100: #f2f4d3;
   --secondary-200: #e6eaac;
@@ -52,7 +185,7 @@
   --secondary-900: #41491e;
   --secondary-950: #22270c;
 
-  /* Tertiary Gradient Scale */
+  /* Tertiary Gradient Scale (Success states) */
   --tertiary-50: #f4f8ed;
   --tertiary-100: #e5f0d7;
   --tertiary-200: #cde2b4;
@@ -64,6 +197,97 @@
   --tertiary-800: #394e26;
   --tertiary-900: #324324;
   --tertiary-950: #18240f;
+
+  /* Danger Gradient Scale (Error/delete states) */
+  --danger-50: #fef2f2;
+  --danger-100: #fee2e2;
+  --danger-200: #fecaca;
+  --danger-300: #fca5a5;
+  --danger-400: #f87171;
+  --danger-500: #ef4444;
+  --danger-600: #dc2626;
+  --danger-700: #b91c1c;
+  --danger-800: #991b1b;
+  --danger-900: #7f1d1d;
+  --danger-950: #450a0a;
+
+  /* Warning Gradient Scale (Warning states) */
+  --warning-50: #fffbeb;
+  --warning-100: #fef3c7;
+  --warning-200: #fde68a;
+  --warning-300: #fcd34d;
+  --warning-400: #fbbf24;
+  --warning-500: #f59e0b;
+  --warning-600: #d97706;
+  --warning-700: #b45309;
+  --warning-800: #92400e;
+  --warning-900: #78350f;
+  --warning-950: #451a03;
+
+  /* Info Gradient Scale (Informational states) */
+  --info-50: #eff6ff;
+  --info-100: #dbeafe;
+  --info-200: #bfdbfe;
+  --info-300: #93c5fd;
+  --info-400: #60a5fa;
+  --info-500: #3b82f6;
+  --info-600: #2563eb;
+  --info-700: #1d4ed8;
+  --info-800: #1e40af;
+  --info-900: #1e3a8a;
+  --info-950: #172554;
+
+  /* Neutral Gradient Scale (Pure whites/blacks/grays) */
+  --neutral-50: #ffffff;
+  --neutral-100: #f9fafb;
+  --neutral-200: #f3f4f6;
+  --neutral-300: #e5e7eb;
+  --neutral-400: #d1d5db;
+  --neutral-500: #9ca3af;
+  --neutral-600: #6b7280;
+  --neutral-700: #4b5563;
+  --neutral-800: #374151;
+  --neutral-900: #1f2937;
+  --neutral-950: #000000;
+
+  /* Corporate Color 1 (Rose - for layer types) */
+  --corporate-1-50: #fff1f2;
+  --corporate-1-100: #ffe4e6;
+  --corporate-1-200: #fecdd3;
+  --corporate-1-300: #fda4af;
+  --corporate-1-400: #fb7185;
+  --corporate-1-500: #f43f5e;
+  --corporate-1-600: #e11d48;
+  --corporate-1-700: #be123c;
+  --corporate-1-800: #9f1239;
+  --corporate-1-900: #881337;
+  --corporate-1-950: #4c0519;
+
+  /* Corporate Color 2 (Sky - for layer types) */
+  --corporate-2-50: #f0f9ff;
+  --corporate-2-100: #e0f2fe;
+  --corporate-2-200: #bae6fd;
+  --corporate-2-300: #7dd3fc;
+  --corporate-2-400: #38bdf8;
+  --corporate-2-500: #0ea5e9;
+  --corporate-2-600: #0284c7;
+  --corporate-2-700: #0369a1;
+  --corporate-2-800: #075985;
+  --corporate-2-900: #0c4a6e;
+  --corporate-2-950: #082f49;
+
+  /* Corporate Color 3 (Purple - for layer types) */
+  --corporate-3-50: #faf5ff;
+  --corporate-3-100: #f3e8ff;
+  --corporate-3-200: #e9d5ff;
+  --corporate-3-300: #d8b4fe;
+  --corporate-3-400: #c084fc;
+  --corporate-3-500: #a855f7;
+  --corporate-3-600: #9333ea;
+  --corporate-3-700: #7e22ce;
+  --corporate-3-800: #6b21a8;
+  --corporate-3-900: #581c87;
+  --corporate-3-950: #3b0764;
 }
 
 /* Primary Color Utility Classes */
@@ -435,6 +659,279 @@
   }
 }
 
+/* Dark mode styles - applies when .dark class is on html element */
+.dark {
+  color-scheme: dark;
+}
+
+.dark body {
+  color: var(--neutral-200);
+  background: var(--primary-950);
+}
+
+/* Dark mode utility overrides */
+.dark .bg-neutral-50 {
+  background-color: var(--primary-900);
+}
+
+.dark .bg-neutral-100 {
+  background-color: var(--primary-800);
+}
+
+.dark .bg-neutral-200 {
+  background-color: var(--primary-700);
+}
+
+.dark .bg-primary-50 {
+  background-color: var(--primary-900);
+}
+
+.dark .bg-primary-100 {
+  background-color: var(--primary-800);
+}
+
+.dark .bg-primary-200 {
+  background-color: var(--primary-700);
+}
+
+.dark .bg-secondary-50 {
+  background-color: var(--secondary-900);
+}
+
+.dark .bg-secondary-100 {
+  background-color: var(--secondary-800);
+}
+
+.dark .bg-info-50 {
+  background-color: var(--info-900);
+}
+
+.dark .bg-info-100 {
+  background-color: var(--info-800);
+}
+
+/* Dark mode text colors */
+.dark .text-primary-900 {
+  color: var(--neutral-100);
+}
+
+.dark .text-primary-800 {
+  color: var(--neutral-200);
+}
+
+.dark .text-primary-700 {
+  color: var(--neutral-300);
+}
+
+.dark .text-primary-600 {
+  color: var(--neutral-400);
+}
+
+.dark .text-neutral-900 {
+  color: var(--neutral-100);
+}
+
+.dark .text-neutral-800 {
+  color: var(--neutral-200);
+}
+
+.dark .text-neutral-700 {
+  color: var(--neutral-300);
+}
+
+.dark .text-secondary-900 {
+  color: var(--secondary-200);
+}
+
+.dark .text-info-900 {
+  color: var(--info-200);
+}
+
+.dark .text-info-800 {
+  color: var(--info-300);
+}
+
+/* Dark mode borders */
+.dark .border-primary-300 {
+  border-color: var(--primary-700);
+}
+
+.dark .border-primary-200 {
+  border-color: var(--primary-800);
+}
+
+.dark .border-info-200 {
+  border-color: var(--info-800);
+}
+
+/* Dark mode hover states */
+.dark .hover\:border-primary-400:hover {
+  border-color: var(--primary-600);
+}
+
+.dark .hover\:bg-primary-100:hover {
+  background-color: var(--primary-700);
+}
+
+.dark .hover\:bg-primary-200:hover {
+  background-color: var(--primary-700);
+}
+
+.dark .hover\:bg-primary-300:hover {
+  background-color: var(--primary-600);
+}
+
+.dark .hover\:bg-primary-700:hover {
+  background-color: var(--primary-600);
+}
+
+.dark .hover\:bg-primary-800:hover {
+  background-color: var(--primary-700);
+}
+
+/* Dark mode buttons and interactive elements */
+.dark .bg-primary-800 {
+  background-color: var(--primary-700);
+}
+
+.dark .bg-primary-700 {
+  background-color: var(--primary-600);
+}
+
+.dark .bg-second-primary-200 {
+  background-color: var(--second-primary-700);
+}
+
+.dark .bg-secondary-600 {
+  background-color: var(--secondary-500);
+}
+
+.dark .text-secondary-600 {
+  color: var(--secondary-400);
+}
+
+.dark .text-info-600 {
+  color: var(--info-400);
+}
+
+.dark .bg-info-600 {
+  background-color: var(--info-500);
+}
+
+/* Dark mode settings panels */
+.dark .bg-info-100 {
+  background-color: var(--info-900);
+  color: var(--neutral-200);
+}
+
+.dark .text-info-800 {
+  color: var(--info-300);
+}
+
+/* Keep white text in dark mode */
+.dark .text-white {
+  color: var(--neutral-50);
+}
+
+/* Dark mode input and form elements */
+.dark input[type="text"],
+.dark input[type="email"],
+.dark input[type="password"],
+.dark input[type="search"],
+.dark input[type="color"],
+.dark textarea,
+.dark select {
+  background-color: var(--primary-800);
+  color: var(--neutral-200);
+  border-color: var(--primary-700);
+}
+
+.dark input[type="text"]:focus,
+.dark input[type="email"]:focus,
+.dark input[type="password"]:focus,
+.dark input[type="search"]:focus,
+.dark textarea:focus,
+.dark select:focus {
+  border-color: var(--secondary-500);
+  background-color: var(--primary-750);
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: var(--neutral-500);
+}
+
+/* Dark mode secondary color adjustments */
+.dark .hover\:bg-secondary-800:hover {
+  background-color: var(--secondary-700);
+}
+
+.dark .bg-secondary-50 {
+  background-color: var(--secondary-800);
+}
+
+.dark .bg-secondary-100 {
+  background-color: var(--secondary-800);
+}
+
+.dark .bg-secondary-200 {
+  background-color: var(--secondary-700);
+}
+
+.dark .hover\:bg-secondary-200:hover {
+  background-color: var(--secondary-600);
+}
+
+.dark .text-secondary-700 {
+  color: var(--secondary-300);
+}
+
+.dark .border-secondary-200 {
+  border-color: var(--secondary-700);
+}
+
+.dark .border-secondary-300 {
+  border-color: var(--secondary-600);
+}
+
+.dark .border-secondary-500 {
+  border-color: var(--secondary-500);
+}
+
+.dark .text-secondary-900 {
+  color: var(--secondary-200);
+}
+
+/* Dark mode for white backgrounds and containers */
+.dark .bg-white {
+  background-color: var(--primary-900);
+}
+
+.dark .hover\:bg-neutral-100:hover {
+  background-color: var(--primary-700);
+}
+
+.dark .hover\:bg-neutral-400:hover {
+  background-color: var(--neutral-600);
+}
+
+.dark .hover\:bg-info-700:hover {
+  background-color: var(--info-600);
+}
+
+/* Dark mode for settings components */
+.dark .hover\:bg-primary-50:hover {
+  background-color: var(--primary-800);
+}
+
+.dark .text-neutral-900 {
+  color: var(--neutral-100);
+}
+
+.dark .bg-neutral-300 {
+  background-color: var(--neutral-700);
+}
+
 body {
   color: var(--primary-700);
   background: var(--primary-100);
@@ -499,3 +996,167 @@ body {
 }
 
 /* End of custom markdown styling */
+
+/* Chat Message Classes */
+.chat-message {
+  @apply max-w-[80%] px-4 py-2 rounded-lg;
+}
+
+.chat-message-user {
+  @apply bg-second-primary-200 rounded-tr-none text-right border border-primary-300;
+}
+
+.chat-message-ai {
+  @apply bg-neutral-50 rounded-tl-none border border-primary-200;
+}
+
+.chat-message-loading {
+  @apply bg-neutral-50 rounded-tl-none border border-primary-200;
+}
+
+.chat-message-tool {
+  @apply bg-info-50 rounded border border-info-200;
+}
+
+/* Dark mode chat messages */
+.dark .chat-message-user {
+  background-color: var(--second-primary-700);
+  border-color: var(--second-primary-600);
+  color: var(--neutral-100);
+}
+
+.dark .chat-message-ai {
+  background-color: var(--primary-800);
+  border-color: var(--primary-700);
+  color: var(--neutral-200);
+}
+
+.dark .chat-message-loading {
+  background-color: var(--primary-800);
+  border-color: var(--primary-700);
+  color: var(--neutral-200);
+}
+
+.dark .chat-message-tool {
+  background-color: var(--info-900);
+  border-color: var(--info-700);
+  color: var(--neutral-200);
+}
+
+/* Dark mode for inline styled elements (AgentInterface details popup) */
+.dark [style*="backgroundColor: white"],
+.dark [style*="background-color: white"] {
+  background-color: var(--primary-800) !important;
+  color: var(--neutral-200) !important;
+}
+
+.dark [style*="color: #333"] {
+  color: var(--neutral-200) !important;
+}
+
+.dark [style*="border: 1px solid #ddd"] {
+  border-color: var(--primary-700) !important;
+}
+
+/* Dark mode markdown content */
+.dark .chat-markdown code {
+  background-color: var(--primary-700);
+  color: var(--neutral-200);
+}
+
+.dark .chat-markdown pre {
+  background-color: var(--primary-700);
+  color: var(--neutral-200);
+}
+
+.dark .chat-markdown a {
+  color: var(--info-400);
+}
+
+.dark .chat-markdown blockquote {
+  border-color: var(--primary-600);
+  color: var(--neutral-300);
+}
+
+/* Dark mode for collapsible settings components - prevent white flash during transitions */
+.dark .border.border-primary-300.rounded.bg-white.overflow-hidden {
+  background-color: var(--primary-900) !important;
+  border-color: var(--primary-700) !important;
+}
+
+.dark .border.border-primary-300.rounded.bg-white.overflow-hidden button:hover {
+  background-color: var(--primary-800) !important;
+}
+
+.dark .border.border-primary-300.rounded.bg-white.overflow-hidden button {
+  background-color: var(--primary-900) !important;
+  color: var(--neutral-200) !important;
+}
+
+/* Ensure all settings containers have dark backgrounds in dark mode */
+.dark div[class*="border border-primary-300 rounded bg-white"] {
+  background-color: var(--primary-900) !important;
+  border-color: var(--primary-700) !important;
+}
+
+/* Dark mode for settings component headers */
+.dark .text-2xl.font-semibold.text-primary-800 {
+  color: var(--neutral-100) !important;
+}
+
+/* Dark mode for chevron icons in settings */
+.dark .text-primary-600 {
+  color: var(--neutral-400) !important;
+}
+
+/* Leaflet popup size constraints and scrolling for large attribute tables */
+.leaflet-popup-content {
+  max-height: 50vh;   /* 50% of viewport height */
+  max-width: 30vw;    /* 30% of viewport width */
+  min-width: 200px;   /* Ensure minimum readable width */
+  overflow-y: auto;   /* Vertical scrollbar when content exceeds max-height */
+  overflow-x: auto;   /* Horizontal scrollbar when content exceeds max-width */
+  word-wrap: break-word;
+  word-break: break-word;
+}
+
+/* Ensure the popup content wrapper doesn't add extra whitespace */
+.leaflet-popup-content-wrapper {
+  max-width: 30vw;
+  min-width: 200px;
+}
+
+/* Style the scrollbar for better UX in popups */
+.leaflet-popup-content::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.leaflet-popup-content::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.leaflet-popup-content::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.leaflet-popup-content::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Dark mode scrollbar styling */
+.dark .leaflet-popup-content::-webkit-scrollbar-track {
+  background: #2d2d2d;
+}
+
+.dark .leaflet-popup-content::-webkit-scrollbar-thumb {
+  background: #666;
+}
+
+.dark .leaflet-popup-content::-webkit-scrollbar-thumb:hover {
+  background: #888;
+}
+
+/* End of chat message classes */

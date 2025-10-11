@@ -1,7 +1,6 @@
 import logging
 import mimetypes
 import os
-from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -13,7 +12,6 @@ from api import ai_style, auto_styling, data_management, debug, file_streaming, 
 
 # from sqlalchemy.ext.asyncio import AsyncSession
 from core.config import ALLOWED_CORS_ORIGINS, LOCAL_UPLOAD_DIR
-from services.database.database import close_db, init_db
 
 # Configure logging with environment variable support
 # Set LOG_LEVEL=WARNING in production to reduce noise, DEBUG for verbose output
@@ -41,18 +39,10 @@ tags_metadata = [
 app = FastAPI()
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    await init_db()
-    yield
-    await close_db()
-
-
 app = FastAPI(
     title="NaLaMap API",
     description="API for making geospatial data accessible",
     version="0.1.0",
-    lifespan=lifespan,
     openapi_tags=tags_metadata,
 )
 
