@@ -284,7 +284,7 @@ class TestDescribeDatasetWithLargeAttrs:
         assert "row_count" in result
         assert result["row_count"] == 50
         assert "summary" in result
-        assert "suggested_next_steps" in result
+        # Note: suggested_next_steps has been removed to reduce LLM calls
 
     def test_describe_dataset_identifies_key_columns(self, large_attribute_gdf):
         """Test that key columns are properly identified."""
@@ -298,13 +298,15 @@ class TestDescribeDatasetWithLargeAttrs:
         assert "NAME" in key_col_names
 
     def test_describe_dataset_suggests_relevant_actions(self, large_attribute_gdf):
-        """Test that suggested next steps are relevant to the dataset."""
+        """Test that dataset description includes summary (next steps removed)."""
         schema = build_schema_context(large_attribute_gdf)
         result = describe_dataset_gdf(large_attribute_gdf, schema)
 
-        assert "suggested_next_steps" in result
-        assert isinstance(result["suggested_next_steps"], list)
-        assert len(result["suggested_next_steps"]) > 0
+        # suggested_next_steps has been removed to reduce LLM calls
+        # Verify that other essential information is present
+        assert "summary" in result
+        assert isinstance(result["summary"], str)
+        assert len(result["summary"]) > 0
 
 
 class TestRealWorldScenarios:

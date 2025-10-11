@@ -270,7 +270,7 @@ def describe_dataset_gdf(
             f"{bbox_vals[2]:.4f}, {bbox_vals[3]:.4f}]."
         )
 
-    #next_steps = _suggest_next_steps(gdf, schema_ctx, llm=llm)
+    # next_steps = _suggest_next_steps(gdf, schema_ctx, llm=llm)
     result = {
         "row_count": row_count,
         "geometry_column": geom_col,
@@ -279,7 +279,7 @@ def describe_dataset_gdf(
         "bbox": bbox_vals,
         "key_columns": preview_cols,
         "summary": summary,
-        #"suggested_next_steps": next_steps,
+        # "suggested_next_steps": next_steps,
     }
     # Optionally enrich summary via LLM, including sample rows for richer context
     try:
@@ -304,7 +304,7 @@ def describe_dataset_gdf(
             "You are a GIS data assistant. "
             "Provide a concise description and practical next steps for this specific dataset. "
             "Respond in JSON with keys 'summary' (string)"
-            #"and 'suggested_next_steps' (list of strings)."
+            # "and 'suggested_next_steps' (list of strings)."
         )
         context_obj = {"metadata": result, "sample_rows": sample_rows}
         human = f"Dataset context and sample rows: {json.dumps(context_obj, default=str)}"
@@ -325,9 +325,9 @@ def describe_dataset_gdf(
             result.update(
                 {
                     "summary": data.get("summary", result.get("summary"))
-                    #,"suggested_next_steps": data.get(
-                       # "suggested_next_steps", result.get("suggested_next_steps")
-                    #),
+                    # ,"suggested_next_steps": data.get(
+                    #     "suggested_next_steps", result.get("suggested_next_steps")
+                    # ),
                 }
             )
     except Exception:

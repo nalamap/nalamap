@@ -390,8 +390,7 @@ class TestDescribeDatasetGdf:
         assert "geometry_types" in result
         assert "Point" in result["geometry_types"]
         assert "summary" in result
-        assert "suggested_next_steps" in result
-        assert isinstance(result["suggested_next_steps"], list)
+        # Note: suggested_next_steps has been removed to reduce LLM calls
 
 
 class TestLoadGdfWFS:
