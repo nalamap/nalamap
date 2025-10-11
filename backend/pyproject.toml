@@ -88,6 +88,7 @@ addopts = [
 markers = [
     "unit: Unit tests for individual functions",
     "integration: Integration tests via API",
+    "e2e: End-to-end tests for complete user journeys",
     "slow: Slow running tests (>5 seconds)",
     "performance: Performance and stress tests",
     "edge_case: Edge case and boundary condition tests",
