@@ -24,7 +24,7 @@ def match_layer_names(layers: List[Any], target_names: List[str], cutoff: float 
         for layer in layers:
             if (
                 layer.name.lower() == name.lower()
-                or getattr(layer, "title", "").lower() == name.lower()
+                or (getattr(layer, "title", "") or "").lower() == (name or "").lower()
             ):
                 matched_layers.append(layer)
                 break
