@@ -617,6 +617,45 @@ def _slug(text: str) -> str:
     return text or "attribute-result"
 
 
+def _clean_layer_name(text: str) -> str:
+    """Clean layer name by removing file extensions and special characters.
+
+    Args:
+        text: The layer name or title to clean
+
+    Returns:
+        Cleaned layer name without file extensions and special characters
+
+    Examples:
+        >>> _clean_layer_name("Protected Area.geojson")
+        'Protected Area'
+        >>> _clean_layer_name("My Layer (filtered)")
+        'My Layer Filtered'
+        >>> _clean_layer_name("Layer_123")
+        'Layer 123'
+    """
+    if not text:
+        return ""
+
+    # Remove common GIS file extensions (case-insensitive)
+    cleaned = re.sub(r"\.(geojson|json|shp|kml|gpkg|gml)$", "", text, flags=re.IGNORECASE)
+
+    # Remove parentheses and their content (e.g., "(filtered)" -> "")
+    # But keep the words inside for better context
+    cleaned = re.sub(r"\s*\(([^)]+)\)\s*", r" \1 ", cleaned)
+
+    # Replace underscores with spaces
+    cleaned = cleaned.replace("_", " ")
+
+    # Collapse multiple spaces into one
+    cleaned = re.sub(r"\s+", " ", cleaned)
+
+    # Strip whitespace
+    cleaned = cleaned.strip()
+
+    return cleaned
+
+
 def _save_gdf_as_geojson(
     gdf: gpd.GeoDataFrame,
     display_title: str,
@@ -1537,7 +1576,9 @@ def attribute_tool(
                     }
                 )
 
-            title = f"{layer.title or layer.name} (filtered)"
+            # Clean the source layer name and create a better title
+            source_name = _clean_layer_name(layer.title or layer.name)
+            title = f"{source_name} Filtered"
 
             # Create detailed description
             detailed_desc = (
@@ -1636,9 +1677,13 @@ def attribute_tool(
                 f"Result has {len(out_gdf.columns)} columns."
             )
 
+            # Clean the source layer name
+            source_name = _clean_layer_name(layer.title or layer.name)
+            title = f"{source_name} Selected Fields"
+
             obj = _save_gdf_as_geojson(
                 out_gdf,
-                f"{layer.name}-selected",
+                title,
                 keep_geometry=keep_geometry,
                 detailed_description=detailed_desc,
             )
@@ -1667,9 +1712,13 @@ def attribute_tool(
                 f"Result contains {len(out_gdf)} features in sorted order."
             )
 
+            # Clean the source layer name
+            source_name = _clean_layer_name(layer.title or layer.name)
+            title = f"{source_name} Sorted"
+
             obj = _save_gdf_as_geojson(
                 out_gdf,
-                f"{layer.name}-sorted",
+                title,
                 keep_geometry=True,
                 detailed_description=detailed_desc,
             )

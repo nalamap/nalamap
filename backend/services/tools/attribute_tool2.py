@@ -27,6 +27,7 @@ from typing_extensions import Annotated
 from models.geodata import DataType
 from models.states import GeoDataAgentState
 from services.tools.attribute_tools import (
+    _clean_layer_name,
     _load_gdf,
     _save_gdf_as_geojson,
     build_schema_context,
@@ -496,7 +497,8 @@ def _handle_filter_where(
         )
 
     # Save filtered result as new layer
-    title = f"{layer.title or layer.name} (filtered)"
+    source_name = _clean_layer_name(layer.title or layer.name)
+    title = f"{source_name} Filtered"
 
     # Create detailed description
     detailed_desc = (
@@ -606,7 +608,8 @@ def _handle_select_fields(
     )
 
     # Save as new layer
-    title = f"{layer.name}-selected"
+    source_name = _clean_layer_name(layer.title or layer.name)
+    title = f"{source_name} Selected Fields"
 
     # Create detailed description
     field_info = []
@@ -688,7 +691,8 @@ def _handle_sort_by(
     sorted_gdf = sort_by_gdf(gdf, sort_fields)
 
     # Save as new layer
-    title = f"{layer.name}-sorted"
+    source_name = _clean_layer_name(layer.title or layer.name)
+    title = f"{source_name} Sorted"
 
     # Create detailed description
     sort_desc = ", ".join([f"{fld} {order}" for fld, order in sort_fields])
