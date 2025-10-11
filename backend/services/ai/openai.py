@@ -198,11 +198,11 @@ def get_llm(max_tokens: int = 6000, model_name: Optional[str] = None):
         api_key = "sk-test-key-not-set"
 
     # Use provided model_name, fall back to env var, or default
-    model = model_name or getenv("OPENAI_MODEL", "gpt-4o-mini")
+    model = model_name or getenv("OPENAI_MODEL", "gpt-5-mini")
 
     return ChatOpenAI(
         model=model,
-        temperature=0,
+        temperature=1,
         max_tokens=max_tokens,
         timeout=None,
         max_retries=3,
