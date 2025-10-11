@@ -4,6 +4,7 @@ from langchain_core.tools import BaseTool
 
 from services.tools.attribute_tools import attribute_tool
 from services.tools.attribute_tool2 import attribute_tool2
+from services.tools.attribute_tool3 import attribute_tool3
 from services.tools.geocoding import (
     geocode_using_nominatim_to_geostate,
     geocode_using_overpass_to_geostate,
@@ -235,5 +236,6 @@ DEFAULT_AVAILABLE_TOOLS: Dict[str, BaseTool] = {
     "get_custom_geoserver_data": get_custom_geoserver_data,
     "attribute_tool": attribute_tool,
     "attribute_tool2": attribute_tool2,  # Simplified attribute tool for better agent usability
+    "attribute_tool3": attribute_tool3,
 }
 DEFAULT_SELECTED_TOOLS = []
