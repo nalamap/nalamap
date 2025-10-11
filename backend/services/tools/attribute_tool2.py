@@ -497,7 +497,17 @@ def _handle_filter_where(
 
     # Save filtered result as new layer
     title = f"{layer.title or layer.name} (filtered)"
-    obj = _save_gdf_as_geojson(filtered_gdf, title, keep_geometry=True)
+
+    # Create detailed description
+    detailed_desc = (
+        f"Filtered features from '{layer.title or layer.name}' using condition: "
+        f"{where}. Result contains {len(filtered_gdf)} feature(s) out of "
+        f"{len(gdf)} original features."
+    )
+
+    obj = _save_gdf_as_geojson(
+        filtered_gdf, title, keep_geometry=True, detailed_description=detailed_desc
+    )
     new_results = (state.get("geodata_results") or []) + [obj]
 
     # Build actionable layer info
@@ -597,7 +607,22 @@ def _handle_select_fields(
 
     # Save as new layer
     title = f"{layer.name}-selected"
-    obj = _save_gdf_as_geojson(result_gdf, title, keep_geometry=keep_geometry)
+
+    # Create detailed description
+    field_info = []
+    if include_fields:
+        field_info.append(f"included fields: {', '.join(include_fields)}")
+    if exclude_fields:
+        field_info.append(f"excluded fields: {', '.join(exclude_fields)}")
+    detailed_desc = (
+        f"Selected fields from '{layer.title or layer.name}'. "
+        f"{'; '.join(field_info) if field_info else 'Field selection applied'}. "
+        f"Result has {len(result_gdf.columns)} columns."
+    )
+
+    obj = _save_gdf_as_geojson(
+        result_gdf, title, keep_geometry=keep_geometry, detailed_description=detailed_desc
+    )
     new_results = (state.get("geodata_results") or []) + [obj]
 
     return Command(
@@ -664,7 +689,17 @@ def _handle_sort_by(
 
     # Save as new layer
     title = f"{layer.name}-sorted"
-    obj = _save_gdf_as_geojson(sorted_gdf, title, keep_geometry=True)
+
+    # Create detailed description
+    sort_desc = ", ".join([f"{fld} {order}" for fld, order in sort_fields])
+    detailed_desc = (
+        f"Sorted '{layer.title or layer.name}' by: {sort_desc}. "
+        f"Result contains {len(sorted_gdf)} features in sorted order."
+    )
+
+    obj = _save_gdf_as_geojson(
+        sorted_gdf, title, keep_geometry=True, detailed_description=detailed_desc
+    )
     new_results = (state.get("geodata_results") or []) + [obj]
 
     return Command(
