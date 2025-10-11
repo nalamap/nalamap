@@ -1109,4 +1109,54 @@ body {
   color: var(--neutral-400) !important;
 }
 
+/* Leaflet popup size constraints and scrolling for large attribute tables */
+.leaflet-popup-content {
+  max-height: 50vh;   /* 50% of viewport height */
+  max-width: 30vw;    /* 30% of viewport width */
+  min-width: 200px;   /* Ensure minimum readable width */
+  overflow-y: auto;   /* Vertical scrollbar when content exceeds max-height */
+  overflow-x: auto;   /* Horizontal scrollbar when content exceeds max-width */
+  word-wrap: break-word;
+  word-break: break-word;
+}
+
+/* Ensure the popup content wrapper doesn't add extra whitespace */
+.leaflet-popup-content-wrapper {
+  max-width: 30vw;
+  min-width: 200px;
+}
+
+/* Style the scrollbar for better UX in popups */
+.leaflet-popup-content::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.leaflet-popup-content::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.leaflet-popup-content::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.leaflet-popup-content::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Dark mode scrollbar styling */
+.dark .leaflet-popup-content::-webkit-scrollbar-track {
+  background: #2d2d2d;
+}
+
+.dark .leaflet-popup-content::-webkit-scrollbar-thumb {
+  background: #666;
+}
+
+.dark .leaflet-popup-content::-webkit-scrollbar-thumb:hover {
+  background: #888;
+}
+
 /* End of chat message classes */

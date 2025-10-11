@@ -32,14 +32,29 @@ def normalize_color(color: str) -> str:
     - Web color names (forestgreen, dodgerblue, etc.)
     - Hex codes (#FF0000, FF0000, etc.)
     - ColorBrewer palette names (returns first color)
+
+    Args:
+        color: Color string to normalize (can be None or empty)
+
+    Returns:
+        Normalized hex color string, or None if input is None/empty
     """
-    if not color:
+    # Handle None and empty strings safely
+    if not color or not isinstance(color, str):
         return color
 
+    # Strip whitespace and special characters that might cause issues
+    color = color.strip()
+    if not color:
+        return None
+
     # Use the intelligent color parsing system
-    parsed_color = parse_intelligent_color(color)
-    if parsed_color:
-        return parsed_color
+    try:
+        parsed_color = parse_intelligent_color(color)
+        if parsed_color:
+            return parsed_color
+    except Exception as e:
+        logger.warning(f"Failed to parse color '{color}': {e}. Using original value.")
 
     # If not recognized, return original (for backward compatibility)
     return color
@@ -396,10 +411,12 @@ def auto_style_new_layers(
     for layer in layers_to_style:
         # Use the automatic styling system to generate appropriate styling
         layer_description = getattr(layer, "description", None) or getattr(layer, "title", None)
+        geometry_type = getattr(layer, "geometry_type", None)
+
         auto_style = generate_automatic_style(
             layer_name=layer.name,
-            layer_description=layer_description,
-            geometry_type=getattr(layer, "geometry_type", None),
+            layer_description=layer_description or "",
+            geometry_type=geometry_type or "",
         )
 
         # Convert LayerStyle to dictionary for the layer
@@ -419,7 +436,7 @@ def auto_style_new_layers(
         # Remove None values
         layer_dict["style"] = {k: v for k, v in layer_dict["style"].items() if v is not None}
 
-        # Track used colors
+        # Track used colors - safe upper() calls
         if auto_style.fill_color:
             used_colors.add(auto_style.fill_color.upper())
         if auto_style.stroke_color:
@@ -440,9 +457,8 @@ def auto_style_new_layers(
     # Create success message with layer type information
     styled_layer_info = []
     for layer in styled_layers:
-        layer_type = detect_layer_type(
-            layer.name, getattr(layer, "description", None) or getattr(layer, "title", None)
-        )
+        layer_description = getattr(layer, "description", None) or getattr(layer, "title", None)
+        layer_type = detect_layer_type(layer.name, layer_description or "")
         styled_layer_info.append(f"{layer.name} ({layer_type}): {layer.style.fill_color}")
 
     message = (
@@ -636,7 +652,13 @@ def apply_intelligent_color_scheme(
             # Get color from scheme (cycle through if more layers than colors)
             color_index = i % len(scheme_colors)
             fill_color = scheme_colors[color_index]
-            stroke_color = normalize_color(fill_color).replace("ff", "cc")  # Darker stroke
+
+            # Safely create stroke color (darker than fill)
+            normalized_fill = normalize_color(fill_color)
+            if normalized_fill and isinstance(normalized_fill, str):
+                stroke_color = normalized_fill.replace("ff", "cc")
+            else:
+                stroke_color = fill_color  # Fallback to original if normalization fails
 
             # Apply the styling
             layer_dict = layer.model_dump()

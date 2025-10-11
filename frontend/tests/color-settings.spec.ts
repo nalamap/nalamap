@@ -12,7 +12,10 @@ async function expandColorSettings(page: Page) {
   
   if (!isExpanded) {
     await colorButton.click();
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(500); // Increased timeout for animation
+    
+    // Wait for content to be visible - check for "Core Colors" heading
+    await expect(page.locator("h3:has-text('Core Colors')")).toBeVisible({ timeout: 5000 });
   }
 }
 
@@ -224,31 +227,18 @@ test.describe("Color Settings", () => {
     // Expand color settings
     await expandColorSettings(page);
 
-    // Check for all eleven color scales - use more specific selectors to avoid duplicates
-    // The text includes the full names like "Primary (Text & Borders)", so we use partial match
-    const primaryScale = page.locator("button:has-text('Primary')").first();
-    const secondPrimaryScale = page.locator("button:has-text('Second Primary')").first();
-    const secondaryScale = page.locator("button:has-text('Secondary')").first();
-    const tertiaryScale = page.locator("button:has-text('Tertiary')").first();
-    const dangerScale = page.locator("button:has-text('Danger')").first();
-    const warningScale = page.locator("button:has-text('Warning')").first();
-    const infoScale = page.locator("button:has-text('Info')").first();
-    const neutralScale = page.locator("button:has-text('Neutral')").first();
-    const corporate1Scale = page.locator("button:has-text('Corporate 1')").first();
-    const corporate2Scale = page.locator("button:has-text('Corporate 2')").first();
-    const corporate3Scale = page.locator("button:has-text('Corporate 3')").first();
-    
-    await expect(primaryScale).toBeVisible();
-    await expect(secondPrimaryScale).toBeVisible();
-    await expect(secondaryScale).toBeVisible();
-    await expect(tertiaryScale).toBeVisible();
-    await expect(dangerScale).toBeVisible();
-    await expect(warningScale).toBeVisible();
-    await expect(infoScale).toBeVisible();
-    await expect(neutralScale).toBeVisible();
-    await expect(corporate1Scale).toBeVisible();
-    await expect(corporate2Scale).toBeVisible();
-    await expect(corporate3Scale).toBeVisible();
+    // Check for all eleven color scales - use exact text matches to avoid duplicates
+    await expect(page.locator('text=Primary (Text & Borders)')).toBeVisible();
+    await expect(page.locator('text=Second Primary (Actions)')).toBeVisible();
+    await expect(page.locator('text=Secondary (Accents)')).toBeVisible();
+    await expect(page.locator('text=Tertiary (Success)')).toBeVisible();
+    await expect(page.locator('text=Danger (Errors)')).toBeVisible();
+    await expect(page.locator('.font-medium.text-primary-900.text-sm:has-text("Warning")')).toBeVisible();
+    await expect(page.locator('.font-medium.text-primary-900.text-sm:has-text("Info")')).toBeVisible();
+    await expect(page.locator('text=Neutral (White/Black)')).toBeVisible();
+    await expect(page.locator('text=Corporate 1 (Rose)')).toBeVisible();
+    await expect(page.locator('text=Corporate 2 (Sky)')).toBeVisible();
+    await expect(page.locator('text=Corporate 3 (Purple)')).toBeVisible();
   });
 
   test("should expand color scale to show individual shades", async ({
@@ -257,10 +247,11 @@ test.describe("Color Settings", () => {
     // Expand color settings
     await expandColorSettings(page);
 
-    // Expand primary color scale
-    const primaryButton = page.locator("button:has-text('Primary')").first();
-    await primaryButton.click();
-    await page.waitForTimeout(200);
+    // Find and click on Primary scale header (it's a div with role="button")
+    const primaryScale = page.locator('[role="button"]:has-text("Primary (Text & Borders)")').first();
+    await primaryScale.scrollIntoViewIfNeeded();
+    await primaryScale.click();
+    await page.waitForTimeout(300);
 
     // Check that color inputs are visible
     const colorInputs = page.locator('input[type="color"]');
@@ -276,9 +267,11 @@ test.describe("Color Settings", () => {
     // Expand color settings
     await expandColorSettings(page);
 
-    // Expand primary color scale
-    await page.locator("button:has-text('Primary')").first().click();
-    await page.waitForTimeout(200);
+    // Find and click on Primary scale
+    const primaryScale = page.locator('[role="button"]:has-text("Primary (Text & Borders)")').first();
+    await primaryScale.scrollIntoViewIfNeeded();
+    await primaryScale.click();
+    await page.waitForTimeout(300);
 
     // Find first color input
     const colorInput = page.locator('input[type="color"]').first();
@@ -302,8 +295,12 @@ test.describe("Color Settings", () => {
 
     // Expand color settings and change primary-50 (used for backgrounds)
     await expandColorSettings(page);
-    await page.locator("button:has-text('Primary')").first().click();
-    await page.waitForTimeout(200);
+    
+    // Find and click on Primary scale
+    const primaryScale = page.locator('[role="button"]:has-text("Primary (Text & Borders)")').first();
+    await primaryScale.scrollIntoViewIfNeeded();
+    await primaryScale.click();
+    await page.waitForTimeout(300);
 
     // Change the lightest shade
     const firstColorInput = page.locator('input[type="color"]').first();
@@ -345,8 +342,12 @@ test.describe("Color Settings", () => {
   test("should reset colors to defaults when confirmed", async ({ page }) => {
     // Expand color settings and change a color
     await expandColorSettings(page);
-    await page.locator("button:has-text('Primary')").first().click();
-    await page.waitForTimeout(200);
+    
+    // Find and click on Primary scale
+    const primaryScale = page.locator('[role="button"]:has-text("Primary (Text & Borders)")').first();
+    await primaryScale.scrollIntoViewIfNeeded();
+    await primaryScale.click();
+    await page.waitForTimeout(300);
 
     const colorInput = page.locator('input[type="color"]').first();
     await colorInput.fill("#ff0000");
@@ -371,8 +372,12 @@ test.describe("Color Settings", () => {
   test("should persist color settings in store", async ({ page }) => {
     // Expand color settings and change a color
     await expandColorSettings(page);
-    await page.locator("button:has-text('Primary')").first().click();
-    await page.waitForTimeout(200);
+    
+    // Find and click on Primary scale
+    const primaryScale = page.locator('[role="button"]:has-text("Primary (Text & Borders)")').first();
+    await primaryScale.scrollIntoViewIfNeeded();
+    await primaryScale.click();
+    await page.waitForTimeout(300);
 
     const colorInput = page.locator('input[type="color"]').first();
     await colorInput.fill("#aabbcc");
@@ -406,8 +411,13 @@ test.describe("Color Settings", () => {
   test("should export settings with custom colors", async ({ page }) => {
     // Change a color
     await expandColorSettings(page);
-    await page.locator("button:has-text('Primary')").first().click();
-    await page.waitForTimeout(200);
+    
+    // Find and click on Primary scale
+    const primaryScale = page.locator('[role="button"]:has-text("Primary (Text & Borders)")').first();
+    await primaryScale.scrollIntoViewIfNeeded();
+    await primaryScale.click();
+    await page.waitForTimeout(300);
+    
     await page.locator('input[type="color"]').first().fill("#123456");
 
     // Scroll to top to find export button
@@ -462,9 +472,9 @@ test.describe("Color Settings", () => {
     await expandColorSettings(page);
 
     // Find and expand the Primary color scale
-    const primaryButton = page.locator("button").filter({ hasText: "Primary (Text & Borders)" }).first();
-    await primaryButton.scrollIntoViewIfNeeded();
-    await primaryButton.click();
+    const primaryScale = page.locator('[role="button"]:has-text("Primary (Text & Borders)")').first();
+    await primaryScale.scrollIntoViewIfNeeded();
+    await primaryScale.click();
     await page.waitForTimeout(300);
 
     // Verify the expanded view with individual color inputs is visible

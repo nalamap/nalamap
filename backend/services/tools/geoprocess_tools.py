@@ -42,11 +42,21 @@ def slugify(text: str) -> str:
     Convert a title to a URL and filename friendly slug.
 
     Args:
-        text: The text to convert to a slug
+        text: The text to convert to a slug (handles None and special characters)
 
     Returns:
         A slug version of the text (lowercase, spaces to hyphens, alphanumeric and underscores only)
     """
+    # Handle None and empty strings
+    if not text or not isinstance(text, str):
+        return "geoprocessing-result"
+
+    # Strip whitespace and limit length
+    text = text.strip()[:100]  # Limit to 100 chars to avoid overly long filenames
+
+    if not text:
+        return "geoprocessing-result"
+
     # Convert to lowercase
     text = text.lower()
     # Replace spaces with hyphens
@@ -147,15 +157,35 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
         # 1) Invoke LLM planner with metadata only
     llm = get_llm()
     system_msg = (
-        "You are a geospatial task execution assistant. Your role is to translate the user's most recent request into a single geoprocessing operation with parameters, and provide helpful metadata about the result."
-        "1. Examine the user's query closely: {query_json_string}."
-        "2. Identify the single most appropriate geoprocessing operation from the available list: {available_operations_list_json_string}."
-        "3. CRITICAL FOR BUFFER OPERATION: If the chosen operation is 'buffer', you MUST extract 'radius' (a number) and 'radius_unit' (e.g., 'meters', 'kilometers', 'miles') directly and precisely from the user's query. For example, if the user says 'buffer by 100 km', your parameters MUST be `{{\"radius\": 100, \"radius_unit\": \"kilometers\"}}`. If they say 'buffer by 50000 meters', params MUST be `{{\"radius\": 50000, \"radius_unit\": \"meters\"}}`. DO NOT use default values if the user specifies values; use exactly what the user provided."
-        "4. For other operations, extract necessary parameters as defined in their descriptions from the user's query. Use default values EPSG:3857 for crs if None where given."
-        "5. Create a short, descriptive title (maximum 5 words) for the result layer based on the operation and the input layers."
-        "6. Write a brief description (1-2 sentences) explaining what the operation does to the input layers."
-        '7. Return a JSON object structured EXACTLY as follows: `{{"steps": [{{"operation": "chosen_operation_name", "params": {{extracted_parameters}}}}], "result_name": "Short Descriptive Title", "result_description": "Brief description of what this operation does."}}`. The \'steps\' array MUST contain exactly one operation object.'
-        "The execution framework handles which layer(s) are passed to the operation; you do not control this with parameters."
+        "You are a geospatial task execution assistant. Your role is to "
+        "translate the user's most recent request into a single geoprocessing "
+        "operation with parameters, and provide helpful metadata about the result. "
+        "1. Examine the user's query closely: {query_json_string}. "
+        "2. Identify the single most appropriate geoprocessing operation from "
+        "the available list: {available_operations_list_json_string}. "
+        "3. CRITICAL FOR BUFFER OPERATION: If the chosen operation is 'buffer', "
+        "you MUST extract 'radius' (a number) and 'radius_unit' (e.g., 'meters', "
+        "'kilometers', 'miles') directly and precisely from the user's query. "
+        "For example, if the user says 'buffer by 100 km', your parameters MUST "
+        'be `{{"radius": 100, "radius_unit": "kilometers"}}`. If they say '
+        "'buffer by 50000 meters', params MUST be `{{\"radius\": 50000, "
+        '"radius_unit": "meters"}}`. DO NOT use default values if the user '
+        "specifies values; use exactly what the user provided. "
+        "4. For other operations, extract necessary parameters as defined in "
+        "their descriptions from the user's query. Use default values EPSG:3857 "
+        "for crs if None where given. "
+        "5. Create a short, descriptive title (maximum 5 words) for the result "
+        "layer based on the operation and the input layers. "
+        "6. Write a brief description (1-2 sentences) explaining what the "
+        "operation does to the input layers. "
+        "7. Return a JSON object structured EXACTLY as follows: "
+        '`{{"steps": [{{"operation": "chosen_operation_name", '
+        '"params": {{extracted_parameters}}}}], "result_name": '
+        '"Short Descriptive Title", "result_description": '
+        '"Brief description of what this operation does."}}`. '
+        "The 'steps' array MUST contain exactly one operation object. "
+        "The execution framework handles which layer(s) are passed to the "
+        "operation; you do not control this with parameters. "
         "Example for a user query 'buffer the_roads by 5 kilometers':"
         "```json\n"
         "{{\n"
@@ -179,7 +209,8 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
         "    }}\n"
         "  ],\n"
         '  "result_name": "Layer1 Layer2 Intersection",\n'
-        '  "result_description": "Shows areas where Layer1 and Layer2 overlap using EPSG:3413 coordinate system."\n'
+        '  "result_description": "Shows areas where Layer1 and Layer2 overlap '
+        'using EPSG:3413 coordinate system."\n'
         "}}\n"
         "```"
     ).format(
@@ -573,10 +604,12 @@ def geoprocess_tool(
         operation_steps = "\n".join(operation_steps_list)
 
         # Filter out None values to prevent TypeError
-        input_layers = [
-            layer for layer in operation_details.get("input_layers", []) if layer is not None
+        input_layer_names = [
+            layer_name
+            for layer_name in operation_details.get("input_layers", [])
+            if layer_name is not None
         ]
-        input_layers_str = ", ".join(input_layers)
+        input_layers_str = ", ".join(input_layer_names)
 
         # Create the full description with operation details
         full_description = f"{llm_description}\n\nOperation Details:\n"

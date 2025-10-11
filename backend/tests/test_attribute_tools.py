@@ -601,12 +601,40 @@ class TestAttributeToolIntegration:
 
         # Save filtered result
         filtered, _ = filter_where_gdf(sample_gdf, "value > 15")
-        obj = _save_gdf_as_geojson(filtered, "Test Layer (filtered)", keep_geometry=True)
+        obj = _save_gdf_as_geojson(filtered, "Test Layer Filtered", keep_geometry=True)
 
-        assert obj.title == "Test Layer (filtered)"
+        assert obj.title == "Test Layer Filtered"
         assert obj.data_type == DataType.GEOJSON
         assert obj.data_origin == DataOrigin.TOOL.value
         assert mock_store_file.called
+
+    def test_clean_layer_name_helper(self):
+        """Test the _clean_layer_name helper function."""
+        from services.tools.attribute_tools import _clean_layer_name
+
+        # Test .geojson removal
+        assert _clean_layer_name("Protected Areas.geojson") == "Protected Areas"
+        assert _clean_layer_name("My Layer.GeoJSON") == "My Layer"
+        assert _clean_layer_name("data.json") == "data"
+
+        # Test other extensions
+        assert _clean_layer_name("layer.shp") == "layer"
+        assert _clean_layer_name("map.kml") == "map"
+
+        # Test parentheses removal
+        assert _clean_layer_name("Layer (filtered)") == "Layer filtered"
+        assert _clean_layer_name("Roads (sorted)") == "Roads sorted"
+
+        # Test underscore replacement
+        assert _clean_layer_name("My_Layer_123") == "My Layer 123"
+
+        # Test combined
+        assert _clean_layer_name("Protected_Area.geojson") == "Protected Area"
+        assert _clean_layer_name("My Layer (filtered).geojson") == "My Layer filtered"
+
+        # Test empty/whitespace
+        assert _clean_layer_name("") == ""
+        assert _clean_layer_name("  ") == ""
 
 
 if __name__ == "__main__":
