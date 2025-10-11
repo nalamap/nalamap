@@ -28,6 +28,7 @@ from models.geodata import DataType
 from models.states import GeoDataAgentState
 from services.tools.attribute_tools import (
     _clean_layer_name,
+    _generate_smart_layer_name,
     _load_gdf,
     _save_gdf_as_geojson,
     build_schema_context,
@@ -498,7 +499,15 @@ def _handle_filter_where(
 
     # Save filtered result as new layer
     source_name = _clean_layer_name(layer.title or layer.name)
-    title = f"{source_name} Filtered"
+
+    # Generate smart layer name using LLM
+    title = _generate_smart_layer_name(
+        source_layer_name=source_name,
+        operation="filtered",
+        gdf=filtered_gdf,
+        operation_details=where,
+        state=state,
+    )
 
     # Create detailed description
     detailed_desc = (
@@ -609,7 +618,23 @@ def _handle_select_fields(
 
     # Save as new layer
     source_name = _clean_layer_name(layer.title or layer.name)
-    title = f"{source_name} Selected Fields"
+
+    # Generate operation details for smart naming
+    op_details = []
+    if include_fields:
+        op_details.append(f"included: {', '.join(include_fields[:3])}")
+    if exclude_fields:
+        op_details.append(f"excluded: {', '.join(exclude_fields[:3])}")
+    operation_details = "; ".join(op_details) if op_details else None
+
+    # Generate smart layer name using LLM
+    title = _generate_smart_layer_name(
+        source_layer_name=source_name,
+        operation="selected fields",
+        gdf=result_gdf,
+        operation_details=operation_details,
+        state=state,
+    )
 
     # Create detailed description
     field_info = []
@@ -692,7 +717,16 @@ def _handle_sort_by(
 
     # Save as new layer
     source_name = _clean_layer_name(layer.title or layer.name)
-    title = f"{source_name} Sorted"
+
+    # Generate smart layer name using LLM
+    sort_desc_short = ", ".join([f"{fld} {order}" for fld, order in sort_fields[:2]])
+    title = _generate_smart_layer_name(
+        source_layer_name=source_name,
+        operation="sorted",
+        gdf=sorted_gdf,
+        operation_details=sort_desc_short,
+        state=state,
+    )
 
     # Create detailed description
     sort_desc = ", ".join([f"{fld} {order}" for fld, order in sort_fields])

@@ -369,8 +369,13 @@ def test_filtered_layer_with_clean_name_creates_proper_title(
         )
 
     assert payload["status"] == "success"
-    # The new layer should have a clean title
+    # The new layer should have a clean title with smart LLM-generated name
     new_layer_info = payload["result"]["new_layer"]
-    # Title should be "Protected Area (filtered)" not "Protected Area.geojson (filtered)"
+    # Title should not contain file extension
     assert ".geojson" not in new_layer_info["title"]
-    assert new_layer_info["title"] == "Protected Area (filtered)"
+    # Title should be meaningful and include context (smart naming)
+    # The LLM generates names based on the data and operation
+    # Check that it's not the old format and contains meaningful content
+    assert "Protected Area" in new_layer_info["title"]
+    # Should not be the old static format
+    assert new_layer_info["title"] != "Protected Area.geojson (filtered)"
