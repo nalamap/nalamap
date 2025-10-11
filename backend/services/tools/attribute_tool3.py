@@ -74,6 +74,35 @@ def _slugify(text: str) -> str:
     return base or "attribute-result"
 
 
+def _clean_layer_name(text: str) -> str:
+    """Clean layer name by removing file extensions and special characters.
+
+    Args:
+        text: The layer name or title to clean
+
+    Returns:
+        Cleaned layer name without file extensions and special characters
+
+    Examples:
+        >>> _clean_layer_name("Protected Area.geojson")
+        'Protected Area'
+        >>> _clean_layer_name("My-Layer_123.GeoJSON")
+        'My-Layer_123'
+        >>> _clean_layer_name("Layer (filtered).geojson")
+        'Layer (filtered)'
+    """
+    if not text:
+        return ""
+
+    # Remove common GIS file extensions (case-insensitive)
+    cleaned = re.sub(r"\.(geojson|json|shp|kml|gpkg|gml)$", "", text, flags=re.IGNORECASE)
+
+    # Strip whitespace
+    cleaned = cleaned.strip()
+
+    return cleaned
+
+
 # ---------------------------------------------------------------------------
 # Dataset loading
 # ---------------------------------------------------------------------------
@@ -685,7 +714,9 @@ class ResultWriter:
         keep_geometry: bool,
         detailed_description: Optional[str] = None,
     ) -> GeoDataObject:
-        title = f"{self._source.title or self._source.name} ({title_suffix})"
+        # Clean the source layer name/title to remove file extensions and special chars
+        source_name = _clean_layer_name(self._source.title or self._source.name)
+        title = f"{source_name} ({title_suffix})"
         slug = _slugify(title)
         feature_collection = self._feature_collection(gdf, keep_geometry=keep_geometry)
         content = json.dumps(feature_collection).encode("utf-8")

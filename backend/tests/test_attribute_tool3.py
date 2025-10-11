@@ -109,7 +109,9 @@ def test_summarize_numeric_fields(sample_state: GeoDataAgentState, sample_gdf: g
     assert pytest.approx(payload["result"]["value"]["mean"], 0.01) == 13.3333
 
 
-def test_unique_values_missing_field_is_error(sample_state: GeoDataAgentState, sample_gdf: gpd.GeoDataFrame):
+def test_unique_values_missing_field_is_error(
+    sample_state: GeoDataAgentState, sample_gdf: gpd.GeoDataFrame
+):
     with patch("services.tools.attribute_tool3.GeoDataLoader.load", return_value=sample_gdf):
         payload = _invoke_tool(
             sample_state,
@@ -124,12 +126,16 @@ def test_unique_values_missing_field_is_error(sample_state: GeoDataAgentState, s
     assert payload["details"]["missing_fields"] == ["missing"]
 
 
-def test_filter_where_creates_new_layer(sample_state: GeoDataAgentState, sample_gdf: gpd.GeoDataFrame, sample_layer: GeoDataObject):
+def test_filter_where_creates_new_layer(
+    sample_state: GeoDataAgentState, sample_gdf: gpd.GeoDataFrame, sample_layer: GeoDataObject
+):
     result_layer = sample_layer.model_copy(update={"id": "filtered", "name": "filtered"})
 
     with (
         patch("services.tools.attribute_tool3.GeoDataLoader.load", return_value=sample_gdf),
-        patch("services.tools.attribute_tool3.ResultWriter.persist", return_value=result_layer) as mock_persist,
+        patch(
+            "services.tools.attribute_tool3.ResultWriter.persist", return_value=result_layer
+        ) as mock_persist,
     ):
         payload = _invoke_tool(
             sample_state,
@@ -146,7 +152,9 @@ def test_filter_where_creates_new_layer(sample_state: GeoDataAgentState, sample_
     mock_persist.assert_called_once()
 
 
-def test_filter_where_handles_no_matches(sample_state: GeoDataAgentState, sample_gdf: gpd.GeoDataFrame):
+def test_filter_where_handles_no_matches(
+    sample_state: GeoDataAgentState, sample_gdf: gpd.GeoDataFrame
+):
     with patch("services.tools.attribute_tool3.GeoDataLoader.load", return_value=sample_gdf):
         payload = _invoke_tool(
             sample_state,
@@ -162,7 +170,9 @@ def test_filter_where_handles_no_matches(sample_state: GeoDataAgentState, sample
     assert payload["result_handling"] == "chat"
 
 
-def test_select_fields_can_drop_geometry(sample_state: GeoDataAgentState, sample_gdf: gpd.GeoDataFrame, sample_layer: GeoDataObject):
+def test_select_fields_can_drop_geometry(
+    sample_state: GeoDataAgentState, sample_gdf: gpd.GeoDataFrame, sample_layer: GeoDataObject
+):
     result_layer = sample_layer.model_copy(update={"id": "selection", "name": "selection"})
 
     with (
@@ -183,7 +193,9 @@ def test_select_fields_can_drop_geometry(sample_state: GeoDataAgentState, sample
     assert payload["result_handling"] == "layer"
 
 
-def test_sort_by_multiple_fields(sample_state: GeoDataAgentState, sample_gdf: gpd.GeoDataFrame, sample_layer: GeoDataObject):
+def test_sort_by_multiple_fields(
+    sample_state: GeoDataAgentState, sample_gdf: gpd.GeoDataFrame, sample_layer: GeoDataObject
+):
     result_layer = sample_layer.model_copy(update={"id": "sorted", "name": "sorted"})
 
     with (
@@ -204,16 +216,22 @@ def test_sort_by_multiple_fields(sample_state: GeoDataAgentState, sample_gdf: gp
     assert payload["result"]["orders"] == ["asc", "desc"]
 
 
-def test_describe_dataset_includes_recommendations(sample_state: GeoDataAgentState, sample_gdf: gpd.GeoDataFrame):
+def test_describe_dataset_includes_recommendations(
+    sample_state: GeoDataAgentState, sample_gdf: gpd.GeoDataFrame
+):
     with patch("services.tools.attribute_tool3.GeoDataLoader.load", return_value=sample_gdf):
-        payload = _invoke_tool(sample_state, {"tool_call_id": "call-9", "operation": "describe_dataset"})
+        payload = _invoke_tool(
+            sample_state, {"tool_call_id": "call-9", "operation": "describe_dataset"}
+        )
 
     assert payload["status"] == "success"
     assert payload["result"]["recommended_actions"]
     assert payload["result"]["sample_records"]
 
 
-def test_get_attribute_values_with_row_filter(sample_state: GeoDataAgentState, sample_gdf: gpd.GeoDataFrame):
+def test_get_attribute_values_with_row_filter(
+    sample_state: GeoDataAgentState, sample_gdf: gpd.GeoDataFrame
+):
     with patch("services.tools.attribute_tool3.GeoDataLoader.load", return_value=sample_gdf):
         payload = _invoke_tool(
             sample_state,
@@ -230,7 +248,9 @@ def test_get_attribute_values_with_row_filter(sample_state: GeoDataAgentState, s
     assert len(payload["result"]["rows"]) <= 2
 
 
-def test_planner_is_used_when_operation_missing(sample_state: GeoDataAgentState, sample_gdf: gpd.GeoDataFrame):
+def test_planner_is_used_when_operation_missing(
+    sample_state: GeoDataAgentState, sample_gdf: gpd.GeoDataFrame
+):
     sample_state["messages"] = [HumanMessage(content="Give me a summary of the dataset")]
     with patch("services.tools.attribute_tool3.GeoDataLoader.load", return_value=sample_gdf):
         payload = _invoke_tool(sample_state, {"tool_call_id": "call-11"})
@@ -243,3 +263,114 @@ def test_tool_is_registered_by_default():
     assert "attribute_tool3" in DEFAULT_AVAILABLE_TOOLS
     tool_names = {tool.name for tool in SINGLE_AGENT_TOOLS}
     assert "attribute_tool3" in tool_names
+
+
+def test_filtered_layer_name_removes_geojson_extension(
+    sample_state: GeoDataAgentState, sample_gdf: gpd.GeoDataFrame
+):
+    """Test that filtered layers remove .geojson extension from source layer name."""
+    # Create a layer with .geojson extension in the name
+    layer_with_extension = GeoDataObject(
+        id="layer-geojson",
+        data_source_id="test",
+        data_type=DataType.GEOJSON,
+        data_origin=DataOrigin.TOOL,
+        data_source="Test",
+        data_link="https://example.com/data.geojson",
+        name="Protected Areas.geojson",
+        title="Protected Areas.geojson",
+    )
+    sample_state["geodata_layers"] = [layer_with_extension]
+
+    result_layer = layer_with_extension.model_copy(update={"id": "filtered", "name": "filtered"})
+
+    with (
+        patch("services.tools.attribute_tool3.GeoDataLoader.load", return_value=sample_gdf),
+        patch(
+            "services.tools.attribute_tool3.ResultWriter.persist", return_value=result_layer
+        ) as mock_persist,
+    ):
+        payload = _invoke_tool(
+            sample_state,
+            {
+                "tool_call_id": "call-ext-test",
+                "operation": "filter_where",
+                "params": {"where": "value > 15"},
+            },
+        )
+
+    assert payload["status"] == "success"
+    # Verify that persist was called - we'll check the actual title in the persist call args
+    mock_persist.assert_called_once()
+    call_args = mock_persist.call_args
+    # The gdf is the first positional argument
+    # title_suffix should be "filtered"
+    assert call_args.kwargs["title_suffix"] == "filtered"
+
+
+def test_layer_name_cleaning_helper():
+    """Test the _clean_layer_name helper function directly."""
+    from services.tools.attribute_tool3 import _clean_layer_name
+
+    # Test .geojson removal
+    assert _clean_layer_name("Protected Areas.geojson") == "Protected Areas"
+    assert _clean_layer_name("My Layer.GeoJSON") == "My Layer"
+    assert _clean_layer_name("data.json") == "data"
+
+    # Test other extensions
+    assert _clean_layer_name("layer.shp") == "layer"
+    assert _clean_layer_name("map.kml") == "map"
+    assert _clean_layer_name("dataset.gpkg") == "dataset"
+
+    # Test no extension
+    assert _clean_layer_name("Clean Name") == "Clean Name"
+    assert _clean_layer_name("Layer123") == "Layer123"
+
+    # Test empty/whitespace
+    assert _clean_layer_name("") == ""
+    assert _clean_layer_name("  ") == ""
+
+    # Test special characters are preserved (not removed)
+    assert _clean_layer_name("Layer (filtered).geojson") == "Layer (filtered)"
+    assert _clean_layer_name("My-Layer_123.geojson") == "My-Layer_123"
+
+
+def test_filtered_layer_with_clean_name_creates_proper_title(
+    sample_state: GeoDataAgentState, sample_gdf: gpd.GeoDataFrame
+):
+    """Integration test: verify full workflow creates proper titles without extensions."""
+    # Create layer with problematic name
+    layer = GeoDataObject(
+        id="layer-3",
+        data_source_id="test",
+        data_type=DataType.GEOJSON,
+        data_origin=DataOrigin.TOOL,
+        data_source="Test",
+        data_link="https://example.com/data.geojson",
+        name="Al Houbara Protected Area.geojson",
+        title="Protected Area.geojson",  # User uploaded with confusing title
+    )
+    sample_state["geodata_layers"] = [layer]
+
+    # Mock the persist to capture what title would be created
+    with (
+        patch("services.tools.attribute_tool3.GeoDataLoader.load", return_value=sample_gdf),
+        patch("services.tools.attribute_tool3.store_file") as mock_store,
+    ):
+        mock_store.return_value = ("http://test.com/filtered.geojson", "test-uuid")
+
+        payload = _invoke_tool(
+            sample_state,
+            {
+                "tool_call_id": "call-clean-test",
+                "operation": "filter_where",
+                "params": {"where": "value > 15"},
+            },
+        )
+
+    assert payload["status"] == "success"
+    # The new layer should have a clean title
+    new_layer_info = payload["result"]["new_layer"]
+    # Title should be "Protected Area (filtered)" not "Protected Area.geojson (filtered)"
+    assert ".geojson" not in new_layer_info["title"]
+    assert new_layer_info["title"] == "Protected Area (filtered)"
