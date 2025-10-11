@@ -20,12 +20,55 @@ from typing_extensions import Annotated
 from core.config import BASE_URL, LOCAL_UPLOAD_DIR
 from models.geodata import DataOrigin, DataType, GeoDataObject
 from models.states import GeoDataAgentState
-from services.ai.llm_config import get_llm
+from services.ai.llm_config import get_llm, get_llm_for_provider
 from services.storage.file_management import store_file
 from services.tools.utils import match_layer_names
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
+
+
+# =========================
+# Helper: Get LLM from state options
+# =========================
+def _get_llm_from_options(state: Optional[GeoDataAgentState] = None):
+    """
+    Get LLM instance from state options, falling back to default get_llm().
+    
+    Args:
+        state: Optional GeoDataAgentState containing options with model_settings
+        
+    Returns:
+        LLM instance configured according to options or default
+    """
+    if state is None:
+        return get_llm()
+    
+    options = state.get("options")
+    if not options:
+        return get_llm()
+    
+    model_settings = getattr(options, "model_settings", None)
+    if not model_settings:
+        return get_llm()
+    
+    provider = getattr(model_settings, "provider", None)
+    model_name = getattr(model_settings, "model", None)
+    max_tokens = getattr(model_settings, "max_tokens", 6000)
+    
+    if provider:
+        try:
+            return get_llm_for_provider(
+                provider_name=provider,
+                max_tokens=max_tokens,
+                model_name=model_name
+            )
+        except Exception as e:
+            logger.warning(f"Failed to get LLM for provider {provider}: {e}. Using default.")
+            return get_llm()
+    
+    return get_llm()
+
 
 # =========================
 # CQL-lite tokenizer/parser
@@ -98,7 +141,9 @@ def _bbox(gdf: gpd.GeoDataFrame) -> Optional[List[float]]:
     return None
 
 
-def _suggest_next_steps(gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any]) -> List[str]:
+def _suggest_next_steps(
+    gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any], llm=None
+) -> List[str]:
     tips = []
     # Note: geometry name could be used for field-specific suggestions
     # if needed
@@ -146,7 +191,8 @@ def _suggest_next_steps(gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any]) -> Li
         "columns": cols,
     }
     try:
-        llm = get_llm()
+        if llm is None:
+            llm = get_llm()
         sys = (
             "You are a GIS data analysis assistant. "
             "Given the dataset context, suggest up to 6 concrete next steps "
@@ -177,7 +223,9 @@ def _suggest_next_steps(gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any]) -> Li
     return uniq[:6]
 
 
-def describe_dataset_gdf(gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any]) -> Dict[str, Any]:
+def describe_dataset_gdf(
+    gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any], llm=None
+) -> Dict[str, Any]:
     """
     Returns a compact, chat-safe description of the dataset:
     - row_count, geometry types, CRS, bbox
@@ -226,7 +274,7 @@ def describe_dataset_gdf(gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any]) -> D
             f"{bbox_vals[2]:.4f}, {bbox_vals[3]:.4f}]."
         )
 
-    next_steps = _suggest_next_steps(gdf, schema_ctx)
+    next_steps = _suggest_next_steps(gdf, schema_ctx, llm=llm)
     result = {
         "row_count": row_count,
         "geometry_column": geom_col,
@@ -239,7 +287,8 @@ def describe_dataset_gdf(gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any]) -> D
     }
     # Optionally enrich summary via LLM, including sample rows for richer context
     try:
-        llm = get_llm()
+        if llm is None:
+            llm = get_llm()
         # Prepare sample rows: up to 3 from top and 2 from bottom (or all if fewer)
         total = len(gdf)
         if total >= 5:
@@ -1193,9 +1242,10 @@ Rules:
 
 
 def attribute_plan_from_prompt(
-    query: str, layer_meta: List[Dict[str, Any]], schema_context: Dict[str, Any]
+    query: str, layer_meta: List[Dict[str, Any]], schema_context: Dict[str, Any], llm=None
 ) -> Dict[str, Any]:
-    llm = get_llm()
+    if llm is None:
+        llm = get_llm()
     sys = (
         "You convert a user's natural-language request about a GeoJSON attribute table "
         "into ONE attribute operation. Use the provided COLUMN/VALUE context to pick the correct "
@@ -1329,11 +1379,15 @@ def attribute_tool(
                 ]
             }
         )
+    
+    # Get LLM from state options for consistent model usage
+    llm = _get_llm_from_options(state)
+    
     schema_ctx = build_schema_context(gdf)
 
     # Plan
     try:
-        plan = attribute_plan_from_prompt(query, layer_meta, schema_ctx)
+        plan = attribute_plan_from_prompt(query, layer_meta, schema_ctx, llm=llm)
     except Exception as e:
         return Command(
             update={
@@ -1591,7 +1645,7 @@ def attribute_tool(
 
         if op == "describe_dataset":
             # Use schema context + gdf to produce a friendly overview
-            out = describe_dataset_gdf(gdf, schema_ctx)
+            out = describe_dataset_gdf(gdf, schema_ctx, llm=llm)
             # Optional: add a short, humanized paragraph on top
             # out["summary"] already has a one-liner; keep the payload JSON-safe.
             return Command(
