@@ -202,7 +202,7 @@ def get_llm(max_tokens: int = 6000, model_name: Optional[str] = None):
 
     return ChatOpenAI(
         model=model,
-        temperature=0,
+        temperature=1,
         max_tokens=max_tokens,
         timeout=None,
         max_retries=3,
