@@ -45,6 +45,7 @@ logger = logging.getLogger(__name__)
 # Utility helpers
 # ---------------------------------------------------------------------------
 
+
 def _jsonify(value: Any) -> Any:
     """Convert pandas/numpy scalars into JSON serialisable primitives."""
 
@@ -341,6 +342,7 @@ class ExecutionOutcome:
     new_geodata: Optional[gpd.GeoDataFrame] = None
     keep_geometry: bool = True
     title_suffix: Optional[str] = None
+    detailed_description: Optional[str] = None
     field_suggestions: Optional[List[str]] = None
     next_actions: List[Dict[str, Any]] = field(default_factory=list)
 
@@ -355,7 +357,9 @@ class AttributeExecutor:
         handler_name = f"_op_{operation}"
         handler = getattr(self, handler_name, None)
         if handler is None:
-            raise OperationError(f"Unsupported operation '{operation}'", details={"operation": operation})
+            raise OperationError(
+                f"Unsupported operation '{operation}'", details={"operation": operation}
+            )
         return handler(params)
 
     # Individual operations ---------------------------------------------
@@ -406,10 +410,16 @@ class AttributeExecutor:
     def _op_summarize(self, params: Dict[str, Any]) -> ExecutionOutcome:
         fields = params.get("fields") or []
         if not fields:
-            fields = [c for c in self._gdf.columns if c != self._geom_col and pd.api.types.is_numeric_dtype(self._gdf[c])][:3]
+            fields = [
+                c
+                for c in self._gdf.columns
+                if c != self._geom_col and pd.api.types.is_numeric_dtype(self._gdf[c])
+            ][:3]
         missing = self._validate_fields(fields)
         if missing:
-            raise OperationError("Unknown field(s) for summarize", details={"missing_fields": missing})
+            raise OperationError(
+                "Unknown field(s) for summarize", details={"missing_fields": missing}
+            )
         summary = {field: self._numeric_summary(field) for field in fields}
         return ExecutionOutcome(
             status="success",
@@ -423,17 +433,20 @@ class AttributeExecutor:
             raise OperationError("Parameter 'field' is required for unique_values")
         missing = self._validate_fields([field])
         if missing:
-            raise OperationError("Unknown field for unique_values", details={"missing_fields": missing})
+            raise OperationError(
+                "Unknown field for unique_values", details={"missing_fields": missing}
+            )
         top_k = params.get("top_k") or 20
         series = self._gdf[field]
         counts = series.value_counts(dropna=False).head(top_k)
-        values = [
-            {"value": _jsonify(idx), "count": int(count)}
-            for idx, count in counts.items()
-        ]
+        values = [{"value": _jsonify(idx), "count": int(count)} for idx, count in counts.items()]
         return ExecutionOutcome(
             status="success",
-            result={"field": field, "values": values, "total_unique": int(series.nunique(dropna=False))},
+            result={
+                "field": field,
+                "values": values,
+                "total_unique": int(series.nunique(dropna=False)),
+            },
             result_handling="chat",
         )
 
@@ -474,6 +487,14 @@ class AttributeExecutor:
                 result_handling="chat",
                 field_suggestions=suggestions,
             )
+
+        # Create detailed description
+        detailed_desc = (
+            f"Filtered features using condition: {where}. "
+            f"Result contains {len(filtered)} feature(s) out of "
+            f"{len(self._gdf)} original features."
+        )
+
         return ExecutionOutcome(
             status="success",
             result={
@@ -484,6 +505,7 @@ class AttributeExecutor:
             result_handling="layer",
             new_geodata=filtered,
             title_suffix="filtered",
+            detailed_description=detailed_desc,
             field_suggestions=suggestions,
             next_actions=[
                 {
@@ -500,7 +522,9 @@ class AttributeExecutor:
         to_validate = list(include or []) + list(exclude or [])
         missing = self._validate_fields(to_validate)
         if missing:
-            raise OperationError("Unknown field(s) for select_fields", details={"missing_fields": missing})
+            raise OperationError(
+                "Unknown field(s) for select_fields", details={"missing_fields": missing}
+            )
         columns = list(include) if include else list(self._gdf.columns)
         if exclude:
             columns = [c for c in columns if c not in exclude]
@@ -509,6 +533,19 @@ class AttributeExecutor:
         result = self._gdf[columns].copy()
         if not keep_geometry and self._geom_col in result.columns:
             result = result.drop(columns=[self._geom_col])
+
+        # Create detailed description
+        field_info = []
+        if include:
+            field_info.append(f"included fields: {', '.join(include)}")
+        if exclude:
+            field_info.append(f"excluded fields: {', '.join(exclude)}")
+        detailed_desc = (
+            f"Selected fields. "
+            f"{'; '.join(field_info) if field_info else 'Field selection applied'}. "
+            f"Result has {len(result.columns)} columns."
+        )
+
         return ExecutionOutcome(
             status="success",
             result={"columns": columns, "original_column_count": len(self._gdf.columns)},
@@ -516,6 +553,7 @@ class AttributeExecutor:
             new_geodata=result,
             keep_geometry=keep_geometry,
             title_suffix="selected-fields",
+            detailed_description=detailed_desc,
             next_actions=[
                 {
                     "type": "register_result_layer",
@@ -531,7 +569,9 @@ class AttributeExecutor:
         to_validate = [f[0] if isinstance(f, (list, tuple)) else f for f in fields]
         missing = self._validate_fields(to_validate)
         if missing:
-            raise OperationError("Unknown field(s) for sort_by", details={"missing_fields": missing})
+            raise OperationError(
+                "Unknown field(s) for sort_by", details={"missing_fields": missing}
+            )
         sort_keys = []
         ascending = []
         for item in fields:
@@ -545,12 +585,25 @@ class AttributeExecutor:
             sort_keys.append(field_name)
             ascending.append(order.lower() != "desc")
         result = self._gdf.sort_values(by=sort_keys, ascending=ascending)
+
+        # Create detailed description
+        sort_desc = ", ".join(
+            [f"{key} {'asc' if asc else 'desc'}" for key, asc in zip(sort_keys, ascending)]
+        )
+        detailed_desc = (
+            f"Sorted by: {sort_desc}. " f"Result contains {len(result)} features in sorted order."
+        )
+
         return ExecutionOutcome(
             status="success",
-            result={"sorted_by": sort_keys, "orders": ["asc" if asc else "desc" for asc in ascending]},
+            result={
+                "sorted_by": sort_keys,
+                "orders": ["asc" if asc else "desc" for asc in ascending],
+            },
             result_handling="layer",
             new_geodata=result,
             title_suffix="sorted",
+            detailed_description=detailed_desc,
             next_actions=[
                 {
                     "type": "register_result_layer",
@@ -561,7 +614,11 @@ class AttributeExecutor:
 
     def _describe_actions(self) -> List[str]:
         actions: List[str] = []
-        if any(pd.api.types.is_numeric_dtype(self._gdf[c]) for c in self._gdf.columns if c != self._geom_col):
+        if any(
+            pd.api.types.is_numeric_dtype(self._gdf[c])
+            for c in self._gdf.columns
+            if c != self._geom_col
+        ):
             actions.append("Create thematic styling by numeric ranges")
         if self._geom_col:
             actions.append("Perform spatial join with another layer")
@@ -573,11 +630,7 @@ class AttributeExecutor:
         schema = SchemaSummariser(self._gdf).describe()
         sample_records = []
         for _, row in self._gdf.head(5).iterrows():
-            record = {
-                col: _jsonify(row[col])
-                for col in self._gdf.columns
-                if col != self._geom_col
-            }
+            record = {col: _jsonify(row[col]) for col in self._gdf.columns if col != self._geom_col}
             sample_records.append(record)
         schema["sample_records"] = sample_records
         schema["recommended_actions"] = self._describe_actions()
@@ -599,7 +652,9 @@ class AttributeExecutor:
         columns = params.get("columns") or [c for c in self._gdf.columns if c != self._geom_col][:4]
         missing = self._validate_fields(columns)
         if missing:
-            raise OperationError("Unknown field(s) for get_attribute_values", details={"missing_fields": missing})
+            raise OperationError(
+                "Unknown field(s) for get_attribute_values", details={"missing_fields": missing}
+            )
         filtered = self._apply_row_filter(params.get("row_filter"))
         sample = filtered[columns].head(params.get("limit", 10))
         rows = [
@@ -628,6 +683,7 @@ class ResultWriter:
         *,
         title_suffix: str,
         keep_geometry: bool,
+        detailed_description: Optional[str] = None,
     ) -> GeoDataObject:
         title = f"{self._source.title or self._source.name} ({title_suffix})"
         slug = _slugify(title)
@@ -635,6 +691,15 @@ class ResultWriter:
         content = json.dumps(feature_collection).encode("utf-8")
         filename = f"{slug}_{uuid.uuid4().hex[:8]}.geojson"
         url, _ = store_file(filename, content)
+
+        # Use detailed description if provided, otherwise create a simple one
+        description = (
+            detailed_description
+            if detailed_description
+            else f"Result of attribute_tool3 operation on {self._source.name}"
+        )
+        llm_desc = detailed_description if detailed_description else title
+
         return GeoDataObject(
             id=uuid.uuid4().hex,
             data_source_id="attribute_tool3",
@@ -644,8 +709,8 @@ class ResultWriter:
             data_link=url,
             name=slug,
             title=title,
-            description=f"Result of attribute_tool3 operation on {self._source.name}",
-            llm_description=title,
+            description=description,
+            llm_description=llm_desc,
             properties={"source_layer_id": self._source.id},
         )
 
@@ -731,13 +796,13 @@ def _command_from_payload(
     return Command(update=update)
 
 
-def _ensure_layer(layers: Sequence[GeoDataObject], target_layer_names: Optional[List[str]]) -> GeoDataObject:
+def _ensure_layer(
+    layers: Sequence[GeoDataObject], target_layer_names: Optional[List[str]]
+) -> GeoDataObject:
     if not layers:
         raise OperationError("No geodata layers available")
     selected = (
-        match_layer_names(layers, target_layer_names)
-        if target_layer_names
-        else list(layers[:1])
+        match_layer_names(layers, target_layer_names) if target_layer_names else list(layers[:1])
     )
     if not selected:
         raise OperationError(
@@ -804,7 +869,9 @@ def attribute_tool3(
         params = params or {}
     handling_was_auto = False
     if result_handling is None:
-        result_handling = "layer" if operation in {"filter_where", "select_fields", "sort_by"} else "chat"
+        result_handling = (
+            "layer" if operation in {"filter_where", "select_fields", "sort_by"} else "chat"
+        )
         handling_was_auto = True
 
     executor = AttributeExecutor(gdf)
@@ -824,9 +891,7 @@ def attribute_tool3(
             payload["details"] = exc.details
         return _command_from_payload(payload, tool_call_id=tool_call_id, status="error")
 
-    final_result_handling = (
-        outcome.result_handling if handling_was_auto else result_handling
-    )
+    final_result_handling = outcome.result_handling if handling_was_auto else result_handling
 
     payload = _base_payload(
         layer=layer,
@@ -848,6 +913,7 @@ def attribute_tool3(
             outcome.new_geodata,
             title_suffix=outcome.title_suffix or operation,
             keep_geometry=outcome.keep_geometry,
+            detailed_description=outcome.detailed_description,
         )
         geodata_results = geodata_results + [new_layer]
         payload["result"]["new_layer"] = _serialise_layer(new_layer)

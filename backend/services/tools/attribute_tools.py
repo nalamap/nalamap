@@ -34,39 +34,37 @@ logging.basicConfig(level=logging.INFO)
 def _get_llm_from_options(state: Optional[GeoDataAgentState] = None):
     """
     Get LLM instance from state options, falling back to default get_llm().
-    
+
     Args:
         state: Optional GeoDataAgentState containing options with model_settings
-        
+
     Returns:
         LLM instance configured according to options or default
     """
     if state is None:
         return get_llm()
-    
+
     options = state.get("options")
     if not options:
         return get_llm()
-    
+
     model_settings = getattr(options, "model_settings", None)
     if not model_settings:
         return get_llm()
-    
+
     provider = getattr(model_settings, "provider", None)
     model_name = getattr(model_settings, "model", None)
     max_tokens = getattr(model_settings, "max_tokens", 6000)
-    
+
     if provider:
         try:
             return get_llm_for_provider(
-                provider_name=provider,
-                max_tokens=max_tokens,
-                model_name=model_name
+                provider_name=provider, max_tokens=max_tokens, model_name=model_name
             )
         except Exception as e:
             logger.warning(f"Failed to get LLM for provider {provider}: {e}. Using default.")
             return get_llm()
-    
+
     return get_llm()
 
 
@@ -141,9 +139,7 @@ def _bbox(gdf: gpd.GeoDataFrame) -> Optional[List[float]]:
     return None
 
 
-def _suggest_next_steps(
-    gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any], llm=None
-) -> List[str]:
+def _suggest_next_steps(gdf: gpd.GeoDataFrame, schema_ctx: Dict[str, Any], llm=None) -> List[str]:
     tips = []
     # Note: geometry name could be used for field-specific suggestions
     # if needed
@@ -622,9 +618,23 @@ def _slug(text: str) -> str:
 
 
 def _save_gdf_as_geojson(
-    gdf: gpd.GeoDataFrame, display_title: str, keep_geometry: bool = True
+    gdf: gpd.GeoDataFrame,
+    display_title: str,
+    keep_geometry: bool = True,
+    detailed_description: Optional[str] = None,
 ) -> GeoDataObject:
-    """Save a GeoDataFrame as GeoJSON using central file management."""
+    """
+    Save a GeoDataFrame as GeoJSON using central file management.
+
+    Args:
+        gdf: GeoDataFrame to save
+        display_title: Short title for the layer
+        keep_geometry: Whether to include geometry
+        detailed_description: Optional detailed description of the operation performed
+
+    Returns:
+        GeoDataObject with the saved layer information
+    """
     fc = _fc_from_gdf(gdf, keep_geometry=keep_geometry)
     slug = _slug(display_title)
     filename = f"{slug}_{uuid.uuid4().hex[:8]}.geojson"
@@ -635,6 +645,12 @@ def _save_gdf_as_geojson(
     # Use central file management (supports both local and Azure Blob)
     url, _ = store_file(filename, content)
 
+    # Use detailed description if provided, otherwise create a simple one
+    description = (
+        detailed_description if detailed_description else f"Attribute operation: {display_title}"
+    )
+    llm_desc = detailed_description if detailed_description else display_title
+
     return GeoDataObject(
         id=uuid.uuid4().hex,
         data_source_id="attribute",
@@ -644,8 +660,8 @@ def _save_gdf_as_geojson(
         data_link=url,
         name=slug,
         title=display_title,
-        description=f"Attribute operation: {display_title}",
-        llm_description=display_title,
+        description=description,
+        llm_description=llm_desc,
         score=0.2,
         bounding_box=None,
         layer_type="GeoJSON",
@@ -675,7 +691,7 @@ def build_schema_context(
     if len(all_cols) > max_cols:
         # Ensure geometry column is included even when capping
         non_geom_cols = [c for c in all_cols if c != geom_name]
-        cols = non_geom_cols[:max_cols - 1]
+        cols = non_geom_cols[: max_cols - 1]
         if geom_name:
             cols.append(geom_name)
     else:
@@ -827,12 +843,12 @@ def select_fields_gdf(
 def _series_cmp(a: pd.Series, op: str, b):
     """
     Compare series with value, handling type mismatches gracefully.
-    
+
     Args:
         a: pandas Series to compare
         op: Comparison operator (=, !=, >, <, >=, <=)
         b: Value to compare against
-    
+
     Returns:
         Boolean series with comparison results, False for type mismatches
     """
@@ -841,7 +857,7 @@ def _series_cmp(a: pd.Series, op: str, b):
         b_cast = pd.to_numeric(pd.Series([b]), errors="coerce").iloc[0]
     else:
         b_cast = b
-    
+
     # Handle type mismatches for relational operators
     # For non-numeric series compared to numeric values with >, <, >=, <=
     # return all False instead of crashing
@@ -853,7 +869,7 @@ def _series_cmp(a: pd.Series, op: str, b):
                 f"with '{op}' - returning all False"
             )
             return pd.Series([False] * len(a), index=a.index)
-    
+
     try:
         if op == "=":
             return a.eq(b_cast)
@@ -968,15 +984,15 @@ def get_attribute_values_gdf(
 ) -> Dict[str, Any]:
     """
     Get specific attribute values from the dataframe.
-    
+
     This operation is useful for retrieving specific field values to construct
     natural language summaries (e.g., IUCN site descriptions, biodiversity assessments).
-    
+
     Args:
         gdf: GeoDataFrame to query
         columns: List of column names to retrieve
         row_filter: Optional WHERE clause to filter rows first (e.g., "NAME = 'Marawah'")
-    
+
     Returns:
         Dictionary with:
         - columns: Dict mapping column names to lists of values
@@ -984,7 +1000,7 @@ def get_attribute_values_gdf(
         - missing_columns: List of requested columns that don't exist (if any)
         - available_columns: All available columns (if any were missing)
         - field_suggestions: Dict of {requested_field: actual_field_used} for fuzzy matches
-    
+
     Example:
         >>> result = get_attribute_values_gdf(
         ...     gdf,
@@ -997,12 +1013,11 @@ def get_attribute_values_gdf(
     if not columns or len(columns) == 0:
         return {
             "error": (
-                "The 'columns' parameter is required and must contain "
-                "at least one column name."
+                "The 'columns' parameter is required and must contain " "at least one column name."
             ),
             "row_count": len(gdf),
         }
-    
+
     # Apply filter if provided
     field_suggestions: Dict[str, str] = {}
     if row_filter:
@@ -1040,9 +1055,7 @@ def get_attribute_values_gdf(
 
     if missing_cols:
         result["missing_columns"] = missing_cols
-        result["available_columns"] = sorted(
-            [c for c in gdf.columns if c != gdf.geometry.name]
-        )
+        result["available_columns"] = sorted([c for c in gdf.columns if c != gdf.geometry.name])
 
     if field_suggestions:
         result["field_suggestions"] = field_suggestions
@@ -1088,15 +1101,11 @@ def aggregate_attributes_across_layers(
 
     for layer_name in layer_names:
         # Find and load the layer
-        matching_layers = match_layer_names(
-            state.get("geodata_layers", []), [layer_name]
-        )
+        matching_layers = match_layer_names(state.get("geodata_layers", []), [layer_name])
         if not matching_layers:
             aggregated_results[layer_name] = {
                 "error": f"Layer '{layer_name}' not found",
-                "available_layers": [
-                    layer.name for layer in state.get("geodata_layers", [])
-                ],
+                "available_layers": [layer.name for layer in state.get("geodata_layers", [])],
             }
             continue
 
@@ -1141,9 +1150,7 @@ def _generate_combined_summary(
     """
     summary = {
         "summary_type": summary_type,
-        "total_layers": len(
-            [k for k in aggregated_results.keys() if k != "combined_summary"]
-        ),
+        "total_layers": len([k for k in aggregated_results.keys() if k != "combined_summary"]),
         "successful_layers": len(
             [
                 k
@@ -1159,9 +1166,7 @@ def _generate_combined_summary(
         if layer_name == "combined_summary":
             continue
         if "error" in result:
-            summary["failed_layers"].append(
-                {"layer": layer_name, "error": result["error"]}
-            )
+            summary["failed_layers"].append({"layer": layer_name, "error": result["error"]})
 
     if summary_type == "compare":
         # Compare row counts across layers
@@ -1379,10 +1384,10 @@ def attribute_tool(
                 ]
             }
         )
-    
+
     # Get LLM from state options for consistent model usage
     llm = _get_llm_from_options(state)
-    
+
     schema_ctx = build_schema_context(gdf)
 
     # Plan
@@ -1533,7 +1538,17 @@ def attribute_tool(
                 )
 
             title = f"{layer.title or layer.name} (filtered)"
-            obj = _save_gdf_as_geojson(out_gdf, title, keep_geometry=True)
+
+            # Create detailed description
+            detailed_desc = (
+                f"Filtered features from '{layer.title or layer.name}' using condition: "
+                f"{params['where']}. Result contains {len(out_gdf)} feature(s) out of "
+                f"{len(gdf)} original features."
+            )
+
+            obj = _save_gdf_as_geojson(
+                out_gdf, title, keep_geometry=True, detailed_description=detailed_desc
+            )
             new_results = (state.get("geodata_results") or []) + [obj]
 
             # Build actionable layer info with field suggestions
@@ -1608,8 +1623,24 @@ def attribute_tool(
             out_gdf = select_fields_gdf(
                 gdf, include=include, exclude=exclude, keep_geometry=keep_geometry
             )
+
+            # Create detailed description
+            field_info = []
+            if include:
+                field_info.append(f"included fields: {', '.join(include)}")
+            if exclude:
+                field_info.append(f"excluded fields: {', '.join(exclude)}")
+            detailed_desc = (
+                f"Selected fields from '{layer.title or layer.name}'. "
+                f"{'; '.join(field_info) if field_info else 'Field selection applied'}. "
+                f"Result has {len(out_gdf.columns)} columns."
+            )
+
             obj = _save_gdf_as_geojson(
-                out_gdf, f"{layer.name}-selected", keep_geometry=keep_geometry
+                out_gdf,
+                f"{layer.name}-selected",
+                keep_geometry=keep_geometry,
+                detailed_description=detailed_desc,
             )
             new_results = (state.get("geodata_results") or []) + [obj]
             return Command(
@@ -1628,7 +1659,20 @@ def attribute_tool(
         if op == "sort_by":
             fields = params.get("fields", [])
             out_gdf = sort_by_gdf(gdf, fields)
-            obj = _save_gdf_as_geojson(out_gdf, f"{layer.name}-sorted", keep_geometry=True)
+
+            # Create detailed description
+            sort_desc = ", ".join([f"{fld} {order}" for fld, order in fields])
+            detailed_desc = (
+                f"Sorted '{layer.title or layer.name}' by: {sort_desc}. "
+                f"Result contains {len(out_gdf)} features in sorted order."
+            )
+
+            obj = _save_gdf_as_geojson(
+                out_gdf,
+                f"{layer.name}-sorted",
+                keep_geometry=True,
+                detailed_description=detailed_desc,
+            )
             new_results = (state.get("geodata_results") or []) + [obj]
             return Command(
                 update={
