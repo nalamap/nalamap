@@ -33,18 +33,18 @@ logging.basicConfig(level=logging.INFO)
 _token = re.compile(
     r"""
     \s*(?:
-        (?P<ident>[A-Za-z_][A-Za-z0-9_]*)
+        (?P<kw>AND|OR|NOT|IN|IS|NULL)\b
+      | (?P<ident>[A-Za-z_][A-Za-z0-9_]*)
       | "(?P<identq>[^"]+)"
       | '(?P<string>[^']*)'
       | (?P<num>-?\d+(?:\.\d+)?)
       | (?P<op>>=|<=|!=|=|>|<)
-      | (?P<kw>AND|OR|NOT|IN|IS|NULL)
       | (?P<lpar>\()
       | (?P<rpar>\))
       | (?P<comma>,)
     )
 """,
-    re.X,
+    re.X | re.IGNORECASE,
 )
 
 
@@ -301,7 +301,7 @@ def _parse_literal(tok):
 
 def _expect_kw(state, kw):
     cur = _peek(state)
-    if not (cur and cur.group("kw") == kw):
+    if not (cur and cur.group("kw") and cur.group("kw").upper() == kw.upper()):
         raise ValueError(f"Expected {kw}")
     _advance(state, state["tokens"])
 
@@ -328,16 +328,16 @@ def _parse_primary(state):
         field = _field_name(cur)
         _advance(state, state["tokens"])
         cur = _peek(state)
-        if cur and cur.group("kw") == "IS":
+        if cur and cur.group("kw") and cur.group("kw").upper() == "IS":
             _advance(state, state["tokens"])
             cur = _peek(state)
             is_not = False
-            if cur and cur.group("kw") == "NOT":
+            if cur and cur.group("kw") and cur.group("kw").upper() == "NOT":
                 is_not = True
                 _advance(state, state["tokens"])
             _expect_kw(state, "NULL")
             return ("isnull", field, is_not)
-        if cur and cur.group("kw") == "IN":
+        if cur and cur.group("kw") and cur.group("kw").upper() == "IN":
             _advance(state, state["tokens"])
             if not (_peek(state) and _peek(state).group("lpar")):
                 raise ValueError("Expected ( after IN")
@@ -373,7 +373,7 @@ def _parse_primary(state):
 
 def _parse_not(state):
     cur = _peek(state)
-    if cur and cur.group("kw") == "NOT":
+    if cur and cur.group("kw") and cur.group("kw").upper() == "NOT":
         _advance(state, state["tokens"])
         node = _parse_not(state)
         return ("not", node)
@@ -382,7 +382,7 @@ def _parse_not(state):
 
 def _parse_and(state):
     node = _parse_not(state)
-    while _peek(state) and _peek(state).group("kw") == "AND":
+    while _peek(state) and _peek(state).group("kw") and _peek(state).group("kw").upper() == "AND":
         _advance(state, state["tokens"])
         rhs = _parse_not(state)
         node = ("and", node, rhs)
@@ -391,7 +391,7 @@ def _parse_and(state):
 
 def _parse_expr(state):
     node = _parse_and(state)
-    while _peek(state) and _peek(state).group("kw") == "OR":
+    while _peek(state) and _peek(state).group("kw") and _peek(state).group("kw").upper() == "OR":
         _advance(state, state["tokens"])
         rhs = _parse_and(state)
         node = ("or", node, rhs)
@@ -621,8 +621,16 @@ def build_schema_context(
     geom_name = gdf.geometry.name if getattr(gdf, "geometry", None) is not None else None
     sample = gdf.head(sample_rows).copy()
 
-    # Cap total columns passed
-    cols = list(sample.columns)[:max_cols]
+    # Cap total columns passed, but always include geometry column
+    all_cols = list(sample.columns)
+    if len(all_cols) > max_cols:
+        # Ensure geometry column is included even when capping
+        non_geom_cols = [c for c in all_cols if c != geom_name]
+        cols = non_geom_cols[:max_cols - 1]
+        if geom_name:
+            cols.append(geom_name)
+    else:
+        cols = all_cols
 
     # dtype map (humanized)
     dtypes = sample[cols].dtypes.astype(str).to_dict()
@@ -768,24 +776,53 @@ def select_fields_gdf(
 
 # ----- WHERE predicate -> boolean mask (vectorized) -----
 def _series_cmp(a: pd.Series, op: str, b):
+    """
+    Compare series with value, handling type mismatches gracefully.
+    
+    Args:
+        a: pandas Series to compare
+        op: Comparison operator (=, !=, >, <, >=, <=)
+        b: Value to compare against
+    
+    Returns:
+        Boolean series with comparison results, False for type mismatches
+    """
     # Autocast numeric comparisons sensibly
     if pd.api.types.is_numeric_dtype(a):
         b_cast = pd.to_numeric(pd.Series([b]), errors="coerce").iloc[0]
     else:
         b_cast = b
-    if op == "=":
-        return a.eq(b_cast)
-    if op == "!=":
-        return a.ne(b_cast)
-    if op == ">":
-        return a.gt(b_cast)
-    if op == "<":
-        return a.lt(b_cast)
-    if op == ">=":
-        return a.ge(b_cast)
-    if op == "<=":
-        return a.le(b_cast)
-    raise ValueError(f"Unsupported op {op}")
+    
+    # Handle type mismatches for relational operators
+    # For non-numeric series compared to numeric values with >, <, >=, <=
+    # return all False instead of crashing
+    if op in (">", "<", ">=", "<="):
+        if not pd.api.types.is_numeric_dtype(a) and isinstance(b, (int, float)):
+            # String/object field compared to number - return all False
+            logger.warning(
+                f"Type mismatch: comparing non-numeric field to numeric value "
+                f"with '{op}' - returning all False"
+            )
+            return pd.Series([False] * len(a), index=a.index)
+    
+    try:
+        if op == "=":
+            return a.eq(b_cast)
+        if op == "!=":
+            return a.ne(b_cast)
+        if op == ">":
+            return a.gt(b_cast)
+        if op == "<":
+            return a.lt(b_cast)
+        if op == ">=":
+            return a.ge(b_cast)
+        if op == "<=":
+            return a.le(b_cast)
+        raise ValueError(f"Unsupported op {op}")
+    except TypeError as e:
+        # Catch any remaining type errors and return all False
+        logger.warning(f"Type error in comparison '{op}': {e} - returning all False")
+        return pd.Series([False] * len(a), index=a.index)
 
 
 def _eval_ast_to_mask(
@@ -875,6 +912,243 @@ def filter_where_gdf(gdf: gpd.GeoDataFrame, where: str) -> Tuple[gpd.GeoDataFram
     return gdf[mask].copy(), field_suggestions
 
 
+def get_attribute_values_gdf(
+    gdf: gpd.GeoDataFrame,
+    columns: List[str],
+    row_filter: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Get specific attribute values from the dataframe.
+    
+    This operation is useful for retrieving specific field values to construct
+    natural language summaries (e.g., IUCN site descriptions, biodiversity assessments).
+    
+    Args:
+        gdf: GeoDataFrame to query
+        columns: List of column names to retrieve
+        row_filter: Optional WHERE clause to filter rows first (e.g., "NAME = 'Marawah'")
+    
+    Returns:
+        Dictionary with:
+        - columns: Dict mapping column names to lists of values
+        - row_count: Number of features in result
+        - missing_columns: List of requested columns that don't exist (if any)
+        - available_columns: All available columns (if any were missing)
+        - field_suggestions: Dict of {requested_field: actual_field_used} for fuzzy matches
+    
+    Example:
+        >>> result = get_attribute_values_gdf(
+        ...     gdf,
+        ...     columns=["NAME", "WDPA_PID", "DESIG_ENG", "REP_AREA"],
+        ...     row_filter="NAME = 'Marawah Marine Biosphere Reserve'"
+        ... )
+        >>> # Result: {"columns": {"NAME": ["Marawah..."], ...}, "row_count": 1}
+    """
+    # Validate columns parameter
+    if not columns or len(columns) == 0:
+        return {
+            "error": (
+                "The 'columns' parameter is required and must contain "
+                "at least one column name."
+            ),
+            "row_count": len(gdf),
+        }
+    
+    # Apply filter if provided
+    field_suggestions: Dict[str, str] = {}
+    if row_filter:
+        try:
+            filtered_gdf, field_suggestions = filter_where_gdf(gdf, row_filter)
+            if len(filtered_gdf) == 0:
+                return {
+                    "columns": {},
+                    "error": "No features match the filter",
+                    "filter": row_filter,
+                    "row_count": 0,
+                }
+            gdf = filtered_gdf
+        except Exception as e:
+            return {"error": f"Filter error: {str(e)}", "filter": row_filter}
+
+    # Get values for requested columns
+    result: Dict[str, Any] = {"columns": {}}
+    missing_cols = []
+
+    for col in columns:
+        # Try fuzzy matching for column names
+        matched_col, is_exact = _find_closest_field(col, list(gdf.columns))
+        if matched_col:
+            if not is_exact:
+                field_suggestions[col] = matched_col
+            # Get all values for this column as a list
+            values_list = gdf[matched_col].tolist()
+            result["columns"][matched_col] = values_list
+        else:
+            missing_cols.append(col)
+
+    # Add metadata
+    result["row_count"] = int(len(gdf))
+
+    if missing_cols:
+        result["missing_columns"] = missing_cols
+        result["available_columns"] = sorted(
+            [c for c in gdf.columns if c != gdf.geometry.name]
+        )
+
+    if field_suggestions:
+        result["field_suggestions"] = field_suggestions
+
+    return result
+
+
+def aggregate_attributes_across_layers(
+    state: GeoDataAgentState,
+    layer_names: List[str],
+    columns_per_layer: Dict[str, List[str]],
+    summary_type: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Aggregate attributes from multiple layers for comprehensive analysis.
+
+    This function enables cross-layer attribute queries, useful for comparing
+    data across different layers (e.g., comparing protected areas with land use).
+
+    Args:
+        state: Current agent state containing geodata_layers
+        layer_names: List of layer names to query
+        columns_per_layer: Dict mapping layer_name -> list of columns to retrieve
+        summary_type: Optional summary type ('combine', 'compare', etc.)
+
+    Returns:
+        Dictionary with:
+        - Results for each layer (layer_name -> get_attribute_values result)
+        - combined_summary (if summary_type provided)
+
+    Example:
+        >>> result = aggregate_attributes_across_layers(
+        ...     state,
+        ...     layer_names=["Protected Areas", "Land Use"],
+        ...     columns_per_layer={
+        ...         "Protected Areas": ["NAME", "AREA"],
+        ...         "Land Use": ["TYPE", "AREA"]
+        ...     },
+        ...     summary_type="compare"
+        ... )
+    """
+    aggregated_results = {}
+
+    for layer_name in layer_names:
+        # Find and load the layer
+        matching_layers = match_layer_names(
+            state.get("geodata_layers", []), [layer_name]
+        )
+        if not matching_layers:
+            aggregated_results[layer_name] = {
+                "error": f"Layer '{layer_name}' not found",
+                "available_layers": [
+                    layer.name for layer in state.get("geodata_layers", [])
+                ],
+            }
+            continue
+
+        layer = matching_layers[0]
+        try:
+            gdf = _load_gdf(layer.data_link)
+            columns = columns_per_layer.get(layer_name, [])
+
+            if not columns:
+                aggregated_results[layer_name] = {
+                    "error": f"No columns specified for layer '{layer_name}'",
+                }
+                continue
+
+            result = get_attribute_values_gdf(gdf, columns)
+            aggregated_results[layer_name] = result
+        except Exception as e:
+            aggregated_results[layer_name] = {
+                "error": f"Error loading layer '{layer_name}': {str(e)}"
+            }
+
+    # Generate combined summary if needed
+    if summary_type:
+        combined_summary = _generate_combined_summary(aggregated_results, summary_type)
+        aggregated_results["combined_summary"] = combined_summary
+
+    return aggregated_results
+
+
+def _generate_combined_summary(
+    aggregated_results: Dict[str, Any], summary_type: str
+) -> Dict[str, Any]:
+    """
+    Generate a combined summary across multiple layer results.
+
+    Args:
+        aggregated_results: Dict of layer_name -> get_attribute_values results
+        summary_type: Type of summary ('combine', 'compare', 'stats')
+
+    Returns:
+        Combined summary dict
+    """
+    summary = {
+        "summary_type": summary_type,
+        "total_layers": len(
+            [k for k in aggregated_results.keys() if k != "combined_summary"]
+        ),
+        "successful_layers": len(
+            [
+                k
+                for k, v in aggregated_results.items()
+                if k != "combined_summary" and "error" not in v
+            ]
+        ),
+        "failed_layers": [],
+    }
+
+    # Collect errors
+    for layer_name, result in aggregated_results.items():
+        if layer_name == "combined_summary":
+            continue
+        if "error" in result:
+            summary["failed_layers"].append(
+                {"layer": layer_name, "error": result["error"]}
+            )
+
+    if summary_type == "compare":
+        # Compare row counts across layers
+        layer_counts = {}
+        for layer_name, result in aggregated_results.items():
+            if layer_name == "combined_summary" or "error" in result:
+                continue
+            layer_counts[layer_name] = result.get("row_count", 0)
+        summary["layer_row_counts"] = layer_counts
+
+    elif summary_type == "combine":
+        # Combine all column names across layers
+        all_columns = set()
+        for layer_name, result in aggregated_results.items():
+            if layer_name == "combined_summary" or "error" in result:
+                continue
+            if "columns" in result:
+                all_columns.update(result["columns"].keys())
+        summary["all_columns_across_layers"] = sorted(all_columns)
+
+    elif summary_type == "stats":
+        # Basic statistics across layers
+        total_features = 0
+        total_columns = 0
+        for layer_name, result in aggregated_results.items():
+            if layer_name == "combined_summary" or "error" in result:
+                continue
+            total_features += result.get("row_count", 0)
+            if "columns" in result:
+                total_columns += len(result["columns"])
+        summary["total_features_across_layers"] = total_features
+        summary["total_columns_retrieved"] = total_columns
+
+    return summary
+
+
 # ===================================
 # Planner (same as before)
 # ===================================
@@ -887,13 +1161,15 @@ ATTR_OPS_AND_PARAMS = [
     "exclude=<list_of_strings|null>, keep_geometry=<bool|true>",
     "operation: sort_by params: fields=<list_of_[field,asc|desc]>",
     "operation: describe_dataset params: ",
+    "operation: get_attribute_values params: columns=<list_of_strings>, "
+    "row_filter=<CQL_lite_string|null>",
 ]
 
 PLANNER_SCHEMA_EXAMPLE = """
 Return ONLY JSON with EXACT structure:
 {
   "operation": "<one of: list_fields | summarize | unique_values | "
-  "filter_where | select_fields | sort_by | describe_dataset>",
+  "filter_where | select_fields | sort_by | describe_dataset | get_attribute_values>",
   "params": { /* parameters for the chosen operation */ },
   "target_layer_names": ["optional layer name(s) if the user specifies which"] ,
   "result_handling": "<'chat' | 'layer'>"
@@ -909,6 +1185,8 @@ Rules:
   with result_handling="chat".
 - For unique categories or value counts -> unique_values (chat).
 - For stats on numeric fields -> summarize (chat).
+- For retrieving specific attribute values (e.g., "show me NAME and AREA")
+  -> get_attribute_values (chat).
 - For 'keep only columns X,Y' -> select_fields (layer).
 - Sorting -> sort_by (layer).
 """
@@ -959,6 +1237,7 @@ def attribute_plan_from_prompt(
         "select_fields",
         "sort_by",
         "describe_dataset",
+        "get_attribute_values",
     }:
         raise ValueError(f"Planner chose unsupported operation: {plan.get('operation')}")
     return plan
@@ -1323,6 +1602,85 @@ def attribute_tool(
                             content=json.dumps(
                                 {
                                     "operation": "describe_dataset",
+                                    "layer": layer.name,
+                                    "result": out,
+                                }
+                            ),
+                            tool_call_id=tool_call_id,
+                        )
+                    ]
+                }
+            )
+
+        if op == "get_attribute_values":
+            columns = params.get("columns", [])
+            row_filter = params.get("row_filter")
+
+            # Validate columns parameter
+            if not columns:
+                return Command(
+                    update={
+                        "messages": [
+                            ToolMessage(
+                                name="attribute_tool",
+                                content=(
+                                    "Error: 'columns' parameter is required for "
+                                    "get_attribute_values operation."
+                                ),
+                                tool_call_id=tool_call_id,
+                                status="error",
+                            )
+                        ]
+                    }
+                )
+
+            # Execute the operation
+            try:
+                out = get_attribute_values_gdf(gdf, columns, row_filter)
+            except Exception as e:
+                return Command(
+                    update={
+                        "messages": [
+                            ToolMessage(
+                                name="attribute_tool",
+                                content=(
+                                    f"Error retrieving attribute values: {e}. "
+                                    f"Available fields: {sorted(gdf.columns.tolist())}"
+                                ),
+                                tool_call_id=tool_call_id,
+                                status="error",
+                            )
+                        ]
+                    }
+                )
+
+            # Check if operation was successful
+            if out.get("error"):
+                return Command(
+                    update={
+                        "messages": [
+                            ToolMessage(
+                                name="attribute_tool",
+                                content=(
+                                    f"Error: {out['error']}. "
+                                    f"Suggestions: {', '.join(out.get('suggestions', []))}"
+                                ),
+                                tool_call_id=tool_call_id,
+                                status="error",
+                            )
+                        ]
+                    }
+                )
+
+            # Return successful result
+            return Command(
+                update={
+                    "messages": [
+                        ToolMessage(
+                            name="attribute_tool",
+                            content=json.dumps(
+                                {
+                                    "operation": "get_attribute_values",
                                     "layer": layer.name,
                                     "result": out,
                                 }
