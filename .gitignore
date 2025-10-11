@@ -496,3 +496,4 @@ gradle-app.setting
 
 # Local Development environment:
 !./frontend/.env.local
+test-results/.last-run.json
