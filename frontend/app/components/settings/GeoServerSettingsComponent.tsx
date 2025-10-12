@@ -89,7 +89,7 @@ export default function GeoServerSettingsComponent({
               <select
                 value={selectedExampleGeoServer}
                 onChange={(e) => setSelectedExampleGeoServer(e.target.value)}
-                className="border border-primary-300 dark:border-primary-700 rounded p-2 flex-grow bg-primary-50 dark:bg-primary-950 text-neutral-900 dark:text-primary-100"
+                className="border border-primary-300 dark:border-primary-700 rounded p-2 flex-grow bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
               >
                 <option value="" className="bg-primary-50 text-primary-900">Select an example GeoServer</option>
                 {availableExampleGeoServers.map((geoserver) => (
@@ -117,10 +117,10 @@ export default function GeoServerSettingsComponent({
                 key={geoserver.url}
                 className="border border-primary-200 rounded p-4 bg-primary-50 dark:bg-neutral-800 space-y-2"
               >
-                <h4 className="text-lg font-semibold text-neutral-900 dark:text-primary-100">
+                <h4 className="text-lg font-semibold text-primary-900 dark:text-primary-100">
                   {geoserver.name}
                 </h4>
-                <p className="text-sm text-neutral-800 dark:text-primary-300">{geoserver.url}</p>
+                <p className="text-sm text-primary-800 dark:text-primary-300">{geoserver.url}</p>
                 <div className="text-sm text-primary-900 dark:text-primary-200 prose prose-sm max-w-none">
                   {geoserver.description}
                 </div>
@@ -130,7 +130,7 @@ export default function GeoServerSettingsComponent({
 
           {/* Custom Backend Section */}
           <div className="space-y-4 border-t border-primary-200 pt-6">
-            <h3 className="text-lg font-semibold text-neutral-900 dark:text-primary-100">
+            <h3 className="text-lg font-semibold text-primary-900 dark:text-primary-100">
               Add Custom Backend
             </h3>
             <div className="space-y-3">
@@ -140,7 +140,7 @@ export default function GeoServerSettingsComponent({
                   setNewBackend({ ...newBackend, url: e.target.value })
                 }
                 placeholder="GeoServer URL"
-                className="border border-primary-300 dark:border-primary-700 rounded p-2 w-full bg-primary-50 dark:bg-primary-950 text-neutral-900 dark:text-primary-100"
+                className="border border-primary-300 dark:border-primary-700 rounded p-2 w-full bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
               />
               <input
                 value={newBackend.name}
@@ -148,7 +148,7 @@ export default function GeoServerSettingsComponent({
                   setNewBackend({ ...newBackend, name: e.target.value })
                 }
                 placeholder="Name (optional)"
-                className="border border-primary-300 dark:border-primary-700 rounded p-2 w-full bg-primary-50 dark:bg-primary-950 text-neutral-900 dark:text-primary-100"
+                className="border border-primary-300 dark:border-primary-700 rounded p-2 w-full bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
               />
               <textarea
                 value={newBackend.description}
@@ -156,7 +156,7 @@ export default function GeoServerSettingsComponent({
                   setNewBackend({ ...newBackend, description: e.target.value })
                 }
                 placeholder="Description (optional)"
-                className="border border-primary-300 dark:border-primary-700 rounded p-2 w-full h-20 bg-primary-50 dark:bg-primary-950 text-neutral-900 dark:text-primary-100"
+                className="border border-primary-300 dark:border-primary-700 rounded p-2 w-full h-20 bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
               />
               <input
                 value={newBackend.username}
@@ -164,7 +164,7 @@ export default function GeoServerSettingsComponent({
                   setNewBackend({ ...newBackend, username: e.target.value })
                 }
                 placeholder="Username (optional)"
-                className="border border-primary-300 dark:border-primary-700 rounded p-2 w-full bg-primary-50 dark:bg-primary-950 text-neutral-900 dark:text-primary-100"
+                className="border border-primary-300 dark:border-primary-700 rounded p-2 w-full bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
               />
               <input
                 type="password"
@@ -173,7 +173,7 @@ export default function GeoServerSettingsComponent({
                   setNewBackend({ ...newBackend, password: e.target.value })
                 }
                 placeholder="Password (optional)"
-                className="border border-primary-300 dark:border-primary-700 rounded p-2 w-full bg-primary-50 dark:bg-primary-950 text-neutral-900 dark:text-primary-100"
+                className="border border-primary-300 dark:border-primary-700 rounded p-2 w-full bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
               />
               <button
                 onClick={handleAddBackend}
@@ -207,7 +207,7 @@ export default function GeoServerSettingsComponent({
 
           {/* Backend List */}
           <div className="space-y-3 border-t border-primary-200 pt-6">
-            <h3 className="text-lg font-semibold text-neutral-900 dark:text-primary-100">
+            <h3 className="text-lg font-semibold text-primary-900 dark:text-primary-100">
               Configured Backends
             </h3>
             <ul className="space-y-3">
@@ -225,20 +225,20 @@ export default function GeoServerSettingsComponent({
                     />
                     <div className="flex-1">
                       <p
-                        className={`font-medium ${b.enabled ? "text-neutral-900 dark:text-primary-100" : "text-neutral-600 dark:text-primary-600"}`}
+                        className={`font-medium ${b.enabled ? "text-primary-900 dark:text-primary-100" : "text-neutral-600 dark:text-primary-600"}`}
                       >
                         <strong>{b.name || "URL"}:</strong> {b.url}
                       </p>
                       {b.description && (
                         <p
-                          className={`${b.enabled ? "text-neutral-800 dark:text-primary-300" : "text-neutral-600 dark:text-primary-600"} text-sm`}
+                          className={`${b.enabled ? "text-primary-800 dark:text-primary-300" : "text-neutral-600 dark:text-primary-600"} text-sm`}
                         >
                           {b.description}
                         </p>
                       )}
                       {b.username && (
                         <p
-                          className={`${b.enabled ? "text-neutral-900 dark:text-primary-100" : "text-neutral-600 dark:text-primary-600"} text-sm`}
+                          className={`${b.enabled ? "text-primary-900 dark:text-primary-100" : "text-neutral-600 dark:text-primary-600"} text-sm`}
                         >
                           <strong>Username:</strong> {b.username}
                         </p>
