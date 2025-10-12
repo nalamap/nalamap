@@ -507,7 +507,7 @@ test.describe("Color Settings", () => {
     await expandColorSettings(page);
 
     // Find the Primary color scale container that has both the title button and magic wand button
-    const primarySection = page.locator('div.border-primary-300.rounded.p-3.bg-neutral-50').filter({ hasText: 'Primary (Text & Borders)' }).first();
+    const primarySection = page.locator('div.border-primary-300.rounded.p-3.bg-primary-100').filter({ hasText: 'Primary (Text & Borders)' }).first();
     await primarySection.scrollIntoViewIfNeeded();
 
     // Click the magic wand button to open quick picker
