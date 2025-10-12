@@ -68,7 +68,7 @@ export default function ToolSettingsComponent() {
             <select
               value={newToolName}
               onChange={(e) => setNewToolName(e.target.value)}
-              className="border border-primary-300 rounded p-2 flex-grow bg-white text-primary-900"
+              className="border border-primary-300 dark:border-primary-700 rounded p-2 flex-grow bg-white dark:bg-primary-950 text-primary-900 dark:text-primary-100"
             >
               <option value="">Select tool to add</option>
               {availableTools.map((tool) => (
@@ -92,7 +92,7 @@ export default function ToolSettingsComponent() {
           {/* Display tools grouped by category */}
           {Object.entries(categorizedTools).map(([category, categoryTools]) => (
             <div key={category} className="space-y-2">
-              <h3 className="text-sm font-semibold text-primary-700 dark:text-primary-300 uppercase tracking-wide border-b border-primary-200 pb-1">
+              <h3 className="text-sm font-semibold text-primary-900 dark:text-primary-300 uppercase tracking-wide border-b border-primary-200 dark:border-primary-700 pb-1">
                 {categoryDisplayNames[category] || category}
               </h3>
               <ul className="space-y-3">
@@ -102,7 +102,7 @@ export default function ToolSettingsComponent() {
                   const group = toolMeta?.group;
                   
                   return (
-                    <li key={i} className="border border-primary-200 rounded p-4 space-y-2 bg-white dark:bg-neutral-800">
+                    <li key={i} className="border border-primary-200 dark:border-primary-700 rounded p-4 space-y-2 bg-white dark:bg-primary-950">
                       <div className="flex justify-between items-center">
                         <label className="flex items-center space-x-2">
                           <input
@@ -113,12 +113,12 @@ export default function ToolSettingsComponent() {
                           />
                           <div className="flex flex-col">
                             <span
-                              className={`font-medium ${t.enabled ? "text-primary-900 dark:text-primary-100" : "text-primary-400 dark:text-primary-600"}`}
+                              className={`font-medium ${t.enabled ? "text-primary-900 dark:text-primary-100" : "text-primary-600 dark:text-primary-600"}`}
                             >
                               {displayName}
                             </span>
                             {group && (
-                              <span className="text-xs text-primary-500 dark:text-primary-400">
+                              <span className="text-xs text-primary-700 dark:text-primary-400">
                                 Group: {group}
                               </span>
                             )}
@@ -151,7 +151,7 @@ export default function ToolSettingsComponent() {
                             setToolPromptOverride(t.name, e.target.value)
                           }
                           placeholder="Prompt Override (leave empty to use default)"
-                          className="border border-primary-300 rounded p-2 w-full h-20 bg-white dark:bg-neutral-700 text-primary-900 dark:text-primary-100"
+                          className="border border-primary-300 dark:border-primary-700 rounded p-2 w-full h-20 bg-white dark:bg-primary-950 text-primary-900 dark:text-primary-100"
                         />
                       )}
                     </li>

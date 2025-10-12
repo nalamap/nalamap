@@ -147,10 +147,10 @@ const ColorScaleEditor = memo(function ColorScaleEditor({
             ))}
           </div>
           <div className="flex-1">
-            <div className="font-medium text-primary-900 text-sm">
+            <div className="font-medium text-primary-900 dark:text-primary-100 text-sm">
               {COLOR_SCALE_NAMES[scaleName]}
             </div>
-            <div className="text-xs text-primary-600 mt-0.5">
+            <div className="text-xs text-primary-800 dark:text-primary-400 mt-0.5">
               {COLOR_USAGE_HINTS[scaleName]}
             </div>
           </div>
@@ -317,10 +317,10 @@ export default function ColorSettingsComponent() {
           {Object.entries(COLOR_GROUPS).map(([groupKey, group]) => (
             <div key={groupKey} className="space-y-2">
               <div className="border-b border-primary-200 pb-1">
-                <h3 className="text-sm font-semibold text-primary-800">
+                <h3 className="text-sm font-semibold text-primary-900 dark:text-primary-300">
                   {group.title}
                 </h3>
-                <p className="text-xs text-primary-600">{group.description}</p>
+                <p className="text-xs text-primary-800 dark:text-primary-400">{group.description}</p>
               </div>
               <div className="space-y-2">
                 {group.scales.map((scaleName) => (

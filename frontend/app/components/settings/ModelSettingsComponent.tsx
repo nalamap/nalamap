@@ -101,7 +101,7 @@ export default function ModelSettingsComponent() {
         <div className="p-4 pt-0 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-primary-700 dark:text-primary-300 mb-1">
+              <label className="block text-sm font-medium text-primary-900 dark:text-primary-300 mb-1">
                 Provider
               </label>
               <select
@@ -117,7 +117,7 @@ export default function ModelSettingsComponent() {
                     setMaxTokens(models[0].max_tokens);
                   }
                 }}
-                className="w-full border border-primary-300 rounded p-2 bg-white dark:bg-neutral-800 text-primary-900 dark:text-primary-100"
+                className="w-full border border-primary-300 dark:border-primary-700 rounded p-2 bg-white dark:bg-primary-950 text-primary-900 dark:text-primary-100"
               >
                 {availableProviders.map((prov) => (
                   <option key={prov} value={prov}>
@@ -128,7 +128,7 @@ export default function ModelSettingsComponent() {
             </div>
 
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-primary-700 dark:text-primary-300 mb-1">
+              <label className="block text-sm font-medium text-primary-900 dark:text-primary-300 mb-1">
                 Model
               </label>
               <select
@@ -142,7 +142,7 @@ export default function ModelSettingsComponent() {
                     setMaxTokens(selectedModelData.max_tokens);
                   }
                 }}
-                className="w-full border border-primary-300 rounded p-2 bg-white dark:bg-neutral-800 text-primary-900 dark:text-primary-100"
+                className="w-full border border-primary-300 dark:border-primary-700 rounded p-2 bg-white dark:bg-primary-950 text-primary-900 dark:text-primary-100"
               >
                 {availableModelNames.map((name) => (
                   <option key={name} value={name}>
@@ -153,10 +153,10 @@ export default function ModelSettingsComponent() {
             </div>
 
             <div className="col-span-2">
-              <label className="block text-sm font-medium text-primary-700 dark:text-primary-300 mb-1">
+              <label className="block text-sm font-medium text-primary-900 dark:text-primary-300 mb-1">
                 Max Output Tokens
                 {selectedModel && (
-                  <span className="text-xs text-primary-500 dark:text-primary-400 ml-1">
+                  <span className="text-xs text-primary-700 dark:text-primary-400 ml-1">
                     (0 to {selectedModel.max_tokens.toLocaleString()})
                   </span>
                 )}
@@ -177,9 +177,9 @@ export default function ModelSettingsComponent() {
                 min="0"
                 max={selectedModel?.max_tokens || undefined}
                 placeholder="Max Tokens"
-                className="w-full border border-primary-300 rounded p-2 bg-white dark:bg-neutral-800 text-primary-900 dark:text-primary-100"
+                className="w-full border border-primary-300 dark:border-primary-700 rounded p-2 bg-white dark:bg-primary-950 text-primary-900 dark:text-primary-100"
               />
-              <p className="text-xs text-primary-500 dark:text-primary-400 mt-1">
+              <p className="text-xs text-primary-700 dark:text-primary-400 mt-1">
                 Maximum tokens to generate in responses
               </p>
             </div>
@@ -187,12 +187,12 @@ export default function ModelSettingsComponent() {
 
           {/* Model Information Card */}
           {selectedModel && (
-            <div className="border border-secondary-300 rounded bg-secondary-50 dark:bg-secondary-950 p-3 space-y-3">
+            <div className="border border-secondary-300 dark:border-secondary-700 rounded bg-secondary-50 dark:bg-secondary-900 p-3 space-y-3">
               <div className="flex items-start gap-2">
                 <Info className="w-4 h-4 text-secondary-600 dark:text-secondary-400 flex-shrink-0 mt-0.5" />
                 <div className="flex-1 space-y-3">
                   {selectedModel.description && (
-                    <p className="text-sm text-primary-700 dark:text-primary-300">
+                    <p className="text-sm text-primary-900 dark:text-primary-300">
                       {selectedModel.description}
                     </p>
                   )}
@@ -201,10 +201,10 @@ export default function ModelSettingsComponent() {
                   <div className="space-y-2">
                     {selectedModel.context_window && (
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-primary-600 dark:text-primary-400 font-medium">
+                        <span className="text-xs text-primary-800 dark:text-primary-400 font-medium">
                           Context Window:
                         </span>
-                        <span className="text-xs text-primary-800 dark:text-primary-200 font-semibold">
+                        <span className="text-xs text-primary-900 dark:text-primary-200 font-semibold">
                           {formatContextWindow(selectedModel.context_window)}
                         </span>
                       </div>
@@ -255,10 +255,10 @@ export default function ModelSettingsComponent() {
                     {(selectedModel.input_cost_per_million !== null &&
                       selectedModel.input_cost_per_million !== undefined) && (
                       <div>
-                        <span className="text-primary-600 dark:text-primary-400 font-medium">
+                        <span className="text-primary-800 dark:text-primary-400 font-medium">
                           Input:
                         </span>{" "}
-                        <span className="text-primary-800 dark:text-primary-200">
+                        <span className="text-primary-900 dark:text-primary-200">
                           {formatCost(selectedModel.input_cost_per_million)}/M
                         </span>
                       </div>
@@ -267,10 +267,10 @@ export default function ModelSettingsComponent() {
                     {(selectedModel.output_cost_per_million !== null &&
                       selectedModel.output_cost_per_million !== undefined) && (
                       <div>
-                        <span className="text-primary-600 dark:text-primary-400 font-medium">
+                        <span className="text-primary-800 dark:text-primary-400 font-medium">
                           Output:
                         </span>{" "}
-                        <span className="text-primary-800 dark:text-primary-200">
+                        <span className="text-primary-900 dark:text-primary-200">
                           {formatCost(selectedModel.output_cost_per_million)}/M
                         </span>
                       </div>
@@ -279,10 +279,10 @@ export default function ModelSettingsComponent() {
                     {(selectedModel.cache_cost_per_million !== null &&
                       selectedModel.cache_cost_per_million !== undefined) && (
                       <div className="col-span-2">
-                        <span className="text-primary-600 dark:text-primary-400 font-medium">
+                        <span className="text-primary-800 dark:text-primary-400 font-medium">
                           Cache:
                         </span>{" "}
-                        <span className="text-primary-800 dark:text-primary-200">
+                        <span className="text-primary-900 dark:text-primary-200">
                           {formatCost(selectedModel.cache_cost_per_million)}/M
                         </span>
                       </div>
@@ -294,14 +294,14 @@ export default function ModelSettingsComponent() {
           )}
 
           <div>
-            <label className="block text-sm font-medium text-primary-700 dark:text-primary-300 mb-1">
+            <label className="block text-sm font-medium text-primary-900 dark:text-primary-300 mb-1">
               System Prompt
             </label>
             <textarea
               value={modelSettings.system_prompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
               placeholder="Optional system prompt override..."
-              className="w-full border border-primary-300 rounded p-2 h-24 bg-white dark:bg-neutral-800 text-primary-900 dark:text-primary-100"
+              className="w-full border border-primary-300 dark:border-primary-700 rounded p-2 h-24 bg-white dark:bg-primary-950 text-primary-900 dark:text-primary-100"
             />
           </div>
         </div>
