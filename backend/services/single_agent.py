@@ -10,7 +10,6 @@ from models.states import GeoDataAgentState, get_minimal_debug_state
 from services.ai.llm_config import get_llm
 from services.default_agent_settings import DEFAULT_AVAILABLE_TOOLS, DEFAULT_SYSTEM_PROMPT
 from services.tools.attribute_tool2 import attribute_tool2
-from services.tools.attribute_tool3 import attribute_tool3
 from services.tools.attribute_tools import attribute_tool
 from services.tools.geocoding import (
     geocode_using_nominatim_to_geostate,
@@ -44,7 +43,6 @@ tools: List[BaseTool] = [
     apply_intelligent_color_scheme,  # Intelligent color scheme application
     attribute_tool,
     attribute_tool2,  # Simplified attribute tool for better agent usability
-    attribute_tool3,
 ]
 
 
