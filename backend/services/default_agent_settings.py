@@ -20,6 +20,76 @@ from services.tools.styling_tools import (
     style_map_layers,
 )
 
+# Tool metadata for configuration and UI display
+TOOL_METADATA = {
+    "geocode_nominatim": {
+        "display_name": "Nominatim Geocoding",
+        "category": "geocoding",
+        "group": None,
+        "enabled": True,
+    },
+    "geocode_overpass": {
+        "display_name": "Overpass POI Search",
+        "category": "geocoding",
+        "group": None,
+        "enabled": True,
+    },
+    "geoprocess": {
+        "display_name": "Geoprocessing Operations",
+        "category": "geoprocessing",
+        "group": None,
+        "enabled": True,
+    },
+    "search_metadata": {
+        "display_name": "Metadata Search",
+        "category": "metadata",
+        "group": None,
+        "enabled": True,
+    },
+    "style_layers": {
+        "display_name": "Manual Layer Styling",
+        "category": "styling",
+        "group": None,
+        "enabled": True,
+    },
+    "autostyle_new_layers": {
+        "display_name": "Auto-style New Layers",
+        "category": "styling",
+        "group": None,
+        "enabled": True,
+    },
+    "check_and_autostyle": {
+        "display_name": "Check and Auto-style",
+        "category": "styling",
+        "group": None,
+        "enabled": True,
+    },
+    "apply_color_scheme": {
+        "display_name": "Apply Color Scheme",
+        "category": "styling",
+        "group": None,
+        "enabled": True,
+    },
+    "get_custom_geoserver_data": {
+        "display_name": "Custom GeoServer Data",
+        "category": "data_retrieval",
+        "group": None,
+        "enabled": True,
+    },
+    "attribute_tool": {
+        "display_name": "Attribute Tool (Advanced)",
+        "category": "attributes",
+        "group": "attribute_tools",  # Mutually exclusive group
+        "enabled": False,  # Disabled by default in favor of attribute_tool2
+    },
+    "attribute_tool2": {
+        "display_name": "Attribute Tool (Simplified)",
+        "category": "attributes",
+        "group": "attribute_tools",  # Mutually exclusive group
+        "enabled": True,  # Enabled by default
+    },
+}
+
 DEFAULT_SYSTEM_PROMPT: str = (
     "You are NaLaMap: an advanced geospatial assistant that helps users without GIS expertise "
     "create maps and perform spatial analysis through natural language.\n\n"

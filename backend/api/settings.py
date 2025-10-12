@@ -9,7 +9,11 @@ from pydantic import BaseModel
 from core import config as core_config
 from models.settings_model import GeoServerBackend
 from services.background_tasks import TaskPriority, get_task_manager
-from services.default_agent_settings import DEFAULT_AVAILABLE_TOOLS, DEFAULT_SYSTEM_PROMPT
+from services.default_agent_settings import (
+    DEFAULT_AVAILABLE_TOOLS,
+    DEFAULT_SYSTEM_PROMPT,
+    TOOL_METADATA,
+)
 from services.tools.geoserver.custom_geoserver import preload_backend_layers_with_state
 from services.tools.geoserver.vector_store import set_processing_state
 
@@ -89,6 +93,10 @@ def normalize_geoserver_url(url: str) -> str:
 class ToolOption(BaseModel):
     default_prompt: str
     settings: Dict[str, Any] = {}  # additional tool-specific settings
+    enabled: bool = True  # whether the tool is currently enabled
+    group: Optional[str] = None  # tools in the same group are mutually exclusive
+    display_name: Optional[str] = None  # user-friendly name for UI
+    category: Optional[str] = None  # tool category (geocoding, geoprocessing, etc.)
 
 
 class ModelOption(BaseModel):
@@ -174,11 +182,18 @@ class GeoServerPreloadResponse(BaseModel):
 @router.get("/options", response_model=SettingsOptions)
 async def get_settings_options(request: Request, response: Response):
     """Get available settings options including dynamically discovered LLM providers and models."""
-    # Get available tools
-    tool_options = {
-        available_tool_name: {"default_prompt": available_tool.description, "settings": {}}
-        for available_tool_name, available_tool in DEFAULT_AVAILABLE_TOOLS.items()
-    }
+    # Get available tools with metadata
+    tool_options = {}
+    for available_tool_name, available_tool in DEFAULT_AVAILABLE_TOOLS.items():
+        metadata = TOOL_METADATA.get(available_tool_name, {})
+        tool_options[available_tool_name] = ToolOption(
+            default_prompt=available_tool.description,
+            settings={},
+            enabled=metadata.get("enabled", True),
+            group=metadata.get("group"),
+            display_name=metadata.get("display_name", available_tool_name),
+            category=metadata.get("category", "other"),
+        )
 
     # Example GeoServer backends
     example_geoserver_backends = [

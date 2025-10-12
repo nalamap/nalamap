@@ -43,6 +43,10 @@ export interface ModelOption {
 export interface ToolOption {
   default_prompt: string;
   settings: Record<string, any>;
+  enabled: boolean; // whether the tool is enabled by default
+  group?: string | null; // tools in the same group are mutually exclusive
+  display_name?: string | null; // user-friendly name for UI
+  category?: string | null; // tool category (geocoding, geoprocessing, etc.)
 }
 
 export interface ToolConfig {
@@ -373,7 +377,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
             ...state.tools,
             {
               name,
-              enabled: true,
+              enabled: state.tool_options[name]?.enabled ?? true, // Use enabled from tool_options
               prompt_override: state.tool_options[name]?.default_prompt || "",
             },
           ],
