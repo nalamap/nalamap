@@ -1,5 +1,7 @@
 """Tests for max_tokens validation in LLM configuration."""
 
+import os
+import pytest
 from services.ai.llm_config import _validate_max_tokens, get_llm_for_provider
 
 
@@ -90,6 +92,10 @@ class TestGetLLMWithValidation:
         # Should use model's max_tokens (gpt-5-mini has max_tokens=128000)
         assert llm.max_tokens == 128000
 
+    @pytest.mark.skipif(
+        not os.getenv("OPENAI_API_VERSION") or not os.getenv("AZURE_OPENAI_ENDPOINT"),
+        reason="Azure environment variables not configured",
+    )
     def test_get_llm_for_provider_azure(self):
         """Test validation works with Azure provider."""
         # Azure has max_tokens=6000 by default
