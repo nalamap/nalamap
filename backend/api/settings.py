@@ -9,7 +9,11 @@ from pydantic import BaseModel
 from core import config as core_config
 from models.settings_model import GeoServerBackend
 from services.background_tasks import TaskPriority, get_task_manager
-from services.default_agent_settings import DEFAULT_AVAILABLE_TOOLS, DEFAULT_SYSTEM_PROMPT
+from services.default_agent_settings import (
+    DEFAULT_AVAILABLE_TOOLS,
+    DEFAULT_SYSTEM_PROMPT,
+    TOOL_METADATA,
+)
 from services.tools.geoserver.custom_geoserver import preload_backend_layers_with_state
 from services.tools.geoserver.vector_store import set_processing_state
 
@@ -89,11 +93,26 @@ def normalize_geoserver_url(url: str) -> str:
 class ToolOption(BaseModel):
     default_prompt: str
     settings: Dict[str, Any] = {}  # additional tool-specific settings
+    enabled: bool = True  # whether the tool is currently enabled
+    group: Optional[str] = None  # tools in the same group are mutually exclusive
+    display_name: Optional[str] = None  # user-friendly name for UI
+    category: Optional[str] = None  # tool category (geocoding, geoprocessing, etc.)
 
 
 class ModelOption(BaseModel):
     name: str
     max_tokens: int
+    input_cost_per_million: Optional[float] = None
+    output_cost_per_million: Optional[float] = None
+    cache_cost_per_million: Optional[float] = None
+    description: Optional[str] = None
+    supports_tools: bool = True
+    supports_vision: bool = False
+    # Phase 1: Enhanced model selection metadata
+    context_window: int = 128000
+    supports_parallel_tool_calls: bool = False
+    tool_calling_quality: str = "basic"  # "none", "basic", "good", "excellent"
+    reasoning_capability: str = "intermediate"  # "basic", "intermediate", "advanced", "expert"
 
 
 class ExampleGeoServer(BaseModel):
@@ -104,12 +123,45 @@ class ExampleGeoServer(BaseModel):
     password: Optional[str] = None
 
 
+class ColorScale(BaseModel):
+    """Represents a color scale with 11 shades (50-950)"""
+
+    shade_50: str
+    shade_100: str
+    shade_200: str
+    shade_300: str
+    shade_400: str
+    shade_500: str
+    shade_600: str
+    shade_700: str
+    shade_800: str
+    shade_900: str
+    shade_950: str
+
+
+class ColorSettings(BaseModel):
+    """User-customizable color settings for the UI"""
+
+    primary: ColorScale  # Main neutral/text colors
+    second_primary: ColorScale  # Main action buttons
+    secondary: ColorScale  # Supporting accents
+    tertiary: ColorScale  # Success states
+    danger: ColorScale  # Error/delete actions
+    warning: ColorScale  # Warning states
+    info: ColorScale  # Informational states
+    neutral: ColorScale  # Pure neutral (white/black/gray)
+    corporate_1: ColorScale  # Corporate brand color 1
+    corporate_2: ColorScale  # Corporate brand color 2
+    corporate_3: ColorScale  # Corporate brand color 3
+
+
 class SettingsOptions(BaseModel):
     system_prompt: str
     tool_options: Dict[str, ToolOption]  # per-tool settings
     example_geoserver_backends: List[ExampleGeoServer]
     model_options: Dict[str, List[ModelOption]]  # per-provider model list
     session_id: str
+    color_settings: ColorSettings  # default color settings
 
 
 class GeoServerPreloadRequest(BaseModel):
@@ -129,11 +181,21 @@ class GeoServerPreloadResponse(BaseModel):
 
 @router.get("/options", response_model=SettingsOptions)
 async def get_settings_options(request: Request, response: Response):
-    # TODO: replace hardcoded with dynamic calls to the different tools and providers
-    tool_options = {
-        available_tool_name: {"default_prompt": available_tool.description, "settings": {}}
-        for available_tool_name, available_tool in DEFAULT_AVAILABLE_TOOLS.items()
-    }
+    """Get available settings options including dynamically discovered LLM providers and models."""
+    # Get available tools with metadata
+    tool_options = {}
+    for available_tool_name, available_tool in DEFAULT_AVAILABLE_TOOLS.items():
+        metadata = TOOL_METADATA.get(available_tool_name, {})
+        tool_options[available_tool_name] = ToolOption(
+            default_prompt=available_tool.description,
+            settings={},
+            enabled=metadata.get("enabled", True),
+            group=metadata.get("group"),
+            display_name=metadata.get("display_name", available_tool_name),
+            category=metadata.get("category", "other"),
+        )
+
+    # Example GeoServer backends
     example_geoserver_backends = [
         ExampleGeoServer(
             url="https://geoserver.mapx.org/geoserver/",
@@ -169,12 +231,213 @@ async def get_settings_options(request: Request, response: Response):
             ),
         ),
     ]
-    model_options: Dict[str, List[ModelOption]] = {
-        "openai": [
-            ModelOption(name="gpt-4-nano", max_tokens=50000),
-            ModelOption(name="gpt-4-mini", max_tokens=100000),
-        ],
-    }
+
+    # Dynamically discover available LLM providers and models
+    from services.ai.provider_interface import get_all_providers
+
+    providers_info = get_all_providers()
+
+    # Convert provider info to model_options format
+    model_options: Dict[str, List[ModelOption]] = {}
+    for provider_name, provider_info in providers_info.items():
+        if provider_info.available and provider_info.models:
+            model_options[provider_name] = [
+                ModelOption(
+                    name=model.name,
+                    max_tokens=model.max_tokens,
+                    input_cost_per_million=model.input_cost_per_million,
+                    output_cost_per_million=model.output_cost_per_million,
+                    cache_cost_per_million=model.cache_cost_per_million,
+                    description=model.description,
+                    supports_tools=model.supports_tools,
+                    supports_vision=model.supports_vision,
+                    # Phase 1: Enhanced model selection metadata
+                    context_window=model.context_window,
+                    supports_parallel_tool_calls=model.supports_parallel_tool_calls,
+                    tool_calling_quality=model.tool_calling_quality,
+                    reasoning_capability=model.reasoning_capability,
+                )
+                for model in provider_info.models
+            ]
+
+    # If no providers are available, fall back to minimal OpenAI options for UI testing
+    if not model_options:
+        logger.warning("No LLM providers available, using fallback model options")
+        model_options = {
+            "openai": [
+                ModelOption(
+                    name="gpt-5-mini",
+                    max_tokens=100000,
+                    input_cost_per_million=0.25,
+                    output_cost_per_million=0.025,
+                    description="GPT-5 Mini (fallback - configure API key)",
+                    # Phase 1: Enhanced model selection metadata (fallback values)
+                    context_window=200000,
+                    supports_parallel_tool_calls=True,
+                    tool_calling_quality="excellent",
+                    reasoning_capability="advanced",
+                ),
+            ],
+        }
+
+    # Default color settings matching globals.css
+    # IUCN Green List–matched color settings (tuned to NalaMap usage)
+    default_color_settings = ColorSettings(
+        # Neutral greys (text, borders, light backgrounds)
+        primary=ColorScale(
+            shade_50="#FAFBFA",  # app backgrounds (very light)
+            shade_100="#E3E7E4",  # light panels / chat backgrounds
+            shade_200="#DEE1DF",  # light dividers / subtle fills
+            shade_300="#C9CECC",  # borders (maps to your primary-300 use)
+            shade_400="#9F9F9F",  # disabled text, handles
+            shade_500="#7D807E",  # secondary text / metadata
+            shade_600="#646464",  # interactive icons/links (default)
+            shade_700="#545454",  # hover/darker interactive
+            shade_800="#3B3E3C",  # sidebar bg / section headings (slate)
+            shade_900="#2F3530",  # main text / strong emphasis
+            shade_950="#181B19",
+        ),
+        # Main accent (buttons, active states, progress) — leaf green
+        second_primary=ColorScale(
+            shade_50="#F3FAF3",
+            shade_100="#E6F3E6",
+            shade_200="#D5E8D3",  # user message bg
+            shade_300="#B9D8B8",
+            shade_400="#96C691",
+            shade_500="#79B472",
+            shade_600="#66A660",  # ACTION BUTTONS / active — your 600
+            shade_700="#4F8E4F",  # button hover — your 700
+            shade_800="#3D7040",
+            shade_900="#2F5732",
+            shade_950="#1D3820",
+        ),
+        # Supporting accent (focus rings, subtle highlights, hovers) — seafoam/teal
+        secondary=ColorScale(
+            shade_50="#F0F5F2",
+            shade_100="#E3EDE8",
+            shade_200="#CDE1D8",
+            shade_300="#B6D5C9",  # textarea/input focus ring
+            shade_400="#9EC9B9",
+            shade_500="#86BEAA",  # waiting progress bar
+            shade_600="#6BAE97",  # waiting status text / send button
+            shade_700="#559D85",  # send hover
+            shade_800="#3C8C74",  # sidebar item hover bg
+            shade_900="#2F6F5C",
+            shade_950="#204F42",
+        ),
+        # Success / confirmations — deeper forest green
+        tertiary=ColorScale(
+            shade_50="#EAF4ED",
+            shade_100="#D8E8DE",
+            shade_200="#B9D5C4",
+            shade_300="#99C2AA",
+            shade_400="#79AE90",
+            shade_500="#5D9A7A",
+            shade_600="#477951",  # success text, checkboxes, completed
+            shade_700="#3D6948",  # export hover (darker success)
+            shade_800="#32573C",
+            shade_900="#284832",
+            shade_950="#1A2F22",
+        ),
+        # Danger / error states — red
+        danger=ColorScale(
+            shade_50="#FEF2F2",
+            shade_100="#FEE2E2",
+            shade_200="#FECACA",
+            shade_300="#FCA5A5",
+            shade_400="#F87171",
+            shade_500="#EF4444",
+            shade_600="#DC2626",  # main error/delete color
+            shade_700="#B91C1C",  # hover state
+            shade_800="#991B1B",
+            shade_900="#7F1D1D",
+            shade_950="#450A0A",
+        ),
+        # Warning states — amber/orange
+        warning=ColorScale(
+            shade_50="#FFFBEB",
+            shade_100="#FEF3C7",
+            shade_200="#FDE68A",
+            shade_300="#FCD34D",
+            shade_400="#FBBF24",
+            shade_500="#F59E0B",
+            shade_600="#D97706",  # main warning color
+            shade_700="#B45309",
+            shade_800="#92400E",
+            shade_900="#78350F",
+            shade_950="#451A03",
+        ),
+        # Info states — blue
+        info=ColorScale(
+            shade_50="#EFF6FF",
+            shade_100="#DBEAFE",
+            shade_200="#BFDBFE",
+            shade_300="#93C5FD",
+            shade_400="#60A5FA",
+            shade_500="#3B82F6",
+            shade_600="#2563EB",  # main info color
+            shade_700="#1D4ED8",
+            shade_800="#1E40AF",
+            shade_900="#1E3A8A",
+            shade_950="#172554",
+        ),
+        # Neutral (pure white/black/grays) for backgrounds and overlays
+        neutral=ColorScale(
+            shade_50="#FFFFFF",  # pure white
+            shade_100="#F9FAFB",
+            shade_200="#F3F4F6",
+            shade_300="#E5E7EB",
+            shade_400="#D1D5DB",
+            shade_500="#9CA3AF",
+            shade_600="#6B7280",
+            shade_700="#4B5563",
+            shade_800="#374151",
+            shade_900="#1F2937",
+            shade_950="#000000",  # pure black
+        ),
+        # Corporate Color 1 - for layer type styling (rose)
+        corporate_1=ColorScale(
+            shade_50="#FFF1F2",
+            shade_100="#FFE4E6",
+            shade_200="#FECDD3",
+            shade_300="#FDA4AF",
+            shade_400="#FB7185",
+            shade_500="#F43F5E",
+            shade_600="#E11D48",
+            shade_700="#BE123C",
+            shade_800="#9F1239",
+            shade_900="#881337",
+            shade_950="#4C0519",
+        ),
+        # Corporate Color 2 - for layer type styling (sky)
+        corporate_2=ColorScale(
+            shade_50="#F0F9FF",
+            shade_100="#E0F2FE",
+            shade_200="#BAE6FD",
+            shade_300="#7DD3FC",
+            shade_400="#38BDF8",
+            shade_500="#0EA5E9",
+            shade_600="#0284C7",
+            shade_700="#0369A1",
+            shade_800="#075985",
+            shade_900="#0C4A6E",
+            shade_950="#082F49",
+        ),
+        # Corporate Color 3 - for layer type styling (purple)
+        corporate_3=ColorScale(
+            shade_50="#FAF5FF",
+            shade_100="#F3E8FF",
+            shade_200="#E9D5FF",
+            shade_300="#D8B4FE",
+            shade_400="#C084FC",
+            shade_500="#A855F7",
+            shade_600="#9333EA",
+            shade_700="#7E22CE",
+            shade_800="#6B21A8",
+            shade_900="#581C87",
+            shade_950="#3B0764",
+        ),
+    )
 
     session_id = request.cookies.get("session_id")
 
@@ -196,6 +459,7 @@ async def get_settings_options(request: Request, response: Response):
         example_geoserver_backends=example_geoserver_backends,
         model_options=model_options,
         session_id=session_id,
+        color_settings=default_color_settings,
     )
 
 

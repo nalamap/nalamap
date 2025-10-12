@@ -27,11 +27,26 @@ export interface SearchPortal {
 export interface ModelOption {
   name: string;
   max_tokens: number;
+  input_cost_per_million?: number | null;
+  output_cost_per_million?: number | null;
+  cache_cost_per_million?: number | null;
+  description?: string | null;
+  supports_tools?: boolean;
+  supports_vision?: boolean;
+  // Phase 1: Enhanced model selection metadata
+  context_window?: number;
+  supports_parallel_tool_calls?: boolean;
+  tool_calling_quality?: string; // "none" | "basic" | "good" | "excellent"
+  reasoning_capability?: string; // "basic" | "intermediate" | "advanced" | "expert"
 }
 
 export interface ToolOption {
   default_prompt: string;
   settings: Record<string, any>;
+  enabled: boolean; // whether the tool is enabled by default
+  group?: string | null; // tools in the same group are mutually exclusive
+  display_name?: string | null; // user-friendly name for UI
+  category?: string | null; // tool category (geocoding, geoprocessing, etc.)
 }
 
 export interface ToolConfig {
@@ -47,6 +62,34 @@ export interface ModelSettings {
   system_prompt: string;
 }
 
+export interface ColorScale {
+  shade_50: string;
+  shade_100: string;
+  shade_200: string;
+  shade_300: string;
+  shade_400: string;
+  shade_500: string;
+  shade_600: string;
+  shade_700: string;
+  shade_800: string;
+  shade_900: string;
+  shade_950: string;
+}
+
+export interface ColorSettings {
+  primary: ColorScale;
+  second_primary: ColorScale;
+  secondary: ColorScale;
+  tertiary: ColorScale;
+  danger: ColorScale;
+  warning: ColorScale;
+  info: ColorScale;
+  neutral: ColorScale;
+  corporate_1: ColorScale;
+  corporate_2: ColorScale;
+  corporate_3: ColorScale;
+}
+
 export interface SettingsSnapshot {
   search_portals?: SearchPortal[]; // DEPRECATED: No longer used in the application
   geoserver_backends: GeoServerBackend[];
@@ -54,6 +97,8 @@ export interface SettingsSnapshot {
   tools: ToolConfig[];
   tool_options: Record<string, ToolOption>;
   model_options: Record<string, ModelOption[]>;
+  color_settings?: ColorSettings; // User-customizable colors
+  theme?: "light" | "dark"; // Theme preference
   session_id?: string;
 }
 
@@ -66,6 +111,7 @@ export interface SettingsState extends SettingsSnapshot {
     tool_options: Record<string, ToolOption>;
     example_geoserver_backends: ExampleGeoServer[];
     model_options: Record<string, ModelOption[]>;
+    color_settings: ColorSettings;
     session_id: string;
   }) => void;
 
@@ -106,6 +152,21 @@ export interface SettingsState extends SettingsSnapshot {
   setToolOptions: (opts: Record<string, ToolOption>) => void;
   model_options: Record<string, ModelOption[]>;
   setModelOptions: (opts: Record<string, ModelOption[]>) => void;
+
+  // Color settings
+  color_settings?: ColorSettings;
+  setColorSettings: (colors: ColorSettings) => void;
+  updateColorScale: (
+    scaleName: keyof ColorSettings,
+    shade: keyof ColorScale,
+    color: string,
+  ) => void;
+  resetColorSettings: () => void;
+
+  // Theme settings
+  theme: "light" | "dark";
+  setTheme: (theme: "light" | "dark") => void;
+  toggleTheme: () => void;
 
   // Bulk
   getSettings: () => SettingsSnapshot;
@@ -162,15 +223,22 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       setAvailableModelNames,
       setModelName,
       setMaxTokens,
+      setColorSettings,
       model_settings,
       available_tools,
       available_example_geoservers,
       model_options,
+      color_settings,
       setSessionId,
     } = get();
 
     if (opts.session_id) {
       setSessionId(opts.session_id);
+    }
+
+    // Initialize color settings if not already set
+    if (!color_settings && opts.color_settings) {
+      setColorSettings(opts.color_settings);
     }
 
     if (
@@ -309,7 +377,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
             ...state.tools,
             {
               name,
-              enabled: true,
+              enabled: state.tool_options[name]?.enabled ?? true, // Use enabled from tool_options
               prompt_override: state.tool_options[name]?.default_prompt || "",
             },
           ],
@@ -341,6 +409,38 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setToolOptions: (opts) => set({ tool_options: opts }),
   setModelOptions: (opts) => set({ model_options: opts }),
 
+  // color settings
+  color_settings: undefined,
+  setColorSettings: (colors) => set({ color_settings: colors }),
+  updateColorScale: (scaleName, shade, color) =>
+    set((state) => {
+      if (!state.color_settings) return state;
+      return {
+        color_settings: {
+          ...state.color_settings,
+          [scaleName]: {
+            ...state.color_settings[scaleName],
+            [shade]: color,
+          },
+        },
+      };
+    }),
+  resetColorSettings: () => set({ color_settings: undefined }),
+
+  // theme settings
+  theme: (typeof window !== "undefined" && localStorage.getItem("theme") === "dark") ? "dark" : "light",
+  setTheme: (theme) => {
+    set({ theme });
+    if (typeof window !== "undefined") {
+      localStorage.setItem("theme", theme);
+      document.documentElement.classList.toggle("dark", theme === "dark");
+    }
+  },
+  toggleTheme: () => {
+    const newTheme = get().theme === "light" ? "dark" : "light";
+    get().setTheme(newTheme);
+  },
+
   // bulk
   getSettings: () => ({
     search_portals: get().search_portals || [],
@@ -349,18 +449,29 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     tools: get().tools,
     tool_options: get().tool_options,
     model_options: get().model_options,
+    color_settings: get().color_settings,
+    theme: get().theme,
     session_id: get().session_id,
   }),
   setSettings: (settings) =>
-    set((state) => ({
-      search_portals: settings.search_portals || [],
-      geoserver_backends: settings.geoserver_backends,
-      model_settings: settings.model_settings,
-      tools: settings.tools,
-      tool_options: settings.tool_options,
-      model_options: settings.model_options,
-      session_id: state.session_id,
-    })),
+    set((state) => {
+      const newState = {
+        search_portals: settings.search_portals || [],
+        geoserver_backends: settings.geoserver_backends,
+        model_settings: settings.model_settings,
+        tools: settings.tools,
+        tool_options: settings.tool_options,
+        model_options: settings.model_options,
+        color_settings: settings.color_settings,
+        theme: settings.theme || state.theme,
+        session_id: state.session_id,
+      };
+      // Apply theme if changed
+      if (settings.theme && settings.theme !== state.theme) {
+        state.setTheme(settings.theme);
+      }
+      return newState;
+    }),
 }));
 
 // Expose store to window for E2E testing

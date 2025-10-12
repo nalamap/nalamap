@@ -206,7 +206,9 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
             model_settings=options.model_settings, selected_tools=options.tools
         )
 
-        executor_result: GeoDataAgentState = single_agent.invoke(state)
+        # Enable langgraph debug logging when global log level is DEBUG
+        debug_enabled = logger.isEnabledFor(logging.DEBUG)
+        executor_result: GeoDataAgentState = single_agent.invoke(state, debug=debug_enabled)
 
         result_messages: List[BaseMessage] = executor_result.get("messages", [])
         results_title: Optional[str] = executor_result.get("results_title", "")

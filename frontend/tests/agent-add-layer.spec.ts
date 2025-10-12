@@ -366,7 +366,7 @@ test.describe("Agent Chat Interface - Add Layer Button", () => {
       geodata_layers: [],
     };
 
-    await page.route("**/chat", async (route) => {
+    await page.route("**/api/chat", async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -377,12 +377,15 @@ test.describe("Agent Chat Interface - Add Layer Button", () => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
-    // Submit query
+    // Submit query - use Promise.all to ensure waitForResponse is set up before pressing Enter
     const chatInput = page.getByPlaceholder("Type a chat command...");
     await chatInput.fill("show hospitals");
-    await chatInput.press("Enter");
 
-    await page.waitForResponse("**/chat");
+    await Promise.all([
+      page.waitForResponse("**/chat"),
+      chatInput.press("Enter"),
+    ]);
+
     await expect(page.getByText("Here are the hospitals.")).toBeVisible();
 
     // Add layer to map

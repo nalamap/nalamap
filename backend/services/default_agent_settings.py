@@ -2,6 +2,7 @@ from typing import Dict
 
 from langchain_core.tools import BaseTool
 
+from services.tools.attribute_tool2 import attribute_tool2
 from services.tools.attribute_tools import attribute_tool
 from services.tools.geocoding import (
     geocode_using_nominatim_to_geostate,
@@ -10,13 +11,84 @@ from services.tools.geocoding import (
 from services.tools.geoprocess_tools import geoprocess_tool
 from services.tools.geoserver.custom_geoserver import get_custom_geoserver_data
 from services.tools.geostate_management import metadata_search
-from services.tools.librarian_tools import query_librarian_postgis
+
+# from services.tools.librarian_tools import query_librarian_postgis
 from services.tools.styling_tools import (
     apply_intelligent_color_scheme,
     auto_style_new_layers,
     check_and_auto_style_layers,
     style_map_layers,
 )
+
+# Tool metadata for configuration and UI display
+TOOL_METADATA = {
+    "geocode_nominatim": {
+        "display_name": "Nominatim Geocoding",
+        "category": "geocoding",
+        "group": None,
+        "enabled": True,
+    },
+    "geocode_overpass": {
+        "display_name": "Overpass POI Search",
+        "category": "geocoding",
+        "group": None,
+        "enabled": True,
+    },
+    "geoprocess": {
+        "display_name": "Geoprocessing Operations",
+        "category": "geoprocessing",
+        "group": None,
+        "enabled": True,
+    },
+    "search_metadata": {
+        "display_name": "Metadata Search",
+        "category": "metadata",
+        "group": None,
+        "enabled": True,
+    },
+    "style_layers": {
+        "display_name": "Manual Layer Styling",
+        "category": "styling",
+        "group": None,
+        "enabled": True,
+    },
+    "autostyle_new_layers": {
+        "display_name": "Auto-style New Layers",
+        "category": "styling",
+        "group": None,
+        "enabled": True,
+    },
+    "check_and_autostyle": {
+        "display_name": "Check and Auto-style",
+        "category": "styling",
+        "group": None,
+        "enabled": True,
+    },
+    "apply_color_scheme": {
+        "display_name": "Apply Color Scheme",
+        "category": "styling",
+        "group": None,
+        "enabled": True,
+    },
+    "get_custom_geoserver_data": {
+        "display_name": "Custom GeoServer Data",
+        "category": "data_retrieval",
+        "group": None,
+        "enabled": True,
+    },
+    "attribute_tool": {
+        "display_name": "Attribute Tool (Advanced)",
+        "category": "attributes",
+        "group": "attribute_tools",  # Mutually exclusive group
+        "enabled": False,  # Disabled by default in favor of attribute_tool2
+    },
+    "attribute_tool2": {
+        "display_name": "Attribute Tool (Simplified)",
+        "category": "attributes",
+        "group": "attribute_tools",  # Mutually exclusive group
+        "enabled": True,  # Enabled by default
+    },
+}
 
 DEFAULT_SYSTEM_PROMPT: str = (
     "You are NaLaMap: an advanced geospatial assistant that helps users without GIS expertise "
@@ -106,11 +178,12 @@ DEFAULT_SYSTEM_PROMPT: str = (
     "precision, access control, performance, or consistent schema matters.\n"
     " - Notes: Prefer this for authenticated or curated sources; use filters/bbox when "
     "available; avoid unbounded queries.\n\n"
-    "- query_librarian_postgis (catalog/metadata search)\n"
-    " - Use when: The user asks to discover datasets by topic or theme (e.g., “Find "
-    "flood-risk data in Benin”) across indexed/public sources.\n"
-    " - Notes: Treat results as candidates; follow up by fetching the selected dataset via "
-    "the appropriate data-access tool.\n\n"
+    # DISABLED for now
+    # "- query_librarian_postgis (catalog/metadata search)\n"
+    # " - Use when: The user asks to discover datasets by topic or theme (e.g., “Find "
+    # "flood-risk data in Benin”) across indexed/public sources.\n"
+    # " - Notes: Treat results as candidates; follow up by fetching the selected dataset via "
+    # "the appropriate data-access tool.\n\n"
     "- Overlap policy\n"
     " - Prefer get_custom_geoserver_data if an internal/custom backend likely holds the "
     "requested data.\n"
@@ -142,6 +215,50 @@ DEFAULT_SYSTEM_PROMPT: str = (
     "  - Keep operations scoped; avoid unbounded filters without conditions.\n"
     "  - Chain minimally: filter/select/summarize in as few steps as necessary; name "
     "outputs clearly.\n\n"
+    "## ATTRIBUTE TOOL BEST PRACTICES\n"
+    "- Field Discovery:\n"
+    " - When working with unfamiliar datasets, always start with list_fields or "
+    "describe_dataset to discover available columns.\n"
+    " - Field names may contain spaces or special characters (use quotes in WHERE "
+    "clauses, e.g., WHERE \"Field Name\" = 'value').\n"
+    " - The attribute_tool has fuzzy field matching; close matches may still work.\n"
+    " - If uncertain about field names, use list_fields first rather than guessing.\n\n"
+    "- Pattern-Based Field Selection:\n"
+    ' - For requests like "summarize all land cover fields" or "show all biodiversity '
+    'indicators":\n'
+    "  1. First, call list_fields to discover available columns\n"
+    "  2. Identify fields matching the pattern (e.g., 'Landcover *', 'BII *', 'LULC_*')\n"
+    "  3. Summarize all matched fields in ONE call (not separate calls per field)\n"
+    ' - Example: For "summarize land cover", if you find 28 fields like \'Landcover '
+    "Cropland hectares', 'Landcover Forest hectares', etc., pass all 28 field names to a "
+    "single summarize operation.\n"
+    " - This is more efficient than multiple tool calls and provides better context.\n\n"
+    "- Natural Language Responses:\n"
+    " - Always transform technical JSON results into conversational, human-readable "
+    "responses.\n"
+    " - Provide context and interpretation, not just raw numbers.\n"
+    " - For temporal data (e.g., comparing 2015 vs 2020 values), explain trends in plain "
+    'language ("improved from X to Y" or "declined by Z%").\n'
+    ' - For categorical data, highlight key findings ("predominantly forest" or "mostly '
+    'cropland").\n'
+    " - Use domain-appropriate units and terminology the user will understand.\n\n"
+    "- Multi-Field Analysis:\n"
+    " - When comparing or analyzing multiple related fields, call summarize ONCE with all "
+    "fields rather than multiple separate calls.\n"
+    ' - Example: For "compare biodiversity in 2015 and 2020", pass both \'BII 2015 Mean '
+    "Value' and 'BII 2020 Mean Value' to one summarize call.\n"
+    " - This reduces tool call overhead and provides better comparative context.\n\n"
+    "- Efficient Field Retrieval:\n"
+    ' - For specific attribute queries ("what is the IUCN category?"), use '
+    "get_attribute_values operation to retrieve exact values for specific columns.\n"
+    " - This is more efficient than summarize when you need specific values, not statistics.\n"
+    " - Example: get_attribute_values with fields=['IUCN Category', 'Management Authority', "
+    "'Designation'] for a site description.\n\n"
+    "- Error Handling:\n"
+    " - If a field name fails, try list_fields to see available columns and retry with "
+    "correct name.\n"
+    " - If WHERE clause fails, check for spaces in field names and add quotes.\n"
+    " - If too many results, suggest adding filters or limiting the query scope.\n\n"
     "## GEOPROCESSING\n"
     "- Purpose: Perform spatial analysis on existing layers or AOIs (buffer, intersect, clip, "
     "merge, etc.).\n"
@@ -222,7 +339,7 @@ DEFAULT_AVAILABLE_TOOLS: Dict[str, BaseTool] = {
     # geocode_using_geonames, # its very simple and does not create a geojson
     "geocode_nominatim": geocode_using_nominatim_to_geostate,
     "geocode_overpass": geocode_using_overpass_to_geostate,
-    "search_librarian": query_librarian_postgis,
+    # "search_librarian": query_librarian_postgis, # Librarian disconnected for now
     "geoprocess": geoprocess_tool,
     "search_metadata": metadata_search,
     "style_layers": style_map_layers,  # Manual styling tool
@@ -231,5 +348,6 @@ DEFAULT_AVAILABLE_TOOLS: Dict[str, BaseTool] = {
     "apply_color_scheme": apply_intelligent_color_scheme,
     "get_custom_geoserver_data": get_custom_geoserver_data,
     "attribute_tool": attribute_tool,
+    "attribute_tool2": attribute_tool2,  # Simplified attribute tool for better agent usability
 }
 DEFAULT_SELECTED_TOOLS = []

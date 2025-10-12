@@ -274,8 +274,8 @@ export default function AgentInterface() {
                 <div
                   className={`max-w-[80%] px-4 py-2 rounded-lg ${
                     isHuman
-                      ? "bg-second-primary-200 rounded-tr-none text-right"
-                      : "bg-white rounded-tl-none border border-primary-200"
+                      ? "bg-second-primary-200 rounded-tr-none text-right border border-primary-300"
+                      : "bg-neutral-50 rounded-tl-none border border-primary-200"
                   }`}
                 >
                   {isHuman ? (
@@ -299,7 +299,7 @@ export default function AgentInterface() {
 
           {loading && (
             <div className="flex justify-start mb-2">
-              <div className="flex items-center space-x-2 max-w-[80%] px-4 py-2 rounded-lg bg-white rounded-tl-none border border-primary-200">
+              <div className="flex items-center space-x-2 max-w-[80%] px-4 py-2 rounded-lg bg-neutral-50 rounded-tl-none border border-primary-200">
                 {/* spinning loader */}
                 <Loader2 size={16} className="animate-spin text-second-primary-600" />
                 <span className="text-sm text-primary-700">
@@ -316,12 +316,12 @@ export default function AgentInterface() {
           activeTool === "geoprocess") &&
           geoDataList.length > 0 &&
           !loading && (
-            <div className="mt-6 mb-2 px-2 bg-gray-50 rounded border">
+            <div className="mt-6 mb-2 px-2 bg-neutral-50 rounded border">
               <div className="font-semibold p-1">Search Results:</div>
               {resultsToShow.map((result) => (
                 <div
                   key={result.id}
-                  className="p-2 border-b last:border-none hover:bg-gray-100"
+                  className="p-2 border-b last:border-none hover:bg-neutral-100"
                 >
                   <div
                     onClick={() => handleLayerSelect(result)}
@@ -353,16 +353,9 @@ export default function AgentInterface() {
                     </button>*/}
                       {/* Layer Type Button */}
                       <button
-                        className="px-2 py-1 text-xs rounded"
-                        style={getScoreStyle(
-                          result.score != null
-                            ? Math.round(result.score * 100)
-                            : undefined,
-                        )}
+                        className="px-2 py-1 text-xs rounded bg-primary-200 text-primary-900 hover:bg-primary-300"
                         onClick={(e) => {
                           e.stopPropagation();
-                          // If score button were to have its own pop-up via activeScoreInfoId:
-                          // setActiveScoreInfoId(activeScoreInfoId === result.id ? null : result.id);
                           setActiveDetailsId(null); // Close details if score is clicked
                         }}
                       >
@@ -377,7 +370,7 @@ export default function AgentInterface() {
                           );
                           setActiveScoreInfoId(null); // Close score tooltip if details is clicked
                         }}
-                        className="ml-2 px-2 py-1 bg-gray-300 text-black rounded text-xs hover:bg-gray-400"
+                        className="ml-2 px-2 py-1 bg-neutral-300 text-neutral-900 rounded text-xs hover:bg-neutral-400"
                       >
                         Details
                       </button>
@@ -388,7 +381,7 @@ export default function AgentInterface() {
                           e.stopPropagation();
                           handleLayerSelect(result);
                         }}
-                        className="ml-2 px-2 py-1 bg-blue-500 text-white rounded text-xs hover:bg-blue-600"
+                        className="ml-2 px-2 py-1 bg-info-600 text-neutral-50 rounded text-xs hover:bg-info-700"
                       >
                         Add to Map
                       </button>
@@ -519,7 +512,7 @@ export default function AgentInterface() {
                 ? "Describe how to style your layers (e.g., 'make it red', 'thick blue borders', 'transparent fill')..."
                 : `Type a ${activeTool} command...`
             }
-            className="w-full border border-primary-300 bg-white rounded px-4 py-3 pr-10 focus:outline-none focus:ring focus:ring-secondary-300 resize-none overflow-hidden text-primary-900"
+            className="w-full border border-primary-300 bg-neutral-50 rounded px-4 py-3 pr-10 focus:outline-none focus:ring focus:ring-secondary-300 resize-none overflow-hidden text-primary-900"
             style={{ minHeight: "45px", maxHeight: "200px" }}
             rows={1}
           />
@@ -534,7 +527,7 @@ export default function AgentInterface() {
       </div>
       {/* Overlay details panel */}
       {overlayData && (
-        <div className="fixed right-4 top-16 w-1/3 max-h-[70vh] overflow-y-auto bg-white shadow-lg rounded p-4 z-50 border border-primary-300">
+        <div className="fixed right-4 top-16 w-1/3 max-h-[70vh] overflow-y-auto bg-neutral-50 shadow-lg rounded p-4 z-50 border border-primary-300">
           <div className="flex justify-between items-center mb-2">
             <h3 className="text-lg font-bold text-primary-900">{overlayData.title}</h3>
             <button onClick={() => setOverlayData(null)} className="text-primary-600 hover:text-primary-800">
