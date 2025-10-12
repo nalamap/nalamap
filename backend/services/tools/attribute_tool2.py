@@ -14,7 +14,7 @@ Key improvements:
 
 import json
 import logging
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, TypedDict, Union
 
 import geopandas as gpd
 from langchain_core.messages import ToolMessage
@@ -58,6 +58,14 @@ OperationType = Literal[
 ]
 
 
+# TypedDict for sort field specification (OpenAI function calling compatible)
+class SortField(TypedDict):
+    """Sort field specification."""
+
+    field: str  # Field name to sort by
+    direction: str  # Sort direction: "asc" or "desc"
+
+
 @tool
 def attribute_tool2(
     state: Annotated[GeoDataAgentState, InjectedState],
@@ -71,7 +79,7 @@ def attribute_tool2(
     include_fields: Optional[List[str]] = None,
     exclude_fields: Optional[List[str]] = None,
     keep_geometry: bool = True,
-    sort_fields: Optional[List[Tuple[str, str]]] = None,
+    sort_fields: Optional[List[Dict[str, str]]] = None,
     columns: Optional[List[str]] = None,
     row_filter: Optional[str] = None,
 ) -> Union[Dict[str, Any], Command]:
@@ -106,8 +114,10 @@ def attribute_tool2(
             mutually exclusive with include_fields)
         keep_geometry: Whether to keep geometry column (for "select_fields",
             default: True)
-        sort_fields: List of (field_name, direction) tuples (for "sort_by")
-            Example: [("population", "desc"), ("name", "asc")]
+        sort_fields: List of sort specifications (for "sort_by")
+            Each item should be a dict with "field" and "direction" keys
+            Example: [{"field": "population", "direction": "desc"},
+                      {"field": "name", "direction": "asc"}]
         columns: Columns to retrieve (for "get_attribute_values")
         row_filter: Optional WHERE clause to filter rows first
             (for "get_attribute_values")
@@ -141,7 +151,7 @@ def attribute_tool2(
 
         # Sort by field
         attribute_tool2(operation="sort_by", target_layer_name="countries",
-                       sort_fields=[("population", "desc")])
+                       sort_fields=[{"field": "population", "direction": "desc"}])
 
         # Get attribute values
         attribute_tool2(operation="get_attribute_values", target_layer_name="protected_areas",
@@ -248,7 +258,21 @@ def attribute_tool2(
             )
 
         elif operation == "sort_by":
-            return _handle_sort_by(gdf, layer, sort_fields, state, tool_call_id)
+            # Convert dict format to tuple format for backward compatibility
+            # Handle both dict format (from OpenAI) and tuple format (from tests)
+            sort_fields_tuples = None
+            if sort_fields:
+                sort_fields_tuples = []
+                for sf in sort_fields:
+                    if isinstance(sf, dict):
+                        # Dict format: {"field": "name", "direction": "asc"}
+                        sort_fields_tuples.append((sf.get("field", ""), sf.get("direction", "asc")))
+                    elif isinstance(sf, (tuple, list)) and len(sf) == 2:
+                        # Tuple/list format: ("name", "asc")
+                        sort_fields_tuples.append(tuple(sf))
+                    else:
+                        logger.warning(f"Invalid sort field format: {sf}")
+            return _handle_sort_by(gdf, layer, sort_fields_tuples, state, tool_call_id)
 
         elif operation == "describe_dataset":
             return _handle_describe_dataset(gdf, layer, tool_call_id)
