@@ -47,7 +47,7 @@ export default function ToolSettingsComponent() {
   };
 
   return (
-    <div className="border border-primary-300 rounded bg-neutral-50 dark:bg-neutral-900 overflow-hidden">
+    <div className="border border-primary-300 rounded bg-primary-50 dark:bg-neutral-900 overflow-hidden">
       <button
         onClick={() => setCollapsed(!collapsed)}
         className="w-full flex items-center justify-between px-4 py-3 bg-primary-100 hover:bg-primary-200 dark:bg-primary-900 dark:hover:bg-primary-800 transition-colors"
@@ -56,9 +56,9 @@ export default function ToolSettingsComponent() {
           Tools Configuration
         </h2>
         {collapsed ? (
-          <ChevronDown className="w-6 h-6 text-primary-600" />
+          <ChevronDown className="w-6 h-6 text-primary-600 dark:text-primary-400" />
         ) : (
-          <ChevronUp className="w-6 h-6 text-primary-600" />
+          <ChevronUp className="w-6 h-6 text-primary-600 dark:text-primary-400" />
         )}
       </button>
 
@@ -68,7 +68,7 @@ export default function ToolSettingsComponent() {
             <select
               value={newToolName}
               onChange={(e) => setNewToolName(e.target.value)}
-              className="border border-primary-300 dark:border-primary-700 rounded p-2 flex-grow bg-white dark:bg-primary-950 text-primary-900 dark:text-primary-100"
+              className="border border-primary-300 dark:border-primary-700 rounded p-2 flex-grow bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
             >
               <option value="">Select tool to add</option>
               {availableTools.map((tool) => (
@@ -102,7 +102,7 @@ export default function ToolSettingsComponent() {
                   const group = toolMeta?.group;
                   
                   return (
-                    <li key={i} className="border border-primary-200 dark:border-primary-700 rounded p-4 space-y-2 bg-white dark:bg-primary-950">
+                    <li key={i} className="border border-primary-200 dark:border-primary-700 rounded p-4 space-y-2 bg-primary-50 dark:bg-primary-950">
                       <div className="flex justify-between items-center">
                         <label className="flex items-center space-x-2">
                           <input
@@ -151,7 +151,7 @@ export default function ToolSettingsComponent() {
                             setToolPromptOverride(t.name, e.target.value)
                           }
                           placeholder="Prompt Override (leave empty to use default)"
-                          className="border border-primary-300 dark:border-primary-700 rounded p-2 w-full h-20 bg-white dark:bg-primary-950 text-primary-900 dark:text-primary-100"
+                          className="border border-primary-300 dark:border-primary-700 rounded p-2 w-full h-20 bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
                         />
                       )}
                     </li>

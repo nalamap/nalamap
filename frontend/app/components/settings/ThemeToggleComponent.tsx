@@ -44,7 +44,7 @@ export default function ThemeToggleComponent() {
   }
 
   return (
-    <div className="border border-primary-300 rounded bg-neutral-50 dark:bg-neutral-900 overflow-hidden">
+    <div className="border border-primary-300 rounded bg-primary-50 dark:bg-neutral-900 overflow-hidden">
       {/* Header - Clickable to expand/collapse */}
       <button
         onClick={() => setExpanded(!expanded)}
@@ -77,7 +77,7 @@ export default function ThemeToggleComponent() {
             className={`p-4 rounded-lg border-2 transition-all ${
               theme === "light"
                 ? "border-secondary-500 bg-secondary-50"
-                : "border-primary-300 bg-neutral-50 hover:border-primary-400"
+                : "border-primary-300 bg-primary-50 hover:border-primary-400"
             }`}
           >
             <div className="flex flex-col items-center space-y-2">
@@ -112,7 +112,7 @@ export default function ThemeToggleComponent() {
             className={`p-4 rounded-lg border-2 transition-all ${
               theme === "dark"
                 ? "border-info-500 bg-info-50"
-                : "border-primary-300 bg-neutral-50 hover:border-primary-400"
+                : "border-primary-300 bg-primary-50 hover:border-primary-400"
             }`}
           >
             <div className="flex flex-col items-center space-y-2">

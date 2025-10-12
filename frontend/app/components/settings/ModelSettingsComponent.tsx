@@ -82,7 +82,7 @@ export default function ModelSettingsComponent() {
   };
 
   return (
-    <div className="border border-primary-300 rounded bg-neutral-50 dark:bg-neutral-900 overflow-hidden">
+    <div className="border border-primary-300 dark:border-primary-700 rounded bg-primary-50 dark:bg-neutral-900 overflow-hidden">
       <button
         onClick={() => setCollapsed(!collapsed)}
         className="w-full flex items-center justify-between px-4 py-3 bg-primary-100 hover:bg-primary-200 dark:bg-primary-900 dark:hover:bg-primary-800 transition-colors"
@@ -91,9 +91,9 @@ export default function ModelSettingsComponent() {
           Model Settings
         </h2>
         {collapsed ? (
-          <ChevronDown className="w-6 h-6 text-primary-600" />
+          <ChevronDown className="w-6 h-6 text-primary-600 dark:text-primary-400" />
         ) : (
-          <ChevronUp className="w-6 h-6 text-primary-600" />
+          <ChevronUp className="w-6 h-6 text-primary-600 dark:text-primary-400" />
         )}
       </button>
 
@@ -117,10 +117,10 @@ export default function ModelSettingsComponent() {
                     setMaxTokens(models[0].max_tokens);
                   }
                 }}
-                className="w-full border border-primary-300 dark:border-primary-700 rounded p-2 bg-white dark:bg-primary-950 text-primary-900 dark:text-primary-100"
+                className="w-full border border-primary-300 dark:border-primary-700 rounded p-2 bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
               >
                 {availableProviders.map((prov) => (
-                  <option key={prov} value={prov}>
+                  <option key={prov} value={prov} className="bg-primary-50 text-primary-900">
                     {prov.charAt(0).toUpperCase() + prov.slice(1)}
                   </option>
                 ))}
@@ -142,10 +142,10 @@ export default function ModelSettingsComponent() {
                     setMaxTokens(selectedModelData.max_tokens);
                   }
                 }}
-                className="w-full border border-primary-300 dark:border-primary-700 rounded p-2 bg-white dark:bg-primary-950 text-primary-900 dark:text-primary-100"
+                className="w-full border border-primary-300 dark:border-primary-700 rounded p-2 bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
               >
                 {availableModelNames.map((name) => (
-                  <option key={name} value={name}>
+                  <option key={name} value={name} className="bg-primary-50 text-primary-900">
                     {name}
                   </option>
                 ))}
@@ -177,7 +177,7 @@ export default function ModelSettingsComponent() {
                 min="0"
                 max={selectedModel?.max_tokens || undefined}
                 placeholder="Max Tokens"
-                className="w-full border border-primary-300 dark:border-primary-700 rounded p-2 bg-white dark:bg-primary-950 text-primary-900 dark:text-primary-100"
+                className="w-full border border-primary-300 dark:border-primary-700 rounded p-2 bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
               />
               <p className="text-xs text-primary-700 dark:text-primary-400 mt-1">
                 Maximum tokens to generate in responses
@@ -301,7 +301,7 @@ export default function ModelSettingsComponent() {
               value={modelSettings.system_prompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
               placeholder="Optional system prompt override..."
-              className="w-full border border-primary-300 dark:border-primary-700 rounded p-2 h-24 bg-white dark:bg-primary-950 text-primary-900 dark:text-primary-100"
+              className="w-full border border-primary-300 dark:border-primary-700 rounded p-2 h-24 bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
             />
           </div>
         </div>

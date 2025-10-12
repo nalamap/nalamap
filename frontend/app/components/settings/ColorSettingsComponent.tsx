@@ -91,7 +91,7 @@ const ColorScaleEditor = memo(function ColorScaleEditor({
   };
 
   return (
-    <div className="border border-primary-300 rounded p-3 bg-neutral-50">
+    <div className="border border-primary-300 rounded p-3 bg-primary-100 dark:bg-primary-900">
       <div
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center justify-between cursor-pointer"
@@ -168,9 +168,9 @@ const ColorScaleEditor = memo(function ColorScaleEditor({
             <Wand2 className="w-4 h-4 text-secondary-700" />
           </button>
           {expanded ? (
-            <ChevronUp className="w-4 h-4 text-primary-600" />
+            <ChevronUp className="w-4 h-4 text-primary-600 dark:text-primary-400" />
           ) : (
-            <ChevronDown className="w-4 h-4 text-primary-600" />
+            <ChevronDown className="w-4 h-4 text-primary-600 dark:text-primary-400" />
           )}
         </div>
       </div>
@@ -234,7 +234,7 @@ export default function ColorSettingsComponent() {
 
   if (!color_settings) {
     return (
-      <div className="border border-primary-300 rounded p-4 bg-neutral-50">
+      <div className="border border-primary-300 rounded p-4 bg-primary-100 dark:bg-primary-900">
         <p className="text-primary-600">Loading color settings...</p>
       </div>
     );
@@ -254,7 +254,7 @@ export default function ColorSettingsComponent() {
   };
 
   return (
-    <div className="border border-primary-300 rounded bg-neutral-50 dark:bg-neutral-900 overflow-hidden">
+    <div className="border border-primary-300 rounded bg-primary-50 dark:bg-neutral-900 overflow-hidden">
       {/* Header */}
       <button
         onClick={() => setIsOpen(!isOpen)}
@@ -269,9 +269,9 @@ export default function ColorSettingsComponent() {
           </span>
         </div>
         {isOpen ? (
-          <ChevronUp className="w-5 h-5 text-primary-700" />
+          <ChevronUp className="w-5 h-5 text-primary-700 dark:text-primary-300" />
         ) : (
-          <ChevronDown className="w-5 h-5 text-primary-700" />
+          <ChevronDown className="w-5 h-5 text-primary-700 dark:text-primary-300" />
         )}
       </button>
 
@@ -320,7 +320,7 @@ export default function ColorSettingsComponent() {
                 <h3 className="text-sm font-semibold text-primary-900 dark:text-primary-300">
                   {group.title}
                 </h3>
-                <p className="text-xs text-primary-800 dark:text-primary-400">{group.description}</p>
+                <p className="text-xs text-primary-800 dark:text-primary-300">{group.description}</p>
               </div>
               <div className="space-y-2">
                 {group.scales.map((scaleName) => (
