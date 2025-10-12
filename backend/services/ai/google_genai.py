@@ -18,6 +18,12 @@ def get_available_models() -> list[ModelInfo]:
 
     Pricing as of October 2025 (per 1M tokens in USD):
     Source: Google AI pricing page
+
+    Phase 1 Enhancements:
+    - context_window: Gemini models have very large context windows (up to 1M tokens)
+    - supports_parallel_tool_calls: True for Gemini 1.5+ models
+    - tool_calling_quality: Based on observed performance
+    - reasoning_capability: Based on model generation and capabilities
     """
     return [
         ModelInfo(
@@ -29,6 +35,10 @@ def get_available_models() -> list[ModelInfo]:
             description="Gemini 1.5 Pro - Most capable multimodal model",
             supports_tools=True,
             supports_vision=True,
+            context_window=1000000,  # 1M tokens!
+            supports_parallel_tool_calls=True,
+            tool_calling_quality="excellent",
+            reasoning_capability="expert",
         ),
         ModelInfo(
             name="gemini-1.5-flash",
@@ -39,6 +49,10 @@ def get_available_models() -> list[ModelInfo]:
             description="Gemini 1.5 Flash - Fast and efficient model",
             supports_tools=True,
             supports_vision=True,
+            context_window=1000000,  # 1M tokens!
+            supports_parallel_tool_calls=True,
+            tool_calling_quality="good",
+            reasoning_capability="advanced",
         ),
         ModelInfo(
             name="gemini-1.0-pro",
@@ -49,6 +63,10 @@ def get_available_models() -> list[ModelInfo]:
             description="Gemini 1.0 Pro - Previous generation model",
             supports_tools=True,
             supports_vision=False,
+            context_window=32000,
+            supports_parallel_tool_calls=False,
+            tool_calling_quality="basic",
+            reasoning_capability="intermediate",
         ),
         ModelInfo(
             name="gemini-2.0-flash-exp",
@@ -59,6 +77,10 @@ def get_available_models() -> list[ModelInfo]:
             description="Gemini 2.0 Flash Experimental - Free preview of next-gen model",
             supports_tools=True,
             supports_vision=True,
+            context_window=1000000,  # 1M tokens!
+            supports_parallel_tool_calls=True,
+            tool_calling_quality="excellent",
+            reasoning_capability="expert",
         ),
     ]
 

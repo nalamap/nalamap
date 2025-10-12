@@ -81,16 +81,16 @@ test.describe("Model settings with cost display", () => {
     await expect(modelSelect).toHaveValue("gpt-5-mini");
 
     // Check that model cost information is displayed
-    await expect(page.locator('text=/Input:.*\\$0\\.25\\/M tokens/')).toBeVisible();
-    await expect(page.locator('text=/Output:.*\\$0\\.03\\/M tokens/')).toBeVisible();
-    await expect(page.locator('text=/Cache:.*\\$2\\.00\\/M tokens/')).toBeVisible();
+    await expect(page.locator('text=/Input:.*\\$0\\.25\\/M/')).toBeVisible();
+    await expect(page.locator('text=/Output:.*\\$0\\.03\\/M/')).toBeVisible();
+    await expect(page.locator('text=/Cache:.*\\$2\\.00\\/M/')).toBeVisible();
 
     // Check that description is displayed
     await expect(page.locator("text=GPT-5 Mini - Balanced performance and cost")).toBeVisible();
 
-    // Check that capabilities are shown
-    await expect(page.locator("text=✓ Tools")).toBeVisible();
-    await expect(page.locator("text=✓ Vision")).toBeVisible();
+    // Check that capabilities are shown (now as badges)
+    await expect(page.locator("text=/Tools/")).toBeVisible();
+    await expect(page.locator("text=/👁️ Vision/")).toBeVisible();
   });
 
   test("updates cost display when model changes", async ({ page }) => {
@@ -118,15 +118,15 @@ test.describe("Model settings with cost display", () => {
     await page.waitForTimeout(200);
 
     // Check that costs updated for nano model
-    await expect(page.locator('text=/Input:.*\\$0\\.05\\/M tokens/')).toBeVisible();
-    await expect(page.locator('text=/Output:.*\\$0\\.01\\/M tokens/')).toBeVisible();
-    await expect(page.locator('text=/Cache:.*\\$0\\.40\\/M tokens/')).toBeVisible();
+    await expect(page.locator('text=/Input:.*\\$0\\.05\\/M/')).toBeVisible();
+    await expect(page.locator('text=/Output:.*\\$0\\.01\\/M/')).toBeVisible();
+    await expect(page.locator('text=/Cache:.*\\$0\\.40\\/M/')).toBeVisible();
 
     // Check description updated
     await expect(page.locator("text=GPT-5 Nano - Fast and efficient")).toBeVisible();
 
     // Vision should not be shown for nano
-    const visionMarkers = await page.locator("text=✓ Vision").count();
+    const visionMarkers = await page.locator("text=/👁️ Vision/").count();
     expect(visionMarkers).toBe(0);
   });
 
@@ -159,8 +159,8 @@ test.describe("Model settings with cost display", () => {
     await expect(modelSelect).toHaveValue("gemini-1.5-flash");
 
     // Check Google model costs
-    await expect(page.locator('text=/Input:.*\\$0\\.07\\/M tokens/')).toBeVisible();
-    await expect(page.locator('text=/Output:.*\\$0\\.30\\/M tokens/')).toBeVisible();
+    await expect(page.locator('text=/Input:.*\\$0\\.07\\/M/')).toBeVisible();
+    await expect(page.locator('text=/Output:.*\\$0\\.30\\/M/')).toBeVisible();
 
     // Check description
     await expect(page.locator("text=Gemini 1.5 Flash - Fast and efficient model")).toBeVisible();

@@ -33,6 +33,11 @@ export interface ModelOption {
   description?: string | null;
   supports_tools?: boolean;
   supports_vision?: boolean;
+  // Phase 1: Enhanced model selection metadata
+  context_window?: number;
+  supports_parallel_tool_calls?: boolean;
+  tool_calling_quality?: string; // "none" | "basic" | "good" | "excellent"
+  reasoning_capability?: string; // "basic" | "intermediate" | "advanced" | "expert"
 }
 
 export interface ToolOption {

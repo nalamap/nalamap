@@ -24,6 +24,12 @@ def get_available_models() -> list[ModelInfo]:
 
     Note: Pricing varies by region and deployment. User should check their
     Azure pricing page for accurate costs.
+
+    Phase 1 Enhancements:
+    - context_window: Conservative default (128K for GPT-4/GPT-4o deployments)
+    - supports_parallel_tool_calls: True (most Azure deployments support this)
+    - tool_calling_quality: "good" as default (depends on underlying model)
+    - reasoning_capability: "advanced" as default (depends on underlying model)
     """
     deployment = getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-35-turbo")
 
@@ -37,6 +43,10 @@ def get_available_models() -> list[ModelInfo]:
             description=f"Azure OpenAI deployment: {deployment}",
             supports_tools=True,
             supports_vision=False,  # Depends on deployment
+            context_window=128000,  # Conservative default for modern deployments
+            supports_parallel_tool_calls=True,
+            tool_calling_quality="good",
+            reasoning_capability="advanced",
         ),
     ]
 

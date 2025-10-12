@@ -120,10 +120,20 @@ test.describe("Model Settings Component", () => {
   test("should allow changing max tokens", async ({ page }) => {
     await expandModelSettings(page);
 
-    const maxTokensInput = page.locator('input[type="number"]').first();
-    await maxTokensInput.fill("5000");
+    // Wait for model to be selected
+    await page.waitForTimeout(500);
 
-    await expect(maxTokensInput).toHaveValue("5000");
+    const maxTokensInput = page.locator('input[type="number"]').first();
+    
+    // Test setting a valid value within the model's limit (4000)
+    await maxTokensInput.fill("3000");
+    await expect(maxTokensInput).toHaveValue("3000");
+    
+    // Test that validation clamps to max when exceeding limit
+    await maxTokensInput.fill("5000");
+    await page.waitForTimeout(200);
+    // Should be clamped to the model's max_tokens (4000)
+    await expect(maxTokensInput).toHaveValue("4000");
   });
 
   test("should display system prompt textarea", async ({ page }) => {

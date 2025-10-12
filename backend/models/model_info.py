@@ -1,6 +1,6 @@
 """Data models for LLM provider and model information."""
 
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -17,6 +17,10 @@ class ModelInfo(BaseModel):
         description: Human-readable description of the model (optional)
         supports_tools: Whether the model supports function/tool calling
         supports_vision: Whether the model supports vision/image inputs
+        context_window: Maximum context window in tokens (input + output combined)
+        supports_parallel_tool_calls: Supports calling multiple tools in a single response
+        tool_calling_quality: Quality rating of function calling implementation
+        reasoning_capability: Model's reasoning and planning capabilities
     """
 
     name: str = Field(..., description="Model identifier")
@@ -33,6 +37,20 @@ class ModelInfo(BaseModel):
     description: Optional[str] = Field(None, description="Model description")
     supports_tools: bool = Field(True, description="Supports function/tool calling")
     supports_vision: bool = Field(False, description="Supports vision/image inputs")
+
+    # Phase 1: Critical fields for LangGraph ReAct agents
+    context_window: int = Field(
+        128000, ge=1, description="Maximum context window in tokens (input + output)"
+    )
+    supports_parallel_tool_calls: bool = Field(
+        False, description="Supports calling multiple tools in a single response"
+    )
+    tool_calling_quality: Literal["none", "basic", "good", "excellent"] = Field(
+        "basic", description="Quality of function calling implementation"
+    )
+    reasoning_capability: Literal["basic", "intermediate", "advanced", "expert"] = Field(
+        "intermediate", description="Model's reasoning and planning capabilities"
+    )
 
 
 class ProviderInfo(BaseModel):

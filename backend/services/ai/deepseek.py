@@ -18,6 +18,12 @@ def get_available_models() -> list[ModelInfo]:
 
     Pricing as of October 2025 (per 1M tokens in USD):
     Source: DeepSeek pricing page
+
+    Phase 1 Enhancements:
+    - context_window: Based on DeepSeek documentation (varies by model)
+    - supports_parallel_tool_calls: True for newer models
+    - tool_calling_quality: Based on observed performance
+    - reasoning_capability: Based on model specialization
     """
     return [
         ModelInfo(
@@ -29,6 +35,10 @@ def get_available_models() -> list[ModelInfo]:
             description="DeepSeek Chat - General purpose chat model",
             supports_tools=True,
             supports_vision=False,
+            context_window=32000,
+            supports_parallel_tool_calls=True,
+            tool_calling_quality="good",
+            reasoning_capability="intermediate",
         ),
         ModelInfo(
             name="deepseek-coder",
@@ -39,6 +49,10 @@ def get_available_models() -> list[ModelInfo]:
             description="DeepSeek Coder - Specialized coding model",
             supports_tools=True,
             supports_vision=False,
+            context_window=32000,
+            supports_parallel_tool_calls=True,
+            tool_calling_quality="good",
+            reasoning_capability="advanced",
         ),
         ModelInfo(
             name="deepseek-reasoner",
@@ -49,6 +63,10 @@ def get_available_models() -> list[ModelInfo]:
             description="DeepSeek Reasoner - Advanced reasoning capabilities",
             supports_tools=True,
             supports_vision=False,
+            context_window=64000,
+            supports_parallel_tool_calls=True,
+            tool_calling_quality="excellent",
+            reasoning_capability="expert",
         ),
     ]
 

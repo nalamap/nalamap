@@ -18,6 +18,12 @@ def get_available_models() -> list[ModelInfo]:
 
     Pricing as of October 2025 (per 1M tokens in USD):
     Source: Mistral AI pricing page
+
+    Phase 1 Enhancements:
+    - context_window: Based on Mistral AI documentation (32K for most models)
+    - supports_parallel_tool_calls: True for latest models
+    - tool_calling_quality: Based on observed performance
+    - reasoning_capability: Based on model tier
     """
     return [
         ModelInfo(
@@ -29,6 +35,10 @@ def get_available_models() -> list[ModelInfo]:
             description="Mistral Large - Most capable model for complex reasoning",
             supports_tools=True,
             supports_vision=False,
+            context_window=128000,
+            supports_parallel_tool_calls=True,
+            tool_calling_quality="excellent",
+            reasoning_capability="expert",
         ),
         ModelInfo(
             name="mistral-medium-latest",
@@ -39,6 +49,10 @@ def get_available_models() -> list[ModelInfo]:
             description="Mistral Medium - Balanced performance model",
             supports_tools=True,
             supports_vision=False,
+            context_window=32000,
+            supports_parallel_tool_calls=True,
+            tool_calling_quality="good",
+            reasoning_capability="advanced",
         ),
         ModelInfo(
             name="mistral-small-latest",
@@ -49,6 +63,10 @@ def get_available_models() -> list[ModelInfo]:
             description="Mistral Small - Fast and cost-effective model",
             supports_tools=True,
             supports_vision=False,
+            context_window=32000,
+            supports_parallel_tool_calls=True,
+            tool_calling_quality="good",
+            reasoning_capability="intermediate",
         ),
         ModelInfo(
             name="open-mistral-7b",
@@ -59,6 +77,10 @@ def get_available_models() -> list[ModelInfo]:
             description="Open Mistral 7B - Open-source efficient model",
             supports_tools=True,
             supports_vision=False,
+            context_window=32000,
+            supports_parallel_tool_calls=False,
+            tool_calling_quality="basic",
+            reasoning_capability="basic",
         ),
         ModelInfo(
             name="open-mixtral-8x7b",
@@ -69,6 +91,10 @@ def get_available_models() -> list[ModelInfo]:
             description="Open Mixtral 8x7B - Open-source mixture-of-experts model",
             supports_tools=True,
             supports_vision=False,
+            context_window=32000,
+            supports_parallel_tool_calls=True,
+            tool_calling_quality="good",
+            reasoning_capability="intermediate",
         ),
     ]
 

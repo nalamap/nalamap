@@ -100,6 +100,11 @@ class ModelOption(BaseModel):
     description: Optional[str] = None
     supports_tools: bool = True
     supports_vision: bool = False
+    # Phase 1: Enhanced model selection metadata
+    context_window: int = 128000
+    supports_parallel_tool_calls: bool = False
+    tool_calling_quality: str = "basic"  # "none", "basic", "good", "excellent"
+    reasoning_capability: str = "intermediate"  # "basic", "intermediate", "advanced", "expert"
 
 
 class ExampleGeoServer(BaseModel):
@@ -231,6 +236,11 @@ async def get_settings_options(request: Request, response: Response):
                     description=model.description,
                     supports_tools=model.supports_tools,
                     supports_vision=model.supports_vision,
+                    # Phase 1: Enhanced model selection metadata
+                    context_window=model.context_window,
+                    supports_parallel_tool_calls=model.supports_parallel_tool_calls,
+                    tool_calling_quality=model.tool_calling_quality,
+                    reasoning_capability=model.reasoning_capability,
                 )
                 for model in provider_info.models
             ]
@@ -246,6 +256,11 @@ async def get_settings_options(request: Request, response: Response):
                     input_cost_per_million=0.25,
                     output_cost_per_million=0.025,
                     description="GPT-5 Mini (fallback - configure API key)",
+                    # Phase 1: Enhanced model selection metadata (fallback values)
+                    context_window=200000,
+                    supports_parallel_tool_calls=True,
+                    tool_calling_quality="excellent",
+                    reasoning_capability="advanced",
                 ),
             ],
         }
