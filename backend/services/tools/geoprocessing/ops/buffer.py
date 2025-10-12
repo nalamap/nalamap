@@ -78,6 +78,12 @@ def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857", radius_unit="meters"
         )
         return []
 
+    # Ensure all features have 'properties' field (GeoJSON spec requirement)
+    # This prevents KeyError when geopandas tries to access feature["properties"]
+    for feature in current_features:
+        if isinstance(feature, dict) and "properties" not in feature:
+            feature["properties"] = {}
+
     try:
         gdf = gpd.GeoDataFrame.from_features(current_features)
         gdf.set_crs("EPSG:4326", inplace=True)

@@ -477,3 +477,67 @@ class TestGeocodingIntegration:
             assert "{query}" not in url
             assert "{geojson}" not in url
             assert "url={" not in url
+
+
+class TestGeodataObjectGeoJSONStructure:
+    """Test that GeoJSON created by geocoding is valid for geopandas"""
+
+    def test_geojson_has_properties_field(self, mock_nominatim_geojson_response):
+        """Test that created GeoJSON includes required 'properties' field"""
+        nominatim_data = mock_nominatim_geojson_response[0]
+
+        with patch("services.tools.geocoding.store_file") as mock_store:
+            test_url = "http://test.com/file.json"
+            test_uuid = "test-uuid-123"
+            mock_store.return_value = (test_url, test_uuid)
+
+            # Create the GeoDataObject
+            geo_object = create_geodata_object_from_geojson(nominatim_data)
+            assert geo_object is not None
+
+            # Retrieve the stored GeoJSON
+            call_args = mock_store.call_args
+            stored_content = call_args[0][1]  # Second argument is the content bytes
+            stored_geojson = json.loads(stored_content.decode("utf-8"))
+
+            # Verify GeoJSON structure
+            assert stored_geojson["type"] == "Feature"
+            assert "geometry" in stored_geojson
+            assert "properties" in stored_geojson, "GeoJSON Feature must have 'properties' field"
+
+            # Verify properties are not empty
+            assert isinstance(stored_geojson["properties"], dict)
+            assert len(stored_geojson["properties"]) > 0
+
+            # Verify key properties are included
+            assert "place_id" in stored_geojson["properties"]
+            assert "name" in stored_geojson["properties"]
+            assert stored_geojson["properties"]["name"] == "Paris"
+
+    def test_geojson_compatible_with_geopandas(self, mock_nominatim_geojson_response):
+        """Test that created GeoJSON can be loaded by geopandas without errors"""
+        try:
+            import geopandas as gpd
+        except ImportError:
+            pytest.skip("geopandas not installed")
+
+        nominatim_data = mock_nominatim_geojson_response[0]
+
+        with patch("services.tools.geocoding.store_file") as mock_store:
+            test_url = "http://test.com/file.json"
+            test_uuid = "test-uuid-123"
+            mock_store.return_value = (test_url, test_uuid)
+
+            # Create the GeoDataObject
+            geo_object = create_geodata_object_from_geojson(nominatim_data)
+            assert geo_object is not None
+
+            # Retrieve the stored GeoJSON
+            call_args = mock_store.call_args
+            stored_content = call_args[0][1]
+            stored_geojson = json.loads(stored_content.decode("utf-8"))
+
+            # This should not raise a KeyError for 'properties'
+            gdf = gpd.GeoDataFrame.from_features([stored_geojson])
+            assert len(gdf) == 1
+            assert not gdf.empty

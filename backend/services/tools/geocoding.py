@@ -99,9 +99,32 @@ def create_geodata_object_from_geojson(
         return None
     place_id: str = str(nominatim_response["place_id"])
     name: str = nominatim_response["name"]
+    
+    # Build properties from nominatim response
+    properties: Dict[str, Any] = {}
+    for prop in [
+        "place_id",
+        "name",
+        "display_name",
+        "licence",
+        "osm_type",
+        "osm_id",
+        "lat",
+        "lon",
+        "class",
+        "type",
+        "place_rank",
+        "importance",
+        "addresstype",
+        "address",
+    ]:
+        if prop in nominatim_response:
+            properties[prop] = nominatim_response[prop]
+    
     geojson: Dict[str, Any] = {
         "type": "Feature",
         "geometry": nominatim_response["geojson"],
+        "properties": properties,
     }
 
     # Use ensure_ascii=False for proper UTF-8 encoding
