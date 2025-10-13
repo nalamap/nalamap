@@ -14,7 +14,7 @@
     "@ai-sdk/react": "^1.1.19",
     "@tmcw/togeojson": "^7.1.0",
     "@types/geojson": "^7946.0.16",
-    "@types/leaflet": "^1.9.16",
+    "@types/leaflet": "^1.9.21",
     "@xmldom/xmldom": "^0.9.8",
     "ai": "^4.1.47",
     "leaflet": "^1.9.4",
