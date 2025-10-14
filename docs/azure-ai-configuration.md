@@ -79,7 +79,7 @@ Azure AI Foundry provides access to third-party models from Meta, Mistral, DeepS
 
 ### Multi-Model Configuration
 
-Use `AZURE_MODELS_CONFIG` to define multiple models:
+Use `AZURE_MODELS_CONFIG` to define multiple models as a **JSON string**:
 
 ```bash
 AZURE_MODELS_CONFIG='[
@@ -128,6 +128,8 @@ AZURE_MODELS_CONFIG='[
   }
 ]'
 ```
+
+> ⚠️ **Important for Terraform/IaC**: When using Terraform `.tfvars` files, you **cannot** use `jsonencode()` function. Instead, provide the JSON string directly or use a `.tf` file with locals/variables.
 
 ### Model Configuration Fields
 
@@ -356,6 +358,179 @@ AZURE_MODELS_CONFIG='[
 
 ---
 
+## 🏗️ Terraform / Infrastructure as Code
+
+### Issue: Function Calls Not Allowed in .tfvars
+
+Terraform `.tfvars` files **do not support function calls** like `jsonencode()`. You'll get this error:
+
+```
+Error: Function calls not allowed
+  on vars/myfile.tfvars line XX:
+  XX: azure_models_config = jsonencode([...])
+
+Functions may not be called here.
+```
+
+### Solution 1: Use Pre-Encoded JSON String (Recommended)
+
+In your `.tfvars` file, provide the JSON as a **string**:
+
+```hcl
+# vars/bmz_development.tfvars
+azure_models_config = "[{\"deployment\":\"gpt-4o\",\"model_name\":\"gpt-4o\",\"max_tokens\":4096,\"context_window\":128000,\"input_cost\":5.00,\"output_cost\":15.00,\"supports_tools\":true,\"supports_vision\":true,\"tool_quality\":\"excellent\",\"reasoning\":\"expert\"},{\"deployment\":\"llama-3-3-70b\",\"model_name\":\"meta-llama-3.3-70b-instruct\",\"max_tokens\":8192,\"input_cost\":0.27,\"output_cost\":0.27,\"supports_tools\":true,\"tool_quality\":\"excellent\",\"reasoning\":\"expert\"}]"
+```
+
+### Solution 2: Use locals in .tf File
+
+Define the JSON structure in a `.tf` file using `locals` and `jsonencode()`:
+
+```hcl
+# variables.tf
+variable "azure_models_config" {
+  type        = string
+  description = "Azure models configuration JSON"
+}
+
+# main.tf or locals.tf
+locals {
+  azure_models = [
+    {
+      deployment       = "gpt-4o"
+      model_name       = "gpt-4o"
+      max_tokens       = 4096
+      context_window   = 128000
+      input_cost       = 5.00
+      output_cost      = 15.00
+      supports_tools   = true
+      supports_vision  = true
+      tool_quality     = "excellent"
+      reasoning        = "expert"
+    },
+    {
+      deployment       = "llama-3-3-70b"
+      model_name       = "meta-llama-3.3-70b-instruct"
+      max_tokens       = 8192
+      input_cost       = 0.27
+      output_cost      = 0.27
+      supports_tools   = true
+      tool_quality     = "excellent"
+      reasoning        = "expert"
+    }
+  ]
+  
+  azure_models_json = jsonencode(local.azure_models)
+}
+
+# Use in your resource
+resource "azurerm_container_app" "backend" {
+  # ...
+  
+  template {
+    container {
+      env {
+        name  = "AZURE_MODELS_CONFIG"
+        value = local.azure_models_json
+      }
+    }
+  }
+}
+```
+
+### Solution 3: Use External JSON File
+
+Store configuration in a separate JSON file:
+
+```json
+// config/azure_models.json
+[
+  {
+    "deployment": "gpt-4o",
+    "model_name": "gpt-4o",
+    "max_tokens": 4096,
+    "context_window": 128000,
+    "input_cost": 5.00,
+    "output_cost": 15.00,
+    "supports_tools": true,
+    "supports_vision": true,
+    "tool_quality": "excellent",
+    "reasoning": "expert"
+  }
+]
+```
+
+Then load it in your Terraform:
+
+```hcl
+# main.tf
+locals {
+  azure_models_json = file("${path.module}/config/azure_models.json")
+}
+
+resource "azurerm_container_app" "backend" {
+  # ...
+  template {
+    container {
+      env {
+        name  = "AZURE_MODELS_CONFIG"
+        value = local.azure_models_json
+      }
+    }
+  }
+}
+```
+
+### Solution 4: Use Terraform templatefile
+
+For complex configurations with variables:
+
+```hcl
+# templates/azure_models.json.tpl
+[
+  {
+    "deployment": "${gpt4o_deployment}",
+    "model_name": "gpt-4o",
+    "max_tokens": 4096,
+    "input_cost": ${gpt4o_input_cost}
+  }
+]
+```
+
+```hcl
+# main.tf
+locals {
+  azure_models_json = templatefile("${path.module}/templates/azure_models.json.tpl", {
+    gpt4o_deployment   = var.gpt4o_deployment_name
+    gpt4o_input_cost   = var.gpt4o_pricing.input
+  })
+}
+```
+
+### Quick Fix for Your Current Setup
+
+Replace this in your `.tfvars`:
+
+```hcl
+# ❌ This doesn't work in .tfvars
+azure_models_config = jsonencode([
+  {
+    deployment = "gpt-4o"
+    # ...
+  }
+])
+```
+
+With this:
+
+```hcl
+# ✅ This works in .tfvars
+azure_models_config = "[{\"deployment\":\"gpt-4o\",\"model_name\":\"gpt-4o\",\"max_tokens\":4096,\"input_cost\":5.0}]"
+```
+
+Or move the configuration to a `.tf` file as shown in **Solution 2**.
+
+---
+
 ## 🐛 Troubleshooting
 
 ### Issue: Models Not Appearing
@@ -403,6 +578,7 @@ AZURE_MODELS_CONFIG='[
 - [Azure OpenAI Service Documentation](https://learn.microsoft.com/en-us/azure/ai-services/openai/)
 - [Azure AI Foundry Documentation](https://learn.microsoft.com/en-us/azure/ai-studio/)
 - [Azure OpenAI Pricing](https://azure.microsoft.com/en-us/pricing/details/cognitive-services/openai-service/)
+- [Terraform Configuration Guide](./terraform-azure-models-config.md) - **Fix for `jsonencode()` error**
 - [NaLaMap Model Selection Guide](./phase-1-model-selection-implementation.md)
 - [OpenAI Embeddings Guide](./openai-embeddings.md)
 
