@@ -82,11 +82,24 @@ GEOSERVER_VECTOR_DB_ENV = "NALAMAP_GEOSERVER_VECTOR_DB"
 GEOSERVER_EMBEDDING_FACTORY_ENV = "NALAMAP_GEOSERVER_EMBEDDING_FACTORY"
 DEFAULT_GEOSERVER_VECTOR_DB_PATH = Path("data/geoserver_vectors.db")
 
-# OpenAI embeddings configuration (optional)
-# Set USE_OPENAI_EMBEDDINGS=true to enable transformer-based embeddings
+# Embedding provider configuration
+# Determines which embedding provider to use for GeoServer vector store
+# Options: "hashing" (default), "openai", "azure"
+EMBEDDING_PROVIDER = os.getenv("EMBEDDING_PROVIDER", "hashing").lower()
+
+# OpenAI embeddings configuration (legacy - kept for backward compatibility)
+# Set USE_OPENAI_EMBEDDINGS=true to enable OpenAI embeddings
 USE_OPENAI_EMBEDDINGS = os.getenv("USE_OPENAI_EMBEDDINGS", "false").lower() == "true"
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_EMBEDDING_MODEL = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
+
+# Azure AI embeddings configuration
+# Set EMBEDDING_PROVIDER=azure to enable Azure AI embeddings
+USE_AZURE_EMBEDDINGS = os.getenv("USE_AZURE_EMBEDDINGS", "false").lower() == "true"
+AZURE_EMBEDDING_DEPLOYMENT = os.getenv("AZURE_EMBEDDING_DEPLOYMENT", "")
+AZURE_EMBEDDING_MODEL = os.getenv(
+    "AZURE_EMBEDDING_MODEL", "text-embedding-3-small"
+)  # Model name for Azure OpenAI
 
 
 def get_geoserver_vector_db_path() -> Path:
