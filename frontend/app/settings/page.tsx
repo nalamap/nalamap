@@ -109,10 +109,35 @@ export default function SettingsPage() {
 
   const API_BASE_URL = getApiBase();
 
-  // Constants for progress interpolation
-  const DEFAULT_VELOCITY = 1.5; // layers per second (conservative estimate)
-  const INTERPOLATION_FPS = 3; // frames per second
-  const INTERPOLATION_INTERVAL = 1000 / INTERPOLATION_FPS; // milliseconds
+  // Read interpolation configuration from environment variables
+  const getEmbeddingConfig = () => {
+    if (typeof window !== 'undefined') {
+      const runtimeConfig = (window as any).__RUNTIME_CONFIG__ || {};
+      
+      return {
+        interpolationEnabled: runtimeConfig.NEXT_PUBLIC_EMBEDDING_INTERPOLATION_ENABLED === 'true' || 
+                            process.env.NEXT_PUBLIC_EMBEDDING_INTERPOLATION_ENABLED === 'true',
+        pollingInterval: parseInt(
+          runtimeConfig.NEXT_PUBLIC_EMBEDDING_POLLING_INTERVAL_MS || 
+          process.env.NEXT_PUBLIC_EMBEDDING_POLLING_INTERVAL_MS || 
+          '3000'
+        ),
+        defaultVelocity: parseFloat(
+          runtimeConfig.NEXT_PUBLIC_EMBEDDING_DEFAULT_VELOCITY || 
+          process.env.NEXT_PUBLIC_EMBEDDING_DEFAULT_VELOCITY || 
+          '3'
+        ),
+      };
+    }
+    // Server-side defaults
+    return {
+      interpolationEnabled: false,
+      pollingInterval: 3000,
+      defaultVelocity: 3,
+    };
+  };
+
+  const embeddingConfig = getEmbeddingConfig();
 
   // Ref to track if we should continue polling
   const shouldPollRef = React.useRef(true);
@@ -291,7 +316,7 @@ export default function SettingsPage() {
           encoded: 0,
           displayEncoded: 0,
           percentage: 0,
-          velocity: DEFAULT_VELOCITY,
+          velocity: embeddingConfig.defaultVelocity,
           lastUpdate: Date.now(),
         },
       }));
@@ -368,7 +393,7 @@ export default function SettingsPage() {
           encoded: 0,
           displayEncoded: 0,
           percentage: 0,
-          velocity: DEFAULT_VELOCITY,
+          velocity: embeddingConfig.defaultVelocity,
           lastUpdate: Date.now(),
         },
       }));
@@ -439,7 +464,7 @@ export default function SettingsPage() {
                 // This allows velocity to adapt over time while preventing resets
                 const newVelocity = velocity > 0 
                   ? velocity 
-                  : (prevInterp.velocity > 0 ? prevInterp.velocity : DEFAULT_VELOCITY);
+                  : (prevInterp.velocity > 0 ? prevInterp.velocity : embeddingConfig.defaultVelocity);
 
                 updated[url] = {
                   encoded: status.encoded, // Always use real value as baseline
@@ -454,7 +479,7 @@ export default function SettingsPage() {
                   encoded: status.encoded,
                   displayEncoded: status.encoded,
                   percentage: status.percentage,
-                  velocity: DEFAULT_VELOCITY,
+                  velocity: embeddingConfig.defaultVelocity,
                   lastUpdate: now,
                 };
               }
@@ -489,9 +514,9 @@ export default function SettingsPage() {
       // Silently fail - embedding status is optional
       console.error("Failed to fetch embedding status:", err);
     }
-  }, [backends, API_BASE_URL, DEFAULT_VELOCITY]);
+  }, [backends, API_BASE_URL, embeddingConfig.defaultVelocity]);
 
-  // Poll embedding status every 10 seconds when there are enabled backends
+  // Poll embedding status using configured interval when there are enabled backends
   React.useEffect(() => {
     // Fetch initial status immediately when component mounts or backends change
     const enabledBackends = backends.filter((b) => b.enabled);
@@ -502,7 +527,7 @@ export default function SettingsPage() {
       shouldPollRef.current = false;
     }
 
-    // Set up polling interval
+    // Set up polling interval using configured value
     const interval = setInterval(() => {
       const currentEnabledBackends = backends.filter((b) => b.enabled);
       if (currentEnabledBackends.length === 0) {
@@ -514,13 +539,18 @@ export default function SettingsPage() {
       if (shouldPollRef.current) {
         fetchEmbeddingStatus();
       }
-    }, 5000); // 5 seconds
+    }, embeddingConfig.pollingInterval);
 
     return () => clearInterval(interval);
-  }, [backends, fetchEmbeddingStatus]);
+  }, [backends, fetchEmbeddingStatus, embeddingConfig.pollingInterval]);
 
-  // Smooth interpolation effect for progress bars
+  // Smooth interpolation effect for progress bars (only if enabled)
   React.useEffect(() => {
+    // Skip interpolation if disabled
+    if (!embeddingConfig.interpolationEnabled) {
+      return;
+    }
+
     let animationFrameId: number;
 
     const animate = () => {
@@ -583,7 +613,7 @@ export default function SettingsPage() {
         cancelAnimationFrame(animationFrameId);
       }
     };
-  }, [embeddingStatus]);
+  }, [embeddingStatus, embeddingConfig.interpolationEnabled]);
 
   /** Export JSON */
   const exportSettings = () => {

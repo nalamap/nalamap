@@ -19,6 +19,16 @@ const mockSettings = {
 
 test.describe('Embedding Progress Interpolation', () => {
   test.beforeEach(async ({ page }) => {
+    // Enable interpolation for these tests
+    await page.addInitScript(() => {
+      window.__RUNTIME_CONFIG__ = {
+        NEXT_PUBLIC_API_BASE_URL: '/api',
+        NEXT_PUBLIC_EMBEDDING_INTERPOLATION_ENABLED: 'true',
+        NEXT_PUBLIC_EMBEDDING_POLLING_INTERVAL_MS: '3000',
+        NEXT_PUBLIC_EMBEDDING_DEFAULT_VELOCITY: '3',
+      };
+    });
+
     // Mock the settings/options endpoint for initialization
     await page.route("**/settings/options", async (route) => {
       await route.fulfill({
@@ -147,5 +157,135 @@ test.describe('Embedding Progress Interpolation', () => {
     const firstReading = progressReadings[0];
     const lastReading = progressReadings[progressReadings.length - 1];
     expect(lastReading.value).toBeGreaterThan(firstReading.value);
+  });
+});
+
+test.describe('Embedding Progress - Default Configuration (No Interpolation)', () => {
+  test.beforeEach(async ({ page }) => {
+    // Use default configuration (interpolation disabled)
+    await page.addInitScript(() => {
+      window.__RUNTIME_CONFIG__ = {
+        NEXT_PUBLIC_API_BASE_URL: '/api',
+        NEXT_PUBLIC_EMBEDDING_INTERPOLATION_ENABLED: 'false',
+        NEXT_PUBLIC_EMBEDDING_POLLING_INTERVAL_MS: '3000',
+        NEXT_PUBLIC_EMBEDDING_DEFAULT_VELOCITY: '3',
+      };
+    });
+
+    // Mock the settings/options endpoint for initialization
+    await page.route("**/settings/options", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockSettings),
+      });
+    });
+
+    // Mock the settings/state endpoint to return empty backends initially
+    await page.route("**/settings/state", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          geoserver_backends: [],
+          model_settings: {
+            provider: 'openai',
+            model: 'gpt-4-turbo',
+          },
+        }),
+      });
+    });
+
+    // Navigate to settings page
+    await page.goto('/settings');
+    await page.waitForLoadState('networkidle');
+    
+    // Expand GeoServer Backends section
+    await expandGeoServerSection(page);
+  });
+
+  test('should show real backend values without interpolation', async ({ page }) => {
+    // This test verifies that with interpolation disabled (default),
+    // the progress bar shows exact backend values without smoothing
+    
+    let callCount = 0;
+    const realValues = [0, 15, 30, 45, 60]; // Exact values from backend
+    const testBackendUrl = 'https://no-interpolation-test.example.com';
+
+    await page.route('**/settings/geoserver/embedding-status*', async (route) => {
+      const mockEncoded = realValues[Math.min(callCount, realValues.length - 1)];
+      callCount++;
+      
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          backends: {
+            [testBackendUrl]: {
+              total: 100,
+              encoded: mockEncoded,
+              percentage: mockEncoded,
+              state: 'processing',
+              in_progress: true,
+              complete: false,
+              error: null,
+            },
+          },
+        }),
+      });
+    });
+
+    await page.route('**/settings/geoserver/preload', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          total_layers: 100,
+          session_id: 'test-session',
+        }),
+      });
+    });
+
+    // Add backend
+    await page.getByPlaceholder('GeoServer URL').fill(testBackendUrl);
+    await page.getByRole('button', { name: /Add Backend/i }).click();
+
+    // Wait for backend to appear
+    await expect(page.locator(`text=${testBackendUrl}`)).toBeVisible({ timeout: 5000 });
+
+    // Wait for initial status
+    await page.waitForTimeout(1000);
+
+    // Sample progress values - should match backend values exactly (no interpolation)
+    const samples: number[] = [];
+    for (let i = 0; i < 10; i++) {
+      const progressText = await page
+        .locator(`li:has-text("${testBackendUrl}")`)
+        .locator('text=/\\d+ \\/ \\d+ layers/')
+        .textContent();
+      
+      if (progressText) {
+        const match = progressText.match(/(\d+(?:\.\d+)?)\s*\/\s*(\d+)/);
+        if (match) {
+          samples.push(parseFloat(match[1]));
+        }
+      }
+      await page.waitForTimeout(400);
+    }
+
+    // Verify we got samples
+    expect(samples.length).toBeGreaterThan(5);
+
+    // With interpolation DISABLED, values should only be the exact backend values
+    // Check that we only see values from realValues array (no in-between values)
+    const uniqueValues = [...new Set(samples)];
+    
+    // All unique values should be from our realValues array
+    uniqueValues.forEach(value => {
+      expect(realValues).toContain(value);
+    });
+
+    // Should see at least 2 different backend values (showing progression)
+    expect(uniqueValues.length).toBeGreaterThanOrEqual(2);
   });
 });

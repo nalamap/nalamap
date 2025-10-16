@@ -8,6 +8,9 @@ declare global {
       NEXT_PUBLIC_API_BASE_URL?: string;
       NEXT_PUBLIC_API_UPLOAD_URL?: string;
       NEXT_PUBLIC_BACKEND_URL?: string;
+      NEXT_PUBLIC_EMBEDDING_INTERPOLATION_ENABLED?: string;
+      NEXT_PUBLIC_EMBEDDING_POLLING_INTERVAL_MS?: string;
+      NEXT_PUBLIC_EMBEDDING_DEFAULT_VELOCITY?: string;
     };
   }
 }

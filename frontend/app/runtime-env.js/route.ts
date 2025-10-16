@@ -26,7 +26,10 @@ export async function GET() {
       const fallbackConfig = `window.__RUNTIME_CONFIG__ = {
   NEXT_PUBLIC_API_BASE_URL: "${process.env.NEXT_PUBLIC_API_BASE_URL || "/api"}",
   NEXT_PUBLIC_API_UPLOAD_URL: "${process.env.NEXT_PUBLIC_API_UPLOAD_URL || "/api/upload"}",
-  NEXT_PUBLIC_BACKEND_URL: "${process.env.NEXT_PUBLIC_BACKEND_URL || "http://backend:8000"}"
+  NEXT_PUBLIC_BACKEND_URL: "${process.env.NEXT_PUBLIC_BACKEND_URL || "http://backend:8000"}",
+  NEXT_PUBLIC_EMBEDDING_INTERPOLATION_ENABLED: "${process.env.NEXT_PUBLIC_EMBEDDING_INTERPOLATION_ENABLED || "false"}",
+  NEXT_PUBLIC_EMBEDDING_POLLING_INTERVAL_MS: "${process.env.NEXT_PUBLIC_EMBEDDING_POLLING_INTERVAL_MS || "3000"}",
+  NEXT_PUBLIC_EMBEDDING_DEFAULT_VELOCITY: "${process.env.NEXT_PUBLIC_EMBEDDING_DEFAULT_VELOCITY || "3"}"
 };`;
 
       return new NextResponse(fallbackConfig, {
@@ -43,7 +46,10 @@ export async function GET() {
     const fallbackConfig = `window.__RUNTIME_CONFIG__ = {
   NEXT_PUBLIC_API_BASE_URL: "/api",
   NEXT_PUBLIC_API_UPLOAD_URL: "/api/upload", 
-  NEXT_PUBLIC_BACKEND_URL: "http://backend:8000"
+  NEXT_PUBLIC_BACKEND_URL: "http://backend:8000",
+  NEXT_PUBLIC_EMBEDDING_INTERPOLATION_ENABLED: "false",
+  NEXT_PUBLIC_EMBEDDING_POLLING_INTERVAL_MS: "3000",
+  NEXT_PUBLIC_EMBEDDING_DEFAULT_VELOCITY: "3"
 };`;
 
     return new NextResponse(fallbackConfig, {
