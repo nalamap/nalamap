@@ -17,30 +17,6 @@ def get_all_providers() -> Dict[str, ProviderInfo]:
     """
     providers: Dict[str, ProviderInfo] = {}
 
-    # OpenAI
-    try:
-        from services.ai import openai
-
-        is_available = openai.is_available()
-        models: List[ModelInfo] = openai.get_available_models() if is_available else []
-
-        providers["openai"] = ProviderInfo(
-            name="openai",
-            display_name="OpenAI",
-            available=is_available,
-            models=models,
-            error_message=None if is_available else "API key not configured",
-        )
-    except Exception as e:
-        logger.warning(f"Failed to load OpenAI provider: {e}")
-        providers["openai"] = ProviderInfo(
-            name="openai",
-            display_name="OpenAI",
-            available=False,
-            models=[],
-            error_message=str(e),
-        )
-
     # Azure OpenAI
     try:
         from services.ai import azureai
@@ -60,6 +36,30 @@ def get_all_providers() -> Dict[str, ProviderInfo]:
         providers["azure"] = ProviderInfo(
             name="azure",
             display_name="Azure OpenAI",
+            available=False,
+            models=[],
+            error_message=str(e),
+        )
+
+    # OpenAI
+    try:
+        from services.ai import openai
+
+        is_available = openai.is_available()
+        models: List[ModelInfo] = openai.get_available_models() if is_available else []
+
+        providers["openai"] = ProviderInfo(
+            name="openai",
+            display_name="OpenAI",
+            available=is_available,
+            models=models,
+            error_message=None if is_available else "API key not configured",
+        )
+    except Exception as e:
+        logger.warning(f"Failed to load OpenAI provider: {e}")
+        providers["openai"] = ProviderInfo(
+            name="openai",
+            display_name="OpenAI",
             available=False,
             models=[],
             error_message=str(e),
