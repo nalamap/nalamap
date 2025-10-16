@@ -25,9 +25,13 @@ from langchain_community.vectorstores import SQLiteVec
 from langchain_core.embeddings import Embeddings
 
 from core.config import (
+    AZURE_EMBEDDING_DEPLOYMENT,
+    AZURE_EMBEDDING_MODEL,
+    EMBEDDING_PROVIDER,
     GEOSERVER_EMBEDDING_FACTORY_ENV,
     OPENAI_API_KEY,
     OPENAI_EMBEDDING_MODEL,
+    USE_AZURE_EMBEDDINGS,
     USE_OPENAI_EMBEDDINGS,
     get_geoserver_embedding_factory_path,
     get_geoserver_vector_db_path,
@@ -278,6 +282,99 @@ class _OpenAIEmbeddings(Embeddings):
             return self._fallback_embeddings.embed_query(text)
 
 
+class _AzureEmbeddings(Embeddings):
+    """Azure OpenAI embeddings with fallback to lightweight hashing.
+
+    Uses Azure OpenAI's text-embedding models for high-quality semantic
+    embeddings. Falls back to _HashingEmbeddings if Azure is unavailable
+    or encounters errors.
+
+    Configuration via environment variables:
+    - AZURE_OPENAI_ENDPOINT: Your Azure OpenAI endpoint
+    - AZURE_OPENAI_API_KEY: Your Azure OpenAI API key
+    - AZURE_OPENAI_API_VERSION: API version (e.g., "2024-02-01")
+    - AZURE_EMBEDDING_DEPLOYMENT: Deployment name for embeddings
+    - AZURE_EMBEDDING_MODEL: Model name (default: text-embedding-3-small)
+    """
+
+    def __init__(self) -> None:
+        self._azure_embeddings: Optional[Embeddings] = None
+        self._fallback_embeddings = _HashingEmbeddings()
+        self._use_fallback = False
+
+        # Try to initialize Azure embeddings
+        if self._should_use_azure():
+            try:
+                from langchain_openai import AzureOpenAIEmbeddings
+                from os import getenv
+
+                self._azure_embeddings = AzureOpenAIEmbeddings(
+                    azure_deployment=AZURE_EMBEDDING_DEPLOYMENT,
+                    model=AZURE_EMBEDDING_MODEL,
+                    azure_endpoint=getenv("AZURE_OPENAI_ENDPOINT"),
+                    api_key=getenv("AZURE_OPENAI_API_KEY"),
+                    api_version=getenv("AZURE_OPENAI_API_VERSION", "2024-02-01"),
+                )
+                logger.info(
+                    f"Azure AI embeddings initialized with deployment: "
+                    f"{AZURE_EMBEDDING_DEPLOYMENT}, model: {AZURE_EMBEDDING_MODEL}"
+                )
+            except ImportError:
+                logger.warning(
+                    "langchain_openai not installed. Install with: pip install langchain-openai. "
+                    "Falling back to lightweight hashing embeddings."
+                )
+                self._use_fallback = True
+            except Exception as e:
+                logger.warning(
+                    f"Failed to initialize Azure embeddings: {e}. "
+                    "Falling back to lightweight hashing embeddings."
+                )
+                self._use_fallback = True
+        else:
+            logger.info(
+                "Azure embeddings not configured (missing AZURE_EMBEDDING_DEPLOYMENT). "
+                "Using lightweight hashing embeddings."
+            )
+            self._use_fallback = True
+
+    def _should_use_azure(self) -> bool:
+        """Check if Azure should be used based on configuration."""
+        from os import getenv
+
+        return bool(
+            AZURE_EMBEDDING_DEPLOYMENT
+            and getenv("AZURE_OPENAI_ENDPOINT")
+            and getenv("AZURE_OPENAI_API_KEY")
+        )
+
+    def embed_documents(self, texts: Iterable[str]) -> List[List[float]]:  # type: ignore[override]
+        """Embed documents using Azure or fallback."""
+        texts_list = list(texts)
+
+        if self._use_fallback or not self._azure_embeddings:
+            return self._fallback_embeddings.embed_documents(texts_list)
+
+        try:
+            return self._azure_embeddings.embed_documents(texts_list)
+        except Exception as e:
+            logger.error(f"Azure embedding failed: {e}. Falling back to hashing embeddings.")
+            self._use_fallback = True
+            return self._fallback_embeddings.embed_documents(texts_list)
+
+    def embed_query(self, text: str) -> List[float]:  # type: ignore[override]
+        """Embed a query using Azure or fallback."""
+        if self._use_fallback or not self._azure_embeddings:
+            return self._fallback_embeddings.embed_query(text)
+
+        try:
+            return self._azure_embeddings.embed_query(text)
+        except Exception as e:
+            logger.error(f"Azure query embedding failed: {e}. Falling back to hashing embeddings.")
+            self._use_fallback = True
+            return self._fallback_embeddings.embed_query(text)
+
+
 _vector_store_lock = threading.Lock()
 _thread_local = threading.local()
 _embedding_model: Optional[Embeddings] = None
@@ -350,15 +447,32 @@ def _load_custom_embeddings() -> Optional[Embeddings]:
 
 
 def _get_embedding_model() -> Embeddings:
+    """Get the configured embedding model.
+
+    Priority order:
+    1. Custom embedding factory (NALAMAP_GEOSERVER_EMBEDDING_FACTORY)
+    2. Azure AI embeddings (EMBEDDING_PROVIDER=azure or USE_AZURE_EMBEDDINGS=true)
+    3. OpenAI embeddings (EMBEDDING_PROVIDER=openai or USE_OPENAI_EMBEDDINGS=true - legacy)
+    4. Lightweight hashing embeddings (default fallback)
+    """
     global _embedding_model
     if _embedding_model is None:
+        # Priority 1: Custom embedding factory
         custom = _load_custom_embeddings()
         if custom is not None:
             _embedding_model = custom
-        elif USE_OPENAI_EMBEDDINGS:
+            logger.info("Using custom embedding factory")
+        # Priority 2: Check EMBEDDING_PROVIDER setting
+        elif EMBEDDING_PROVIDER == "azure" or USE_AZURE_EMBEDDINGS:
+            _embedding_model = _AzureEmbeddings()
+            logger.info("Using Azure AI embeddings")
+        elif EMBEDDING_PROVIDER == "openai" or USE_OPENAI_EMBEDDINGS:
             _embedding_model = _OpenAIEmbeddings()
+            logger.info("Using OpenAI embeddings")
         else:
+            # Default: lightweight hashing embeddings
             _embedding_model = _HashingEmbeddings()
+            logger.info("Using lightweight hashing embeddings (default)")
     return _embedding_model
 
 
