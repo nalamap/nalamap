@@ -29,6 +29,7 @@ interface GeoServerSettingsComponentProps {
   interpolatedProgress: {
     [url: string]: {
       encoded: number;
+      displayEncoded: number;
       percentage: number;
       velocity: number;
       lastUpdate: number;
@@ -286,7 +287,7 @@ export default function GeoServerSettingsComponent({
                                     :{" "}
                                     {interpolatedProgress[b.url]
                                       ? Math.floor(
-                                          interpolatedProgress[b.url].encoded,
+                                          interpolatedProgress[b.url].displayEncoded,
                                         )
                                       : embeddingStatus[b.url].encoded}{" "}
                                     / {embeddingStatus[b.url].total} layers

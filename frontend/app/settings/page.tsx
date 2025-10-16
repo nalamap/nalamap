@@ -99,7 +99,8 @@ export default function SettingsPage() {
   // Interpolated progress for smooth animations
   const [interpolatedProgress, setInterpolatedProgress] = useState<{
     [url: string]: {
-      encoded: number;
+      encoded: number; // Baseline from real backend data
+      displayEncoded: number; // Interpolated value for display
       percentage: number;
       velocity: number; // layers per second
       lastUpdate: number; // timestamp
@@ -288,6 +289,7 @@ export default function SettingsPage() {
         ...prev,
         [normalizedBackend.url]: {
           encoded: 0,
+          displayEncoded: 0,
           percentage: 0,
           velocity: DEFAULT_VELOCITY,
           lastUpdate: Date.now(),
@@ -364,6 +366,7 @@ export default function SettingsPage() {
         ...prev,
         [normalizedBackend.url]: {
           encoded: 0,
+          displayEncoded: 0,
           percentage: 0,
           velocity: DEFAULT_VELOCITY,
           lastUpdate: Date.now(),
@@ -426,22 +429,30 @@ export default function SettingsPage() {
             if (status.state === "processing" && status.in_progress) {
               if (prevInterp && prevInterp.lastUpdate) {
                 const timeDelta = (now - prevInterp.lastUpdate) / 1000; // seconds
-                const layersDelta = status.encoded - prevInterp.encoded;
-                const velocity = timeDelta > 0 ? layersDelta / timeDelta : 0;
+                // CRITICAL FIX: Use the REAL encoded value from status, not interpolated value
+                // The interpolated value may have drifted ahead during animation
+                const prevRealEncoded = embeddingStatus[url]?.encoded || prevInterp.encoded;
+                const layersDelta = status.encoded - prevRealEncoded;
+                const velocity = timeDelta > 0 && layersDelta > 0 ? layersDelta / timeDelta : 0;
+
+                // Use measured velocity if positive, otherwise keep previous velocity
+                // This allows velocity to adapt over time while preventing resets
+                const newVelocity = velocity > 0 
+                  ? velocity 
+                  : (prevInterp.velocity > 0 ? prevInterp.velocity : DEFAULT_VELOCITY);
 
                 updated[url] = {
-                  encoded: status.encoded,
+                  encoded: status.encoded, // Always use real value as baseline
+                  displayEncoded: status.encoded, // Reset display to real value
                   percentage: status.percentage,
-                  velocity:
-                    velocity > 0
-                      ? velocity
-                      : prevInterp.velocity || DEFAULT_VELOCITY,
+                  velocity: newVelocity,
                   lastUpdate: now,
                 };
               } else {
                 // First data point - use default velocity for immediate smooth animation
                 updated[url] = {
                   encoded: status.encoded,
+                  displayEncoded: status.encoded,
                   percentage: status.percentage,
                   velocity: DEFAULT_VELOCITY,
                   lastUpdate: now,
@@ -451,6 +462,7 @@ export default function SettingsPage() {
               // Not processing - reset
               updated[url] = {
                 encoded: status.encoded,
+                displayEncoded: status.encoded,
                 percentage: status.percentage,
                 velocity: 0,
                 lastUpdate: now,
@@ -509,70 +521,66 @@ export default function SettingsPage() {
 
   // Smooth interpolation effect for progress bars
   React.useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-    let lastAnimationTime = Date.now();
+    let animationFrameId: number;
 
     const animate = () => {
       const now = Date.now();
-      const timeSinceLastAnimation = now - lastAnimationTime;
 
-      // Only update at configured FPS
-      if (timeSinceLastAnimation >= INTERPOLATION_INTERVAL) {
-        lastAnimationTime = now;
+      setInterpolatedProgress((prev) => {
+        const updated: typeof prev = {};
+        let hasChanges = false;
 
-        setInterpolatedProgress((prev) => {
-          const updated: typeof prev = {};
-          let hasChanges = false;
+        Object.keys(prev).forEach((url) => {
+          const interp = prev[url];
+          const status = embeddingStatus[url];
 
-          Object.keys(prev).forEach((url) => {
-            const interp = prev[url];
-            const status = embeddingStatus[url];
+          if (
+            status &&
+            status.state === "processing" &&
+            status.in_progress &&
+            interp.velocity > 0
+          ) {
+            // Calculate time since the LAST REAL UPDATE (not last animation frame)
+            const timeSinceRealUpdate = (now - interp.lastUpdate) / 1000; // seconds
+            
+            // CRITICAL FIX: Always calculate from the REAL encoded value (interp.encoded)
+            // which is set from the actual backend response, not from previous animations
+            const predictedProgress =
+              interp.encoded + interp.velocity * timeSinceRealUpdate;
 
-            if (
-              status &&
-              status.state === "processing" &&
-              status.in_progress &&
-              interp.velocity > 0
-            ) {
-              const timeSinceUpdate = (now - interp.lastUpdate) / 1000; // seconds
-              const predictedProgress =
-                interp.encoded + interp.velocity * timeSinceUpdate;
+            // Cap at the total to avoid overshooting
+            const cappedProgress = Math.min(predictedProgress, status.total);
+            const cappedPercentage =
+              status.total > 0 ? (cappedProgress / status.total) * 100 : 0;
 
-              // Cap at the total to avoid overshooting
-              const cappedProgress = Math.min(predictedProgress, status.total);
-              const cappedPercentage =
-                status.total > 0 ? (cappedProgress / status.total) * 100 : 0;
-
-              // Only update if we haven't reached the real progress yet
-              if (cappedProgress > interp.encoded) {
-                updated[url] = {
-                  ...interp,
-                  encoded: cappedProgress,
-                  percentage: Math.min(cappedPercentage, 99.9), // Never show 100% unless complete
-                };
-                hasChanges = true;
-              } else {
-                updated[url] = interp;
-              }
-            } else {
-              updated[url] = interp;
-            }
-          });
-
-          return hasChanges ? updated : prev;
+            // Update the displayed values without changing the baseline encoded value or lastUpdate
+            // This ensures linear interpolation from the last real update
+            updated[url] = {
+              encoded: interp.encoded, // Keep the real baseline, don't update it during animation
+              displayEncoded: cappedProgress, // Show interpolated value
+              percentage: Math.min(cappedPercentage, 99.9), // Never show 100% unless complete
+              velocity: interp.velocity,
+              lastUpdate: interp.lastUpdate, // Keep the real update timestamp
+            };
+            hasChanges = true;
+          } else {
+            updated[url] = interp;
+          }
         });
-      }
+
+        return hasChanges ? updated : prev;
+      });
 
       // Schedule next frame
-      timeoutId = setTimeout(animate, INTERPOLATION_INTERVAL);
+      animationFrameId = requestAnimationFrame(animate);
     };
 
     // Start animation loop
-    timeoutId = setTimeout(animate, INTERPOLATION_INTERVAL);
+    animationFrameId = requestAnimationFrame(animate);
 
     return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
       }
     };
   }, [embeddingStatus]);
