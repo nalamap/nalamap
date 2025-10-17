@@ -17,30 +17,6 @@ def get_all_providers() -> Dict[str, ProviderInfo]:
     """
     providers: Dict[str, ProviderInfo] = {}
 
-    # Azure OpenAI
-    try:
-        from services.ai import azureai
-
-        is_available = azureai.is_available()
-        models = azureai.get_available_models() if is_available else []
-
-        providers["azure"] = ProviderInfo(
-            name="azure",
-            display_name="Azure OpenAI",
-            available=is_available,
-            models=models,
-            error_message=None if is_available else "Azure credentials not configured",
-        )
-    except Exception as e:
-        logger.warning(f"Failed to load Azure OpenAI provider: {e}")
-        providers["azure"] = ProviderInfo(
-            name="azure",
-            display_name="Azure OpenAI",
-            available=False,
-            models=[],
-            error_message=str(e),
-        )
-
     # OpenAI
     try:
         from services.ai import openai
@@ -60,6 +36,30 @@ def get_all_providers() -> Dict[str, ProviderInfo]:
         providers["openai"] = ProviderInfo(
             name="openai",
             display_name="OpenAI",
+            available=False,
+            models=[],
+            error_message=str(e),
+        )
+
+    # Azure OpenAI
+    try:
+        from services.ai import azureai
+
+        is_available = azureai.is_available()
+        models = azureai.get_available_models() if is_available else []
+
+        providers["azure"] = ProviderInfo(
+            name="azure",
+            display_name="Azure OpenAI",
+            available=is_available,
+            models=models,
+            error_message=None if is_available else "Azure credentials not configured",
+        )
+    except Exception as e:
+        logger.warning(f"Failed to load Azure OpenAI provider: {e}")
+        providers["azure"] = ProviderInfo(
+            name="azure",
+            display_name="Azure OpenAI",
             available=False,
             models=[],
             error_message=str(e),
