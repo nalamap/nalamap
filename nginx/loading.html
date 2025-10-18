@@ -287,6 +287,9 @@
             backend: false,
             frontend: false
         };
+        let pollInterval = 2000; // Start with 2 seconds
+        let consecutiveFailures = 0;
+        let pendingRequests = [];
 
         // Create animated background particles
         function createParticles() {
@@ -333,13 +336,19 @@
             }
         }
 
-        // Check health endpoints
+        // Check health endpoints with timeout and abort support
         async function checkHealth(endpoint, service) {
             try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout
+                
                 const response = await fetch(endpoint, { 
                     method: 'GET',
-                    cache: 'no-cache'
+                    cache: 'no-cache',
+                    signal: controller.signal
                 });
+                
+                clearTimeout(timeoutId);
                 
                 if (response.ok) {
                     updateServiceStatus(service, true);
@@ -347,12 +356,28 @@
                 }
                 return false;
             } catch (error) {
+                // Silently fail - expected during startup
                 return false;
             }
         }
 
-        // Main health check loop
+        // Cancel all pending requests
+        function cancelPendingRequests() {
+            pendingRequests.forEach(controller => {
+                try {
+                    controller.abort();
+                } catch (e) {
+                    // Ignore abort errors
+                }
+            });
+            pendingRequests = [];
+        }
+
+        // Main health check loop with smart polling
         async function checkAllServices() {
+            // Cancel any pending requests from previous poll
+            cancelPendingRequests();
+
             const nginxReady = await checkHealth('/health/nginx', 'nginx');
             const backendReady = await checkHealth('/health/backend', 'backend');
             const frontendReady = await checkHealth('/health/frontend', 'frontend');
@@ -368,6 +393,17 @@
             
             updateProgress(newProgress);
 
+            // Adjust polling interval based on progress
+            if (readyCount === 0) {
+                // No services ready yet - back off to 3 seconds
+                consecutiveFailures++;
+                pollInterval = Math.min(3000 + (consecutiveFailures * 500), 5000); // Max 5s
+            } else if (readyCount < 3) {
+                // Some services ready - poll every 2 seconds
+                pollInterval = 2000;
+                consecutiveFailures = 0;
+            }
+
             // Show warning if taking too long
             if (elapsed > 30 && !allServicesReady()) {
                 document.getElementById('errorMessage').classList.add('show');
@@ -375,6 +411,8 @@
 
             // If all services are ready, redirect to frontend
             if (allServicesReady()) {
+                clearInterval(checkInterval);
+                cancelPendingRequests();
                 updateProgress(100);
                 document.getElementById('progressText').textContent = '✓ Ready! Redirecting...';
                 document.getElementById('funMessage').textContent = '🎉 All systems go!';
@@ -382,6 +420,10 @@
                 setTimeout(() => {
                     window.location.href = '/map';
                 }, 500);
+            } else {
+                // Schedule next check with adaptive interval
+                clearInterval(checkInterval);
+                checkInterval = setInterval(checkAllServices, pollInterval);
             }
         }
 
@@ -396,7 +438,6 @@
 
         // Start checking health endpoints immediately
         checkAllServices();
-        checkInterval = setInterval(checkAllServices, 1000); // Check every second
 
         // Rotate fun messages
         setInterval(updateFunMessage, 3000); // Every 3 seconds
@@ -404,6 +445,7 @@
         // Cleanup on page unload
         window.addEventListener('beforeunload', () => {
             if (checkInterval) clearInterval(checkInterval);
+            cancelPendingRequests();
         });
     </script>
 </body>
