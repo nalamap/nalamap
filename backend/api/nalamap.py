@@ -156,7 +156,7 @@ async def ask_nalamap_orchestrator(request: NaLaMapRequest):
     and analyse geospatial information."""
     # Lazy import: only load heavy modules when chat endpoint is actually called
     from services.multi_agent_orch import multi_agent_executor
-    
+
     messages: List[BaseMessage] = normalize_messages(request.messages)
     messages.append(HumanMessage(request.query))
 
@@ -186,7 +186,7 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
     # Lazy import: only load heavy modules when chat endpoint is actually called
     from services.single_agent import create_geo_agent
     import openai
-    
+
     # print("befor normalize:", request.messages)
     # Normalize incoming messages and append user query
     messages: List[BaseMessage] = normalize_messages(request.messages)
