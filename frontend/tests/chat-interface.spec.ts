@@ -52,7 +52,7 @@ test.describe("Chat interface", () => {
       });
     });
 
-    await page.goto("/");
+    await page.goto("/map");
 
     const chatInput = page.getByPlaceholder("Type a chat command...");
     await chatInput.fill("Hello agent!");

@@ -19,7 +19,7 @@ test("simple layer rendering test", async ({ page }) => {
   });
 
   // Navigate to page
-  await page.goto("/");
+  await page.goto("/map");
 
   // Wait for map
   await page.waitForSelector(".leaflet-container", { timeout: 10000 });

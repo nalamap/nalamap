@@ -194,7 +194,7 @@ test.describe("GeoServer Backend Immediate Addition", () => {
     });
 
     // Navigate to chat page immediately
-    await page.goto("/");
+    await page.goto("/map");
     await page.waitForLoadState("domcontentloaded");
 
     // Verify we navigated away by checking URL
