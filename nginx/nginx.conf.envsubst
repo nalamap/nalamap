@@ -12,19 +12,48 @@ http {
   
   # Set maximum upload size to 100MB
   client_max_body_size 100M;
+  
+  # Improved logging with status codes
+  log_format detailed '$remote_addr - $request status=$status rt=$request_time urt=$upstream_response_time';
+  access_log /dev/stdout detailed;
+  error_log /dev/stderr warn;
 
   server {
     listen 80;
     server_name _;
+    
+    # Loading page for cold starts
+    location = /loading {
+      root /usr/share/nginx/html;
+      try_files /loading.html =404;
+      add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+    }
 
     # Serve static files and enable SPA routing
     location / {
+      # First try the @frontend, if it fails, fall back to @loading
+      error_page 502 503 504 @loading;
+      proxy_intercept_errors on;
+      
       proxy_pass ${FRONTEND_PROTOCOL}://${FRONTEND_URL};
       proxy_http_version 1.1;
       proxy_set_header Upgrade $http_upgrade;
       proxy_set_header Connection 'upgrade';
       proxy_set_header Host $host;
       proxy_cache_bypass $http_upgrade;
+      
+      # Short timeout to quickly detect if frontend is down
+      proxy_connect_timeout 3s;
+      proxy_read_timeout 300s;
+      proxy_send_timeout 300s;
+    }
+    
+    # Loading page fallback when frontend is not available
+    location @loading {
+      root /usr/share/nginx/html;
+      try_files /loading.html =502;
+      add_header Content-Type "text/html" always;
+      add_header Cache-Control "no-cache, no-store, must-revalidate" always;
     }
 
     # Proxy API requests to the backend using env variables
