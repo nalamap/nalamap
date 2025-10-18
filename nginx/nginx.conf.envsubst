@@ -22,17 +22,6 @@ http {
   # Default can be overridden via DNS_RESOLVER (e.g., 168.63.129.16 for Azure).
   resolver ${DNS_RESOLVER} valid=30s ipv6=off;
   resolver_timeout 5s;
-  
-  # Upstream blocks with variables for deferred DNS resolution
-  upstream backend_upstream {
-    server ${BACKEND_URL};
-    keepalive 16;
-  }
-  
-  upstream frontend_upstream {
-    server ${FRONTEND_URL};
-    keepalive 16;
-  }
 
   # Logging to stdout/stderr (container friendly)
   log_format timings '$remote_addr - $request rt=$request_time urt=$upstream_response_time ub=$upstream_bytes_received sb=$bytes_sent rl=$request_length';
@@ -96,7 +85,9 @@ http {
       proxy_set_header X-Forwarded-Host   $host;
       proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
         
-        proxy_pass ${BACKEND_PROTOCOL}://backend_upstream/health;
+        # Use variable for DNS resolution in Azure
+        set $backend_target ${BACKEND_URL};
+        proxy_pass ${BACKEND_PROTOCOL}://$backend_target/health;
     }
 
       # Frontend health: fetch runtime-env.js as a simple readiness probe
@@ -106,7 +97,9 @@ http {
         proxy_set_header X-Forwarded-Host   $host;
         proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
         
-        proxy_pass ${FRONTEND_PROTOCOL}://frontend_upstream/runtime-env.js;
+        # Use variable for DNS resolution in Azure
+        set $frontend_target ${FRONTEND_URL};
+        proxy_pass ${FRONTEND_PROTOCOL}://$frontend_target/runtime-env.js;
       }
 
 
@@ -122,7 +115,9 @@ http {
       proxy_set_header Upgrade            $http_upgrade;
       proxy_set_header Connection         $connection_upgrade;
 
-      proxy_pass ${FRONTEND_PROTOCOL}://frontend_upstream;
+      # Use variable for DNS resolution in Azure
+      set $frontend_target ${FRONTEND_URL};
+      proxy_pass ${FRONTEND_PROTOCOL}://$frontend_target;
 
       # Streaming-friendly timeouts and buffering
       proxy_read_timeout 300s;
@@ -158,7 +153,8 @@ http {
       proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
 
       # Use variable to defer DNS resolution
-      proxy_pass ${BACKEND_PROTOCOL}://backend_upstream;
+      set $backend_target ${BACKEND_URL};
+      proxy_pass ${BACKEND_PROTOCOL}://$backend_target;
 
       proxy_connect_timeout 600s;
       proxy_read_timeout    600s;
@@ -193,7 +189,8 @@ http {
       proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
 
       # Use variable to defer DNS resolution
-      proxy_pass ${BACKEND_PROTOCOL}://backend_upstream;
+      set $backend_target ${BACKEND_URL};
+      proxy_pass ${BACKEND_PROTOCOL}://$backend_target;
 
       proxy_connect_timeout 600s;
       proxy_read_timeout    600s;
@@ -225,7 +222,8 @@ http {
       proxy_set_header Connection         $connection_upgrade;
 
       # Use variable to defer DNS resolution
-      proxy_pass ${BACKEND_PROTOCOL}://backend_upstream;
+      set $backend_target ${BACKEND_URL};
+      proxy_pass ${BACKEND_PROTOCOL}://$backend_target;
 
       # Streaming-friendly API defaults
       proxy_read_timeout 600s;
@@ -252,7 +250,8 @@ http {
       proxy_set_header Accept-Encoding    $http_accept_encoding;
 
       # Use variable to defer DNS resolution
-      proxy_pass ${BACKEND_PROTOCOL}://backend_upstream;
+      set $backend_target ${BACKEND_URL};
+      proxy_pass ${BACKEND_PROTOCOL}://$backend_target;
 
       # CRITICAL: Completely disable buffering for streaming
       proxy_buffering off;
@@ -285,7 +284,8 @@ http {
       proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
 
       # Use variable to defer DNS resolution
-      proxy_pass ${BACKEND_PROTOCOL}://backend_upstream;
+      set $backend_target ${BACKEND_URL};
+      proxy_pass ${BACKEND_PROTOCOL}://$backend_target;
 
       proxy_connect_timeout 600s;
       proxy_read_timeout    600s;
@@ -313,7 +313,8 @@ http {
     # Aligns with backend router mounted at /api and frontend default at /api/upload
     location ^~ /api/upload {
       # Use variable to defer DNS resolution
-      proxy_pass ${BACKEND_PROTOCOL}://backend_upstream;
+      set $backend_target ${BACKEND_URL};
+      proxy_pass ${BACKEND_PROTOCOL}://$backend_target;
       
       proxy_http_version 1.1;
       proxy_set_header Upgrade $http_upgrade;
