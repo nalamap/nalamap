@@ -38,9 +38,13 @@ test.describe("/map Routing Verification", () => {
     // Check for Next.js HTML structure
     const html = await page.content();
     
-    // Should have Next.js app structure
-    expect(html).toContain("__next");
-    expect(html).toContain("id=\"__next\"");
+    // Should have Next.js app structure (Next.js 15 uses different structure)
+    // Check for Next.js specific elements that prove app is loaded
+    expect(html).toContain("__next_f"); // Next.js RSC flight data
+    expect(html).toContain("_next/static"); // Next.js static assets
+    
+    // Should have our app title
+    expect(html).toContain("NaLaMap");
   });
 
   test("root path / should serve content (development mode)", async ({ page }) => {
