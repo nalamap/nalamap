@@ -5,6 +5,8 @@ COPY nginx.conf.envsubst /etc/nginx/nginx.conf.envsubst
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
+# Copy loading page
+COPY loading.html /usr/share/nginx/html/loading.html
 
 EXPOSE 80
 

@@ -22,6 +22,17 @@ http {
   # Default can be overridden via DNS_RESOLVER (e.g., 168.63.129.16 for Azure).
   resolver ${DNS_RESOLVER} valid=30s ipv6=off;
   resolver_timeout 5s;
+  
+  # Upstream blocks with variables for deferred DNS resolution
+  upstream backend_upstream {
+    server ${BACKEND_URL};
+    keepalive 16;
+  }
+  
+  upstream frontend_upstream {
+    server ${FRONTEND_URL};
+    keepalive 16;
+  }
 
   # Logging to stdout/stderr (container friendly)
   log_format timings '$remote_addr - $request rt=$request_time urt=$upstream_response_time ub=$upstream_bytes_received sb=$bytes_sent rl=$request_length';
@@ -61,6 +72,14 @@ http {
     listen 80;
     server_name _;
 
+    # Loading page for cold starts
+    # Served when frontend is not ready yet
+    location = /loading {
+      root /usr/share/nginx/html;
+      try_files /loading.html =404;
+      add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+    }
+
   # Backend health check passthrough
   # FastAPI exposes /health at the backend root; proxy it here for quick ops checks
       # Nginx self health
@@ -76,7 +95,8 @@ http {
       proxy_set_header X-Forwarded-Proto  $scheme;
       proxy_set_header X-Forwarded-Host   $host;
       proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
-        proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL}/health;
+        
+        proxy_pass ${BACKEND_PROTOCOL}://backend_upstream/health;
     }
 
       # Frontend health: fetch runtime-env.js as a simple readiness probe
@@ -85,12 +105,14 @@ http {
         proxy_set_header X-Forwarded-Proto  $scheme;
         proxy_set_header X-Forwarded-Host   $host;
         proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
-        proxy_pass ${FRONTEND_PROTOCOL}://${FRONTEND_URL}/runtime-env.js;
+        
+        proxy_pass ${FRONTEND_PROTOCOL}://frontend_upstream/runtime-env.js;
       }
 
 
     # Frontend (SPA)
     location / {
+      # Try to proxy to frontend, if it fails, show loading page
       proxy_http_version 1.1;
       proxy_set_header Host               $proxy_host;
       proxy_set_header X-Forwarded-Proto  $scheme;
@@ -100,7 +122,7 @@ http {
       proxy_set_header Upgrade            $http_upgrade;
       proxy_set_header Connection         $connection_upgrade;
 
-      proxy_pass ${FRONTEND_PROTOCOL}://${FRONTEND_URL};
+      proxy_pass ${FRONTEND_PROTOCOL}://frontend_upstream;
 
       # Streaming-friendly timeouts and buffering
       proxy_read_timeout 300s;
@@ -109,6 +131,20 @@ http {
       proxy_buffers 32 64k;
       proxy_buffer_size 64k;
       proxy_busy_buffers_size 128k;
+      
+      # Short timeout for checking if frontend is ready
+      proxy_connect_timeout 3s;
+      
+      # If frontend connection fails, show loading page
+      proxy_intercept_errors on;
+      error_page 502 503 504 @loading;
+    }
+    
+    # Loading page location
+    location @loading {
+      root /usr/share/nginx/html;
+      try_files /loading.html =502;
+      internal;
     }
 
     # Chat endpoint - needs large buffers to prevent truncation of large responses
@@ -121,7 +157,8 @@ http {
       proxy_set_header X-Forwarded-Host   $host;
       proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
 
-      proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL};
+      # Use variable to defer DNS resolution
+      proxy_pass ${BACKEND_PROTOCOL}://backend_upstream;
 
       proxy_connect_timeout 600s;
       proxy_read_timeout    600s;
@@ -155,7 +192,8 @@ http {
       proxy_set_header X-Forwarded-Host   $host;
       proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
 
-      proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL};
+      # Use variable to defer DNS resolution
+      proxy_pass ${BACKEND_PROTOCOL}://backend_upstream;
 
       proxy_connect_timeout 600s;
       proxy_read_timeout    600s;
@@ -186,7 +224,8 @@ http {
       proxy_set_header Upgrade            $http_upgrade;
       proxy_set_header Connection         $connection_upgrade;
 
-      proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL};
+      # Use variable to defer DNS resolution
+      proxy_pass ${BACKEND_PROTOCOL}://backend_upstream;
 
       # Streaming-friendly API defaults
       proxy_read_timeout 600s;
@@ -212,7 +251,8 @@ http {
       # Pass through Accept-Encoding to allow backend gzip
       proxy_set_header Accept-Encoding    $http_accept_encoding;
 
-      proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL};
+      # Use variable to defer DNS resolution
+      proxy_pass ${BACKEND_PROTOCOL}://backend_upstream;
 
       # CRITICAL: Completely disable buffering for streaming
       proxy_buffering off;
@@ -244,7 +284,8 @@ http {
       proxy_set_header X-Forwarded-Host   $host;
       proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
 
-      proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL};
+      # Use variable to defer DNS resolution
+      proxy_pass ${BACKEND_PROTOCOL}://backend_upstream;
 
       proxy_connect_timeout 600s;
       proxy_read_timeout    600s;
@@ -271,7 +312,9 @@ http {
     # Upload POST endpoint proxy (CORS + long timeouts)
     # Aligns with backend router mounted at /api and frontend default at /api/upload
     location ^~ /api/upload {
-      proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL};
+      # Use variable to defer DNS resolution
+      proxy_pass ${BACKEND_PROTOCOL}://backend_upstream;
+      
       proxy_http_version 1.1;
       proxy_set_header Upgrade $http_upgrade;
       proxy_set_header Connection $connection_upgrade;
