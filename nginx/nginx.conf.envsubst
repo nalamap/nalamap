@@ -18,11 +18,6 @@ http {
   keepalive_requests 1000;
   send_timeout 300s;
 
-  # DNS resolver for variable proxy_pass targets (required in Azure ACA when using FQDNs)
-  # Default can be overridden via DNS_RESOLVER (e.g., 168.63.129.16 for Azure).
-  resolver ${DNS_RESOLVER} valid=30s ipv6=off;
-  resolver_timeout 5s;
-
   # Logging to stdout/stderr (container friendly)
   log_format timings '$remote_addr - $request rt=$request_time urt=$upstream_response_time ub=$upstream_bytes_received sb=$bytes_sent rl=$request_length';
   access_log /dev/stdout timings;
@@ -118,6 +113,9 @@ http {
     # Frontend (SPA)
     location / {
       # Try to proxy to frontend, if it fails, show loading page
+      # Use direct envsubst substitution (like main branch)
+      proxy_pass ${FRONTEND_PROTOCOL}://${FRONTEND_URL};
+      
       proxy_http_version 1.1;
       proxy_set_header Host               $host;
       proxy_set_header X-Forwarded-Proto  $scheme;
@@ -126,10 +124,6 @@ http {
 
       proxy_set_header Upgrade            $http_upgrade;
       proxy_set_header Connection         $connection_upgrade;
-
-      # Use variable for DNS resolution in Azure
-      set $frontend_target ${FRONTEND_URL};
-      proxy_pass ${FRONTEND_PROTOCOL}://$frontend_target;
 
       # Streaming-friendly timeouts and buffering
       proxy_read_timeout 300s;
