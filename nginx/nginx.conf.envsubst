@@ -71,37 +71,51 @@ http {
 
   # Backend health check passthrough
   # FastAPI exposes /health at the backend root; proxy it here for quick ops checks
-      # Nginx self health
-      location = /health/nginx {
-        default_type application/json;
-        return 200 '{"status":"ok","service":"nginx"}';
-      }
+    # Nginx self health
+    location = /health/nginx {
+      default_type application/json;
+      return 200 '{"status":"ok","service":"nginx"}';
+    }
 
-      # Backend health check passthrough (explicit)
-      # FastAPI exposes /health at the backend root; proxy it here for quick ops checks
-      location = /health/backend {
-      proxy_set_header Host               $host;
+    # Backend health check passthrough (explicit)
+    # FastAPI exposes /health at the backend root; proxy it here for quick ops checks
+    location = /health/backend {
+      # CRITICAL: Use backend hostname in Host header, not $host (nginx's external hostname)
+      # Azure Container Apps backend needs to see its own hostname to accept the request
+      proxy_set_header Host               ${BACKEND_URL};
       proxy_set_header X-Forwarded-Proto  $scheme;
       proxy_set_header X-Forwarded-Host   $host;
       proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
-        
-        # Use variable for DNS resolution in Azure
-        # Note: When using variable, proxy_pass must NOT include URI path
-        set $backend_target ${BACKEND_URL};
-        proxy_pass ${BACKEND_PROTOCOL}://$backend_target/health;
+      
+      # Use variable for DNS resolution in Azure
+      # Note: When using variable, proxy_pass must NOT include URI path
+      set $backend_target ${BACKEND_URL};
+      proxy_pass ${BACKEND_PROTOCOL}://$backend_target/health;
+      
+      # Add timeouts for cloud networking
+      proxy_connect_timeout 10s;
+      proxy_read_timeout 10s;
+      proxy_send_timeout 10s;
     }
 
-      # Frontend health: fetch runtime-env.js as a simple readiness probe
-      location = /health/frontend {
-        proxy_set_header Host               $host;
-        proxy_set_header X-Forwarded-Proto  $scheme;
-        proxy_set_header X-Forwarded-Host   $host;
-        proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
-        
-        # Use variable for DNS resolution in Azure
-        set $frontend_target ${FRONTEND_URL};
-        proxy_pass ${FRONTEND_PROTOCOL}://$frontend_target/runtime-env.js;
-      }
+    # Frontend health: fetch runtime-env.js as a simple readiness probe
+    location = /health/frontend {
+      # CRITICAL: Use frontend hostname in Host header, not $host (nginx's external hostname)
+      # Azure Container Apps frontend needs to see its own hostname to accept the request
+      proxy_set_header Host               ${FRONTEND_URL};
+      proxy_set_header X-Forwarded-Proto  $scheme;
+      proxy_set_header X-Forwarded-Host   $host;
+      proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
+      
+      # Use variable for DNS resolution in Azure
+      set $frontend_target ${FRONTEND_URL};
+      proxy_pass ${FRONTEND_PROTOCOL}://$frontend_target/runtime-env.js;
+      
+      # Add timeouts for cloud networking
+      proxy_connect_timeout 10s;
+      proxy_read_timeout 10s;
+      proxy_send_timeout 10s;
+    }
 
 
     # Frontend (SPA)
