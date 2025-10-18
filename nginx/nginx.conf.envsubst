@@ -19,7 +19,7 @@ http {
   send_timeout 300s;
 
   # Logging to stdout/stderr (container friendly)
-  log_format timings '$remote_addr - $request rt=$request_time urt=$upstream_response_time ub=$upstream_bytes_received sb=$bytes_sent rl=$request_length';
+  log_format timings '$remote_addr - $request status=$status rt=$request_time urt=$upstream_response_time ub=$upstream_bytes_received sb=$bytes_sent rl=$request_length';
   access_log /dev/stdout timings;
   error_log  /dev/stderr warn;
 
@@ -112,8 +112,7 @@ http {
 
     # Frontend (SPA)
     location / {
-      # Try to proxy to frontend, if it fails, show loading page
-      # Use direct envsubst substitution (like main branch)
+      # Use direct envsubst substitution - most reliable
       proxy_pass ${FRONTEND_PROTOCOL}://${FRONTEND_URL};
       
       proxy_http_version 1.1;
@@ -132,20 +131,6 @@ http {
       proxy_buffers 32 64k;
       proxy_buffer_size 64k;
       proxy_busy_buffers_size 128k;
-      
-      # Short timeout for checking if frontend is ready
-      proxy_connect_timeout 3s;
-      
-      # If frontend connection fails, show loading page
-      proxy_intercept_errors on;
-      error_page 502 503 504 @loading;
-    }
-    
-    # Loading page location
-    location @loading {
-      root /usr/share/nginx/html;
-      try_files /loading.html =502;
-      internal;
     }
 
     # Chat endpoint - needs large buffers to prevent truncation of large responses
