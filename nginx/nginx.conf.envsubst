@@ -80,7 +80,7 @@ http {
       # Backend health check passthrough (explicit)
       # FastAPI exposes /health at the backend root; proxy it here for quick ops checks
       location = /health/backend {
-      proxy_set_header Host               $proxy_host;
+      proxy_set_header Host               ${BACKEND_URL};
       proxy_set_header X-Forwarded-Proto  $scheme;
       proxy_set_header X-Forwarded-Host   $host;
       proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
@@ -92,7 +92,7 @@ http {
 
       # Frontend health: fetch runtime-env.js as a simple readiness probe
       location = /health/frontend {
-        proxy_set_header Host               $proxy_host;
+        proxy_set_header Host               ${FRONTEND_URL};
         proxy_set_header X-Forwarded-Proto  $scheme;
         proxy_set_header X-Forwarded-Host   $host;
         proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
@@ -107,7 +107,7 @@ http {
     location / {
       # Try to proxy to frontend, if it fails, show loading page
       proxy_http_version 1.1;
-      proxy_set_header Host               $proxy_host;
+      proxy_set_header Host               ${FRONTEND_URL};
       proxy_set_header X-Forwarded-Proto  $scheme;
       proxy_set_header X-Forwarded-Host   $host;
       proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
@@ -147,7 +147,7 @@ http {
     # and geodata_layers arrays that were getting cut in half with small buffers
     location /api/chat {
       proxy_http_version 1.1;
-      proxy_set_header Host               $proxy_host;
+      proxy_set_header Host               ${BACKEND_URL};
       proxy_set_header X-Forwarded-Proto  $scheme;
       proxy_set_header X-Forwarded-Host   $host;
       proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
@@ -183,7 +183,7 @@ http {
     # These endpoints also return NaLaMapResponse with potentially large geodata arrays
     location ~ ^/api/(search|geocode|geoprocess|chat2)$ {
       proxy_http_version 1.1;
-      proxy_set_header Host               $proxy_host;
+      proxy_set_header Host               ${BACKEND_URL};
       proxy_set_header X-Forwarded-Proto  $scheme;
       proxy_set_header X-Forwarded-Host   $host;
       proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
@@ -213,7 +213,7 @@ http {
     # API -> backend (general)
     location /api/ {
       proxy_http_version 1.1;
-  proxy_set_header Host               $proxy_host;
+      proxy_set_header Host               ${BACKEND_URL};
       proxy_set_header X-Forwarded-Proto  $scheme;
       proxy_set_header X-Forwarded-Host   $host;
       proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
@@ -241,7 +241,7 @@ http {
       proxy_http_version 1.1;
       proxy_set_header Connection "";
       
-      proxy_set_header Host               $proxy_host;
+      proxy_set_header Host               ${BACKEND_URL};
       proxy_set_header X-Forwarded-Proto  $scheme;
       proxy_set_header X-Forwarded-Host   $host;
       proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
@@ -278,7 +278,7 @@ http {
     # Kept for backward compatibility, but prefer /api/stream/ for new code
     location /uploads/ {
       proxy_http_version 1.1;
-      proxy_set_header Host               $proxy_host;
+      proxy_set_header Host               ${BACKEND_URL};
       proxy_set_header X-Forwarded-Proto  $scheme;
       proxy_set_header X-Forwarded-Host   $host;
       proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
@@ -319,7 +319,7 @@ http {
       proxy_http_version 1.1;
       proxy_set_header Upgrade $http_upgrade;
       proxy_set_header Connection $connection_upgrade;
-  proxy_set_header Host $proxy_host;
+      proxy_set_header Host ${BACKEND_URL};
       proxy_set_header X-Real-IP $remote_addr;
       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
       proxy_set_header X-Forwarded-Proto $scheme;
