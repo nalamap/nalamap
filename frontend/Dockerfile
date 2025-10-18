@@ -49,9 +49,10 @@ RUN \
 FROM node:24-slim AS runner
 
 WORKDIR /app
-ENV NODE_ENV=production
-ENV PORT=3000
-ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production \
+    PORT=3000 \
+    NEXT_TELEMETRY_DISABLED=1 \
+    NODE_OPTIONS="--max-old-space-size=512"
 
 # Create a non-root user
 RUN groupadd --system nodejs && useradd --system --gid nodejs nextjs

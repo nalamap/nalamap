@@ -2,7 +2,6 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
-import openai  # Import openai for error handling
 from fastapi import APIRouter, HTTPException
 from langchain_core.messages import (
     AIMessage,
@@ -17,8 +16,11 @@ from models.geodata import GeoDataObject, mock_geodata_objects
 from models.messages.chat_messages import NaLaMapRequest, NaLaMapResponse
 from models.settings_model import SettingsSnapshot
 from models.states import DataState, GeoDataAgentState
-from services.multi_agent_orch import multi_agent_executor
-from services.single_agent import create_geo_agent
+
+# Lazy imports for heavy modules (loaded only when chat endpoint is called)
+# from services.multi_agent_orch import multi_agent_executor
+# from services.single_agent import create_geo_agent
+# import openai
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +154,9 @@ async def ask_nalamap(request: NaLaMapRequest):
 async def ask_nalamap_orchestrator(request: NaLaMapRequest):
     """Ask a question to the NaLaMap Orchestrator, which uses tools to respond
     and analyse geospatial information."""
+    # Lazy import: only load heavy modules when chat endpoint is actually called
+    from services.multi_agent_orch import multi_agent_executor
+
     messages: List[BaseMessage] = normalize_messages(request.messages)
     messages.append(HumanMessage(request.query))
 
@@ -178,6 +183,10 @@ async def ask_nalamap_orchestrator(request: NaLaMapRequest):
 async def ask_nalamap_agent(request: NaLaMapRequest):
     """Ask a question to the NaLaMap Single Agent, which uses tools to respond
     and analyse geospatial information."""
+    # Lazy import: only load heavy modules when chat endpoint is actually called
+    from services.single_agent import create_geo_agent
+    import openai
+
     # print("befor normalize:", request.messages)
     # Normalize incoming messages and append user query
     messages: List[BaseMessage] = normalize_messages(request.messages)

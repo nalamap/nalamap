@@ -33,9 +33,10 @@ RUN poetry export \
 # 2. Final stage: install only production dependencies
 FROM python:3.13-slim
 
-# Environment settings
+# Environment settings for Python optimization
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PYTHONOPTIMIZE=1
 
 # Install OS‐level deps (e.g. for psycopg3)
 RUN apt-get update \
@@ -55,6 +56,10 @@ RUN pip install --upgrade pip \
 
 # Copy the rest of the app code
 COPY . .
+
+# Precompile Python bytecode for faster imports at runtime
+# This creates .pyc files which skip compilation on first import
+RUN python -m compileall -q .
 
 # Configure thread pool defaults based on CPU cores
 # These can be overridden via environment variables at runtime
