@@ -368,7 +368,7 @@ export default function LayerList({
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center flex-wrap gap-1 sm:gap-2">
+                      <div className="flex items-center flex-wrap gap-2 ml-auto">
                         <button
                           onClick={() => setZoomTo(layer.id)}
                           title="Zoom to this layer"
