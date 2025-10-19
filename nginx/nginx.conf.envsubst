@@ -168,6 +168,21 @@ http {
 
       proxy_pass ${FRONTEND_PROTOCOL}://${FRONTEND_URL}/favicon.ico;
 
+      # CRITICAL: Large buffers for 270KB favicon to prevent truncation
+      # Without these, the favicon is only partially transmitted
+      proxy_buffering on;
+      proxy_buffers 8 64k;        # 8 buffers × 64KB = 512KB total (enough for 270KB favicon)
+      proxy_buffer_size 64k;
+      proxy_busy_buffers_size 128k;
+      
+      # Disable compression to avoid partial transmission issues
+      gzip off;
+      proxy_set_header Accept-Encoding "identity";
+      proxy_hide_header Content-Encoding;
+      
+      # Fallback to disk if needed
+      proxy_max_temp_file_size 512m;
+
       # Aggressive caching for favicon (24 hours)
       proxy_cache_valid 200 24h;
       add_header Cache-Control "public, max-age=86400, immutable";
@@ -197,6 +212,20 @@ http {
 
       proxy_pass ${FRONTEND_PROTOCOL}://${FRONTEND_URL};
 
+      # CRITICAL: Large buffers for potentially large icon files (PNGs can be 500KB+)
+      proxy_buffering on;
+      proxy_buffers 16 64k;       # 16 buffers × 64KB = 1MB total
+      proxy_buffer_size 64k;
+      proxy_busy_buffers_size 128k;
+      
+      # Disable compression to avoid partial transmission issues
+      gzip off;
+      proxy_set_header Accept-Encoding "identity";
+      proxy_hide_header Content-Encoding;
+      
+      # Fallback to disk if needed
+      proxy_max_temp_file_size 512m;
+
       # Cache icons for 7 days
       proxy_cache_valid 200 7d;
       add_header Cache-Control "public, max-age=604800, immutable";
@@ -219,6 +248,16 @@ http {
       proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
 
       proxy_pass ${FRONTEND_PROTOCOL}://${FRONTEND_URL};
+
+      # CRITICAL: Large buffers for Next.js bundles (can be several MB)
+      # JavaScript bundles, CSS files, and images can be large
+      proxy_buffering on;
+      proxy_buffers 32 128k;      # 32 buffers × 128KB = 4MB total
+      proxy_buffer_size 128k;
+      proxy_busy_buffers_size 256k;
+      
+      # Allow disk buffering for very large assets
+      proxy_max_temp_file_size 512m;
 
       # Cache static assets
       proxy_cache_valid 200 1h;
