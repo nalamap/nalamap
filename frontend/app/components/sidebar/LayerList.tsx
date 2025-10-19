@@ -161,6 +161,32 @@ export default function LayerList({
     }
   };
 
+  // Handle drag start for download button - enables dragging to desktop/other apps
+  const handleDownloadDragStart = async (e: React.DragEvent, layer: any) => {
+    try {
+      const apiBase = getApiBase();
+      const response = await fetch(layer.data_link.startsWith('http') ? layer.data_link : `${apiBase}${layer.data_link}`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch layer: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      const geoJsonString = JSON.stringify(data, null, 2);
+      const fileName = `${layer.name || layer.title || 'layer'}.geojson`;
+      
+      // Set drag data for file download
+      e.dataTransfer.effectAllowed = 'copy';
+      e.dataTransfer.setData('DownloadURL', `application/json:${fileName}:data:application/json;charset=utf-8,${encodeURIComponent(geoJsonString)}`);
+      e.dataTransfer.setData('text/plain', geoJsonString);
+      
+      Logger.log(`Started dragging layer: ${layer.name}`);
+    } catch (error) {
+      Logger.error(`Error preparing layer ${layer.name} for drag:`, error);
+      e.preventDefault(); // Cancel drag if there's an error
+    }
+  };
+
   // Clear the recently moved highlight after animation completes
   useEffect(() => {
     if (recentlyMovedId) {
@@ -372,8 +398,10 @@ export default function LayerList({
                         </button>
                         <button
                           onClick={() => downloadLayer(layer)}
-                          title="Download as GeoJSON"
-                          className="text-neutral-600 hover:text-success-600 p-1 hover:bg-neutral-100 rounded transition-colors"
+                          draggable="true"
+                          onDragStart={(e) => handleDownloadDragStart(e, layer)}
+                          title="Download as GeoJSON (click or drag to desktop)"
+                          className="text-neutral-600 hover:text-success-600 p-1 hover:bg-neutral-100 rounded transition-colors cursor-grab active:cursor-grabbing"
                         >
                           <Download size={16} />
                         </button>

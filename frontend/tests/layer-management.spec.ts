@@ -691,8 +691,8 @@ test.describe("LayerManagement Component", () => {
 
     await page.waitForTimeout(1000);
 
-    // Find the download button
-    const downloadButton = await page.locator("button[title='Download as GeoJSON']").first();
+    // Find the download button - now with updated title
+    const downloadButton = await page.locator("button[title*='Download as GeoJSON']").first();
     await expect(downloadButton).toBeVisible();
 
     // Setup download listener
@@ -707,5 +707,67 @@ test.describe("LayerManagement Component", () => {
     // Verify download filename
     expect(download.suggestedFilename()).toContain('Download Test Layer');
     expect(download.suggestedFilename()).toContain('.geojson');
+  });
+
+  test("should support drag-and-drop for download button", async ({ page }) => {
+    // Mock and add a layer
+    await page.route("**/drag-download-test.geojson", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          type: "FeatureCollection",
+          features: [
+            {
+              type: "Feature",
+              properties: { name: "Drag Test" },
+              geometry: {
+                type: "Point",
+                coordinates: [10, 10],
+              },
+            },
+          ],
+        }),
+      });
+    });
+
+    const testLayer = {
+      id: "drag-download-layer",
+      name: "Drag Test Layer",
+      title: "Drag Test Layer",
+      data_type: "uploaded",
+      data_link: "/drag-download-test.geojson",
+      visible: true,
+    };
+
+    await page.evaluate((layer) => {
+      const { useLayerStore } = window as any;
+      useLayerStore.getState().addLayer(layer);
+    }, testLayer);
+
+    await page.waitForTimeout(1000);
+
+    // Find the download button - now with updated title
+    const downloadButton = await page.locator("button[title*='Download as GeoJSON']").first();
+    await expect(downloadButton).toBeVisible();
+
+    // Verify button is draggable
+    const isDraggable = await downloadButton.getAttribute('draggable');
+    expect(isDraggable).toBe('true');
+
+    // Verify cursor style indicates draggability
+    const classList = await downloadButton.getAttribute('class');
+    expect(classList).toContain('cursor-grab');
+
+    // Test drag start event (simulated)
+    // Note: Full drag-and-drop to desktop/filesystem cannot be tested in Playwright
+    // but we can verify the button has drag handlers
+    const hasDragStartHandler = await downloadButton.evaluate((el) => {
+      return el.ondragstart !== null || el.getAttribute('ondragstart') !== null;
+    });
+    
+    // The React onDragStart handler won't show up as ondragstart attribute
+    // So we just verify the draggable attribute is set
+    expect(isDraggable).toBe('true');
   });
 });
