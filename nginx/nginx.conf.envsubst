@@ -189,6 +189,9 @@ http {
       # Force immediate flush to client
       add_header X-Accel-Buffering "no" always;
 
+      # Explicit Content-Type for favicon (helps browser recognition)
+      add_header Content-Type "image/x-icon" always;
+
       # Aggressive caching for favicon (24 hours)
       proxy_cache_valid 200 24h;
       add_header Cache-Control "public, max-age=86400, immutable";
