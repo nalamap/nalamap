@@ -652,4 +652,60 @@ test.describe("LayerManagement Component", () => {
     const hasMultiple = await fileInput.getAttribute("multiple");
     expect(hasMultiple).not.toBeNull();
   });
+
+  test("should have download button for layers", async ({ page }) => {
+    // Mock and add a layer
+    await page.route("**/download-test.geojson", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          type: "FeatureCollection",
+          features: [
+            {
+              type: "Feature",
+              properties: { name: "Download Test" },
+              geometry: {
+                type: "Point",
+                coordinates: [0, 0],
+              },
+            },
+          ],
+        }),
+      });
+    });
+
+    const testLayer = {
+      id: "download-layer",
+      name: "Download Test Layer",
+      title: "Download Test Layer",
+      data_type: "uploaded",
+      data_link: "/download-test.geojson",
+      visible: true,
+    };
+
+    await page.evaluate((layer) => {
+      const { useLayerStore } = window as any;
+      useLayerStore.getState().addLayer(layer);
+    }, testLayer);
+
+    await page.waitForTimeout(1000);
+
+    // Find the download button
+    const downloadButton = await page.locator("button[title='Download as GeoJSON']").first();
+    await expect(downloadButton).toBeVisible();
+
+    // Setup download listener
+    const downloadPromise = page.waitForEvent('download');
+
+    // Click download button
+    await downloadButton.click();
+
+    // Wait for download to start
+    const download = await downloadPromise;
+    
+    // Verify download filename
+    expect(download.suggestedFilename()).toContain('Download Test Layer');
+    expect(download.suggestedFilename()).toContain('.geojson');
+  });
 });

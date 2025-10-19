@@ -8,7 +8,10 @@ import {
   Search,
   GripVertical,
   Palette,
+  Download,
 } from "lucide-react";
+import { getApiBase } from "../../utils/apiBase";
+import Logger from "../../utils/logger";
 
 // Reusable component for quick action buttons
 interface QuickActionButton {
@@ -129,6 +132,34 @@ export default function LayerList({
   const [isDragging, setIsDragging] = useState(false);
   const [recentlyMovedId, setRecentlyMovedId] = useState<string | null>(null);
   const [stylePanelOpen, setStylePanelOpen] = useState<string | null>(null);
+
+  // Download layer as GeoJSON
+  const downloadLayer = async (layer: any) => {
+    try {
+      const apiBase = getApiBase();
+      const response = await fetch(layer.data_link.startsWith('http') ? layer.data_link : `${apiBase}${layer.data_link}`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to download layer: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${layer.name || layer.title || 'layer'}.geojson`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      Logger.log(`Downloaded layer: ${layer.name}`);
+    } catch (error) {
+      Logger.error(`Error downloading layer ${layer.name}:`, error);
+      alert(`Failed to download layer: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
 
   // Clear the recently moved highlight after animation completes
   useEffect(() => {
@@ -338,6 +369,13 @@ export default function LayerList({
                           className={`${stylePanelOpen === layer.id ? "text-info-600" : "text-neutral-600 hover:text-info-600"}`}
                         >
                           <Palette size={16} />
+                        </button>
+                        <button
+                          onClick={() => downloadLayer(layer)}
+                          title="Download as GeoJSON"
+                          className="text-neutral-600 hover:text-success-600"
+                        >
+                          <Download size={16} />
                         </button>
                         <button
                           onClick={() => removeLayer(layer.id)}
