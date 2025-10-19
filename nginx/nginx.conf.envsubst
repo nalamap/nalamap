@@ -161,6 +161,7 @@ http {
     # Next.js 15 serves favicon.ico from app/ directory automatically
     location = /favicon.ico {
       proxy_http_version 1.1;
+      proxy_set_header Connection "";
       proxy_set_header Host               $proxy_host;
       proxy_set_header X-Forwarded-Proto  $scheme;
       proxy_set_header X-Forwarded-Host   $host;
@@ -210,6 +211,7 @@ http {
     # These are commonly requested by mobile browsers and PWAs
     location ~ ^/(apple-touch-icon|android-chrome|mstile|safari-pinned-tab|site\.webmanifest|browserconfig\.xml).*\.(png|xml|json|svg|ico)$ {
       proxy_http_version 1.1;
+      proxy_set_header Connection "";
       proxy_set_header Host               $proxy_host;
       proxy_set_header X-Forwarded-Proto  $scheme;
       proxy_set_header X-Forwarded-Host   $host;
@@ -252,6 +254,7 @@ http {
     # These are needed for the Next.js app to work
     location ~ ^/(_next|static|runtime-env.js) {
       proxy_http_version 1.1;
+      proxy_set_header Connection "";
       proxy_set_header Host               $proxy_host;
       proxy_set_header X-Forwarded-Proto  $scheme;
       proxy_set_header X-Forwarded-Host   $host;
