@@ -157,9 +157,61 @@ http {
       proxy_busy_buffers_size 128k;
     }
 
+    # Favicon - explicit handler for better caching and reliability
+    # Next.js 15 serves favicon.ico from app/ directory automatically
+    location = /favicon.ico {
+      proxy_http_version 1.1;
+      proxy_set_header Host               $proxy_host;
+      proxy_set_header X-Forwarded-Proto  $scheme;
+      proxy_set_header X-Forwarded-Host   $host;
+      proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
+
+      proxy_pass ${FRONTEND_PROTOCOL}://${FRONTEND_URL}/favicon.ico;
+
+      # Aggressive caching for favicon (24 hours)
+      proxy_cache_valid 200 24h;
+      add_header Cache-Control "public, max-age=86400, immutable";
+      
+      # Don't log favicon requests (reduces noise)
+      access_log off;
+      
+      # Return 204 No Content if favicon is missing (prevents errors)
+      proxy_intercept_errors on;
+      error_page 404 = @favicon_fallback;
+    }
+
+    # Fallback for missing favicon
+    location @favicon_fallback {
+      return 204;
+      access_log off;
+    }
+
+    # Apple touch icons and other browser icons
+    # These are commonly requested by mobile browsers and PWAs
+    location ~ ^/(apple-touch-icon|android-chrome|mstile|safari-pinned-tab|site\.webmanifest|browserconfig\.xml).*\.(png|xml|json|svg|ico)$ {
+      proxy_http_version 1.1;
+      proxy_set_header Host               $proxy_host;
+      proxy_set_header X-Forwarded-Proto  $scheme;
+      proxy_set_header X-Forwarded-Host   $host;
+      proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
+
+      proxy_pass ${FRONTEND_PROTOCOL}://${FRONTEND_URL};
+
+      # Cache icons for 7 days
+      proxy_cache_valid 200 7d;
+      add_header Cache-Control "public, max-age=604800, immutable";
+      
+      # Don't log icon requests
+      access_log off;
+      
+      # Return 204 if missing (don't error on missing PWA icons)
+      proxy_intercept_errors on;
+      error_page 404 = @favicon_fallback;
+    }
+
     # Frontend static assets (JS, CSS, images, etc.)
     # These are needed for the Next.js app to work
-    location ~ ^/(_next|static|favicon.ico|runtime-env.js) {
+    location ~ ^/(_next|static|runtime-env.js) {
       proxy_http_version 1.1;
       proxy_set_header Host               $proxy_host;
       proxy_set_header X-Forwarded-Proto  $scheme;
