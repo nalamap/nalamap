@@ -353,20 +353,22 @@ export default function LayerList({
                     }}
                     title="Drag to reorder"
                   >
-                    <div className="flex items-center p-2 flex-1 min-w-0">
-                      <div className="mr-2 text-neutral-400 cursor-grab flex-shrink-0">
-                        <GripVertical size={16} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-neutral-800 whitespace-normal break-words">
-                          {layer.title || layer.name}
+                    <div className="flex flex-wrap items-center p-2 gap-2">
+                      <div className="flex items-center flex-1 min-w-0 gap-2">
+                        <div className="text-neutral-400 cursor-grab flex-shrink-0">
+                          <GripVertical size={16} />
                         </div>
-                        <div className="text-xs text-neutral-500">
-                          {layer.data_type}{" "}
-                          {layer.layer_type && ` (${layer.layer_type})`}
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-neutral-800 whitespace-normal break-words">
+                            {layer.title || layer.name}
+                          </div>
+                          <div className="text-xs text-neutral-500">
+                            {layer.data_type}{" "}
+                            {layer.layer_type && ` (${layer.layer_type})`}
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-center flex-wrap gap-1 sm:gap-2 ml-2 flex-shrink-0">
+                      <div className="flex items-center flex-wrap gap-1 sm:gap-2">
                         <button
                           onClick={() => setZoomTo(layer.id)}
                           title="Zoom to this layer"
