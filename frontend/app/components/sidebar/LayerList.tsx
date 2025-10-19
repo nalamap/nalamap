@@ -340,18 +340,18 @@ export default function LayerList({
                           {layer.layer_type && ` (${layer.layer_type})`}
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2 ml-2">
+                      <div className="flex items-center flex-wrap gap-1 sm:gap-2 ml-2 flex-shrink-0">
                         <button
                           onClick={() => setZoomTo(layer.id)}
                           title="Zoom to this layer"
-                          className="text-neutral-600 hover:text-info-600"
+                          className="text-neutral-600 hover:text-info-600 p-1 hover:bg-neutral-100 rounded transition-colors"
                         >
                           <Search size={16} />
                         </button>
                         <button
                           onClick={() => toggleLayerVisibility(layer.id)}
                           title="Toggle Visibility"
-                          className="text-neutral-600 hover:text-info-600"
+                          className="text-neutral-600 hover:text-info-600 p-1 hover:bg-neutral-100 rounded transition-colors"
                         >
                           {layer.visible ? (
                             <Eye size={16} />
@@ -366,21 +366,21 @@ export default function LayerList({
                             )
                           }
                           title="Style Layer"
-                          className={`${stylePanelOpen === layer.id ? "text-info-600" : "text-neutral-600 hover:text-info-600"}`}
+                          className={`p-1 rounded transition-colors ${stylePanelOpen === layer.id ? "text-info-600 bg-info-100" : "text-neutral-600 hover:text-info-600 hover:bg-neutral-100"}`}
                         >
                           <Palette size={16} />
                         </button>
                         <button
                           onClick={() => downloadLayer(layer)}
                           title="Download as GeoJSON"
-                          className="text-neutral-600 hover:text-success-600"
+                          className="text-neutral-600 hover:text-success-600 p-1 hover:bg-neutral-100 rounded transition-colors"
                         >
                           <Download size={16} />
                         </button>
                         <button
                           onClick={() => removeLayer(layer.id)}
                           title="Remove Layer"
-                          className="text-danger-500 hover:text-danger-700"
+                          className="text-danger-500 hover:text-danger-700 p-1 hover:bg-danger-50 rounded transition-colors"
                         >
                           <Trash2 size={16} />
                         </button>
