@@ -38,7 +38,7 @@ const QuickActionsButtons: React.FC<QuickActionsProps> = ({
         onClick={() => updateLayerStyle(layerId, button.style)}
         className={
           button.className ||
-          "px-2 py-1 bg-neutral-500 text-neutral-50 text-xs rounded hover:bg-neutral-600"
+          "px-2 py-1 bg-neutral-500 text-neutral-50 text-xs rounded hover:bg-neutral-600 cursor-pointer transition-colors"
         }
       >
         {button.label}
@@ -65,7 +65,7 @@ const ADVANCED_QUICK_ACTIONS: QuickActionButton[] = [
       fill_opacity: 0.1,
     },
     className:
-      "px-2 py-1 bg-corporate-1-500 text-neutral-50 text-xs rounded hover:bg-corporate-1-600",
+      "px-2 py-1 bg-corporate-1-500 text-neutral-50 text-xs rounded hover:bg-corporate-1-600 cursor-pointer transition-colors",
   },
   {
     label: "Subtle Blue",
@@ -77,7 +77,7 @@ const ADVANCED_QUICK_ACTIONS: QuickActionButton[] = [
       fill_opacity: 0.15,
     },
     className:
-      "px-2 py-1 bg-corporate-2-500 text-neutral-50 text-xs rounded hover:bg-corporate-2-600",
+      "px-2 py-1 bg-corporate-2-500 text-neutral-50 text-xs rounded hover:bg-corporate-2-600 cursor-pointer transition-colors",
   },
   {
     label: "Green Outline",
@@ -89,7 +89,7 @@ const ADVANCED_QUICK_ACTIONS: QuickActionButton[] = [
       fill_opacity: 0.0,
     },
     className:
-      "px-2 py-1 bg-corporate-2-500 text-neutral-50 text-xs rounded hover:bg-corporate-2-600",
+      "px-2 py-1 bg-corporate-2-500 text-neutral-50 text-xs rounded hover:bg-corporate-2-600 cursor-pointer transition-colors",
   },
   {
     label: "Highlight Points",
@@ -101,7 +101,7 @@ const ADVANCED_QUICK_ACTIONS: QuickActionButton[] = [
       fill_opacity: 0.6,
     },
     className:
-      "px-2 py-1 bg-warning-500 text-neutral-50 text-xs rounded hover:bg-warning-600",
+      "px-2 py-1 bg-warning-500 text-neutral-50 text-xs rounded hover:bg-warning-600 cursor-pointer transition-colors",
   },
 ];
 
@@ -370,14 +370,14 @@ export default function LayerList({
                         <button
                           onClick={() => setZoomTo(layer.id)}
                           title="Zoom to this layer"
-                          className="text-neutral-600 hover:text-info-600 p-1 hover:bg-neutral-100 rounded transition-colors"
+                          className="text-neutral-600 hover:text-info-600 p-1 hover:bg-neutral-100 rounded transition-colors cursor-pointer"
                         >
                           <Search size={16} />
                         </button>
                         <button
                           onClick={() => toggleLayerVisibility(layer.id)}
                           title="Toggle Visibility"
-                          className="text-neutral-600 hover:text-info-600 p-1 hover:bg-neutral-100 rounded transition-colors"
+                          className="text-neutral-600 hover:text-info-600 p-1 hover:bg-neutral-100 rounded transition-colors cursor-pointer"
                         >
                           {layer.visible ? (
                             <Eye size={16} />
@@ -392,7 +392,7 @@ export default function LayerList({
                             )
                           }
                           title="Style Layer"
-                          className={`p-1 rounded transition-colors ${stylePanelOpen === layer.id ? "text-info-600 bg-info-100" : "text-neutral-600 hover:text-info-600 hover:bg-neutral-100"}`}
+                          className={`p-1 rounded transition-colors cursor-pointer ${stylePanelOpen === layer.id ? "text-info-600 bg-info-100" : "text-neutral-600 hover:text-info-600 hover:bg-neutral-100"}`}
                         >
                           <Palette size={16} />
                         </button>
@@ -408,7 +408,7 @@ export default function LayerList({
                         <button
                           onClick={() => removeLayer(layer.id)}
                           title="Remove Layer"
-                          className="text-danger-500 hover:text-danger-700 p-1 hover:bg-danger-50 rounded transition-colors"
+                          className="text-danger-500 hover:text-danger-700 p-1 hover:bg-danger-50 rounded transition-colors cursor-pointer"
                         >
                           <Trash2 size={16} />
                         </button>
@@ -713,7 +713,7 @@ export default function LayerList({
                                 fill_opacity: 0.2,
                               })
                             }
-                            className="px-2 py-1 bg-danger-500 text-neutral-50 text-xs rounded hover:bg-danger-600"
+                            className="px-2 py-1 bg-danger-500 text-neutral-50 text-xs rounded hover:bg-danger-600 cursor-pointer transition-colors"
                           >
                             Red
                           </button>
@@ -725,7 +725,7 @@ export default function LayerList({
                                 fill_opacity: 0.2,
                               })
                             }
-                            className="px-2 py-1 bg-corporate-2-500 text-neutral-50 text-xs rounded hover:bg-corporate-2-600"
+                            className="px-2 py-1 bg-corporate-2-500 text-neutral-50 text-xs rounded hover:bg-corporate-2-600 cursor-pointer transition-colors"
                           >
                             Green
                           </button>
@@ -737,7 +737,7 @@ export default function LayerList({
                                 fill_opacity: 0.2,
                               })
                             }
-                            className="px-2 py-1 bg-info-600 text-neutral-50 text-xs rounded hover:bg-info-700"
+                            className="px-2 py-1 bg-info-600 text-neutral-50 text-xs rounded hover:bg-info-700 cursor-pointer transition-colors"
                           >
                             Blue
                           </button>
@@ -749,7 +749,7 @@ export default function LayerList({
                                 fill_opacity: 0.2,
                               })
                             }
-                            className="px-2 py-1 bg-warning-500 text-neutral-50 text-xs rounded hover:bg-warning-600"
+                            className="px-2 py-1 bg-warning-500 text-neutral-50 text-xs rounded hover:bg-warning-600 cursor-pointer transition-colors"
                           >
                             Yellow
                           </button>
@@ -761,7 +761,7 @@ export default function LayerList({
                                 fill_opacity: 0.2,
                               })
                             }
-                            className="px-2 py-1 bg-corporate-3-500 text-neutral-50 text-xs rounded hover:bg-corporate-3-600"
+                            className="px-2 py-1 bg-corporate-3-500 text-neutral-50 text-xs rounded hover:bg-corporate-3-600 cursor-pointer transition-colors"
                           >
                             Purple
                           </button>
@@ -773,7 +773,7 @@ export default function LayerList({
                                 fill_opacity: 0.2,
                               })
                             }
-                            className="px-2 py-1 bg-warning-500 text-neutral-50 text-xs rounded hover:bg-warning-600"
+                            className="px-2 py-1 bg-warning-500 text-neutral-50 text-xs rounded hover:bg-warning-600 cursor-pointer transition-colors"
                           >
                             Orange
                           </button>
