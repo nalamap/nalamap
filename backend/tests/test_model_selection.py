@@ -120,9 +120,12 @@ class TestLLMConfigModelParameter:
         mock_chat_openai.return_value = mock_instance
 
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-key"}):
-            llm = get_llm_for_provider("openai", max_tokens=4000, model_name="gpt-5-nano")
+            llm, capabilities = get_llm_for_provider(
+                "openai", max_tokens=4000, model_name="gpt-5-nano"
+            )
 
         assert llm is not None
+        assert capabilities is not None
         # Verify ChatOpenAI was called with the correct model
         mock_chat_openai.assert_called_once()
         call_kwargs = mock_chat_openai.call_args[1]
@@ -142,7 +145,9 @@ class TestLLMConfigModelParameter:
         mock_chat_google.return_value = mock_instance
 
         with patch.dict(os.environ, {"GOOGLE_API_KEY": "test-key"}):
-            llm = get_llm_for_provider("google", max_tokens=8000, model_name="gemini-1.5-flash")
+            llm, capabilities = get_llm_for_provider(
+                "google", max_tokens=8000, model_name="gemini-1.5-flash"
+            )
 
         assert llm is not None
         mock_chat_google.assert_called_once()

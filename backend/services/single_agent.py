@@ -49,21 +49,32 @@ tools: List[BaseTool] = [
 def create_geo_agent(
     model_settings: Optional[ModelSettings] = None,
     selected_tools: Optional[List[ToolConfig]] = None,
+    message_window_size: int = 20,
+    enable_parallel_tools: bool = False,
 ) -> CompiledStateGraph:
     """Create a geo agent with specified model and tools.
 
     Args:
         model_settings: Model configuration (provider, name, max_tokens, system_prompt)
         selected_tools: Tool configurations to enable/disable
+        message_window_size: Maximum number of recent messages to keep in context
+            (default: 20)
+        enable_parallel_tools: Whether to enable parallel tool execution
+            (default: False, experimental)
 
     Returns:
         CompiledStateGraph configured with the specified model and tools
+
+    Note:
+        Parallel tool execution is currently EXPERIMENTAL. While it can speed up multi-tool queries,
+        it may cause state corruption if multiple tools modify the same state fields concurrently.
+        Use with caution and monitor for race conditions.
     """
     # Use model_settings if provided, otherwise use env defaults
     if model_settings is not None:
         from services.ai.llm_config import get_llm_for_provider
 
-        llm = get_llm_for_provider(
+        llm, model_capabilities = get_llm_for_provider(
             provider_name=model_settings.model_provider,
             max_tokens=model_settings.max_tokens,
             model_name=model_settings.model_name,
@@ -74,6 +85,10 @@ def create_geo_agent(
     else:
         # Fall back to env-configured provider
         llm = get_llm()
+        # No capabilities available for default LLM
+        from services.ai.llm_config import ModelCapabilities
+
+        model_capabilities = ModelCapabilities()
         system_prompt = DEFAULT_SYSTEM_PROMPT
 
     tools_dict: Dict[str, BaseTool] = create_configured_tools(
@@ -84,11 +99,30 @@ def create_geo_agent(
     # Enable langgraph debug logging when global log level is DEBUG
     debug_enabled = logger.isEnabledFor(logging.DEBUG)
 
+    # Determine if parallel tool calling should be enabled
+    # Currently disabled by default due to potential state mutation conflicts
+    parallel_tool_calls = False
+    if enable_parallel_tools:
+        # Check if model supports parallel tool calls
+        if model_settings:
+            parallel_tool_calls = model_capabilities.supports_parallel_tool_calls
+
+            if parallel_tool_calls:
+                logger.warning(
+                    "Parallel tool execution ENABLED (experimental). "
+                    "Monitor for potential state corruption issues."
+                )
+        else:
+            logger.warning(
+                "enable_parallel_tools=True but no model_settings provided, "
+                "falling back to sequential execution"
+            )
+
     return create_react_agent(
         name="GeoAgent",
         state_schema=GeoDataAgentState,
         tools=tools,
-        model=llm.bind_tools(tools, parallel_tool_calls=False),
+        model=llm.bind_tools(tools, parallel_tool_calls=parallel_tool_calls),
         prompt=system_prompt,
         debug=debug_enabled,
         # config_schema=GeoData,

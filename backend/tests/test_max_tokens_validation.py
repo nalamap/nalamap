@@ -67,30 +67,49 @@ class TestGetLLMWithValidation:
     def test_get_llm_for_provider_validates_max_tokens(self):
         """Test that get_llm_for_provider validates and clamps max_tokens."""
         # This should not raise an error even with excessive max_tokens
-        llm = get_llm_for_provider("openai", max_tokens=999999, model_name="gpt-5-mini")
+        llm, capabilities = get_llm_for_provider(
+            "openai", max_tokens=999999, model_name="gpt-5-mini"
+        )
         assert llm is not None
+        assert capabilities is not None
 
         # Verify it's using OpenAI
         assert llm.__class__.__name__ == "ChatOpenAI"
 
     def test_get_llm_for_provider_with_valid_max_tokens(self):
         """Test that valid max_tokens passes through unchanged."""
-        llm = get_llm_for_provider("openai", max_tokens=5000, model_name="gpt-5-mini")
+        llm, capabilities = get_llm_for_provider("openai", max_tokens=5000, model_name="gpt-5-mini")
         assert llm is not None
+        assert capabilities is not None
         assert llm.max_tokens == 5000
 
     def test_get_llm_for_provider_clamps_excessive_tokens(self):
         """Test that get_llm_for_provider clamps excessive max_tokens"""
         # gpt-4o-mini has max_tokens=16384
-        llm = get_llm_for_provider("openai", max_tokens=50000, model_name="gpt-4o-mini")
+        llm, capabilities = get_llm_for_provider(
+            "openai", max_tokens=50000, model_name="gpt-4o-mini"
+        )
         assert llm.max_tokens == 16384
 
     def test_get_llm_for_provider_handles_zero_tokens(self):
         """Test that zero max_tokens uses model's default."""
-        llm = get_llm_for_provider("openai", max_tokens=0, model_name="gpt-5-mini")
+        llm, capabilities = get_llm_for_provider("openai", max_tokens=0, model_name="gpt-5-mini")
         assert llm is not None
+        assert capabilities is not None
         # Should use model's max_tokens (gpt-5-mini has max_tokens=128000)
         assert llm.max_tokens == 128000
+
+    def test_get_llm_for_provider_returns_capabilities(self):
+        """Test that get_llm_for_provider returns model capabilities."""
+        llm, capabilities = get_llm_for_provider(
+            "openai", max_tokens=5000, model_name="gpt-4o-mini"
+        )
+        assert llm is not None
+        assert capabilities is not None
+        # gpt-4o-mini supports parallel tool calls
+        assert capabilities.supports_parallel_tool_calls is True
+        assert capabilities.context_window > 0
+        assert capabilities.max_tokens > 0
 
     @pytest.mark.skipif(
         not os.getenv("OPENAI_API_VERSION") or not os.getenv("AZURE_OPENAI_ENDPOINT"),
@@ -99,10 +118,12 @@ class TestGetLLMWithValidation:
     def test_get_llm_for_provider_azure(self):
         """Test validation works with Azure provider."""
         # Azure has max_tokens=6000 by default
-        llm = get_llm_for_provider("azure", max_tokens=5000)
+        llm, capabilities = get_llm_for_provider("azure", max_tokens=5000)
         assert llm is not None
+        assert capabilities is not None
 
         # Exceeding Azure's limit
-        llm = get_llm_for_provider("azure", max_tokens=20000)
+        llm, capabilities = get_llm_for_provider("azure", max_tokens=20000)
         assert llm is not None
+        assert capabilities is not None
         assert llm.max_tokens == 6000  # Should be clamped to Azure's limit
