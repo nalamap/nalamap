@@ -20,10 +20,18 @@ export default function Home() {
   const setLayoutWidths = useUIStore((s) => s.setLayoutWidths);
   const sidebarWidth = useUIStore((s) => s.sidebarWidth);
   
-  const [widths, setWidths] = useState<number[]>(getLayoutWidths());
+  // Initialize with default values to avoid hydration mismatch
+  const [widths, setWidths] = useState<number[]>([4, 18, 56, 22]);
   const [layerCollapsed, setLayerCollapsed] = useState(false);
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // Load persisted widths after mount to avoid hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+    setWidths(getLayoutWidths());
+  }, [getLayoutWidths]);
 
   // Set initial collapsed state based on screen size
   useEffect(() => {
