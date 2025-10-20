@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Eye,
   EyeOff,
@@ -9,9 +9,47 @@ import {
   GripVertical,
   Palette,
   Download,
+  Info,
+  X,
 } from "lucide-react";
 import { getApiBase } from "../../utils/apiBase";
 import Logger from "../../utils/logger";
+
+// Dynamic drag handle component - simple fixed size with responsive spacing
+// Uses 5 dot rows for visual clarity, spacing adjusts when style panel is open
+interface DragHandleProps {
+  isStylePanelOpen: boolean;
+}
+
+const DragHandle: React.FC<DragHandleProps> = ({ isStylePanelOpen }) => {
+  // Fixed number of dot rows for consistency
+  const dotRows = 5;
+  
+  return (
+    <div 
+      className={`flex flex-col items-center text-neutral-400 cursor-grab flex-shrink-0 px-1 ${isStylePanelOpen ? 'justify-around py-2' : 'justify-center py-1'} gap-0.5`}
+      style={{ 
+        minHeight: '32px',
+        alignSelf: 'stretch'
+      }}
+    >
+      {Array.from({ length: dotRows }).map((_, i) => (
+        <svg
+          key={i}
+          width="8"
+          height="6"
+          viewBox="0 0 8 6"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+          className="flex-shrink-0"
+        >
+          <circle cx="2" cy="3" r="1.5" fill="currentColor" />
+          <circle cx="6" cy="3" r="1.5" fill="currentColor" />
+        </svg>
+      ))}
+    </div>
+  );
+};
 
 // Reusable component for quick action buttons
 interface QuickActionButton {
@@ -132,6 +170,9 @@ export default function LayerList({
   const [isDragging, setIsDragging] = useState(false);
   const [recentlyMovedId, setRecentlyMovedId] = useState<string | null>(null);
   const [stylePanelOpen, setStylePanelOpen] = useState<string | null>(null);
+  const [activeMetadataId, setActiveMetadataId] = useState<string | null>(null);
+  const [popupPosition, setPopupPosition] = useState<{ top: number; left: number } | null>(null);
+  const infoButtonRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
 
   // Download layer as GeoJSON
   const downloadLayer = async (layer: any) => {
@@ -353,67 +394,87 @@ export default function LayerList({
                     }}
                     title="Drag to reorder"
                   >
-                    <div className="flex flex-wrap items-center p-2 gap-2">
-                      <div className="flex items-center gap-2 min-w-0" style={{ flex: '1 1 150px' }}>
-                        <div className="text-neutral-400 cursor-grab flex-shrink-0">
-                          <GripVertical size={16} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-bold text-neutral-800 whitespace-normal break-words">
+                    <div className="flex p-2 gap-2">
+                      {/* Drag handle - dynamically fills height with dots */}
+                      <DragHandle isStylePanelOpen={stylePanelOpen === layer.id} />
+                      
+                      {/* Content area - title and icons */}
+                      <div className="flex-1 min-w-0 flex flex-col gap-2 relative">
+                        {/* Title row with info icon */}
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="flex-1 min-w-0 font-bold text-neutral-800 whitespace-normal break-words">
                             {layer.title || layer.name}
                           </div>
-                          <div className="text-xs text-neutral-500">
-                            {layer.data_type}{" "}
-                            {layer.layer_type && ` (${layer.layer_type})`}
-                          </div>
+                          <button
+                            ref={(el) => { infoButtonRefs.current[layer.id] = el; }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const newActiveId = activeMetadataId === layer.id ? null : layer.id;
+                              setActiveMetadataId(newActiveId);
+                              
+                              if (newActiveId && infoButtonRefs.current[layer.id]) {
+                                const rect = infoButtonRefs.current[layer.id]!.getBoundingClientRect();
+                                setPopupPosition({
+                                  top: rect.bottom + 4,
+                                  left: rect.left
+                                });
+                              }
+                            }}
+                            title="View layer metadata"
+                            className="text-neutral-500 hover:text-info-600 p-1 hover:bg-neutral-100 rounded transition-colors cursor-pointer flex-shrink-0"
+                          >
+                            <Info size={16} />
+                          </button>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2 flex-wrap" style={{ flex: '0 1 auto' }}>
-                        <button
-                          onClick={() => setZoomTo(layer.id)}
-                          title="Zoom to this layer"
-                          className="text-neutral-600 hover:text-info-600 p-1 hover:bg-neutral-100 rounded transition-colors cursor-pointer"
-                        >
-                          <Search size={16} />
-                        </button>
-                        <button
-                          onClick={() => toggleLayerVisibility(layer.id)}
-                          title="Toggle Visibility"
-                          className="text-neutral-600 hover:text-info-600 p-1 hover:bg-neutral-100 rounded transition-colors cursor-pointer"
-                        >
-                          {layer.visible ? (
-                            <Eye size={16} />
-                          ) : (
-                            <EyeOff size={16} />
-                          )}
-                        </button>
-                        <button
-                          onClick={() =>
-                            setStylePanelOpen(
-                              stylePanelOpen === layer.id ? null : layer.id,
-                            )
-                          }
-                          title="Style Layer"
-                          className={`p-1 rounded transition-colors cursor-pointer ${stylePanelOpen === layer.id ? "text-info-600 bg-info-100" : "text-neutral-600 hover:text-info-600 hover:bg-neutral-100"}`}
-                        >
-                          <Palette size={16} />
-                        </button>
-                        <button
-                          onClick={() => downloadLayer(layer)}
-                          draggable="true"
-                          onDragStart={(e) => handleDownloadDragStart(e, layer)}
-                          title="Download as GeoJSON (click or drag to desktop)"
-                          className="text-neutral-600 hover:text-success-600 p-1 hover:bg-neutral-100 rounded transition-colors cursor-grab active:cursor-grabbing"
-                        >
-                          <Download size={16} />
-                        </button>
-                        <button
-                          onClick={() => removeLayer(layer.id)}
-                          title="Remove Layer"
-                          className="text-danger-500 hover:text-danger-700 p-1 hover:bg-danger-50 rounded transition-colors cursor-pointer"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        
+                        {/* Action icons row - centered, wraps to single row on wide panels */}
+                        <div className="flex items-center justify-center gap-2 flex-wrap">
+                          <button
+                            onClick={() => setZoomTo(layer.id)}
+                            title="Zoom to this layer"
+                            className="text-neutral-600 hover:text-info-600 p-1 hover:bg-neutral-100 rounded transition-colors cursor-pointer"
+                          >
+                            <Search size={16} />
+                          </button>
+                          <button
+                            onClick={() => toggleLayerVisibility(layer.id)}
+                            title="Toggle Visibility"
+                            className="text-neutral-600 hover:text-info-600 p-1 hover:bg-neutral-100 rounded transition-colors cursor-pointer"
+                          >
+                            {layer.visible ? (
+                              <Eye size={16} />
+                            ) : (
+                              <EyeOff size={16} />
+                            )}
+                          </button>
+                          <button
+                            onClick={() =>
+                              setStylePanelOpen(
+                                stylePanelOpen === layer.id ? null : layer.id,
+                              )
+                            }
+                            title="Style Layer"
+                            className={`p-1 rounded transition-colors cursor-pointer ${stylePanelOpen === layer.id ? "text-info-600 bg-info-100" : "text-neutral-600 hover:text-info-600 hover:bg-neutral-100"}`}
+                          >
+                            <Palette size={16} />
+                          </button>
+                          <button
+                            onClick={() => downloadLayer(layer)}
+                            draggable="true"
+                            onDragStart={(e) => handleDownloadDragStart(e, layer)}
+                            title="Download as GeoJSON (click or drag to desktop)"
+                            className="text-neutral-600 hover:text-success-600 p-1 hover:bg-neutral-100 rounded transition-colors cursor-grab active:cursor-grabbing"
+                          >
+                            <Download size={16} />
+                          </button>
+                          <button
+                            onClick={() => removeLayer(layer.id)}
+                            title="Remove Layer"
+                            className="text-danger-500 hover:text-danger-700 p-1 hover:bg-danger-50 rounded transition-colors cursor-pointer"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -827,6 +888,74 @@ export default function LayerList({
             })}
         </ul>
       )}
+
+      {/* Metadata popup - fixed positioning to overflow sidebar */}
+      {activeMetadataId && popupPosition && (() => {
+        const layer = layers.find(l => l.id === activeMetadataId);
+        if (!layer) return null;
+        
+        return (
+          <div 
+            className="fixed bg-white border border-neutral-300 rounded-lg shadow-xl p-3 text-sm z-[100] min-w-[300px] max-w-[400px]"
+            style={{
+              top: `${popupPosition.top}px`,
+              left: `${popupPosition.left}px`,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              onClick={() => setActiveMetadataId(null)}
+              className="absolute top-2 right-2 text-neutral-400 hover:text-neutral-600"
+              aria-label="Close metadata"
+            >
+              <X size={16} />
+            </button>
+            
+            <div className="space-y-2">
+              <div>
+                <span className="font-semibold text-neutral-700">Title:</span>
+                <p className="text-neutral-600 break-words">{layer.title || layer.name}</p>
+              </div>
+              {layer.data_type && (
+                <div>
+                  <span className="font-semibold text-neutral-700">Data Type:</span>
+                  <p className="text-neutral-600">{layer.data_type}</p>
+                </div>
+              )}
+              {layer.layer_type && (
+                <div>
+                  <span className="font-semibold text-neutral-700">Layer Type:</span>
+                  <p className="text-neutral-600">{layer.layer_type}</p>
+                </div>
+              )}
+              {layer.format && (
+                <div>
+                  <span className="font-semibold text-neutral-700">Format:</span>
+                  <p className="text-neutral-600">{layer.format}</p>
+                </div>
+              )}
+              {layer.data_source && (
+                <div>
+                  <span className="font-semibold text-neutral-700">Source:</span>
+                  <p className="text-neutral-600 break-all text-xs">{layer.data_source}</p>
+                </div>
+              )}
+              {layer.bounding_box && (
+                <div>
+                  <span className="font-semibold text-neutral-700">Bounding Box:</span>
+                  <p className="text-neutral-600 text-xs font-mono">
+                    [{Array.isArray(layer.bounding_box) 
+                      ? layer.bounding_box.join(', ')
+                      : JSON.stringify(layer.bounding_box)
+                    }]
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Add the animation CSS */}
       <style jsx global>{`

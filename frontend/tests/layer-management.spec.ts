@@ -572,9 +572,15 @@ test.describe("LayerManagement Component", () => {
 
     await page.waitForTimeout(1000);
 
-    // Check if data type is displayed
-    const dataTypeInfo = await page.locator("text=/uploaded.*UPLOADED/i");
-    await expect(dataTypeInfo).toHaveCount(1); // Just verify it exists
+    // Click the info button to show metadata popup
+    const infoButton = page.locator('[title="View layer metadata"]').first();
+    await infoButton.click();
+
+    await page.waitForTimeout(300);
+
+    // Check if layer type is displayed in the metadata popup
+    const dataTypeInfo = page.locator('text=/Layer Type:.*UPLOADED/i');
+    await expect(dataTypeInfo).toBeVisible();
   });
 
   test("should show user layers section heading", async ({ page }) => {
@@ -769,5 +775,77 @@ test.describe("LayerManagement Component", () => {
     // The React onDragStart handler won't show up as ondragstart attribute
     // So we just verify the draggable attribute is set
     expect(isDraggable).toBe('true');
+  });
+
+  test("drag handle should be visible and maintain consistent appearance", async ({ page }) => {
+    // Mock and add a layer
+    await page.route("**/dynamic-drag-test.geojson", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          type: "FeatureCollection",
+          features: [{
+            type: "Feature",
+            geometry: { type: "Point", coordinates: [0, 0] },
+            properties: { name: "Test Point" }
+          }],
+        }),
+      });
+    });
+
+    const testLayer = {
+      id: "dynamic-drag-layer",
+      name: "Dynamic Drag Test",
+      title: "Dynamic Drag Test",
+      data_type: "uploaded",
+      data_link: "/dynamic-drag-test.geojson",
+      visible: true,
+    };
+
+    await page.evaluate((layer) => {
+      const { useLayerStore } = window as any;
+      useLayerStore.getState().addLayer(layer);
+    }, testLayer);
+
+    await page.waitForTimeout(1500);
+
+    // Find the layer item
+    const layerItem = page.locator("li").filter({ hasText: "Dynamic Drag Test" }).first();
+    await expect(layerItem).toBeVisible();
+
+    // Find the drag handle (first div in the layer item)
+    const dragHandleContainer = layerItem.locator("div").filter({ has: page.locator("svg circle") }).first();
+    await expect(dragHandleContainer).toBeVisible();
+    
+    // Count drag handle dots (SVG elements)
+    const initialDots = await dragHandleContainer.locator("svg").count();
+    console.log(`Drag handle dots: ${initialDots}`);
+    
+    // Should have a reasonable number of dots (compact size)
+    expect(initialDots).toBeGreaterThan(0);
+    expect(initialDots).toBeLessThan(15); // Should be compact initially
+
+    // Open the style panel to expand the layer
+    const styleButton = layerItem.getByTitle("Style Layer");
+    await styleButton.click();
+    await page.waitForTimeout(300);
+
+    // Drag handle should still be visible
+    await expect(dragHandleContainer).toBeVisible();
+    
+    // Dot count should remain consistent (we use fixed dots with variable spacing)
+    const dotsWhenOpen = await dragHandleContainer.locator("svg").count();
+    console.log(`Drag handle dots when style panel open: ${dotsWhenOpen}`);
+    expect(dotsWhenOpen).toBe(initialDots); // Same number of dots, just spaced differently
+
+    // Close the style panel
+    await styleButton.click();
+    await page.waitForTimeout(300);
+
+    // Should still have same dots after closing
+    const dotsWhenClosed = await dragHandleContainer.locator("svg").count();
+    console.log(`Drag handle dots after closing: ${dotsWhenClosed}`);
+    expect(dotsWhenClosed).toBe(initialDots); // Consistent dot count
   });
 });
