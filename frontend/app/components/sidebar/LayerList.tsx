@@ -259,7 +259,7 @@ export default function LayerList({
                   )}
 
                   <div
-                    className={`bg-neutral-50 rounded shadow flex items-center justify-between transition-all ${
+                    className={`bg-neutral-50 rounded shadow transition-all ${
                       isDropTarget ? "border-2 border-info-400" : ""
                     } ${isRecentlyMoved ? "highlight-animation" : ""}`}
                     draggable
@@ -354,7 +354,7 @@ export default function LayerList({
                     title="Drag to reorder"
                   >
                     <div className="flex flex-wrap items-center p-2 gap-2">
-                      <div className="flex items-center flex-1 min-w-0 gap-2">
+                      <div className="flex items-center gap-2 min-w-0" style={{ flex: '1 1 150px' }}>
                         <div className="text-neutral-400 cursor-grab flex-shrink-0">
                           <GripVertical size={16} />
                         </div>
@@ -368,7 +368,7 @@ export default function LayerList({
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center flex-wrap gap-2 ml-auto">
+                      <div className="flex items-center gap-2 flex-wrap" style={{ flex: '0 1 auto' }}>
                         <button
                           onClick={() => setZoomTo(layer.id)}
                           title="Zoom to this layer"
