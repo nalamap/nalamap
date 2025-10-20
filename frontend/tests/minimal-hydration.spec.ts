@@ -27,8 +27,8 @@ test("minimal hydration check", async ({ page }) => {
   });
 
   // Navigate to the page
-  console.log("Navigating to /...");
-  await page.goto("/", { waitUntil: "domcontentloaded" });
+  console.log("Navigating to /map...");
+  await page.goto("/map", { waitUntil: "domcontentloaded" });
 
   console.log("Page loaded, waiting for network idle...");
   await page.waitForLoadState("networkidle", { timeout: 15000 });

@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NaLaMap - Starting Up</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><style>@keyframes spin{to{transform:rotate(360deg)}}.spinner{animation:spin 1s linear infinite;transform-origin:50%25 50%25}</style><circle cx='50' cy='50' r='45' fill='%23667eea'/><g class='spinner'><circle cx='50' cy='10' r='8' fill='%23fff'/><circle cx='50' cy='10' r='8' fill='%23fff' opacity='0.3' transform='rotate(120 50 50)'/><circle cx='50' cy='10' r='8' fill='%23fff' opacity='0.1' transform='rotate(240 50 50)'/></g></svg>">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: white;
+            overflow: hidden;
+        }
+
+        .container {
+            text-align: center;
+            padding: 2rem;
+            max-width: 600px;
+            width: 90%;
+        }
+
+        .logo {
+            font-size: 3rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+        }
+
+        .title {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .subtitle {
+            font-size: 1rem;
+            opacity: 0.9;
+            margin-bottom: 2rem;
+        }
+
+        .loading-container {
+            margin: 2rem 0;
+        }
+
+        .progress-bar-container {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50px;
+            height: 12px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .progress-bar {
+            background: linear-gradient(90deg, #4ade80 0%, #22c55e 100%);
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 50px;
+            box-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+        }
+
+        .progress-text {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            margin-top: 0.5rem;
+        }
+
+        .status-items {
+            margin-top: 2rem;
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .status-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            min-width: 120px;
+            transition: all 0.3s ease;
+        }
+
+        .status-item.ready {
+            background: rgba(74, 222, 128, 0.2);
+            border: 2px solid rgba(74, 222, 128, 0.5);
+        }
+
+        .status-item.checking {
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .status-label {
+            font-size: 0.8rem;
+            opacity: 0.8;
+            margin-bottom: 0.3rem;
+        }
+
+        .status-value {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .status-icon {
+            font-size: 1.5rem;
+            margin-bottom: 0.3rem;
+        }
+
+        .fun-message {
+            margin-top: 2rem;
+            font-size: 1rem;
+            opacity: 0.8;
+            min-height: 1.5rem;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 0.8; transform: translateY(0); }
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+            margin-left: 0.5rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background: rgba(239, 68, 68, 0.2);
+            border: 2px solid rgba(239, 68, 68, 0.5);
+            padding: 1rem;
+            border-radius: 12px;
+            margin-top: 2rem;
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+
+        /* Animated background particles */
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            overflow: hidden;
+        }
+
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            animation: particleFloat 15s linear infinite;
+        }
+
+        @keyframes particleFloat {
+            0% {
+                transform: translateY(100vh) translateX(0);
+                opacity: 0;
+            }
+            10% {
+                opacity: 1;
+            }
+            90% {
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-100vh) translateX(100px);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="particles" id="particles"></div>
+    
+    <div class="container">
+        <div class="logo">🗺️</div>
+        <h1 class="title">NaLaMap</h1>
+        <p class="subtitle">Starting up your geospatial AI platform...</p>
+        
+        <div class="loading-container">
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <div class="progress-text" id="progressText">Initializing... 0%</div>
+        </div>
+
+        <div class="status-items">
+            <div class="status-item checking" id="nginxStatus">
+                <div class="status-icon">⚙️</div>
+                <div class="status-label">Nginx</div>
+                <div class="status-value">Starting</div>
+            </div>
+            <div class="status-item checking" id="backendStatus">
+                <div class="status-icon">🐍</div>
+                <div class="status-label">Backend</div>
+                <div class="status-value">Starting</div>
+            </div>
+            <div class="status-item checking" id="frontendStatus">
+                <div class="status-icon">⚛️</div>
+                <div class="status-label">Frontend</div>
+                <div class="status-value">Starting</div>
+            </div>
+        </div>
+
+        <div class="fun-message" id="funMessage">
+            Warming up the servers...
+        </div>
+
+        <div class="error-message" id="errorMessage">
+            <strong>⚠️ Startup is taking longer than expected</strong><br>
+            This might take up to 2 minutes when scaling from zero.<br>
+            Hang tight, we're almost there!
+        </div>
+    </div>
+
+    <script>
+        // Fun loading messages
+        const funMessages = [
+            "🌍 Loading geospatial magic...",
+            "🤖 Waking up the AI assistants...",
+            "📊 Preparing your data tools...",
+            "🗺️ Unfurling the maps...",
+            "🎨 Mixing the perfect colors...",
+            "📡 Establishing satellite connections...",
+            "🔧 Calibrating the geoprocessing engines...",
+            "🌐 Spinning up the globe...",
+            "📍 Finding your position in the universe...",
+            "🧭 Orienting the compass...",
+            "🛰️ Syncing with remote sensing data...",
+            "🏔️ Rendering terrain elevation...",
+            "🌊 Flowing through river networks...",
+            "🌲 Growing the forest layers...",
+            "🏙️ Building urban infrastructure...",
+            "⚡ Energizing the processing pipelines...",
+            "🎯 Zeroing in on spatial precision...",
+            "🔮 Consulting the geo-oracle...",
+            "📐 Calculating spherical geometries...",
+            "🚀 Launching into orbit..."
+        ];
+
+        // State tracking
+        let progress = 0;
+        let currentMessageIndex = 0;
+        let checkInterval;
+        let startTime = Date.now();
+        let servicesReady = {
+            nginx: false,
+            backend: false,
+            frontend: false
+        };
+        let pollInterval = 2000; // Start with 2 seconds
+        let consecutiveFailures = 0;
+        let pendingRequests = [];
+
+        // Create animated background particles
+        function createParticles() {
+            const particles = document.getElementById('particles');
+            for (let i = 0; i < 30; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 15 + 's';
+                particle.style.animationDuration = (15 + Math.random() * 10) + 's';
+                particles.appendChild(particle);
+            }
+        }
+
+        // Update progress bar
+        function updateProgress(newProgress) {
+            progress = Math.min(newProgress, 95); // Cap at 95% until everything is ready
+            document.getElementById('progressBar').style.width = progress + '%';
+            document.getElementById('progressText').textContent = 
+                `Starting up... ${Math.round(progress)}%`;
+        }
+
+        // Update fun message
+        function updateFunMessage() {
+            currentMessageIndex = (currentMessageIndex + 1) % funMessages.length;
+            const messageEl = document.getElementById('funMessage');
+            messageEl.style.animation = 'none';
+            setTimeout(() => {
+                messageEl.textContent = funMessages[currentMessageIndex];
+                messageEl.style.animation = 'fadeIn 0.5s ease';
+            }, 50);
+        }
+
+        // Update service status
+        function updateServiceStatus(service, ready) {
+            const element = document.getElementById(service + 'Status');
+            const valueElement = element.querySelector('.status-value');
+            
+            if (ready) {
+                element.classList.remove('checking');
+                element.classList.add('ready');
+                valueElement.textContent = '✓ Ready';
+                servicesReady[service] = true;
+            }
+        }
+
+        // Check health endpoints with timeout and abort support
+        async function checkHealth(endpoint, service) {
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 3000); // 3s timeout
+                
+                const response = await fetch(endpoint, { 
+                    method: 'GET',
+                    cache: 'no-cache',
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                
+                if (response.ok) {
+                    updateServiceStatus(service, true);
+                    return true;
+                }
+                return false;
+            } catch (error) {
+                // Silently fail - expected during startup
+                return false;
+            }
+        }
+
+        // Cancel all pending requests
+        function cancelPendingRequests() {
+            pendingRequests.forEach(controller => {
+                try {
+                    controller.abort();
+                } catch (e) {
+                    // Ignore abort errors
+                }
+            });
+            pendingRequests = [];
+        }
+
+        // Main health check loop with smart polling
+        async function checkAllServices() {
+            // Cancel any pending requests from previous poll
+            cancelPendingRequests();
+
+            const nginxReady = await checkHealth('/health/nginx', 'nginx');
+            const backendReady = await checkHealth('/health/backend', 'backend');
+            const frontendReady = await checkHealth('/health/frontend', 'frontend');
+
+            // Update progress based on services ready
+            let readyCount = (nginxReady ? 1 : 0) + (backendReady ? 1 : 0) + (frontendReady ? 1 : 0);
+            let newProgress = (readyCount / 3) * 90; // Leave 10% for final redirect
+            
+            // Add time-based progress if services aren't ready yet
+            const elapsed = (Date.now() - startTime) / 1000; // seconds
+            const timeBasedProgress = Math.min(elapsed * 2, 30); // 2% per second, max 30%
+            newProgress = Math.max(newProgress, timeBasedProgress);
+            
+            updateProgress(newProgress);
+
+            // Adjust polling interval based on progress
+            if (readyCount === 0) {
+                // No services ready yet - back off to 3 seconds
+                consecutiveFailures++;
+                pollInterval = Math.min(3000 + (consecutiveFailures * 500), 5000); // Max 5s
+            } else if (readyCount < 3) {
+                // Some services ready - poll every 2 seconds
+                pollInterval = 2000;
+                consecutiveFailures = 0;
+            }
+
+            // Show warning if taking too long
+            if (elapsed > 30 && !allServicesReady()) {
+                document.getElementById('errorMessage').classList.add('show');
+            }
+
+            // If all services are ready, redirect to frontend
+            if (allServicesReady()) {
+                clearInterval(checkInterval);
+                cancelPendingRequests();
+                updateProgress(100);
+                document.getElementById('progressText').textContent = '✓ Ready! Redirecting...';
+                document.getElementById('funMessage').textContent = '🎉 All systems go!';
+                
+                setTimeout(() => {
+                    window.location.href = '/map';
+                }, 500);
+            } else {
+                // Schedule next check with adaptive interval
+                clearInterval(checkInterval);
+                checkInterval = setInterval(checkAllServices, pollInterval);
+            }
+        }
+
+        // Check if all services are ready
+        function allServicesReady() {
+            return servicesReady.nginx && servicesReady.backend && servicesReady.frontend;
+        }
+
+        // Initialize
+        createParticles();
+        updateFunMessage();
+
+        // Start checking health endpoints immediately
+        checkAllServices();
+
+        // Rotate fun messages
+        setInterval(updateFunMessage, 3000); // Every 3 seconds
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (checkInterval) clearInterval(checkInterval);
+            cancelPendingRequests();
+        });
+    </script>
+</body>
+</html>

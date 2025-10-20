@@ -21,7 +21,7 @@ test("page should load without crashing", async ({ page }) => {
     console.error("[Browser Error]:", error.message);
   });
 
-  await page.goto("/");
+  await page.goto("/map");
 
   // Wait for map to be ready
   const mapContainer = await page.locator(".leaflet-container");

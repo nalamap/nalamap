@@ -22,7 +22,17 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: '100mb'
     }
-  }
+  },
+  
+  // Rewrite /map to root page (nginx serves loading page at /, redirects to /map when ready)
+  async rewrites() {
+    return [
+      {
+        source: '/map',
+        destination: '/',
+      },
+    ];
+  },
 };
 
 export default nextConfig;

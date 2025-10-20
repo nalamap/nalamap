@@ -227,7 +227,7 @@ test.describe("Geoprocessing Operations", () => {
     await setupMocks(page);
 
     // Navigate to page
-    await page.goto("/");
+    await page.goto("/map");
 
     // Wait for map to be ready
     await page.waitForSelector(".leaflet-container", { timeout: 10000 });

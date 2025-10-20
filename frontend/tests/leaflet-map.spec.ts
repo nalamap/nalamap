@@ -134,7 +134,7 @@ async function getLayerCount(page: Page): Promise<number> {
 test.describe("LeafletMapClient - Geocoding Tests", () => {
   test.beforeEach(async ({ page }) => {
     await setupBackendMocks(page);
-    await page.goto("/");
+    await page.goto("/map");
     await waitForMapReady(page);
   });
 
@@ -225,7 +225,7 @@ test.describe("LeafletMapClient - Geocoding Tests", () => {
 test.describe("LeafletMapClient - Overpass Tests", () => {
   test.beforeEach(async ({ page }) => {
     await setupBackendMocks(page);
-    await page.goto("/");
+    await page.goto("/map");
     await waitForMapReady(page);
   });
 
@@ -356,7 +356,7 @@ test.describe("LeafletMapClient - Overpass Tests", () => {
 test.describe("LeafletMapClient - OGC Services Tests", () => {
   test.beforeEach(async ({ page }) => {
     await setupBackendMocks(page);
-    await page.goto("/");
+    await page.goto("/map");
     await waitForMapReady(page);
   });
 
@@ -426,7 +426,7 @@ test.describe("LeafletMapClient - OGC Services Tests", () => {
 test.describe("LeafletMapClient - GeoJSON Normalization Tests", () => {
   test.beforeEach(async ({ page }) => {
     await setupBackendMocks(page);
-    await page.goto("/");
+    await page.goto("/map");
     await waitForMapReady(page);
   });
 
@@ -529,7 +529,7 @@ test.describe("LeafletMapClient - GeoJSON Normalization Tests", () => {
 test.describe("LeafletMapClient - Layer Management Tests", () => {
   test.beforeEach(async ({ page }) => {
     await setupBackendMocks(page);
-    await page.goto("/");
+    await page.goto("/map");
     await waitForMapReady(page);
   });
 
@@ -633,7 +633,7 @@ test.describe("LeafletMapClient - Layer Management Tests", () => {
 test.describe("LeafletMapClient - Bug Fix Verification Tests", () => {
   test.beforeEach(async ({ page }) => {
     await setupBackendMocks(page);
-    await page.goto("/");
+    await page.goto("/map");
     await waitForMapReady(page);
   });
 
@@ -1068,7 +1068,7 @@ test.describe("LeafletMapClient - Bug Fix Verification Tests", () => {
 test.describe("LeafletMapClient - Performance Tests", () => {
   test.beforeEach(async ({ page }) => {
     await setupBackendMocks(page);
-    await page.goto("/");
+    await page.goto("/map");
     await waitForMapReady(page);
   });
 

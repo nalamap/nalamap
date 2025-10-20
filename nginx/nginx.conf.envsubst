@@ -61,36 +61,82 @@ http {
     listen 80;
     server_name _;
 
-  # Backend health check passthrough
-  # FastAPI exposes /health at the backend root; proxy it here for quick ops checks
-      # Nginx self health
-      location = /health/nginx {
-        default_type application/json;
-        return 200 '{"status":"ok","service":"nginx"}';
-      }
+    # ============================================================================
+    # LOADING PAGE FOR COLD STARTS
+    # ============================================================================
+    # Direct access to loading page for testing
+    location = /loading {
+      root /usr/share/nginx/html;
+      try_files /loading.html =404;
+      add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+    }
 
-      # Backend health check passthrough (explicit)
-      # FastAPI exposes /health at the backend root; proxy it here for quick ops checks
-      location = /health/backend {
+    # Loading page fallback when frontend is not available
+    # This is a named location used by error_page directive in location /
+    location @loading {
+      root /usr/share/nginx/html;
+      try_files /loading.html =502;
+      add_header Content-Type "text/html" always;
+      add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+    }
+
+    # ============================================================================
+    # HEALTH CHECK ENDPOINTS
+    # ============================================================================
+    # Nginx self health
+    location = /health/nginx {
+      access_log off;
+      default_type application/json;
+      return 200 '{"status":"ok","service":"nginx"}';
+    }
+
+    # Backend health check passthrough (explicit)
+    # FastAPI exposes /health at the backend root; proxy it here for quick ops checks
+    location = /health/backend {
+      proxy_http_version 1.1;
+      proxy_set_header Connection "";
       proxy_set_header Host               $proxy_host;
       proxy_set_header X-Forwarded-Proto  $scheme;
       proxy_set_header X-Forwarded-Host   $host;
       proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
-        proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL}/health;
+      proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL}/health;
+      proxy_connect_timeout 5s;
+      proxy_read_timeout 5s;
+      # NO proxy_intercept_errors - return actual upstream errors for monitoring
     }
 
-      # Frontend health: fetch runtime-env.js as a simple readiness probe
-      location = /health/frontend {
-        proxy_set_header Host               $proxy_host;
-        proxy_set_header X-Forwarded-Proto  $scheme;
-        proxy_set_header X-Forwarded-Host   $host;
-        proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
-        proxy_pass ${FRONTEND_PROTOCOL}://${FRONTEND_URL}/runtime-env.js;
-      }
+    # Frontend health: lightweight dedicated endpoint for fast health checks
+    location = /health/frontend {
+      proxy_http_version 1.1;
+      proxy_set_header Connection "";
+      proxy_set_header Host               $proxy_host;
+      proxy_set_header X-Forwarded-Proto  $scheme;
+      proxy_set_header X-Forwarded-Host   $host;
+      proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
+      proxy_pass ${FRONTEND_PROTOCOL}://${FRONTEND_URL}/health;
+      proxy_connect_timeout 3s;
+      proxy_read_timeout 3s;
+      # NO proxy_intercept_errors - return actual upstream errors for monitoring
+    }
 
+    # ============================================================================
+    # ROOT PATH - STATIC LOADING PAGE WITH AUTO-REDIRECT
+    # ============================================================================
+    # Serve static loading page immediately at root
+    # Loading page polls health endpoints and redirects to /map when ready
+    location = / {
+      root /usr/share/nginx/html;
+      try_files /loading.html =404;
+      add_header Cache-Control "no-cache, no-store, must-revalidate" always;
+      add_header Content-Type "text/html" always;
+    }
 
-    # Frontend (SPA)
-    location / {
+    # ============================================================================
+    # FRONTEND (SPA) - SERVED ON /map
+    # ============================================================================
+    # Frontend app served on /map path
+    # This allows loading page to be on / without conflict
+    location /map {
       proxy_http_version 1.1;
       proxy_set_header Host               $proxy_host;
       proxy_set_header X-Forwarded-Proto  $scheme;
@@ -109,6 +155,134 @@ http {
       proxy_buffers 32 64k;
       proxy_buffer_size 64k;
       proxy_busy_buffers_size 128k;
+    }
+
+    # Favicon - explicit handler for better caching and reliability
+    # Next.js 15 serves favicon.ico from app/ directory automatically
+    location = /favicon.ico {
+      proxy_http_version 1.1;
+      proxy_set_header Connection "";
+      proxy_set_header Host               $proxy_host;
+      proxy_set_header X-Forwarded-Proto  $scheme;
+      proxy_set_header X-Forwarded-Host   $host;
+      proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
+
+      proxy_pass ${FRONTEND_PROTOCOL}://${FRONTEND_URL}/favicon.ico;
+
+      # CRITICAL: Disable nginx buffering for static files in Azure Container Apps
+      # Azure's proxy layer handles buffering; nginx buffering causes truncation
+      # Similar to /api/stream/ - let the response flow through without buffering
+      proxy_buffering off;
+      proxy_request_buffering off;
+      proxy_max_temp_file_size 0;
+      
+      # Disable compression to avoid partial transmission issues
+      gzip off;
+      proxy_set_header Accept-Encoding "identity";
+      proxy_hide_header Content-Encoding;
+      
+      # Extended timeouts for static file delivery
+      proxy_connect_timeout 30s;
+      proxy_read_timeout    30s;
+      proxy_send_timeout    30s;
+      
+      # Force immediate flush to client
+      add_header X-Accel-Buffering "no" always;
+
+      # Explicit Content-Type for favicon (helps browser recognition)
+      add_header Content-Type "image/x-icon" always;
+
+      # Aggressive caching for favicon (24 hours)
+      proxy_cache_valid 200 24h;
+      add_header Cache-Control "public, max-age=86400, immutable";
+      
+      # Don't log favicon requests (reduces noise)
+      access_log off;
+      
+      # Return 204 No Content if favicon is missing (prevents errors)
+      proxy_intercept_errors on;
+      error_page 404 = @favicon_fallback;
+    }
+
+    # Fallback for missing favicon
+    location @favicon_fallback {
+      return 204;
+      access_log off;
+    }
+
+    # Apple touch icons and other browser icons
+    # These are commonly requested by mobile browsers and PWAs
+    location ~ ^/(apple-touch-icon|android-chrome|mstile|safari-pinned-tab|site\.webmanifest|browserconfig\.xml).*\.(png|xml|json|svg|ico)$ {
+      proxy_http_version 1.1;
+      proxy_set_header Connection "";
+      proxy_set_header Host               $proxy_host;
+      proxy_set_header X-Forwarded-Proto  $scheme;
+      proxy_set_header X-Forwarded-Host   $host;
+      proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
+
+      proxy_pass ${FRONTEND_PROTOCOL}://${FRONTEND_URL};
+
+      # CRITICAL: Disable nginx buffering for icon files in Azure Container Apps
+      # Azure's proxy layer handles buffering; nginx buffering causes truncation
+      proxy_buffering off;
+      proxy_request_buffering off;
+      proxy_max_temp_file_size 0;
+      
+      # Disable compression to avoid partial transmission issues
+      gzip off;
+      proxy_set_header Accept-Encoding "identity";
+      proxy_hide_header Content-Encoding;
+      
+      # Extended timeouts for icon delivery
+      proxy_connect_timeout 30s;
+      proxy_read_timeout    30s;
+      proxy_send_timeout    30s;
+      
+      # Force immediate flush to client
+      add_header X-Accel-Buffering "no" always;
+
+      # Cache icons for 7 days
+      proxy_cache_valid 200 7d;
+      add_header Cache-Control "public, max-age=604800, immutable";
+      
+      # Don't log icon requests
+      access_log off;
+      
+      # Return 204 if missing (don't error on missing PWA icons)
+      proxy_intercept_errors on;
+      error_page 404 = @favicon_fallback;
+    }
+
+    # Frontend static assets (JS, CSS, images, etc.)
+    # These are needed for the Next.js app to work
+    location ~ ^/(_next|static|runtime-env.js) {
+      proxy_http_version 1.1;
+      proxy_set_header Connection "";
+      proxy_set_header Host               $proxy_host;
+      proxy_set_header X-Forwarded-Proto  $scheme;
+      proxy_set_header X-Forwarded-Host   $host;
+      proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
+
+      proxy_pass ${FRONTEND_PROTOCOL}://${FRONTEND_URL};
+
+      # CRITICAL: Disable nginx buffering for Next.js static assets in Azure Container Apps
+      # Azure's proxy layer handles buffering; nginx buffering causes issues with large files
+      # JS bundles can be several MB - let them stream through without nginx buffering
+      proxy_buffering off;
+      proxy_request_buffering off;
+      proxy_max_temp_file_size 0;
+      
+      # Extended timeouts for large JS bundles
+      proxy_connect_timeout 60s;
+      proxy_read_timeout    60s;
+      proxy_send_timeout    60s;
+      
+      # Force immediate flush to client
+      add_header X-Accel-Buffering "no" always;
+
+      # Cache static assets
+      proxy_cache_valid 200 1h;
+      add_header Cache-Control "public, max-age=3600";
     }
 
     # Chat endpoint - needs large buffers to prevent truncation of large responses
@@ -303,6 +477,32 @@ http {
       proxy_read_timeout 600s;
       proxy_connect_timeout 600s;
       proxy_send_timeout 600s;
+    }
+
+    # Catch-all for any other paths -> forward to frontend
+    # This enables all frontend routes (e.g., /settings, /about, etc.) to work
+    # Priority: This is processed LAST, after all specific routes above
+    # Exact matches (= /) and prefix matches (/api/, /uploads/) take precedence
+    location / {
+      proxy_http_version 1.1;
+      proxy_set_header Host               $proxy_host;
+      proxy_set_header X-Forwarded-Proto  $scheme;
+      proxy_set_header X-Forwarded-Host   $host;
+      proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
+
+      proxy_set_header Upgrade            $http_upgrade;
+      proxy_set_header Connection         $connection_upgrade;
+
+      proxy_pass ${FRONTEND_PROTOCOL}://${FRONTEND_URL};
+
+      proxy_connect_timeout 300s;
+      proxy_read_timeout    300s;
+      proxy_send_timeout    300s;
+
+      # Standard buffering for frontend pages
+      proxy_buffers 32 64k;
+      proxy_buffer_size 64k;
+      proxy_busy_buffers_size 128k;
     }
   }
 }

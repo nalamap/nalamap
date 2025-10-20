@@ -169,7 +169,7 @@ test.describe("Leaflet Popup - Large Attribute Tables", () => {
     page,
   }) => {
     // Navigate to the app
-    await page.goto("/");
+    await page.goto("/map");
 
     // Wait for map to be ready
     await waitForMapReady(page);
@@ -279,7 +279,7 @@ test.describe("Leaflet Popup - Large Attribute Tables", () => {
 
   test("should keep popup in view when panning map", async ({ page }) => {
     // Navigate to the app
-    await page.goto("/");
+    await page.goto("/map");
 
     // Wait for map to be ready
     await waitForMapReady(page);
@@ -341,7 +341,7 @@ test.describe("Leaflet Popup - Large Attribute Tables", () => {
 
   test("should apply scrollbar styling", async ({ page }) => {
     // Navigate to the app
-    await page.goto("/");
+    await page.goto("/map");
 
     // Wait for map to be ready
     await waitForMapReady(page);
@@ -381,7 +381,7 @@ test.describe("Leaflet Popup - Large Attribute Tables", () => {
 
   test("should handle popup with very long attribute values", async ({ page }) => {
     // Navigate to the app
-    await page.goto("/");
+    await page.goto("/map");
 
     // Wait for map to be ready
     await waitForMapReady(page);

@@ -37,7 +37,7 @@ export default function Sidebar({ onLayerToggle }: { onLayerToggle?: () => void 
       {/* Top Icon Section */}
       <div className="flex flex-col md:flex-col items-center justify-start md:py-4 py-2 md:space-y-4 space-y-3 h-full w-full bg-primary-800">
         {/* Home Icon */}
-        <Link href="/">
+        <Link href="/map">
           <button
             className="hover:bg-secondary-800 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
             title="Home"

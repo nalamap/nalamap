@@ -264,7 +264,7 @@ test.describe("Agent Chat Interface - Add Layer Button", () => {
     });
 
     // Navigate to the app
-    await page.goto("/");
+    await page.goto("/map");
     await page.waitForLoadState("networkidle");
 
     // Enter query in chat
@@ -374,7 +374,7 @@ test.describe("Agent Chat Interface - Add Layer Button", () => {
       });
     });
 
-    await page.goto("/");
+    await page.goto("/map");
     await page.waitForLoadState("networkidle");
 
     // Submit query - use Promise.all to ensure waitForResponse is set up before pressing Enter
@@ -469,7 +469,7 @@ test.describe("Agent Chat Interface - Add Layer Button", () => {
       });
     });
 
-    await page.goto("/");
+    await page.goto("/map");
     await page.waitForLoadState("networkidle");
 
     const chatInput = page.getByPlaceholder("Type a chat command...");

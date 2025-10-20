@@ -22,7 +22,7 @@ test("check if stores are exposed", async ({ page }) => {
     pageErrors.push(error.message);
   });
 
-  await page.goto("/");
+  await page.goto("/map");
 
   console.log("Page loaded, waiting for app to be ready...");
 
