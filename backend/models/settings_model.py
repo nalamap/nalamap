@@ -39,6 +39,14 @@ class ModelSettings(BaseModel):
             "Only works with models that support parallel tool calls."
         ),
     )
+    enable_performance_metrics: bool = Field(
+        False,
+        description=(
+            "Enable performance metrics tracking and storage. "
+            "When enabled, tracks timing, token usage, and tool performance. "
+            "Metrics are available via the /metrics endpoint."
+        ),
+    )
 
 
 class ToolConfig(BaseModel):

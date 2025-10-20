@@ -62,6 +62,7 @@ export interface ModelSettings {
   system_prompt: string;
   message_window_size?: number | null; // Optional: Max recent messages to keep (default: 20 from env)
   enable_parallel_tools?: boolean; // Optional: Enable parallel tool execution (default: false, experimental)
+  enable_performance_metrics?: boolean; // Optional: Enable performance metrics tracking (default: false)
 }
 
 export interface ColorScale {
@@ -134,6 +135,7 @@ export interface SettingsState extends SettingsSnapshot {
   setSystemPrompt: (prompt: string) => void;
   setMessageWindowSize: (size: number | null) => void;
   setEnableParallelTools: (enabled: boolean) => void;
+  setEnablePerformanceMetrics: (enabled: boolean) => void;
 
   // Tool config actions
   addToolConfig: (name: string) => void;
@@ -380,6 +382,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setEnableParallelTools: (enabled) =>
     set((state) => ({
       model_settings: { ...state.model_settings, enable_parallel_tools: enabled },
+    })),
+  setEnablePerformanceMetrics: (enabled) =>
+    set((state) => ({
+      model_settings: { ...state.model_settings, enable_performance_metrics: enabled },
     })),
 
   // tools

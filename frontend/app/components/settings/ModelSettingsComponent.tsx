@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { useInitializedSettingsStore } from "../../hooks/useInitializedSettingsStore";
 import { ChevronDown, ChevronUp, Info } from "lucide-react";
 
@@ -19,6 +20,9 @@ export default function ModelSettingsComponent() {
   );
   const setEnableParallelTools = useInitializedSettingsStore(
     (s) => s.setEnableParallelTools,
+  );
+  const setEnablePerformanceMetrics = useInitializedSettingsStore(
+    (s) => s.setEnablePerformanceMetrics,
   );
 
   const availableProviders = useInitializedSettingsStore(
@@ -258,6 +262,51 @@ export default function ModelSettingsComponent() {
                     {selectedModel?.supports_parallel_tool_calls && 
                       " May cause state corruption. Monitor for issues."
                     }
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Enable Performance Metrics */}
+            <div className="col-span-2">
+              <div className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  id="enable-performance-metrics"
+                  checked={modelSettings.enable_performance_metrics ?? false}
+                  onChange={(e) => setEnablePerformanceMetrics(e.target.checked)}
+                  className="mt-1 h-4 w-4 rounded border-primary-300 dark:border-primary-700 text-tertiary-600 focus:ring-tertiary-500"
+                />
+                <div className="flex-1">
+                  <label
+                    htmlFor="enable-performance-metrics"
+                    className="text-sm font-medium text-primary-900 dark:text-primary-300 cursor-pointer"
+                  >
+                    Enable Performance Metrics
+                    <span className="ml-2 px-2 py-0.5 rounded text-xs font-medium text-info-700 dark:text-info-300 bg-info-100 dark:bg-info-900">
+                      📊 Monitoring
+                    </span>
+                  </label>
+                  <p className="text-xs text-primary-700 dark:text-primary-400 mt-1">
+                    Tracks timing, token usage, and tool performance.
+                    {modelSettings.enable_performance_metrics && (
+                      <>
+                        {" "}
+                        <Link
+                          href="/metrics"
+                          className="text-tertiary-600 dark:text-tertiary-400 hover:text-tertiary-700 dark:hover:text-tertiary-300 underline"
+                        >
+                          View metrics dashboard →
+                        </Link>
+                      </>
+                    )}
+                    {!modelSettings.enable_performance_metrics && (
+                      <>
+                        {" "}
+                        Metrics are available via the <code className="px-1 py-0.5 bg-primary-200 dark:bg-primary-800 rounded text-xs">/metrics</code> endpoint.
+                      </>
+                    )}
+                    {" "}No impact on response time.
                   </p>
                 </div>
               </div>

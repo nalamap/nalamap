@@ -408,3 +408,180 @@ class TestPerformanceIntegration:
         assert final["tool_calls"] == 1
         assert final["agent_execution"] > 0
         assert final["total_time"] > 0
+
+
+class TestMetricsStorage:
+    """Test suite for MetricsStorage class."""
+
+    def test_initialization(self):
+        """Test storage initialization."""
+        from utility.metrics_storage import MetricsStorage
+
+        storage = MetricsStorage(max_age_hours=24, max_entries=1000)
+        assert storage.get_count() == 0
+
+    def test_store_metrics(self):
+        """Test storing metrics."""
+        from utility.metrics_storage import MetricsStorage
+
+        storage = MetricsStorage()
+        metrics = {"total_time": 5.0, "llm_calls": 2}
+        storage.store(session_id="test123", metrics=metrics)
+
+        assert storage.get_count() == 1
+
+    def test_get_recent(self):
+        """Test retrieving recent metrics."""
+        from utility.metrics_storage import MetricsStorage
+
+        storage = MetricsStorage()
+
+        # Store some metrics
+        for i in range(5):
+            storage.store(session_id=f"session{i}", metrics={"total_time": i + 1.0})
+
+        recent = storage.get_recent(hours=1)
+        assert len(recent) == 5
+
+    def test_get_recent_with_session_filter(self):
+        """Test filtering recent metrics by session ID."""
+        from utility.metrics_storage import MetricsStorage
+
+        storage = MetricsStorage()
+
+        # Store metrics for different sessions
+        storage.store(session_id="session1", metrics={"total_time": 1.0})
+        storage.store(session_id="session1", metrics={"total_time": 2.0})
+        storage.store(session_id="session2", metrics={"total_time": 3.0})
+
+        recent = storage.get_recent(hours=1, session_id="session1")
+        assert len(recent) == 2
+
+    def test_cleanup_old_entries(self):
+        """Test cleanup of old metrics entries."""
+        from utility.metrics_storage import MetricsStorage
+
+        # Use very short max_age (0.0001 hours = 0.36 seconds)
+        storage = MetricsStorage(max_age_hours=0.0001, max_entries=1000)
+
+        # Store metrics
+        storage.store(session_id="test", metrics={"total_time": 1.0})
+        assert storage.get_count() == 1
+
+        # Wait for expiry (0.5 seconds > 0.36 seconds max_age)
+        time.sleep(0.5)
+
+        # Trigger cleanup
+        storage._cleanup()
+
+        # Old entry should be removed
+        assert storage.get_count() == 0
+
+    def test_max_entries_limit(self):
+        """Test that max_entries limit is enforced."""
+        from utility.metrics_storage import MetricsStorage
+
+        storage = MetricsStorage(max_entries=10)
+
+        # Store more than max_entries
+        for i in range(15):
+            storage.store(session_id=f"session{i}", metrics={"total_time": i + 1.0})
+
+        # Should only keep most recent 10
+        assert storage.get_count() == 10
+
+    def test_clear(self):
+        """Test clearing all metrics."""
+        from utility.metrics_storage import MetricsStorage
+
+        storage = MetricsStorage()
+        storage.store(session_id="test", metrics={"total_time": 1.0})
+        assert storage.get_count() == 1
+
+        storage.clear()
+        assert storage.get_count() == 0
+
+    def test_get_statistics_empty(self):
+        """Test statistics with no data."""
+        from utility.metrics_storage import MetricsStorage
+
+        storage = MetricsStorage()
+        stats = storage.get_statistics(hours=1)
+
+        assert stats["total_requests"] == 0
+        assert "error" in stats
+
+    def test_get_statistics_with_data(self):
+        """Test statistics calculation."""
+        from utility.metrics_storage import MetricsStorage
+
+        storage = MetricsStorage()
+
+        # Store test metrics
+        for i in range(3):
+            metrics = {
+                "total_time": (i + 1) * 1.0,
+                "agent_execution": (i + 1) * 0.8,
+                "llm_calls": 2,
+                "llm_time": (i + 1) * 0.5,
+                "tool_calls": 1,
+                "token_usage": {"total": (i + 1) * 100},
+                "message_reduction": i * 5,
+                "errors": [],
+            }
+            storage.store(session_id=f"session{i}", metrics=metrics)
+
+        stats = storage.get_statistics(hours=1)
+
+        assert stats["total_requests"] == 3
+        assert stats["response_time"]["min"] == 1.0
+        assert stats["response_time"]["max"] == 3.0
+        assert stats["llm"]["total_calls"] == 6
+        assert stats["tools"]["total_calls"] == 3
+        assert stats["tokens"]["total"] == 600
+
+    def test_calculate_stats(self):
+        """Test statistical calculations."""
+        from utility.metrics_storage import MetricsStorage
+
+        storage = MetricsStorage()
+        values = [1.0, 2.0, 3.0, 4.0, 5.0]
+
+        stats = storage._calculate_stats(values)
+
+        assert stats["min"] == 1.0
+        assert stats["max"] == 5.0
+        assert stats["avg"] == 3.0
+        assert stats["median"] == 3.0
+
+    def test_get_top_tools(self):
+        """Test top tools calculation."""
+        from utility.metrics_storage import MetricsStorage
+
+        storage = MetricsStorage()
+
+        # Store metrics with tool stats
+        for i in range(3):
+            metrics = {
+                "tool_stats": {
+                    "geocode": {"calls": 2, "avg_time": 0.5, "total_time": 1.0},
+                    "buffer": {"calls": 1, "avg_time": 1.0, "total_time": 1.0},
+                }
+            }
+            storage.store(session_id=f"session{i}", metrics=metrics)
+
+        stats = storage.get_statistics(hours=1)
+        top_tools = stats["tools"]["top_tools"]
+
+        assert len(top_tools) == 2
+        assert top_tools[0]["name"] == "geocode"  # Most calls
+        assert top_tools[0]["total_calls"] == 6
+
+    def test_get_metrics_storage_singleton(self):
+        """Test that get_metrics_storage returns singleton."""
+        from utility.metrics_storage import get_metrics_storage
+
+        storage1 = get_metrics_storage()
+        storage2 = get_metrics_storage()
+
+        assert storage1 is storage2

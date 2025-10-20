@@ -2,7 +2,7 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from langchain_core.messages import (
     AIMessage,
     BaseMessage,
@@ -190,6 +190,7 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
         PerformanceCallbackHandler,
         extract_token_usage_from_messages,
     )
+    from utility.metrics_storage import get_metrics_storage
     import openai
 
     # Initialize performance tracking
@@ -287,11 +288,21 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
 
         # Log performance metrics
         final_metrics = metrics.finalize()
+
+        # Store metrics in global storage if enabled
+        session_id = getattr(options, "session_id", None) or "unknown"
+        enable_performance_metrics = getattr(
+            options.model_settings, "enable_performance_metrics", False
+        )
+        if enable_performance_metrics:
+            storage = get_metrics_storage()
+            storage.store(session_id=session_id, metrics=final_metrics)
+
         logger.info(
             "Agent execution completed",
             extra={
                 "performance_metrics": final_metrics,
-                "session_id": getattr(options, "session_id", None),
+                "session_id": session_id,
             },
         )
 
@@ -367,3 +378,58 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
         options=result_options,
     )
     return response
+
+
+@router.get("/metrics", tags=["nalamap"])
+async def get_metrics(
+    hours: int = Query(default=1, ge=1, le=168, description="Hours to look back (1-168)"),
+    session_id: Optional[str] = Query(default=None, description="Filter by session ID"),
+):
+    """Get performance metrics for recent requests.
+
+    Args:
+        hours: Number of hours to look back (1-168, default: 1)
+        session_id: Optional session ID filter
+
+    Returns:
+        Dictionary with recent metrics or aggregated statistics
+    """
+    from utility.metrics_storage import get_metrics_storage
+
+    storage = get_metrics_storage()
+
+    # Return aggregated statistics
+    stats = storage.get_statistics(hours=hours, session_id=session_id)
+
+    return {
+        "status": "success",
+        "data": stats,
+        "storage_info": {"total_entries": storage.get_count()},
+    }
+
+
+@router.get("/metrics/recent", tags=["nalamap"])
+async def get_recent_metrics(
+    hours: int = Query(default=1, ge=1, le=24, description="Hours to look back (1-24)"),
+    session_id: Optional[str] = Query(default=None, description="Filter by session ID"),
+    limit: int = Query(default=100, ge=1, le=1000, description="Max results (1-1000)"),
+):
+    """Get recent raw metrics entries.
+
+    Args:
+        hours: Number of hours to look back (1-24, default: 1)
+        session_id: Optional session ID filter
+        limit: Maximum number of entries to return
+
+    Returns:
+        List of recent metrics entries
+    """
+    from utility.metrics_storage import get_metrics_storage
+
+    storage = get_metrics_storage()
+    recent = storage.get_recent(hours=hours, session_id=session_id)
+
+    # Limit results
+    recent = recent[-limit:]
+
+    return {"status": "success", "data": recent, "count": len(recent)}
