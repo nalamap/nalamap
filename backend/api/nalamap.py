@@ -185,7 +185,15 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
     and analyse geospatial information."""
     # Lazy import: only load heavy modules when chat endpoint is actually called
     from services.single_agent import create_geo_agent, prune_messages
+    from utility.performance_metrics import (
+        PerformanceMetrics,
+        PerformanceCallbackHandler,
+        extract_token_usage_from_messages,
+    )
     import openai
+
+    # Initialize performance tracking
+    metrics = PerformanceMetrics()
 
     # print("befor normalize:", request.messages)
     # Normalize incoming messages and append user query
@@ -193,6 +201,9 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
     messages.append(
         HumanMessage(request.query)
     )  # TODO: maybe remove query once message is correctly added in frontend
+
+    # Track message count before pruning
+    metrics.record("message_count_before", len(messages))
 
     # Append as a single human message
     options_orig: dict = request.options
@@ -208,6 +219,10 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
 
     # Prune message history to prevent unbounded growth
     messages = prune_messages(messages, window_size=message_window_size)
+
+    # Track message count after pruning
+    metrics.record("message_count_after", len(messages))
+    metrics.record("message_reduction", metrics.metrics["message_count_before"] - len(messages))
 
     state: GeoDataAgentState = GeoDataAgentState(
         messages=messages,
@@ -230,9 +245,21 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
             enable_parallel_tools=enable_parallel_tools,
         )
 
+        # Create performance callback handler
+        perf_callback = PerformanceCallbackHandler()
+
         # Enable langgraph debug logging when global log level is DEBUG
         debug_enabled = logger.isEnabledFor(logging.DEBUG)
-        executor_result: GeoDataAgentState = single_agent.invoke(state, debug=debug_enabled)
+
+        # Start timing agent execution
+        metrics.start_timer("agent_execution")
+
+        executor_result: GeoDataAgentState = single_agent.invoke(
+            state, debug=debug_enabled, config={"callbacks": [perf_callback]}
+        )
+
+        # End timing agent execution
+        metrics.end_timer("agent_execution")
 
         result_messages: List[BaseMessage] = executor_result.get("messages", [])
         results_title: Optional[str] = executor_result.get("results_title", "")
@@ -241,6 +268,32 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
         # global_geodata: List[GeoDataObject] = executor_result.get('global_geodata', [])
 
         result_options: Dict[str, Any] = executor_result.get("options", {})
+
+        # Track final message count
+        metrics.record("message_count_final", len(result_messages))
+
+        # Collect metrics from callback handler
+        callback_metrics = perf_callback.get_metrics()
+        metrics.metrics.update(callback_metrics)
+
+        # Extract token usage from messages if not captured by callback
+        if callback_metrics["token_usage"]["total"] == 0:
+            token_usage = extract_token_usage_from_messages(result_messages)
+            metrics.metrics["token_usage"] = token_usage
+
+        # Track state metrics
+        metrics.record("geodata_layers_count", len(geodata_layers))
+        metrics.record("geodata_results_count", len(geodata_results))
+
+        # Log performance metrics
+        final_metrics = metrics.finalize()
+        logger.info(
+            "Agent execution completed",
+            extra={
+                "performance_metrics": final_metrics,
+                "session_id": getattr(options, "session_id", None),
+            },
+        )
 
         if not result_messages:  # Should always have messages, but safeguard
             result_messages = [
