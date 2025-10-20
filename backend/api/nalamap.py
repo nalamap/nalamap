@@ -184,7 +184,7 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
     """Ask a question to the NaLaMap Single Agent, which uses tools to respond
     and analyse geospatial information."""
     # Lazy import: only load heavy modules when chat endpoint is actually called
-    from services.single_agent import create_geo_agent
+    from services.single_agent import create_geo_agent, prune_messages
     import openai
 
     # print("befor normalize:", request.messages)
@@ -199,6 +199,16 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
 
     options: SettingsSnapshot = SettingsSnapshot.model_validate(options_orig, strict=False)
 
+    # Get message window size from model settings or use environment default
+    message_window_size = getattr(options.model_settings, "message_window_size", None)
+    if message_window_size is None:
+        import os
+
+        message_window_size = int(os.getenv("MESSAGE_WINDOW_SIZE", "20"))
+
+    # Prune message history to prevent unbounded growth
+    messages = prune_messages(messages, window_size=message_window_size)
+
     state: GeoDataAgentState = GeoDataAgentState(
         messages=messages,
         geodata_last_results=request.geodata_last_results,
@@ -211,8 +221,13 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
     # state.global_geodata=request.global_geodata,
 
     try:
+        # Get enable_parallel_tools from model settings
+        enable_parallel_tools = getattr(options.model_settings, "enable_parallel_tools", False)
+
         single_agent = create_geo_agent(
-            model_settings=options.model_settings, selected_tools=options.tools
+            model_settings=options.model_settings,
+            selected_tools=options.tools,
+            enable_parallel_tools=enable_parallel_tools,
         )
 
         # Enable langgraph debug logging when global log level is DEBUG

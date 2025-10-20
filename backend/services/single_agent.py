@@ -1,6 +1,7 @@
 import logging
 from typing import Dict, List, Optional
 
+from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_core.tools import BaseTool
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
@@ -44,6 +45,51 @@ tools: List[BaseTool] = [
     attribute_tool,
     attribute_tool2,  # Simplified attribute tool for better agent usability
 ]
+
+
+def prune_messages(
+    messages: List[BaseMessage], window_size: int, preserve_system: bool = True
+) -> List[BaseMessage]:
+    """Prune message history to keep only recent messages.
+
+    Args:
+        messages: List of messages to prune
+        window_size: Maximum number of recent messages to keep (excluding system messages)
+        preserve_system: If True, always keep the first system message (default: True)
+
+    Returns:
+        Pruned list of messages
+
+    Examples:
+        >>> messages = [SystemMessage("..."), HumanMessage("1"), AIMessage("2"), ...]
+        >>> prune_messages(messages, window_size=5)  # Keeps system + last 5 messages
+    """
+    if not messages or window_size <= 0:
+        return messages
+
+    # Separate system messages from conversation messages
+    system_messages = []
+    conversation_messages = []
+
+    for msg in messages:
+        if preserve_system and isinstance(msg, SystemMessage):
+            system_messages.append(msg)
+        else:
+            conversation_messages.append(msg)
+
+    # Keep only the most recent window_size messages from conversation
+    pruned_conversation = conversation_messages[-window_size:] if conversation_messages else []
+
+    # Combine: system messages first, then recent conversation
+    result = system_messages + pruned_conversation
+
+    if len(conversation_messages) > window_size:
+        logger.info(
+            f"Pruned message history: {len(conversation_messages)} -> {len(pruned_conversation)} "
+            f"messages (kept {len(system_messages)} system messages)"
+        )
+
+    return result
 
 
 def create_geo_agent(

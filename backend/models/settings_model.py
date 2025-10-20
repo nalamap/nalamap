@@ -22,6 +22,23 @@ class ModelSettings(BaseModel):
     model_name: str = Field(..., description="Model identifier, e.g., gpt-4")
     max_tokens: int = Field(..., ge=1, description="Maximum tokens to generate")
     system_prompt: str = Field("", description="System-level prompt override")
+    message_window_size: Optional[int] = Field(
+        None,
+        ge=0,
+        description=(
+            "Maximum number of recent messages to keep in context. "
+            "If None, uses MESSAGE_WINDOW_SIZE env var (default: 20). "
+            "Set to 0 to disable pruning."
+        ),
+    )
+    enable_parallel_tools: bool = Field(
+        False,
+        description=(
+            "Enable parallel tool execution for faster multi-tool queries. "
+            "EXPERIMENTAL: May cause state corruption with concurrent updates. "
+            "Only works with models that support parallel tool calls."
+        ),
+    )
 
 
 class ToolConfig(BaseModel):

@@ -60,6 +60,8 @@ export interface ModelSettings {
   model_name: string;
   max_tokens: number;
   system_prompt: string;
+  message_window_size?: number | null; // Optional: Max recent messages to keep (default: 20 from env)
+  enable_parallel_tools?: boolean; // Optional: Enable parallel tool execution (default: false, experimental)
 }
 
 export interface ColorScale {
@@ -130,6 +132,8 @@ export interface SettingsState extends SettingsSnapshot {
   setModelName: (name: string) => void;
   setMaxTokens: (tokens: number) => void;
   setSystemPrompt: (prompt: string) => void;
+  setMessageWindowSize: (size: number | null) => void;
+  setEnableParallelTools: (enabled: boolean) => void;
 
   // Tool config actions
   addToolConfig: (name: string) => void;
@@ -280,6 +284,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     model_name: "",
     max_tokens: 0,
     system_prompt: "",
+    message_window_size: null, // null = use backend default (20)
+    enable_parallel_tools: false, // Default: disabled (experimental)
   },
   tools: [],
 
@@ -366,6 +372,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setSystemPrompt: (prompt) =>
     set((state) => ({
       model_settings: { ...state.model_settings, system_prompt: prompt },
+    })),
+  setMessageWindowSize: (size) =>
+    set((state) => ({
+      model_settings: { ...state.model_settings, message_window_size: size },
+    })),
+  setEnableParallelTools: (enabled) =>
+    set((state) => ({
+      model_settings: { ...state.model_settings, enable_parallel_tools: enabled },
     })),
 
   // tools
