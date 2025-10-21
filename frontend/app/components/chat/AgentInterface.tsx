@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import wellknown from "wellknown";
 import { useNaLaMapAgent } from "../../hooks/useNaLaMapAgent";
 import { useLayerStore } from "../../stores/layerStore";
@@ -17,6 +17,11 @@ export default function AgentInterface() {
   const [expandedToolMessage, setExpandedToolMessage] = useState<
     Record<number, boolean>
   >({});
+  
+  // Refs for smart scrolling
+  const agentActivityRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [scrollLocked, setScrollLocked] = useState(false);
   
   // Use hook for functions only
   const {
@@ -39,6 +44,24 @@ export default function AgentInterface() {
   
   const addLayer = useLayerStore((s) => s.addLayer);
   const showToolMessages = false; // TODO: Move to settings
+
+  // Smart scrolling: Lock view on Agent Activity when streaming starts
+  useEffect(() => {
+    if (isStreaming && toolUpdates.length > 0 && agentActivityRef.current) {
+      // Lock scroll on Agent Activity
+      setScrollLocked(true);
+      agentActivityRef.current.scrollIntoView({ 
+        behavior: "smooth", 
+        block: "start" 
+      });
+    } else if (!isStreaming && scrollLocked) {
+      // Unlock after streaming completes (after a short delay)
+      const timer = setTimeout(() => {
+        setScrollLocked(false);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isStreaming, toolUpdates.length, scrollLocked]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,7 +90,10 @@ export default function AgentInterface() {
       </h2>
 
       {/* Scrollable content area */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
+      <div 
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
+      >
         {/* Chat Messages */}
         <ChatMessages
           conversation={conversation}
@@ -75,11 +101,15 @@ export default function AgentInterface() {
           showToolMessages={showToolMessages}
           expandedToolMessage={expandedToolMessage}
           onToggleToolMessage={handleToggleToolMessage}
+          disableAutoScroll={scrollLocked}
         />
 
         {/* Tool Progress Indicator - shows during streaming, BELOW user message */}
+        {/* This is the "Agent Activity" section that we lock the view on */}
         {isStreaming && toolUpdates.length > 0 && (
-          <ToolProgressIndicator toolUpdates={toolUpdates} />
+          <div ref={agentActivityRef} className="scroll-mt-4">
+            <ToolProgressIndicator toolUpdates={toolUpdates} />
+          </div>
         )}
 
         {/* Streaming Message Preview - shows tokens as they arrive */}
@@ -100,7 +130,7 @@ export default function AgentInterface() {
           </div>
         )}
 
-        {/* Search Results */}
+        {/* Search Results - visible below, but view stays locked on Agent Activity */}
         <SearchResults
           results={geoDataList}
           loading={loading}
