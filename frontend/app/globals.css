@@ -1263,6 +1263,15 @@ body {
   line-height: 1.3;
 }
 
+.tool-progress-params {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  line-height: 1.3;
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  margin-top: 2px;
+  word-break: break-word;
+}
+
 .tool-progress-error {
   font-size: 11px;
   color: var(--color-error);

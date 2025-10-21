@@ -7,6 +7,7 @@ export type ToolUpdate = {
   status: "running" | "complete" | "error";
   timestamp: number;
   error?: string;
+  input?: any; // Tool input parameters
 };
 
 export type ChatInterfaceState = {

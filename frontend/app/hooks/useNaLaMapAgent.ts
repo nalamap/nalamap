@@ -355,10 +355,11 @@ export function useNaLaMapAgent(apiUrl: string) {
 
             switch (eventType) {
               case "tool_start":
-                Logger.log(`Tool started: ${data.tool}`);
+                Logger.log(`Tool started: ${data.tool}`, data.input);
                 chatInterfaceStore.addToolUpdate({
                   name: data.tool,
                   status: "running",
+                  input: data.input, // Store tool input parameters
                 });
                 break;
 
