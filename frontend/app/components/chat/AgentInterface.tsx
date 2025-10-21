@@ -83,13 +83,19 @@ export default function AgentInterface() {
         )}
 
         {/* Streaming Message Preview - shows tokens as they arrive */}
+        {/* Styled like a regular AI message for seamless transition */}
         {isStreaming && streamingMessage && (
-          <div className="mb-4 p-3 bg-primary-100 border border-primary-300 rounded-lg">
-            <div className="text-xs text-primary-600 font-semibold mb-1 uppercase">
-              AI Response (streaming...)
-            </div>
-            <div className="text-sm text-primary-900 streaming-message">
-              {streamingMessage}
+          <div className="mb-3">
+            <div className="flex justify-start">
+              <div className="max-w-[80%] px-4 py-2 rounded-lg bg-neutral-50 rounded-tl-none border border-primary-200">
+                <div className="text-sm break-words chat-markdown text-primary-900 streaming-message">
+                  {streamingMessage}
+                  <span className="inline-block w-2 h-4 ml-1 bg-second-primary-600 animate-pulse"></span>
+                </div>
+                <div className="text-xs text-primary-500 mt-1">
+                  Agent
+                </div>
+              </div>
             </div>
           </div>
         )}

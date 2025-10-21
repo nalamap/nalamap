@@ -378,12 +378,23 @@ export function useNaLaMapAgent(apiUrl: string) {
                 Logger.log("GeoData BEFORE setting:", chatInterfaceStore.getGeoDataList());
 
                 // Convert serialized messages back to ChatMessage format
-                const messages: ChatMessage[] = data.messages.map(
-                  (msg: any) => ({
+                // Filter out empty AI messages (from tool calls/thoughts)
+                const messages: ChatMessage[] = data.messages
+                  .map((msg: any) => ({
                     type: msg.type,
                     content: msg.content,
-                  }),
-                );
+                  }))
+                  .filter((msg: ChatMessage) => {
+                    // Keep all human messages
+                    if (msg.type === "human") return true;
+                    // Keep AI messages only if they have content
+                    if (msg.type === "ai") {
+                      const content = typeof msg.content === "string" ? msg.content.trim() : "";
+                      return content.length > 0;
+                    }
+                    // Keep other message types
+                    return true;
+                  });
 
                 Logger.log("Setting messages to:", messages);
                 Logger.log("Setting geodata results to:", data.geodata_results);
