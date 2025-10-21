@@ -285,6 +285,44 @@ http {
       add_header Cache-Control "public, max-age=3600";
     }
 
+    # ============================================================================
+    # STREAMING CHAT ENDPOINT (SSE - Server-Sent Events)
+    # ============================================================================
+    # SSE streaming version of the chat endpoint for real-time agent updates
+    # Must be defined BEFORE /api/chat to take precedence (Nginx matches specificity)
+    location /api/chat/stream {
+      proxy_http_version 1.1;
+      proxy_set_header Connection "";  # Don't use keep-alive connection pooling
+      
+      proxy_set_header Host               $proxy_host;
+      proxy_set_header X-Forwarded-Proto  $scheme;
+      proxy_set_header X-Forwarded-Host   $host;
+      proxy_set_header X-Forwarded-For    $proxy_add_x_forwarded_for;
+
+      proxy_pass ${BACKEND_PROTOCOL}://${BACKEND_URL};
+
+      # Extended timeouts for long-running agent operations
+      proxy_connect_timeout 600s;
+      proxy_read_timeout    600s;
+      proxy_send_timeout    600s;
+      
+      # CRITICAL: Disable ALL buffering for Server-Sent Events
+      proxy_buffering off;
+      proxy_request_buffering off;
+      proxy_cache off;
+      proxy_max_temp_file_size 0;
+      
+      # Tell client/downstream proxies not to buffer
+      add_header X-Accel-Buffering "no" always;
+      add_header Cache-Control "no-cache" always;
+      
+      # Preserve SSE content type
+      proxy_hide_header Content-Encoding;
+      
+      # Disable gzip for SSE (interferes with streaming)
+      gzip off;
+    }
+
     # Chat endpoint - needs large buffers to prevent truncation of large responses
     # Similar fix to /uploads/ - the chat responses can contain large geodata_results
     # and geodata_layers arrays that were getting cut in half with small buffers

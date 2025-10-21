@@ -10,6 +10,7 @@ Pytest configuration and fixtures for styling tools tests.
 """
 
 import pytest
+import pytest_asyncio  # noqa: F401
 
 from models.geodata import DataOrigin, DataType, GeoDataObject, LayerStyle
 
@@ -305,3 +306,14 @@ def realistic_layer_collection():
     )
 
     return layers
+
+
+@pytest_asyncio.fixture(scope="function")
+async def async_client():
+    """Create an async HTTP client for testing API endpoints."""
+    from httpx import AsyncClient, ASGITransport  # noqa: F401
+    from main import app
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client

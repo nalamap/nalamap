@@ -32,6 +32,7 @@ kml2geojson = "*"
 geopandas = "*"
 webcolors = "*"
 matplotlib = "*"
+httpx-sse = "^0.4.3"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "*"

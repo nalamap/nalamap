@@ -4,11 +4,13 @@ import { useState } from "react";
 import wellknown from "wellknown";
 import { useNaLaMapAgent } from "../../hooks/useNaLaMapAgent";
 import { useLayerStore } from "../../stores/layerStore";
+import { useChatInterfaceStore } from "../../stores/chatInterfaceStore";
 import { GeoDataObject } from "../../models/geodatamodel";
 import { getApiBase } from "../../utils/apiBase";
 import ChatMessages from "./ChatMessages";
 import SearchResults from "./SearchResults";
 import ChatInput from "./ChatInput";
+import ToolProgressIndicator from "../ToolProgressIndicator";
 
 export default function AgentInterface() {
   const API_BASE_URL = getApiBase();
@@ -16,15 +18,24 @@ export default function AgentInterface() {
     Record<number, boolean>
   >({});
   
+  // Use hook for functions only
   const {
-    input,
-    setInput,
-    messages: conversation,
-    geoDataList,
-    loading,
-    error,
     queryNaLaMapAgent,
+    queryNaLaMapAgentStream,
   } = useNaLaMapAgent(API_BASE_URL);
+
+  // Subscribe to store values directly for reactivity
+  const input = useChatInterfaceStore((s) => s.input);
+  const setInput = useChatInterfaceStore((s) => s.setInput);
+  const conversation = useChatInterfaceStore((s) => s.messages);
+  const geoDataList = useChatInterfaceStore((s) => s.geoDataList);
+  const loading = useChatInterfaceStore((s) => s.loading);
+  const error = useChatInterfaceStore((s) => s.error);
+
+  // Get streaming state from store
+  const toolUpdates = useChatInterfaceStore((s) => s.toolUpdates);
+  const streamingMessage = useChatInterfaceStore((s) => s.streamingMessage);
+  const isStreaming = useChatInterfaceStore((s) => s.isStreaming);
   
   const addLayer = useLayerStore((s) => s.addLayer);
   const showToolMessages = false; // TODO: Move to settings
@@ -32,7 +43,9 @@ export default function AgentInterface() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
-    await queryNaLaMapAgent("chat");
+    
+    // Use streaming version for better UX
+    await queryNaLaMapAgentStream("chat");
   };
 
   const handleLayerSelect = (layer: GeoDataObject) => {
@@ -63,6 +76,23 @@ export default function AgentInterface() {
           expandedToolMessage={expandedToolMessage}
           onToggleToolMessage={handleToggleToolMessage}
         />
+
+        {/* Tool Progress Indicator - shows during streaming, BELOW user message */}
+        {isStreaming && toolUpdates.length > 0 && (
+          <ToolProgressIndicator toolUpdates={toolUpdates} />
+        )}
+
+        {/* Streaming Message Preview - shows tokens as they arrive */}
+        {isStreaming && streamingMessage && (
+          <div className="mb-4 p-3 bg-primary-100 border border-primary-300 rounded-lg">
+            <div className="text-xs text-primary-600 font-semibold mb-1 uppercase">
+              AI Response (streaming...)
+            </div>
+            <div className="text-sm text-primary-900 streaming-message">
+              {streamingMessage}
+            </div>
+          </div>
+        )}
 
         {/* Search Results */}
         <SearchResults

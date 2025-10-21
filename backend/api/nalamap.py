@@ -25,6 +25,49 @@ from models.states import DataState, GeoDataAgentState
 logger = logging.getLogger(__name__)
 
 
+def make_json_serializable(obj: Any) -> Any:
+    """
+    Recursively convert non-JSON-serializable objects to JSON-serializable format.
+    Handles LangChain message objects, lists, dicts, and other common types.
+    """
+    if obj is None:
+        return None
+
+    # Handle LangChain message objects
+    if isinstance(obj, HumanMessage):
+        return {"type": "human", "content": obj.content}
+    elif isinstance(obj, AIMessage):
+        return {"type": "ai", "content": obj.content}
+    elif isinstance(obj, SystemMessage):
+        return {"type": "system", "content": obj.content}
+    elif isinstance(obj, (ToolMessage, FunctionMessage)):
+        return {"type": "tool", "content": obj.content}
+    elif isinstance(obj, BaseMessage):
+        return {"type": "message", "content": str(obj.content)}
+
+    # Handle lists
+    elif isinstance(obj, list):
+        return [make_json_serializable(item) for item in obj]
+
+    # Handle dicts
+    elif isinstance(obj, dict):
+        return {key: make_json_serializable(value) for key, value in obj.items()}
+
+    # Handle primitive types and other JSON-serializable objects
+    elif isinstance(obj, (str, int, float, bool)):
+        return obj
+
+    # For everything else, convert to string
+    else:
+        try:
+            # Try to serialize it first
+            json.dumps(obj)
+            return obj
+        except (TypeError, ValueError):
+            # If it fails, convert to string
+            return str(obj)
+
+
 def normalize_messages(raw: Optional[List[BaseMessage]]) -> List[BaseMessage]:
     if raw is None:
         return []
@@ -378,6 +421,246 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
         options=result_options,
     )
     return response
+
+
+@router.post("/chat/stream", tags=["nalamap"])
+async def ask_nalamap_agent_stream(request: NaLaMapRequest):
+    """
+    Streaming version of the NaLaMap agent that emits real-time events
+    using Server-Sent Events (SSE).
+
+    Event types:
+    - tool_start: Tool execution begins
+    - tool_end: Tool execution completes
+    - llm_token: LLM token streamed
+    - state_update: Agent state changed
+    - result: Final result ready
+    - error: Error occurred
+    - done: Stream complete
+    """
+    from fastapi.responses import StreamingResponse
+    from services.single_agent import create_geo_agent, prune_messages
+    from utility.performance_metrics import (
+        PerformanceMetrics,
+        PerformanceCallbackHandler,
+        extract_token_usage_from_messages,
+    )
+    from utility.metrics_storage import get_metrics_storage
+    import json
+    import openai
+
+    async def event_generator():
+        """Generate SSE events from agent execution."""
+        try:
+            # Initialize performance tracking
+            metrics = PerformanceMetrics()
+
+            # Normalize incoming messages and append user query
+            messages: List[BaseMessage] = normalize_messages(request.messages)
+            messages.append(HumanMessage(request.query))
+
+            # Track message count before pruning
+            metrics.record("message_count_before", len(messages))
+
+            # Parse options
+            options_orig: dict = request.options
+            options: SettingsSnapshot = SettingsSnapshot.model_validate(options_orig, strict=False)
+
+            # Get message window size
+            message_window_size = getattr(options.model_settings, "message_window_size", None)
+            if message_window_size is None:
+                import os
+
+                message_window_size = int(os.getenv("MESSAGE_WINDOW_SIZE", "20"))
+
+            # Prune messages
+            messages = prune_messages(messages, window_size=message_window_size)
+
+            # Track message counts
+            metrics.record("message_count_after", len(messages))
+            metrics.record(
+                "message_reduction", metrics.metrics["message_count_before"] - len(messages)
+            )
+
+            # Create initial state
+            state: GeoDataAgentState = GeoDataAgentState(
+                messages=messages,
+                geodata_last_results=request.geodata_last_results,
+                geodata_layers=request.geodata_layers,
+                results_title="",
+                geodata_results=[],
+                options=options,
+                remaining_steps=10,
+            )
+
+            # Create agent
+            enable_parallel_tools = getattr(options.model_settings, "enable_parallel_tools", False)
+            single_agent = create_geo_agent(
+                model_settings=options.model_settings,
+                selected_tools=options.tools,
+                enable_parallel_tools=enable_parallel_tools,
+            )
+
+            # Create performance callback handler
+            perf_callback = PerformanceCallbackHandler()
+
+            # Start timing
+            metrics.start_timer("agent_execution")
+
+            # Stream events using astream_events v2
+            async for event in single_agent.astream_events(
+                state, version="v2", config={"callbacks": [perf_callback]}
+            ):
+                event_type = event.get("event")
+                event_name = event.get("name", "")
+                event_data = event.get("data", {})
+
+                # Debug logging for all events
+                if event_type in ["on_chain_start", "on_chain_end"]:
+                    logger.info(f"Chain event: type={event_type}, name={event_name}")
+
+                # Handle tool events
+                if event_type == "on_tool_start":
+                    tool_name = event_name
+                    tool_input = event_data.get("input", {})
+                    # Make tool_input JSON serializable (may contain LangChain messages)
+                    serializable_input = make_json_serializable(tool_input)
+                    yield "event: tool_start\n"
+                    data = json.dumps({"tool": tool_name, "input": serializable_input})
+                    yield f"data: {data}\n\n"
+
+                elif event_type == "on_tool_end":
+                    tool_name = event_name
+                    tool_output = event_data.get("output", {})
+                    # Make tool_output JSON serializable
+                    serializable_output = make_json_serializable(tool_output)
+                    output_str = str(serializable_output)[:200]
+                    yield "event: tool_end\n"
+                    data = json.dumps({"tool": tool_name, "output": output_str})
+                    yield f"data: {data}\n\n"
+
+                # Handle LLM streaming tokens
+                elif event_type == "on_chat_model_stream":
+                    chunk = event_data.get("chunk", {})
+                    if hasattr(chunk, "content") and chunk.content:
+                        yield "event: llm_token\n"
+                        yield f"data: {json.dumps({'token': chunk.content})}\n\n"
+
+                # Handle chain/agent state updates
+                elif event_type == "on_chain_end":
+                    # Check for both "LangGraph" (older) and "GeoAgent" (current name)
+                    if event_name in ["LangGraph", "GeoAgent"]:
+                        # Agent execution complete - get final state
+                        output = event_data.get("output", {})
+                        result_messages = output.get("messages", [])
+                        results_title = output.get("results_title", "")
+                        geodata_results = output.get("geodata_results", [])
+                        geodata_layers = output.get("geodata_layers", [])
+
+                        # End timing
+                        metrics.end_timer("agent_execution")
+
+                        # Collect metrics
+                        callback_metrics = perf_callback.get_metrics()
+                        metrics.metrics.update(callback_metrics)
+
+                        # Extract token usage if needed
+                        if callback_metrics["token_usage"]["total"] == 0:
+                            token_usage = extract_token_usage_from_messages(result_messages)
+                            metrics.metrics["token_usage"] = token_usage
+
+                        # Track state metrics
+                        metrics.record("geodata_layers_count", len(geodata_layers))
+                        metrics.record("geodata_results_count", len(geodata_results))
+                        metrics.record("message_count_final", len(result_messages))
+
+                        # Finalize and store metrics
+                        final_metrics = metrics.finalize()
+                        session_id = getattr(options, "session_id", None) or "unknown"
+                        enable_performance_metrics = getattr(
+                            options.model_settings, "enable_performance_metrics", False
+                        )
+                        if enable_performance_metrics:
+                            storage = get_metrics_storage()
+                            storage.store(session_id=session_id, metrics=final_metrics)
+
+                        logger.info(
+                            "Agent execution completed (streaming)",
+                            extra={
+                                "performance_metrics": final_metrics,
+                                "session_id": session_id,
+                            },
+                        )
+
+                        # Send final result
+                        # Convert messages to serializable format
+                        serializable_messages = []
+                        for msg in result_messages:
+                            if isinstance(msg, HumanMessage):
+                                serializable_messages.append(
+                                    {"type": "human", "content": msg.content}
+                                )
+                            elif isinstance(msg, AIMessage):
+                                serializable_messages.append({"type": "ai", "content": msg.content})
+                            elif isinstance(msg, SystemMessage):
+                                serializable_messages.append(
+                                    {"type": "system", "content": msg.content}
+                                )
+
+                        # Serialize geodata objects
+                        serialized_results = [
+                            r.model_dump() if hasattr(r, "model_dump") else r
+                            for r in geodata_results
+                        ]
+                        serialized_layers = [
+                            layer.model_dump() if hasattr(layer, "model_dump") else layer
+                            for layer in geodata_layers
+                        ]
+
+                        yield "event: result\n"
+                        result_data = {
+                            "messages": serializable_messages,
+                            "results_title": results_title,
+                            "geodata_results": serialized_results,
+                            "geodata_layers": serialized_layers,
+                            "metrics": final_metrics,
+                        }
+                        yield f"data: {json.dumps(result_data)}\n\n"
+
+            # Send done event
+            yield "event: done\n"
+            yield f"data: {json.dumps({'status': 'complete'})}\n\n"
+
+        except openai.InternalServerError as e:
+            logger.error(f"OpenAI Internal Server Error during streaming: {e}")
+            yield "event: error\n"
+            yield f"data: {json.dumps({'error': 'model_error', 'message': str(e)})}\n\n"
+            yield "event: done\n"
+            yield f"data: {json.dumps({'status': 'error'})}\n\n"
+
+        except openai.APIError as e:
+            logger.error(f"OpenAI API Error during streaming: {e}")
+            yield "event: error\n"
+            yield f"data: {json.dumps({'error': 'api_error', 'message': str(e)})}\n\n"
+            yield "event: done\n"
+            yield f"data: {json.dumps({'status': 'error'})}\n\n"
+
+        except Exception as e:
+            logger.exception(f"Unexpected error during streaming: {e}")
+            yield "event: error\n"
+            yield f"data: {json.dumps({'error': 'unexpected_error', 'message': str(e)})}\n\n"
+            yield "event: done\n"
+            yield f"data: {json.dumps({'status': 'error'})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @router.get("/metrics", tags=["nalamap"])

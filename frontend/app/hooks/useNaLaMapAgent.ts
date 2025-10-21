@@ -261,13 +261,189 @@ export function useNaLaMapAgent(apiUrl: string) {
     }
   }
 
+  /**
+   * Streaming version of queryNaLaMapAgent using Server-Sent Events (SSE).
+   * Provides real-time updates for tool execution and LLM token streaming.
+   */
+  async function queryNaLaMapAgentStream(
+    endpoint: "chat" = "chat",
+    options?: { portal?: string; bboxWkt?: string },
+  ) {
+    chatInterfaceStore.setLoading(true);
+    chatInterfaceStore.setIsStreaming(true);
+    chatInterfaceStore.setError("");
+    chatInterfaceStore.clearStreamingMessage();
+    chatInterfaceStore.clearToolUpdates();
+
+    await useSettingsStore.getState().initializeIfNeeded();
+    const rawSettings = useSettingsStore.getState().getSettings();
+    const settingsObj = normalizeSettings(rawSettings);
+
+    try {
+      const selectedLayers = useLayerStore
+        .getState()
+        .layers.filter((l) => l.selected);
+      appendHumanMessage(chatInterfaceStore.input);
+
+      const payload: NaLaMapRequest = {
+        messages: chatInterfaceStore.messages,
+        query: chatInterfaceStore.input,
+        geodata_last_results: chatInterfaceStore.geoDataList,
+        geodata_layers: layerStore.layers,
+        options: settingsObj,
+      };
+
+      chatInterfaceStore.setInput("");
+      Logger.log("Streaming payload:", payload);
+
+      const response = await fetch(`${apiUrl}/chat/stream`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+        },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      if (!response.body) {
+        throw new Error("Response body is null");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) {
+          Logger.log("Stream complete");
+          break;
+        }
+
+        // Decode chunk and add to buffer
+        buffer += decoder.decode(value, { stream: true });
+
+        // Process complete SSE messages (event: ...\ndata: ...\n\n)
+        const messages = buffer.split("\n\n");
+        buffer = messages.pop() || ""; // Keep incomplete message in buffer
+
+        for (const message of messages) {
+          if (!message.trim()) continue;
+
+          const lines = message.split("\n");
+          let eventType = "";
+          let eventData = "";
+
+          for (const line of lines) {
+            if (line.startsWith("event: ")) {
+              eventType = line.substring(7).trim();
+            } else if (line.startsWith("data: ")) {
+              eventData = line.substring(6).trim();
+            }
+          }
+
+          if (!eventType || !eventData) continue;
+
+          try {
+            const data = JSON.parse(eventData);
+
+            switch (eventType) {
+              case "tool_start":
+                Logger.log(`Tool started: ${data.tool}`);
+                chatInterfaceStore.addToolUpdate({
+                  name: data.tool,
+                  status: "running",
+                });
+                break;
+
+              case "tool_end":
+                Logger.log(`Tool completed: ${data.tool}`);
+                chatInterfaceStore.updateToolStatus(data.tool, "complete");
+                break;
+
+              case "llm_token":
+                // Append token to streaming message
+                chatInterfaceStore.appendStreamingToken(data.token);
+                break;
+
+              case "result":
+                Logger.log("Final result received:", data);
+                Logger.log("Messages BEFORE setting:", chatInterfaceStore.getMessages());
+                Logger.log("GeoData BEFORE setting:", chatInterfaceStore.getGeoDataList());
+
+                // Convert serialized messages back to ChatMessage format
+                const messages: ChatMessage[] = data.messages.map(
+                  (msg: any) => ({
+                    type: msg.type,
+                    content: msg.content,
+                  }),
+                );
+
+                Logger.log("Setting messages to:", messages);
+                Logger.log("Setting geodata results to:", data.geodata_results);
+
+                chatInterfaceStore.setGeoDataList(data.geodata_results);
+                chatInterfaceStore.setMessages(messages);
+
+                if (data.geodata_layers) {
+                  layerStore.synchronizeLayersFromBackend(data.geodata_layers);
+                }
+
+                // Clear streaming UI state since we now have the final result
+                chatInterfaceStore.clearStreamingMessage();
+                chatInterfaceStore.clearToolUpdates();
+                
+                Logger.log("Messages AFTER setting:", chatInterfaceStore.getMessages());
+                Logger.log("GeoData AFTER setting:", chatInterfaceStore.getGeoDataList());
+                Logger.log("Loading state:", chatInterfaceStore.getLoading());
+                Logger.log("IsStreaming state:", chatInterfaceStore.getIsStreaming());
+                break;
+
+              case "error":
+                Logger.error("Streaming error:", data);
+                chatInterfaceStore.setError(
+                  data.message || "An error occurred during streaming",
+                );
+                break;
+
+              case "done":
+                Logger.log("Stream done:", data);
+                break;
+
+              default:
+                Logger.warn("Unknown event type:", eventType);
+            }
+          } catch (parseError) {
+            Logger.error("Failed to parse event data:", parseError);
+          }
+        }
+      }
+    } catch (e: any) {
+      Logger.error("Streaming error:", e);
+      chatInterfaceStore.setError(e.message || "Something went wrong");
+    } finally {
+      Logger.log("Stream finally block - setting loading and isStreaming to false");
+      Logger.log("Messages before finally:", chatInterfaceStore.getMessages());
+      Logger.log("GeoData before finally:", chatInterfaceStore.getGeoDataList());
+      chatInterfaceStore.setLoading(false);
+      chatInterfaceStore.setIsStreaming(false);
+      Logger.log("Messages after finally:", chatInterfaceStore.getMessages());
+      Logger.log("GeoData after finally:", chatInterfaceStore.getGeoDataList());
+    }
+  }
+
   return {
-    input: chatInterfaceStore.input,
-    setInput: chatInterfaceStore.setInput,
-    messages: chatInterfaceStore.messages,
-    geoDataList: chatInterfaceStore.geoDataList,
-    loading: chatInterfaceStore.loading,
-    error: chatInterfaceStore.error,
+    // Only return functions, not state values
+    // State should be accessed directly via useChatInterfaceStore selectors
+    // for proper reactivity in components
     queryNaLaMapAgent,
+    queryNaLaMapAgentStream, // Export new streaming function
+    setInput: chatInterfaceStore.setInput,
   };
 }
