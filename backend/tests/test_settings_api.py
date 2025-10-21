@@ -88,7 +88,8 @@ def test_preload_endpoint_uses_session_cookie(api_client, monkeypatch):
             ),
         ]
         status = {"WMS": True, "WFS": True, "WCS": False, "WMTS": False}
-        return layers, status
+        errors = {}  # No errors
+        return layers, status, errors
 
     # Mock delete_layers and store_layers
     def fake_delete_layers(session, urls):

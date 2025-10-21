@@ -62,6 +62,9 @@ export default function SettingsPage() {
 
   const backends = useInitializedSettingsStore((s) => s.geoserver_backends);
   const addBackend = useInitializedSettingsStore((s) => s.addBackend);
+  const toggleBackendInsecure = useInitializedSettingsStore(
+    (s) => s.toggleBackendInsecure,
+  );
 
   const setAvailableExampleGeoServers = useInitializedSettingsStore(
     (s) => s.setAvailableExampleGeoServers,
@@ -163,6 +166,7 @@ export default function SettingsPage() {
       username: backend.username,
       password: backend.password,
       enabled: backend.enabled ?? true,
+      allow_insecure: backend.allow_insecure ?? false,
     };
   };
 
@@ -418,6 +422,42 @@ export default function SettingsPage() {
       );
     } finally {
       setBackendLoading(false);
+    }
+  };
+
+  // Handle toggling allow_insecure and re-prefetch
+  const handleToggleBackendInsecure = async (url: string) => {
+    // Find the backend
+    const backend = backends.find((b) => b.url === url);
+    if (!backend) return;
+
+    // Toggle the flag in the store
+    toggleBackendInsecure(url);
+
+    // Get the updated backend state (after toggle)
+    const updatedBackend = {
+      ...backend,
+      allow_insecure: !backend.allow_insecure,
+    };
+
+    // Set status to waiting immediately
+    setEmbeddingStatus((prev) => ({
+      ...prev,
+      [url]: {
+        ...prev[url],
+        state: "waiting",
+        error: null,
+        error_type: undefined,
+        error_details: undefined,
+      },
+    }));
+
+    try {
+      // Re-prefetch with the updated allow_insecure flag
+      await prefetchBackend(updatedBackend);
+    } catch (err: any) {
+      console.error("Failed to re-prefetch backend:", err);
+      // Error will be shown via embedding status polling
     }
   };
 
@@ -778,6 +818,7 @@ export default function SettingsPage() {
               backendSuccess={backendSuccess}
               embeddingStatus={embeddingStatus}
               interpolatedProgress={interpolatedProgress}
+              handleToggleBackendInsecure={handleToggleBackendInsecure}
             />
           </section>
         </main>

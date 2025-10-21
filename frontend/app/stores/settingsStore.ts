@@ -17,6 +17,7 @@ export interface GeoServerBackend {
   username?: string;
   password?: string;
   enabled: boolean;
+  allow_insecure?: boolean; // Allow insecure connections (expired/self-signed SSL certs)
 }
 
 export interface SearchPortal {
@@ -127,6 +128,7 @@ export interface SettingsState extends SettingsSnapshot {
   ) => void;
   removeBackend: (url: string) => void;
   toggleBackend: (url: string) => void;
+  toggleBackendInsecure: (url: string) => void;
 
   // Model actions
   setModelProvider: (provider: string) => void;
@@ -355,6 +357,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set((state) => ({
       geoserver_backends: state.geoserver_backends.map((b) =>
         b.url === url ? { ...b, enabled: !b.enabled } : b,
+      ),
+    })),
+  toggleBackendInsecure: (url) =>
+    set((state) => ({
+      geoserver_backends: state.geoserver_backends.map((b) =>
+        b.url === url ? { ...b, allow_insecure: !b.allow_insecure } : b,
       ),
     })),
 

@@ -895,7 +895,13 @@ def has_layers(session_id: str, backend_urls: Sequence[str]) -> bool:
 
 
 def set_processing_state(
-    session_id: str, backend_url: str, state: str, total: int = 0, error: Optional[str] = None
+    session_id: str,
+    backend_url: str,
+    state: str,
+    total: int = 0,
+    error: Optional[str] = None,
+    error_type: Optional[str] = None,
+    error_details: Optional[str] = None,
 ):
     """Set the processing state for a backend.
 
@@ -905,6 +911,8 @@ def set_processing_state(
         state: One of "waiting", "processing", "completed", "error"
         total: Total number of layers (for waiting/processing states)
         error: Error message (for error state)
+        error_type: Error category (ssl_certificate, dns, connection, timeout, http, auth, unknown)
+        error_details: Technical error details for debugging
     """
     normalized_backend = backend_url.rstrip("/")
     progress_key = (session_id, normalized_backend)
@@ -917,6 +925,8 @@ def set_processing_state(
                 "state": state,
                 "in_progress": state in ("waiting", "processing"),
                 "error": error,
+                "error_type": error_type,
+                "error_details": error_details,
             }
         else:
             _embedding_progress[progress_key]["state"] = state
@@ -925,13 +935,18 @@ def set_processing_state(
                 _embedding_progress[progress_key]["total"] = total
             if error is not None:
                 _embedding_progress[progress_key]["error"] = error
+            if error_type is not None:
+                _embedding_progress[progress_key]["error_type"] = error_type
+            if error_details is not None:
+                _embedding_progress[progress_key]["error_details"] = error_details
 
 
 def get_embedding_status(session_id: str, backend_urls: Sequence[str]) -> dict[str, dict[str, int]]:
     """Get embedding progress status for given session and backend URLs.
 
     Returns a dictionary with backend URLs as keys and status info as values.
-    Status info includes: total layers, encoded layers, completion percentage, state, and error.
+    Status info includes: total layers, encoded layers, completion percentage, state, error,
+    error_type, and error_details.
     """
     normalized = [url.rstrip("/") for url in backend_urls if url]
     status = {}
@@ -958,6 +973,8 @@ def get_embedding_status(session_id: str, backend_urls: Sequence[str]) -> dict[s
                     "in_progress": info["in_progress"],
                     "complete": encoded >= total and not info["in_progress"],
                     "error": info.get("error"),
+                    "error_type": info.get("error_type"),
+                    "error_details": info.get("error_details"),
                 }
             else:
                 # No progress data means not started or already cleaned up
@@ -969,6 +986,8 @@ def get_embedding_status(session_id: str, backend_urls: Sequence[str]) -> dict[s
                     "in_progress": False,
                     "complete": False,
                     "error": None,
+                    "error_type": None,
+                    "error_details": None,
                 }
 
     return status

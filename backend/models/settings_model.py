@@ -10,6 +10,13 @@ class GeoServerBackend(BaseModel):
     username: Optional[str] = Field(None, description="Basic auth username")
     password: Optional[str] = Field(None, description="Basic auth password")
     enabled: bool = Field(True, description="Enable or disable this backend")
+    allow_insecure: bool = Field(
+        False,
+        description=(
+            "Allow insecure connections (e.g., expired/self-signed SSL certificates). "
+            "WARNING: Only enable this for trusted servers in development environments."
+        ),
+    )
 
 
 class SearchPortal(BaseModel):
