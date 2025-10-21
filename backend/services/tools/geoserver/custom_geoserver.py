@@ -697,6 +697,7 @@ def fetch_all_service_capabilities_with_status(
             # First, reload owslib.util to get a fresh module state
             import importlib
             import owslib.util
+
             importlib.reload(owslib.util)
 
             from owslib.util import openURL as orig_openURL
@@ -837,7 +838,7 @@ def fetch_all_service_capabilities_with_status(
         wmts_auth = Authentication(
             username=username,
             password=password,
-            verify=(not allow_insecure)  # verify=False when allow_insecure=True
+            verify=(not allow_insecure),  # verify=False when allow_insecure=True
         )
 
         wmts = WMTS_Local(wmts_url, auth=wmts_auth)
