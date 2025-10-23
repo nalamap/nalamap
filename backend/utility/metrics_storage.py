@@ -138,6 +138,8 @@ class MetricsStorage:
         message_reductions = []
         errors_count = 0
         tool_stats_all = defaultdict(list)
+        tool_usage_all = defaultdict(lambda: {"invocations": 0, "successes": 0, "failures": 0})
+        tool_selector_metrics = {"selections": [], "tools_selected": [], "fallbacks": 0}
 
         for entry in recent:
             m = entry["metrics"]
@@ -164,6 +166,21 @@ class MetricsStorage:
                 for tool_name, stats in m["tool_stats"].items():
                     tool_stats_all[tool_name].append(stats)
 
+            # Tool usage tracking (Week 3)
+            if "tool_usage" in m:
+                for tool_name, usage in m["tool_usage"].items():
+                    tool_usage_all[tool_name]["invocations"] += usage.get("invocations", 0)
+                    tool_usage_all[tool_name]["successes"] += usage.get("successes", 0)
+                    tool_usage_all[tool_name]["failures"] += usage.get("failures", 0)
+
+            # Tool selector metrics (Week 3)
+            if "tool_selector" in m:
+                sel = m["tool_selector"]
+                if "total_selections" in sel and sel["total_selections"] > 0:
+                    tool_selector_metrics["selections"].append(sel["avg_selection_time_ms"])
+                    tool_selector_metrics["tools_selected"].append(sel["avg_tools_selected"])
+                    tool_selector_metrics["fallbacks"] += sel.get("fallback_count", 0)
+
         # Calculate statistics
         stats = {
             "period_hours": hours,
@@ -185,6 +202,8 @@ class MetricsStorage:
                 "avg_calls_per_request": (statistics.mean(tool_calls) if tool_calls else 0),
                 "top_tools": self._get_top_tools(tool_stats_all),
             },
+            "tool_usage": self._get_tool_usage_stats(tool_usage_all),
+            "tool_selector": self._get_tool_selector_stats(tool_selector_metrics),
             "tokens": {
                 "total": sum(token_totals) if token_totals else 0,
                 "avg_per_request": (statistics.mean(token_totals) if token_totals else 0),
@@ -265,6 +284,90 @@ class MetricsStorage:
         # Sort by total calls
         top_tools.sort(key=lambda x: x["total_calls"], reverse=True)
         return top_tools[:limit]
+
+    def _get_tool_usage_stats(
+        self, tool_usage_all: Dict[str, Dict[str, int]], limit: int = 20
+    ) -> Dict[str, Any]:
+        """Get tool usage statistics (Week 3 - Tool Usage Analytics).
+
+        Args:
+            tool_usage_all: Aggregated tool usage data
+            limit: Maximum number of tools to return
+
+        Returns:
+            Dictionary with tool usage statistics
+        """
+        if not tool_usage_all:
+            return {
+                "top_tools": [],
+                "total_invocations": 0,
+                "success_rate": 0.0,
+            }
+
+        # Calculate total invocations and success rate
+        total_invocations = sum(t["invocations"] for t in tool_usage_all.values())
+        total_successes = sum(t["successes"] for t in tool_usage_all.values())
+        total_failures = sum(t["failures"] for t in tool_usage_all.values())
+
+        success_rate = (
+            round(total_successes / total_invocations, 3) if total_invocations > 0 else 0.0
+        )
+
+        # Build top tools list
+        top_tools = []
+        for tool_name, usage in tool_usage_all.items():
+            inv = usage["invocations"]
+            tool_success_rate = round(usage["successes"] / inv, 3) if inv > 0 else 0.0
+            top_tools.append(
+                {
+                    "name": tool_name,
+                    "invocations": inv,
+                    "successes": usage["successes"],
+                    "failures": usage["failures"],
+                    "success_rate": tool_success_rate,
+                }
+            )
+
+        # Sort by invocation count
+        top_tools.sort(key=lambda x: x["invocations"], reverse=True)
+
+        return {
+            "top_tools": top_tools[:limit],
+            "total_invocations": total_invocations,
+            "total_successes": total_successes,
+            "total_failures": total_failures,
+            "success_rate": success_rate,
+        }
+
+    def _get_tool_selector_stats(self, metrics: Dict[str, Any]) -> Dict[str, Any]:
+        """Get tool selector statistics (Week 3 - Performance Monitoring).
+
+        Args:
+            metrics: Tool selector metrics data
+
+        Returns:
+            Dictionary with tool selector statistics
+        """
+        if not metrics["selections"]:
+            return {
+                "enabled": False,
+                "avg_selection_time_ms": 0.0,
+                "avg_tools_selected": 0.0,
+                "fallback_count": 0,
+                "fallback_rate": 0.0,
+            }
+
+        return {
+            "enabled": True,
+            "avg_selection_time_ms": round(statistics.mean(metrics["selections"]), 2),
+            "avg_tools_selected": round(statistics.mean(metrics["tools_selected"]), 2),
+            "fallback_count": metrics["fallbacks"],
+            "fallback_rate": (
+                round(metrics["fallbacks"] / len(metrics["selections"]), 3)
+                if metrics["selections"]
+                else 0.0
+            ),
+        }
 
     def clear(self) -> None:
         """Clear all stored metrics."""

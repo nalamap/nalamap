@@ -92,11 +92,12 @@ def prune_messages(
     return result
 
 
-def create_geo_agent(
+async def create_geo_agent(
     model_settings: Optional[ModelSettings] = None,
     selected_tools: Optional[List[ToolConfig]] = None,
     message_window_size: int = 20,
     enable_parallel_tools: bool = False,
+    query: Optional[str] = None,
 ) -> CompiledStateGraph:
     """Create a geo agent with specified model and tools.
 
@@ -107,6 +108,7 @@ def create_geo_agent(
             (default: 20)
         enable_parallel_tools: Whether to enable parallel tool execution
             (default: False, experimental)
+        query: Current user query for dynamic tool selection (optional)
 
     Returns:
         CompiledStateGraph configured with the specified model and tools
@@ -115,6 +117,9 @@ def create_geo_agent(
         Parallel tool execution is currently EXPERIMENTAL. While it can speed up multi-tool queries,
         it may cause state corruption if multiple tools modify the same state fields concurrently.
         Use with caution and monitor for race conditions.
+
+        Dynamic tool selection uses semantic similarity to select relevant tools based on
+        the query, supporting all languages. This reduces context size and improves performance.
     """
     # Use model_settings if provided, otherwise use env defaults
     if model_settings is not None:
@@ -140,7 +145,55 @@ def create_geo_agent(
     tools_dict: Dict[str, BaseTool] = create_configured_tools(
         DEFAULT_AVAILABLE_TOOLS, selected_tools or []
     )
-    tools: List[BaseTool] = list(tools_dict.values())
+
+    # Apply dynamic tool selection if enabled
+    enable_dynamic_tools = (
+        model_settings.enable_dynamic_tools
+        if model_settings and hasattr(model_settings, "enable_dynamic_tools")
+        else False
+    )
+
+    if enable_dynamic_tools and query:
+        from services.tool_selector import create_tool_selector
+
+        # Get embeddings from LLM if available
+        embeddings = None
+        if hasattr(llm, "embeddings"):
+            embeddings = llm.embeddings
+        else:
+            # Try to create embeddings from same provider
+            try:
+                from services.ai.llm_config import get_embeddings
+
+                embeddings = get_embeddings()
+            except Exception as e:
+                logger.warning(f"Could not load embeddings for dynamic tool selection: {e}")
+
+        # Create tool selector with settings
+        selector = create_tool_selector(
+            embeddings=embeddings,
+            strategy=(
+                model_settings.tool_selection_strategy
+                if hasattr(model_settings, "tool_selection_strategy")
+                else "conservative"
+            ),
+            similarity_threshold=(
+                model_settings.tool_similarity_threshold
+                if hasattr(model_settings, "tool_similarity_threshold")
+                else 0.3
+            ),
+            max_tools=(
+                model_settings.max_tools_per_query
+                if hasattr(model_settings, "max_tools_per_query")
+                else None
+            ),
+        )
+
+        # Select relevant tools
+        tools: List[BaseTool] = await selector.select_tools(query, tools_dict)
+        logger.info(f"Dynamic tool selection: {len(tools)}/{len(tools_dict)} tools selected")
+    else:
+        tools: List[BaseTool] = list(tools_dict.values())
 
     # Enable langgraph debug logging when global log level is DEBUG
     debug_enabled = logger.isEnabledFor(logging.DEBUG)

@@ -585,3 +585,126 @@ class TestMetricsStorage:
         storage2 = get_metrics_storage()
 
         assert storage1 is storage2
+
+    def test_tool_usage_tracking(self):
+        """Test tool usage tracking in callback (Week 3 - Tool Usage Analytics)."""
+        callback = PerformanceCallbackHandler()
+
+        # Simulate tool execution
+        callback.on_tool_start(serialized={"name": "geocode"}, input_str="test input")
+        callback.on_tool_end(output="result", name="geocode")
+
+        # Start another tool
+        callback.on_tool_start(serialized={"name": "buffer"}, input_str="test input")
+        callback.on_tool_error(error=Exception("test error"), name="buffer")
+
+        metrics = callback.get_metrics()
+
+        # Check tool usage stats
+        assert "tool_usage" in metrics
+        tool_usage = metrics["tool_usage"]
+
+        # Geocode tool
+        assert "geocode" in tool_usage
+        assert tool_usage["geocode"]["invocations"] == 1
+        assert tool_usage["geocode"]["successes"] == 1
+        assert tool_usage["geocode"]["failures"] == 0
+
+        # Buffer tool
+        assert "buffer" in tool_usage
+        assert tool_usage["buffer"]["invocations"] == 1
+        assert tool_usage["buffer"]["successes"] == 0
+        assert tool_usage["buffer"]["failures"] == 1
+
+    def test_tool_usage_multiple_invocations(self):
+        """Test tool usage with multiple invocations (Week 3)."""
+        callback = PerformanceCallbackHandler()
+
+        # Multiple invocations of same tool
+        for _ in range(3):
+            callback.on_tool_start(serialized={"name": "geocode"}, input_str="test")
+            callback.on_tool_end(output="result", name="geocode")
+
+        # One failure
+        callback.on_tool_start(serialized={"name": "geocode"}, input_str="test")
+        callback.on_tool_error(error=Exception("error"), name="geocode")
+
+        metrics = callback.get_metrics()
+        tool_usage = metrics["tool_usage"]
+
+        assert tool_usage["geocode"]["invocations"] == 4
+        assert tool_usage["geocode"]["successes"] == 3
+        assert tool_usage["geocode"]["failures"] == 1
+
+    def test_tool_usage_storage_aggregation(self):
+        """Test tool usage aggregation in MetricsStorage (Week 3)."""
+        from utility.metrics_storage import MetricsStorage
+
+        storage = MetricsStorage()
+
+        # Store metrics with tool usage from multiple requests
+        for i in range(3):
+            metrics = {
+                "tool_usage": {
+                    "geocode": {"invocations": 2, "successes": 2, "failures": 0},
+                    "buffer": {"invocations": 1, "successes": 0, "failures": 1},
+                }
+            }
+            storage.store(session_id=f"session{i}", metrics=metrics)
+
+        stats = storage.get_statistics(hours=1)
+
+        # Check tool usage stats
+        assert "tool_usage" in stats
+        tool_usage_stats = stats["tool_usage"]
+
+        assert "top_tools" in tool_usage_stats
+        top_tools = tool_usage_stats["top_tools"]
+
+        # Should have both tools
+        geocode_tool = next((t for t in top_tools if t["name"] == "geocode"), None)
+        buffer_tool = next((t for t in top_tools if t["name"] == "buffer"), None)
+
+        assert geocode_tool is not None
+        assert geocode_tool["invocations"] == 6  # 2 * 3
+        assert geocode_tool["successes"] == 6
+        assert geocode_tool["failures"] == 0
+        assert geocode_tool["success_rate"] == 1.0
+
+        assert buffer_tool is not None
+        assert buffer_tool["invocations"] == 3  # 1 * 3
+        assert buffer_tool["successes"] == 0
+        assert buffer_tool["failures"] == 3
+        assert buffer_tool["success_rate"] == 0.0
+
+    def test_tool_selector_metrics_aggregation(self):
+        """Test tool selector metrics aggregation (Week 3 - Performance Monitoring)."""
+        from utility.metrics_storage import MetricsStorage
+
+        storage = MetricsStorage()
+
+        # Store metrics with tool selector data (structure from selector.get_metrics())
+        for i in range(5):
+            metrics = {
+                "tool_selector": {
+                    "total_selections": 1,  # Required field for aggregation
+                    "avg_selection_time_ms": 50.0 + i * 10,  # Varying times
+                    "avg_tools_selected": 8.0 + i,  # Varying tool counts
+                    "fallback_count": 1 if i % 2 == 0 else 0,  # Some fallbacks
+                    "fallback_rate": 0.0,  # Not used in aggregation
+                    "strategy_usage": {},  # Not used in aggregation
+                }
+            }
+            storage.store(session_id=f"session{i}", metrics=metrics)
+
+        stats = storage.get_statistics(hours=1)
+
+        # Check tool selector stats
+        assert "tool_selector" in stats
+        selector_stats = stats["tool_selector"]
+
+        assert selector_stats["enabled"] is True
+        assert selector_stats["avg_selection_time_ms"] > 0
+        assert selector_stats["avg_tools_selected"] > 0
+        assert selector_stats["fallback_count"] == 3  # 0, 2, 4 have fallbacks
+        assert selector_stats["fallback_rate"] == 3 / 5

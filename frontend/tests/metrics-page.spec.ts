@@ -106,6 +106,42 @@ const mockMetricsData = {
         },
       ],
     },
+    tool_usage: {
+      top_tools: [
+        {
+          name: "geocode_using_nominatim_to_geostate",
+          invocations: 25,
+          successes: 24,
+          failures: 1,
+          success_rate: 0.96,
+        },
+        {
+          name: "geoprocess_tool",
+          invocations: 18,
+          successes: 16,
+          failures: 2,
+          success_rate: 0.889,
+        },
+        {
+          name: "metadata_search",
+          invocations: 12,
+          successes: 12,
+          failures: 0,
+          success_rate: 1.0,
+        },
+      ],
+      total_invocations: 55,
+      total_successes: 52,
+      total_failures: 3,
+      success_rate: 0.945,
+    },
+    tool_selector: {
+      enabled: true,
+      avg_selection_time_ms: 45.2,
+      avg_tools_selected: 8.5,
+      fallback_count: 2,
+      fallback_rate: 0.133,
+    },
     tokens: {
       total: 125000,
       avg_per_request: 8333,
@@ -166,6 +202,20 @@ const emptyMetricsData = {
       total_calls: 0,
       avg_calls_per_request: 0,
       top_tools: [],
+    },
+    tool_usage: {
+      top_tools: [],
+      total_invocations: 0,
+      total_successes: 0,
+      total_failures: 0,
+      success_rate: 0,
+    },
+    tool_selector: {
+      enabled: false,
+      avg_selection_time_ms: 0,
+      avg_tools_selected: 0,
+      fallback_count: 0,
+      fallback_rate: 0,
     },
     tokens: {
       total: 0,
@@ -357,13 +407,14 @@ test.describe("Metrics Page", () => {
     await page.goto("/metrics");
     await page.waitForLoadState("networkidle");
 
-    // Check Top Tools section
-    await expect(page.locator("text=Top Tools")).toBeVisible();
+    // Check Top Tools section (not the "Top Tools by Usage" in tool usage analytics)
+    const topToolsSection = page.locator("h2:has-text('Top Tools')").first().locator("..");
+    await expect(topToolsSection).toBeVisible();
 
-    // Check that tools are listed
-    await expect(page.locator("text=search_osm")).toBeVisible();
-    await expect(page.locator("text=get_wms_capabilities")).toBeVisible();
-    await expect(page.locator("text=geocode")).toBeVisible();
+    // Check that tools are listed in the original Top Tools section
+    await expect(topToolsSection.locator("text=search_osm")).toBeVisible();
+    await expect(topToolsSection.locator("text=get_wms_capabilities")).toBeVisible();
+    await expect(topToolsSection.locator("text=geocode").first()).toBeVisible();
 
     // Check tool ranking numbers
     await expect(page.locator("text=#1").first()).toBeVisible();
@@ -518,6 +569,185 @@ test.describe("Metrics Page", () => {
     // Check that sidebar is present by looking for the Home button which is always visible on desktop
     const homeButton = page.locator("button[title='Home']").last();
     await expect(homeButton).toBeVisible();
+  });
+
+  // Week 3 Metrics Tests
+  test("should display tool selector performance metrics", async ({ page }) => {
+    await page.goto("/metrics");
+    await page.waitForLoadState("networkidle");
+
+    // Check that Tool Selection Performance section is visible
+    await expect(
+      page.locator("text=Tool Selection Performance")
+    ).toBeVisible();
+
+    // Check for Week 3 badge
+    await expect(
+      page.locator("text=Tool Selection Performance").locator("..").locator("text=Week 3")
+    ).toBeVisible();
+
+    // Check that all metrics are displayed
+    await expect(page.locator("text=Avg Selection Time")).toBeVisible();
+    await expect(page.locator("text=45.2ms")).toBeVisible();
+
+    await expect(page.locator("text=Avg Tools Selected")).toBeVisible();
+    await expect(page.locator("text=8.5")).toBeVisible();
+
+    const fallbackSection = page.locator("text=Tool Selection Performance").locator("..");
+    await expect(fallbackSection.locator("text=Fallback Count")).toBeVisible();
+    await expect(fallbackSection.locator("text=2").first()).toBeVisible();
+
+    // Check for Fallback Rate within the grid (not in the warning message)
+    await expect(fallbackSection.locator("div.grid").locator("text=Fallback Rate")).toBeVisible();
+    await expect(fallbackSection.locator("text=13.3%")).toBeVisible();
+  });
+
+  test("should display tool usage analytics", async ({ page }) => {
+    await page.goto("/metrics");
+    await page.waitForLoadState("networkidle");
+
+    // Check that Tool Usage Analytics section is visible
+    await expect(
+      page.locator("text=Tool Usage Analytics")
+    ).toBeVisible();
+
+    // Check for Week 3 badge
+    await expect(
+      page.locator("text=Tool Usage Analytics").locator("..").locator("text=Week 3")
+    ).toBeVisible();
+
+    // Check summary statistics
+    await expect(page.locator("text=Total Invocations")).toBeVisible();
+    await expect(page.locator("text=55").first()).toBeVisible();
+
+    await expect(page.locator("text=Successful").first()).toBeVisible();
+    await expect(page.locator("text=52").first()).toBeVisible();
+
+    await expect(page.locator("text=Failed").first()).toBeVisible();
+    await expect(page.locator("text=3").nth(1)).toBeVisible();
+
+    await expect(page.locator("text=Success Rate")).toBeVisible();
+    await expect(page.locator("text=94.5%")).toBeVisible();
+  });
+
+  test("should display tool usage table with individual tool stats", async ({ page }) => {
+    await page.goto("/metrics");
+    await page.waitForLoadState("networkidle");
+
+    // Check that the table header is present
+    await expect(page.locator("text=Top Tools by Usage")).toBeVisible();
+
+    // Check that individual tools are listed
+    await expect(
+      page.locator("text=geocode_using_nominatim_to_geostate")
+    ).toBeVisible();
+    await expect(page.locator("text=geoprocess_tool")).toBeVisible();
+    await expect(page.locator("text=metadata_search")).toBeVisible();
+
+    // Check that the top tool has correct statistics
+    // Look for the tool name within the table rows
+    await expect(page.locator("text=geocode_using_nominatim_to_geostate")).toBeVisible();
+    
+    // Find the row containing this tool and check its stats
+    // The tool name appears in the tool usage table, check for its success rate which is unique
+    await expect(page.locator("text=96.0%").first()).toBeVisible(); // success rate
+    await expect(page.locator("text=geoprocess_tool")).toBeVisible();
+    await expect(page.locator("text=88.9%")).toBeVisible();
+  });
+
+  test("should show warning for high fallback rate", async ({ page }) => {
+    await page.goto("/metrics");
+    await page.waitForLoadState("networkidle");
+
+    // Check for high fallback warning (fallback rate is 13.3%)
+    await expect(
+      page.locator("text=High fallback rate detected")
+    ).toBeVisible();
+    await expect(
+      page.locator("text=Consider enabling embeddings for semantic tool selection")
+    ).toBeVisible();
+  });
+
+  test("should not display tool selector metrics when disabled", async ({ page }) => {
+    // Create mock with tool selector disabled
+    const mockDataNoSelector = {
+      ...mockMetricsData,
+      data: {
+        ...mockMetricsData.data,
+        tool_selector: {
+          enabled: false,
+          avg_selection_time_ms: 0,
+          avg_tools_selected: 0,
+          fallback_count: 0,
+          fallback_rate: 0,
+        },
+      },
+    };
+
+    await page.route("**/metrics?hours=*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockDataNoSelector),
+      });
+    });
+
+    await page.goto("/metrics");
+    await page.waitForLoadState("networkidle");
+
+    // Tool Selection Performance should not be visible
+    await expect(
+      page.locator("text=Tool Selection Performance")
+    ).not.toBeVisible();
+  });
+
+  test("should not display tool usage analytics when no data available", async ({ page }) => {
+    // Create mock with no tool usage data
+    const mockDataNoUsage = {
+      ...mockMetricsData,
+      data: {
+        ...mockMetricsData.data,
+        tool_usage: {
+          top_tools: [],
+          total_invocations: 0,
+          total_successes: 0,
+          total_failures: 0,
+          success_rate: 0,
+        },
+      },
+    };
+
+    await page.route("**/metrics?hours=*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockDataNoUsage),
+      });
+    });
+
+    await page.goto("/metrics");
+    await page.waitForLoadState("networkidle");
+
+    // Tool Usage Analytics should not be visible
+    await expect(
+      page.locator("text=Tool Usage Analytics")
+    ).not.toBeVisible();
+  });
+
+  test("should display color-coded success rates", async ({ page }) => {
+    await page.goto("/metrics");
+    await page.waitForLoadState("networkidle");
+
+    // Find rows with different success rates in the Tool Usage Analytics section
+    const toolUsageSection = page.locator("text=Tool Usage Analytics").locator("..");
+    
+    // metadata_search has 100% (healthy - green)
+    await expect(toolUsageSection.locator("text=metadata_search")).toBeVisible();
+    await expect(toolUsageSection.locator("text=100.0%")).toBeVisible();
+
+    // geoprocess_tool has 88.9% (warning - yellow/orange)
+    await expect(toolUsageSection.locator("text=geoprocess_tool")).toBeVisible();
+    await expect(toolUsageSection.locator("text=88.9%")).toBeVisible();
   });
 
   test("should handle N/A cost when model costs are not available", async ({

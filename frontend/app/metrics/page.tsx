@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import Sidebar from "../components/sidebar/Sidebar";
 import { useUIStore } from "../stores/uiStore";
 import { useInitializedSettingsStore } from "../hooks/useInitializedSettingsStore";
-import { Activity, Clock, Zap, TrendingUp, AlertCircle } from "lucide-react";
+import { Activity, Clock, Zap, TrendingUp, AlertCircle, Target, CheckCircle, XCircle } from "lucide-react";
 
 interface MetricsStats {
   period_hours: number;
@@ -51,6 +51,28 @@ interface MetricsStats {
       min_time: number;
       max_time: number;
     }>;
+  };
+  // Week 3: Tool Usage Analytics
+  tool_usage: {
+    top_tools: Array<{
+      name: string;
+      invocations: number;
+      successes: number;
+      failures: number;
+      success_rate: number;
+    }>;
+    total_invocations: number;
+    total_successes: number;
+    total_failures: number;
+    success_rate: number;
+  };
+  // Week 3: Tool Selector Performance Monitoring
+  tool_selector: {
+    enabled: boolean;
+    avg_selection_time_ms: number;
+    avg_tools_selected: number;
+    fallback_count: number;
+    fallback_rate: number;
   };
   tokens: {
     total: number;
@@ -645,6 +667,164 @@ export default function MetricsPage() {
             <p className="text-primary-600 text-sm">No tool usage data available</p>
           )}
         </div>
+
+        {/* Week 3: Tool Selection Performance */}
+        {metrics.tool_selector && metrics.tool_selector.enabled && (
+          <div className="bg-white rounded-lg shadow p-6 border border-primary-200 mb-6">
+            <h2 className="text-lg font-semibold text-primary-900 mb-4 flex items-center gap-2">
+              <Target className="h-5 w-5 text-success-600" />
+              Tool Selection Performance
+              <span className="ml-2 px-2 py-0.5 text-xs bg-success-100 text-success-800 rounded-full font-medium">
+                Week 3
+              </span>
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <div className="text-xs text-primary-600 mb-1">Avg Selection Time</div>
+                <div className="text-lg font-semibold text-primary-900">
+                  {metrics.tool_selector.avg_selection_time_ms.toFixed(1)}ms
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-primary-600 mb-1">Avg Tools Selected</div>
+                <div className="text-lg font-semibold text-primary-900">
+                  {metrics.tool_selector.avg_tools_selected.toFixed(1)}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-primary-600 mb-1">Fallback Count</div>
+                <div className="text-lg font-semibold text-primary-900">
+                  {formatNumber(metrics.tool_selector.fallback_count)}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-primary-600 mb-1">Fallback Rate</div>
+                <div className="text-lg font-semibold text-primary-900">
+                  {(metrics.tool_selector.fallback_rate * 100).toFixed(1)}%
+                </div>
+              </div>
+            </div>
+            {metrics.tool_selector.fallback_rate > 0.1 && (
+              <div className="mt-4 p-3 bg-warning-50 border border-warning-200 rounded-lg">
+                <p className="text-sm text-warning-800">
+                  <AlertCircle className="inline h-4 w-4 mr-1" />
+                  High fallback rate detected. Consider enabling embeddings for semantic tool selection.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Week 3: Tool Usage Analytics */}
+        {metrics.tool_usage && metrics.tool_usage.top_tools.length > 0 && (
+          <div className="bg-white rounded-lg shadow p-6 border border-primary-200 mb-6">
+            <h2 className="text-lg font-semibold text-primary-900 mb-4 flex items-center gap-2">
+              <Activity className="h-5 w-5 text-info-600" />
+              Tool Usage Analytics
+              <span className="ml-2 px-2 py-0.5 text-xs bg-info-100 text-info-800 rounded-full font-medium">
+                Week 3
+              </span>
+            </h2>
+            
+            {/* Summary Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 pb-6 border-b border-primary-200">
+              <div>
+                <div className="text-xs text-primary-600 mb-1">Total Invocations</div>
+                <div className="text-lg font-semibold text-primary-900">
+                  {formatNumber(metrics.tool_usage.total_invocations)}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-primary-600 mb-1">Successful</div>
+                <div className="text-lg font-semibold text-success-700 flex items-center gap-1">
+                  <CheckCircle className="h-4 w-4" />
+                  {formatNumber(metrics.tool_usage.total_successes)}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-primary-600 mb-1">Failed</div>
+                <div className="text-lg font-semibold text-danger-700 flex items-center gap-1">
+                  <XCircle className="h-4 w-4" />
+                  {formatNumber(metrics.tool_usage.total_failures)}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-primary-600 mb-1">Success Rate</div>
+                <div className="text-lg font-semibold text-primary-900">
+                  {(metrics.tool_usage.success_rate * 100).toFixed(1)}%
+                </div>
+              </div>
+            </div>
+
+            {/* Tool Usage Table */}
+            <div className="space-y-2">
+              <h3 className="text-sm font-medium text-primary-700 mb-3">Top Tools by Usage</h3>
+              {metrics.tool_usage.top_tools.slice(0, 15).map((tool, index) => {
+                const successRate = tool.success_rate * 100;
+                const isHealthy = successRate >= 95;
+                const isWarning = successRate >= 80 && successRate < 95;
+                const isDanger = successRate < 80;
+                
+                return (
+                  <div 
+                    key={tool.name} 
+                    className="flex items-center justify-between p-3 rounded-lg hover:bg-primary-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <span className="text-xs font-medium text-primary-500 w-6 flex-shrink-0">
+                        #{index + 1}
+                      </span>
+                      <span className="font-medium text-primary-900 truncate flex-1">
+                        {tool.name}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-4 text-sm flex-shrink-0">
+                      <div className="text-right">
+                        <div className="text-xs text-primary-600">Invocations</div>
+                        <div className="font-semibold text-primary-900">
+                          {formatNumber(tool.invocations)}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs text-primary-600">Success</div>
+                        <div className="font-semibold text-success-700">
+                          {formatNumber(tool.successes)}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-xs text-primary-600">Failed</div>
+                        <div className="font-semibold text-danger-700">
+                          {formatNumber(tool.failures)}
+                        </div>
+                      </div>
+                      <div className="text-right min-w-[70px]">
+                        <div className="text-xs text-primary-600">Rate</div>
+                        <div className={`font-semibold ${
+                          isHealthy ? "text-success-700" : 
+                          isWarning ? "text-warning-700" : 
+                          isDanger ? "text-danger-700" : 
+                          "text-primary-900"
+                        }`}>
+                          {successRate.toFixed(1)}%
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Warning for tools with low success rate */}
+            {metrics.tool_usage.top_tools.some(t => t.success_rate < 0.8) && (
+              <div className="mt-4 p-3 bg-danger-50 border border-danger-200 rounded-lg">
+                <p className="text-sm text-danger-800">
+                  <AlertCircle className="inline h-4 w-4 mr-1" />
+                  Some tools have success rates below 80%. Consider investigating these tools.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Token Usage */}
         <div className="bg-white rounded-lg shadow p-6 border border-primary-200 mb-6">

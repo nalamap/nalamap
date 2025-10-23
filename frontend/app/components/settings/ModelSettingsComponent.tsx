@@ -14,7 +14,6 @@ export default function ModelSettingsComponent() {
   );
   const setModelName = useInitializedSettingsStore((s) => s.setModelName);
   const setMaxTokens = useInitializedSettingsStore((s) => s.setMaxTokens);
-  const setSystemPrompt = useInitializedSettingsStore((s) => s.setSystemPrompt);
   const setMessageWindowSize = useInitializedSettingsStore(
     (s) => s.setMessageWindowSize,
   );
@@ -420,18 +419,6 @@ export default function ModelSettingsComponent() {
               </div>
             </div>
           )}
-
-          <div>
-            <label className="block text-sm font-medium text-primary-900 dark:text-primary-300 mb-1">
-              System Prompt
-            </label>
-            <textarea
-              value={modelSettings.system_prompt}
-              onChange={(e) => setSystemPrompt(e.target.value)}
-              placeholder="Optional system prompt override..."
-              className="w-full border border-primary-300 dark:border-primary-700 rounded p-2 h-24 bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
-            />
-          </div>
         </div>
       )}
     </div>

@@ -120,6 +120,7 @@ class PerformanceCallbackHandler(BaseCallbackHandler):
             "llm_time": 0.0,
             "tool_calls": 0,
             "tool_times": {},
+            "tool_usage": {},  # Track individual tool invocation counts
             "token_usage": {"input": 0, "output": 0, "total": 0},
             "errors": [],
         }
@@ -199,6 +200,15 @@ class PerformanceCallbackHandler(BaseCallbackHandler):
         self._tool_start_times[tool_name] = time.time()
         self.metrics["tool_calls"] += 1
 
+        # Track tool usage count
+        if tool_name not in self.metrics["tool_usage"]:
+            self.metrics["tool_usage"][tool_name] = {
+                "invocations": 0,
+                "successes": 0,
+                "failures": 0,
+            }
+        self.metrics["tool_usage"][tool_name]["invocations"] += 1
+
     def on_tool_end(self, output: str, **kwargs: Any) -> None:
         """Called when tool execution finishes.
 
@@ -220,6 +230,10 @@ class PerformanceCallbackHandler(BaseCallbackHandler):
                     self.metrics["tool_times"][tool_name] = []
                 self.metrics["tool_times"][tool_name].append(duration)
 
+            # Record successful tool execution
+            if tool_name in self.metrics["tool_usage"]:
+                self.metrics["tool_usage"][tool_name]["successes"] += 1
+
     def on_tool_error(self, error: Exception, **kwargs: Any) -> None:
         """Called when tool execution encounters an error.
 
@@ -229,6 +243,10 @@ class PerformanceCallbackHandler(BaseCallbackHandler):
         """
         tool_name = kwargs.get("name", "unknown")
         self.metrics["errors"].append({"type": "tool", "tool": tool_name, "error": str(error)})
+
+        # Record failed tool execution
+        if tool_name in self.metrics["tool_usage"]:
+            self.metrics["tool_usage"][tool_name]["failures"] += 1
 
         # Clean up timer
         if tool_name in self._tool_start_times:
@@ -266,6 +284,7 @@ class PerformanceCallbackHandler(BaseCallbackHandler):
             "tool_calls": self.metrics["tool_calls"],
             "tool_times": self.metrics["tool_times"],
             "tool_stats": tool_stats,
+            "tool_usage": self.metrics["tool_usage"],
             "token_usage": self.metrics["token_usage"],
             "errors": self.metrics["errors"],
         }

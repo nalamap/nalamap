@@ -7,6 +7,7 @@ import { useUIStore } from "../stores/uiStore";
 import ColorSettingsComponent from "../components/settings/ColorSettingsComponent";
 import ThemeToggleComponent from "../components/settings/ThemeToggleComponent";
 import ModelSettingsComponent from "../components/settings/ModelSettingsComponent";
+import AgentSettingsComponent from "../components/settings/AgentSettingsComponent";
 import ToolSettingsComponent from "../components/settings/ToolSettingsComponent";
 import GeoServerSettingsComponent from "../components/settings/GeoServerSettingsComponent";
 
@@ -787,6 +788,11 @@ export default function SettingsPage() {
           {/* Model Settings */}
           <section>
             <ModelSettingsComponent />
+          </section>
+
+          {/* Agent Settings (System Prompt & Dynamic Tools) */}
+          <section>
+            <AgentSettingsComponent />
           </section>
 
           {/* Theme Preference */}

@@ -54,6 +54,42 @@ class ModelSettings(BaseModel):
             "Metrics are available via the /metrics endpoint."
         ),
     )
+    enable_dynamic_tools: bool = Field(
+        False,
+        description=(
+            "Enable dynamic tool selection based on query analysis. "
+            "When enabled, only relevant tools are loaded based on the query, "
+            "reducing context size and improving performance. "
+            "Supports all languages through semantic similarity."
+        ),
+    )
+    tool_selection_strategy: str = Field(
+        "conservative",
+        description=(
+            "Strategy for dynamic tool selection. Options: "
+            "'all' (load all tools, disable dynamic selection), "
+            "'semantic' (use semantic similarity), "
+            "'conservative' (semantic + core tools), "
+            "'minimal' (only most relevant tools)."
+        ),
+    )
+    tool_similarity_threshold: float = Field(
+        0.3,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Minimum similarity score (0.0-1.0) for tool inclusion "
+            "in semantic selection. Lower = more tools included."
+        ),
+    )
+    max_tools_per_query: Optional[int] = Field(
+        None,
+        ge=1,
+        description=(
+            "Maximum number of tools to load per query. "
+            "None = unlimited. Useful for strict context control."
+        ),
+    )
 
 
 class ToolConfig(BaseModel):

@@ -64,6 +64,11 @@ export interface ModelSettings {
   message_window_size?: number | null; // Optional: Max recent messages to keep (default: 20 from env)
   enable_parallel_tools?: boolean; // Optional: Enable parallel tool execution (default: false, experimental)
   enable_performance_metrics?: boolean; // Optional: Enable performance metrics tracking (default: false)
+  // Dynamic Tool Selection (Week 3)
+  enable_dynamic_tools?: boolean; // Optional: Enable dynamic tool selection (default: false)
+  tool_selection_strategy?: string; // Optional: Strategy for tool selection (default: "conservative")
+  tool_similarity_threshold?: number; // Optional: Minimum similarity score 0.0-1.0 (default: 0.3)
+  max_tools_per_query?: number | null; // Optional: Maximum tools to load per query (default: null = unlimited)
 }
 
 export interface ColorScale {
@@ -138,6 +143,11 @@ export interface SettingsState extends SettingsSnapshot {
   setMessageWindowSize: (size: number | null) => void;
   setEnableParallelTools: (enabled: boolean) => void;
   setEnablePerformanceMetrics: (enabled: boolean) => void;
+  // Dynamic Tool Selection (Week 3)
+  setEnableDynamicTools: (enabled: boolean) => void;
+  setToolSelectionStrategy: (strategy: string) => void;
+  setToolSimilarityThreshold: (threshold: number) => void;
+  setMaxToolsPerQuery: (max: number | null) => void;
 
   // Tool config actions
   addToolConfig: (name: string) => void;
@@ -290,6 +300,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     system_prompt: "",
     message_window_size: null, // null = use backend default (20)
     enable_parallel_tools: false, // Default: disabled (experimental)
+    enable_performance_metrics: false, // Default: disabled
+    // Dynamic Tool Selection (Week 3)
+    enable_dynamic_tools: false, // Default: disabled
+    tool_selection_strategy: "conservative", // Default strategy
+    tool_similarity_threshold: 0.3, // Default threshold
+    max_tools_per_query: null, // null = unlimited
   },
   tools: [],
 
@@ -394,6 +410,24 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setEnablePerformanceMetrics: (enabled) =>
     set((state) => ({
       model_settings: { ...state.model_settings, enable_performance_metrics: enabled },
+    })),
+  
+  // Dynamic Tool Selection (Week 3)
+  setEnableDynamicTools: (enabled: boolean) =>
+    set((state) => ({
+      model_settings: { ...state.model_settings, enable_dynamic_tools: enabled },
+    })),
+  setToolSelectionStrategy: (strategy: string) =>
+    set((state) => ({
+      model_settings: { ...state.model_settings, tool_selection_strategy: strategy },
+    })),
+  setToolSimilarityThreshold: (threshold: number) =>
+    set((state) => ({
+      model_settings: { ...state.model_settings, tool_similarity_threshold: threshold },
+    })),
+  setMaxToolsPerQuery: (max: number | null) =>
+    set((state) => ({
+      model_settings: { ...state.model_settings, max_tools_per_query: max },
     })),
 
   // tools

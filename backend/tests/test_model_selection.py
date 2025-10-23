@@ -23,8 +23,9 @@ def _is_google_provider_available() -> bool:
 class TestAgentModelSelection:
     """Test that geo agent uses correct model based on settings."""
 
+    @pytest.mark.asyncio
     @patch("services.single_agent.create_react_agent")
-    def test_create_agent_with_openai_model_settings(self, mock_create_react):
+    async def test_create_agent_with_openai_model_settings(self, mock_create_react):
         """Test creating agent with specific OpenAI model."""
         # Mock the create_react_agent to avoid actual LangGraph setup
         mock_agent = MagicMock()
@@ -38,7 +39,7 @@ class TestAgentModelSelection:
         )
 
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-key"}):
-            agent = create_geo_agent(model_settings=model_settings)
+            agent = await create_geo_agent(model_settings=model_settings)
 
         assert agent is not None
         # Verify that create_react_agent was called
@@ -48,12 +49,13 @@ class TestAgentModelSelection:
         call_kwargs = mock_create_react.call_args[1]
         assert call_kwargs["prompt"] == "Test prompt"
 
+    @pytest.mark.asyncio
     @pytest.mark.skipif(
         not _is_google_provider_available(),
         reason="Google Gemini provider not available (missing langchain_google_genai)",
     )
     @patch("services.single_agent.create_react_agent")
-    def test_create_agent_with_google_model_settings(self, mock_create_react):
+    async def test_create_agent_with_google_model_settings(self, mock_create_react):
         """Test creating agent with Google Gemini model."""
         mock_agent = MagicMock()
         mock_create_react.return_value = mock_agent
@@ -66,13 +68,14 @@ class TestAgentModelSelection:
         )
 
         with patch.dict(os.environ, {"GOOGLE_API_KEY": "test-key"}):
-            agent = create_geo_agent(model_settings=model_settings)
+            agent = await create_geo_agent(model_settings=model_settings)
 
         assert agent is not None
         assert mock_create_react.called
 
+    @pytest.mark.asyncio
     @patch("services.single_agent.create_react_agent")
-    def test_create_agent_uses_default_prompt_when_empty(self, mock_create_react):
+    async def test_create_agent_uses_default_prompt_when_empty(self, mock_create_react):
         """Test that default prompt is used when system_prompt is empty."""
         mock_agent = MagicMock()
         mock_create_react.return_value = mock_agent
@@ -85,15 +88,16 @@ class TestAgentModelSelection:
         )
 
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-key"}):
-            agent = create_geo_agent(model_settings=model_settings)
+            agent = await create_geo_agent(model_settings=model_settings)
 
         assert agent is not None
         call_kwargs = mock_create_react.call_args[1]
         # Should use default prompt, not empty string
         assert call_kwargs["prompt"] != ""
 
+    @pytest.mark.asyncio
     @patch("services.single_agent.create_react_agent")
-    def test_create_agent_without_model_settings_uses_env_default(self, mock_create_react):
+    async def test_create_agent_without_model_settings_uses_env_default(self, mock_create_react):
         """Test that agent uses env-configured provider when no settings provided."""
         mock_agent = MagicMock()
         mock_create_react.return_value = mock_agent
@@ -102,7 +106,7 @@ class TestAgentModelSelection:
             os.environ,
             {"LLM_PROVIDER": "openai", "OPENAI_API_KEY": "sk-test-key"},
         ):
-            agent = create_geo_agent(model_settings=None)
+            agent = await create_geo_agent(model_settings=None)
 
         assert agent is not None
         assert mock_create_react.called

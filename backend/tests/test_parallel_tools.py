@@ -39,17 +39,19 @@ def sample_state():
 
 
 @pytest.mark.unit
-def test_create_agent_default_parallel_disabled(mock_model_settings):
+@pytest.mark.asyncio
+async def test_create_agent_default_parallel_disabled(mock_model_settings):
     """Test that parallel tools are disabled by default."""
-    agent = create_geo_agent(model_settings=mock_model_settings, enable_parallel_tools=False)
+    agent = await create_geo_agent(model_settings=mock_model_settings, enable_parallel_tools=False)
 
     assert agent is not None
     # Agent should be created successfully with parallel tools disabled
 
 
 @pytest.mark.unit
+@pytest.mark.asyncio
 @patch("services.ai.llm_config.get_llm_for_provider")
-def test_create_agent_parallel_enabled_supported_model(mock_get_llm, mock_model_settings):
+async def test_create_agent_parallel_enabled_supported_model(mock_get_llm, mock_model_settings):
     """Test that parallel tools can be enabled for supported models."""
     from services.ai.llm_config import ModelCapabilities
     from unittest.mock import MagicMock
@@ -60,7 +62,9 @@ def test_create_agent_parallel_enabled_supported_model(mock_get_llm, mock_model_
     mock_get_llm.return_value = (mock_llm, mock_capabilities)
 
     with patch("services.single_agent.logger") as mock_logger:
-        agent = create_geo_agent(model_settings=mock_model_settings, enable_parallel_tools=True)
+        agent = await create_geo_agent(
+            model_settings=mock_model_settings, enable_parallel_tools=True
+        )
 
         assert agent is not None
         # Should log warning about experimental feature
@@ -70,8 +74,9 @@ def test_create_agent_parallel_enabled_supported_model(mock_get_llm, mock_model_
 
 
 @pytest.mark.unit
+@pytest.mark.asyncio
 @patch("services.ai.llm_config.get_llm_for_provider")
-def test_create_agent_parallel_enabled_unsupported_model(mock_get_llm, mock_model_settings):
+async def test_create_agent_parallel_enabled_unsupported_model(mock_get_llm, mock_model_settings):
     """Test that parallel tools remain disabled for unsupported models."""
     from services.ai.llm_config import ModelCapabilities
     from unittest.mock import MagicMock
@@ -81,17 +86,18 @@ def test_create_agent_parallel_enabled_unsupported_model(mock_get_llm, mock_mode
     mock_capabilities = ModelCapabilities(supports_parallel_tool_calls=False)
     mock_get_llm.return_value = (mock_llm, mock_capabilities)
 
-    agent = create_geo_agent(model_settings=mock_model_settings, enable_parallel_tools=True)
+    agent = await create_geo_agent(model_settings=mock_model_settings, enable_parallel_tools=True)
 
     assert agent is not None
     # Agent should still be created, but parallel execution should be disabled
 
 
 @pytest.mark.unit
-def test_create_agent_parallel_without_model_settings():
+@pytest.mark.asyncio
+async def test_create_agent_parallel_without_model_settings():
     """Test that parallel tools can't be enabled without model settings."""
     with patch("services.single_agent.logger") as mock_logger:
-        agent = create_geo_agent(enable_parallel_tools=True)
+        agent = await create_geo_agent(enable_parallel_tools=True)
 
         assert agent is not None
         # Should log warning about missing model settings
