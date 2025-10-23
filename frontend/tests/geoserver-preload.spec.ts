@@ -230,8 +230,9 @@ test.describe("GeoServer backend preload", () => {
       .getByRole("listitem")
       .filter({ hasText: "Geo Two" });
 
-    await expect(geoOneItem.getByRole("checkbox")).toBeChecked();
-    await expect(geoTwoItem.getByRole("checkbox")).not.toBeChecked();
+    // Get the enabled checkbox (not the insecure SSL checkbox)
+    await expect(geoOneItem.getByRole("checkbox").first()).toBeChecked();
+    await expect(geoTwoItem.getByRole("checkbox").first()).not.toBeChecked();
 
     expect(seenRequests).toHaveLength(2);
     expect(seenRequests[0].session_id).toBe("session-initial");
