@@ -15,6 +15,7 @@ import L from "leaflet";
 
 import { useMapStore } from "../../stores/mapStore";
 import { useLayerStore } from "../../stores/layerStore";
+import { useUIStore } from "../../stores/uiStore";
 import { ZoomToSelected } from "./ZoomToLayer";
 import Logger from "../../utils/logger";
 
@@ -213,6 +214,39 @@ function InvalidateMapOnResize() {
       ro.disconnect();
     };
   }, [map]);
+  return null;
+}
+
+/**
+ * Custom Scale Control with dynamic positioning based on layer panel state
+ */
+function CustomScaleControl() {
+  const map = useMap();
+  const layerPanelCollapsed = useUIStore((s) => s.layerPanelCollapsed);
+  
+  useEffect(() => {
+    // Create scale control with custom position
+    const scale = L.control.scale({
+      position: 'bottomleft',
+      imperial: true,
+      metric: true,
+    });
+    
+    scale.addTo(map);
+    
+    // Add custom styling to position it with margin from left edge
+    const scaleContainer = scale.getContainer();
+    if (scaleContainer) {
+      // When collapsed: larger margin to clear the floating icon
+      // When expanded: minimal margin since panel is open
+      scaleContainer.style.marginLeft = layerPanelCollapsed ? '90px' : '10px';
+    }
+    
+    return () => {
+      scale.remove();
+    };
+  }, [map, layerPanelCollapsed]); // Re-run when collapse state changes
+  
   return null;
 }
 
@@ -1411,6 +1445,7 @@ export default function LeafletMapComponent() {
           {/* Ensure map tiles redraw after panel resize */}
           <InvalidateMapOnResize />
           <ZoomToSelected />
+          <CustomScaleControl />
           <TileLayer url={basemap.url} attribution={basemap.attribution} />
           <div key={layerOrderKey}>
             {[...layers].map((layer) => {

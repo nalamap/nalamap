@@ -7,9 +7,11 @@ type UIState = {
   layerPanelWidth: number; // percentage
   mapWidth: number; // percentage
   chatPanelWidth: number; // percentage
+  layerPanelCollapsed: boolean; // track if layer panel is collapsed
   setSidebarWidth: (width: number) => void;
   setLayoutWidths: (widths: [number, number, number, number]) => void;
   getLayoutWidths: () => [number, number, number, number];
+  setLayerPanelCollapsed: (collapsed: boolean) => void;
 };
 
 export const useUIStore = create<UIState>()(
@@ -19,6 +21,7 @@ export const useUIStore = create<UIState>()(
       layerPanelWidth: 18,
       mapWidth: 56,
       chatPanelWidth: 22,
+      layerPanelCollapsed: false,
       setSidebarWidth: (width) => set({ sidebarWidth: width }),
       setLayoutWidths: ([sidebar, layer, map, chat]) =>
         set({
@@ -36,6 +39,7 @@ export const useUIStore = create<UIState>()(
           state.chatPanelWidth,
         ];
       },
+      setLayerPanelCollapsed: (collapsed) => set({ layerPanelCollapsed: collapsed }),
     }),
     {
       name: "nalamap-ui-storage", // localStorage key
