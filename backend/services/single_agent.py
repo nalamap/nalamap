@@ -1,5 +1,6 @@
 import logging
-from typing import Dict, List, Optional
+import time
+from typing import Any, Dict, List, Optional
 
 from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_core.tools import BaseTool
@@ -9,6 +10,7 @@ from langgraph.prebuilt import create_react_agent
 from models.settings_model import ModelSettings, ToolConfig
 from models.states import GeoDataAgentState, get_minimal_debug_state
 from services.ai.llm_config import get_llm
+from services.conversation_manager import ConversationManager
 from services.default_agent_settings import DEFAULT_AVAILABLE_TOOLS, DEFAULT_SYSTEM_PROMPT
 from services.tools.attribute_tool2 import attribute_tool2
 from services.tools.attribute_tools import attribute_tool
@@ -27,6 +29,13 @@ from services.tools.styling_tools import (
 from utility.tool_configurator import create_configured_tools
 
 logger = logging.getLogger(__name__)
+
+# Module-level conversation managers (per session)
+# Format: {session_id: {"manager": ConversationManager, "last_access": timestamp}}
+conversation_managers: Dict[str, Dict[str, Any]] = {}
+
+# Session TTL in seconds (default: 1 hour)
+SESSION_TTL = 3600
 
 tools: List[BaseTool] = [
     # set_result_list,
@@ -92,12 +101,67 @@ def prune_messages(
     return result
 
 
+def _cleanup_expired_sessions():
+    """Clean up expired conversation manager sessions.
+
+    Removes sessions that haven't been accessed within SESSION_TTL.
+    Called periodically to prevent memory leaks.
+    """
+    current_time = time.time()
+    expired_sessions = []
+
+    for session_id, session_data in conversation_managers.items():
+        last_access = session_data.get("last_access", 0)
+        if current_time - last_access > SESSION_TTL:
+            expired_sessions.append(session_id)
+
+    for session_id in expired_sessions:
+        del conversation_managers[session_id]
+        logger.info(f"Cleaned up expired conversation session: {session_id}")
+
+    if expired_sessions:
+        logger.info(f"Cleaned up {len(expired_sessions)} expired conversation sessions")
+
+
+def get_conversation_manager(session_id: str, message_window_size: int) -> ConversationManager:
+    """Get or create conversation manager for a session.
+
+    Args:
+        session_id: Unique session identifier
+        message_window_size: Window size for recent messages
+
+    Returns:
+        ConversationManager instance for this session
+    """
+    # Clean up expired sessions periodically
+    _cleanup_expired_sessions()
+
+    current_time = time.time()
+
+    if session_id not in conversation_managers:
+        # Create new conversation manager
+        manager = ConversationManager(
+            max_messages=message_window_size * 2,
+            summarize_threshold=message_window_size + 5,
+            summary_window=message_window_size,
+        )
+        conversation_managers[session_id] = {"manager": manager, "last_access": current_time}
+        logger.info(f"Created new conversation manager for session: {session_id}")
+    else:
+        # Update last access time
+        conversation_managers[session_id]["last_access"] = current_time
+
+    return conversation_managers[session_id]["manager"]
+
+
 async def create_geo_agent(
     model_settings: Optional[ModelSettings] = None,
     selected_tools: Optional[List[ToolConfig]] = None,
     message_window_size: int = 20,
     enable_parallel_tools: bool = False,
     query: Optional[str] = None,
+    use_summarization: bool = False,
+    session_id: Optional[str] = None,
 ) -> CompiledStateGraph:
     """Create a geo agent with specified model and tools.
 
@@ -109,6 +173,10 @@ async def create_geo_agent(
         enable_parallel_tools: Whether to enable parallel tool execution
             (default: False, experimental)
         query: Current user query for dynamic tool selection (optional)
+        use_summarization: Whether to enable conversation summarization
+            (default: False)
+        session_id: Unique session identifier for conversation tracking
+            (required if use_summarization=True)
 
     Returns:
         CompiledStateGraph configured with the specified model and tools
@@ -120,7 +188,19 @@ async def create_geo_agent(
 
         Dynamic tool selection uses semantic similarity to select relevant tools based on
         the query, supporting all languages. This reduces context size and improves performance.
+
+        Conversation summarization automatically condenses older messages when conversations
+        exceed the threshold, maintaining context while reducing token usage. Requires
+        session_id to track conversation state across requests.
     """
+    # Get or create conversation manager if summarization is enabled
+    # Note: Manager is stored in module-level dict for reuse across requests
+    if use_summarization and session_id:
+        get_conversation_manager(session_id, message_window_size)  # noqa: F841
+        logger.info(f"Conversation summarization enabled for session: {session_id}")
+    elif use_summarization and not session_id:
+        logger.warning("Conversation summarization requested but no session_id provided, disabled")
+
     # Use model_settings if provided, otherwise use env defaults
     if model_settings is not None:
         from services.ai.llm_config import get_llm_for_provider

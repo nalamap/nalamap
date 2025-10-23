@@ -357,4 +357,168 @@ test.describe("Agent Settings Component", () => {
     await systemPromptTextarea.fill("New custom prompt");
     await expect(systemPromptTextarea).toHaveValue("New custom prompt");
   });
+
+  test("displays conversation summarization checkbox", async ({ page }) => {
+    await page.route("**/settings/options", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockSettings),
+      });
+    });
+
+    await page.goto("/settings");
+    await page.waitForLoadState("networkidle");
+
+    // Expand Agent Settings
+    const agentSettingsButton = page.locator("button:has-text('Agent Settings')");
+    await agentSettingsButton.scrollIntoViewIfNeeded();
+    await agentSettingsButton.click();
+    await page.waitForTimeout(500);
+
+    // Find the conversation summarization checkbox
+    const summarizationCheckbox = page.locator("#enable-summarization");
+    await expect(summarizationCheckbox).toBeVisible();
+    
+    // Check label text
+    const label = page.locator("label[for='enable-summarization']");
+    await expect(label).toContainText("Enable Conversation Summarization");
+  });
+
+  test("enables conversation summarization toggle", async ({ page }) => {
+    await page.route("**/settings/options", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockSettings),
+      });
+    });
+
+    await page.goto("/settings");
+    await page.waitForLoadState("networkidle");
+
+    // Expand Agent Settings
+    const agentSettingsButton = page.locator("button:has-text('Agent Settings')");
+    await agentSettingsButton.scrollIntoViewIfNeeded();
+    await agentSettingsButton.click();
+    await page.waitForTimeout(500);
+
+    // Find and check the conversation summarization checkbox
+    const summarizationCheckbox = page.locator("#enable-summarization");
+    await expect(summarizationCheckbox).not.toBeChecked();
+    
+    // Enable it
+    await summarizationCheckbox.click();
+    await page.waitForTimeout(300);
+    
+    // Verify it's checked
+    await expect(summarizationCheckbox).toBeChecked();
+  });
+
+  test("disables conversation summarization toggle", async ({ page }) => {
+    await page.route("**/settings/options", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockSettings),
+      });
+    });
+
+    await page.goto("/settings");
+    await page.waitForLoadState("networkidle");
+
+    // Expand Agent Settings
+    const agentSettingsButton = page.locator("button:has-text('Agent Settings')");
+    await agentSettingsButton.scrollIntoViewIfNeeded();
+    await agentSettingsButton.click();
+    await page.waitForTimeout(500);
+
+    // Enable then disable
+    const summarizationCheckbox = page.locator("#enable-summarization");
+    await summarizationCheckbox.click();
+    await page.waitForTimeout(300);
+    await expect(summarizationCheckbox).toBeChecked();
+    
+    await summarizationCheckbox.click();
+    await page.waitForTimeout(300);
+    await expect(summarizationCheckbox).not.toBeChecked();
+  });
+
+  test("shows conversation summarization description and benefits", async ({ page }) => {
+    await page.route("**/settings/options", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockSettings),
+      });
+    });
+
+    await page.goto("/settings");
+    await page.waitForLoadState("networkidle");
+
+    // Expand Agent Settings
+    const agentSettingsButton = page.locator("button:has-text('Agent Settings')");
+    await agentSettingsButton.scrollIntoViewIfNeeded();
+    await agentSettingsButton.click();
+    await page.waitForTimeout(500);
+
+    // Check description text
+    const description = page.locator("text=Automatically condense older messages");
+    await expect(description).toBeVisible();
+    
+    // Check benefits section
+    const benefits = page.locator("text=Benefits:");
+    await expect(benefits).toBeVisible();
+    
+    // Check specific benefits mentioned
+    const infiniteConversation = page.locator("text=infinite conversation length");
+    await expect(infiniteConversation).toBeVisible();
+    
+    const tokenReduction = page.locator("text=reduces token costs by 50-80%");
+    await expect(tokenReduction).toBeVisible();
+  });
+
+  test("conversation summarization and dynamic tools can be enabled independently", async ({ page }) => {
+    await page.route("**/settings/options", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockSettings),
+      });
+    });
+
+    await page.goto("/settings");
+    await page.waitForLoadState("networkidle");
+
+    // Expand Agent Settings
+    const agentSettingsButton = page.locator("button:has-text('Agent Settings')");
+    await agentSettingsButton.scrollIntoViewIfNeeded();
+    await agentSettingsButton.click();
+    await page.waitForTimeout(500);
+
+    const dynamicToolsCheckbox = page.locator("#enable-dynamic-tools");
+    const summarizationCheckbox = page.locator("#enable-summarization");
+
+    // Both should be unchecked initially
+    await expect(dynamicToolsCheckbox).not.toBeChecked();
+    await expect(summarizationCheckbox).not.toBeChecked();
+
+    // Enable summarization only
+    await summarizationCheckbox.click();
+    await page.waitForTimeout(300);
+    await expect(summarizationCheckbox).toBeChecked();
+    await expect(dynamicToolsCheckbox).not.toBeChecked();
+
+    // Enable dynamic tools as well
+    await dynamicToolsCheckbox.click();
+    await page.waitForTimeout(300);
+    await expect(dynamicToolsCheckbox).toBeChecked();
+    await expect(summarizationCheckbox).toBeChecked();
+
+    // Disable summarization, keep dynamic tools
+    await summarizationCheckbox.click();
+    await page.waitForTimeout(300);
+    await expect(summarizationCheckbox).not.toBeChecked();
+    await expect(dynamicToolsCheckbox).toBeChecked();
+  });
 });

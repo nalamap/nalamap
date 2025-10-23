@@ -21,6 +21,9 @@ export default function AgentSettingsComponent() {
   const setMaxToolsPerQuery = useInitializedSettingsStore(
     (s) => s.setMaxToolsPerQuery,
   );
+  const setUseSummarization = useInitializedSettingsStore(
+    (s) => s.setUseSummarization,
+  );
 
   const toolStrategies = [
     { value: "all", label: "All Tools", description: "Provide all available tools (default behavior)" },
@@ -195,6 +198,42 @@ export default function AgentSettingsComponent() {
               </div>
             </>
           )}
+
+          {/* Enable Conversation Summarization */}
+          <div className="col-span-2">
+            <div className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                id="enable-summarization"
+                checked={modelSettings.use_summarization ?? false}
+                onChange={(e) => setUseSummarization(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-primary-300 dark:border-primary-700 text-tertiary-600 focus:ring-tertiary-500"
+              />
+              <div className="flex-1">
+                <label
+                  htmlFor="enable-summarization"
+                  className="text-sm font-medium text-primary-900 dark:text-primary-300 cursor-pointer"
+                >
+                  Enable Conversation Summarization
+                </label>
+                <p className="text-xs text-primary-700 dark:text-primary-400 mt-1">
+                  Automatically condense older messages in long conversations to reduce token usage.
+                  Recent messages are preserved while older messages are summarized by the LLM.
+                  Requires a session ID for tracking conversation state.
+                </p>
+                <div className="mt-2 border border-info-300 dark:border-info-700 rounded bg-info-50 dark:bg-info-900 p-2">
+                  <div className="flex items-start gap-2">
+                    <Info className="w-3 h-3 text-info-600 dark:text-info-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-info-900 dark:text-info-200">
+                      <span className="font-semibold">Benefits:</span> Enables infinite conversation length,
+                      reduces token costs by 50-80%, maintains context quality. Automatically triggers
+                      when conversation exceeds threshold.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

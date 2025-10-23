@@ -90,6 +90,15 @@ class ModelSettings(BaseModel):
             "None = unlimited. Useful for strict context control."
         ),
     )
+    use_summarization: bool = Field(
+        False,
+        description=(
+            "Enable automatic conversation summarization for long conversations. "
+            "When enabled, older messages are automatically summarized to reduce "
+            "token usage while maintaining context. Requires session_id to track "
+            "conversation state across requests."
+        ),
+    )
 
 
 class ToolConfig(BaseModel):

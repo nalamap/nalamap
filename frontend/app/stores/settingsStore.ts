@@ -69,6 +69,8 @@ export interface ModelSettings {
   tool_selection_strategy?: string; // Optional: Strategy for tool selection (default: "conservative")
   tool_similarity_threshold?: number; // Optional: Minimum similarity score 0.0-1.0 (default: 0.3)
   max_tools_per_query?: number | null; // Optional: Maximum tools to load per query (default: null = unlimited)
+  // Conversation Summarization (Week 3)
+  use_summarization?: boolean; // Optional: Enable automatic conversation summarization (default: false)
 }
 
 export interface ColorScale {
@@ -148,6 +150,8 @@ export interface SettingsState extends SettingsSnapshot {
   setToolSelectionStrategy: (strategy: string) => void;
   setToolSimilarityThreshold: (threshold: number) => void;
   setMaxToolsPerQuery: (max: number | null) => void;
+  // Conversation Summarization (Week 3)
+  setUseSummarization: (enabled: boolean) => void;
 
   // Tool config actions
   addToolConfig: (name: string) => void;
@@ -428,6 +432,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setMaxToolsPerQuery: (max: number | null) =>
     set((state) => ({
       model_settings: { ...state.model_settings, max_tools_per_query: max },
+    })),
+
+  // Conversation Summarization (Week 3)
+  setUseSummarization: (enabled: boolean) =>
+    set((state) => ({
+      model_settings: { ...state.model_settings, use_summarization: enabled },
     })),
 
   // tools

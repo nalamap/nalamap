@@ -283,11 +283,16 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
         # Get enable_parallel_tools from model settings
         enable_parallel_tools = getattr(options.model_settings, "enable_parallel_tools", False)
 
+        # Get use_summarization from model settings (default: False)
+        use_summarization = getattr(options.model_settings, "use_summarization", False)
+
         single_agent = await create_geo_agent(
             model_settings=options.model_settings,
             selected_tools=options.tools,
             enable_parallel_tools=enable_parallel_tools,
             query=request.query,  # Pass query for dynamic tool selection
+            use_summarization=use_summarization,
+            session_id=options.session_id,
         )
 
         # Create performance callback handler
@@ -503,11 +508,17 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest):
 
             # Create agent
             enable_parallel_tools = getattr(options.model_settings, "enable_parallel_tools", False)
+
+            # Get use_summarization from model settings (default: False)
+            use_summarization = getattr(options.model_settings, "use_summarization", False)
+
             single_agent = await create_geo_agent(
                 model_settings=options.model_settings,
                 selected_tools=options.tools,
                 enable_parallel_tools=enable_parallel_tools,
                 query=request.query,  # Pass query for dynamic tool selection
+                use_summarization=use_summarization,
+                session_id=options.session_id,
             )
 
             # Create performance callback handler

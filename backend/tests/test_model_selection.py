@@ -164,3 +164,150 @@ class TestLLMConfigModelParameter:
 
         with pytest.raises(ValueError, match="Unsupported LLM provider"):
             get_llm_for_provider("invalid_provider")
+
+
+class TestConversationSummarization:
+    """Integration tests for conversation summarization feature."""
+
+    @pytest.mark.asyncio
+    @patch("services.single_agent.create_react_agent")
+    async def test_create_agent_with_summarization_enabled(self, mock_create_react):
+        """Test creating agent with conversation summarization enabled."""
+        from unittest.mock import MagicMock
+
+        mock_agent = MagicMock()
+        mock_create_react.return_value = mock_agent
+
+        model_settings = ModelSettings(
+            model_provider="openai",
+            model_name="gpt-4",
+            max_tokens=4000,
+            use_summarization=True,  # Set during initialization
+        )
+
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-key"}):
+            agent = await create_geo_agent(
+                model_settings=model_settings,
+                use_summarization=True,
+                session_id="test-session-123",
+            )
+
+        assert agent is not None
+        # Verify conversation manager was created for this session
+        from services.single_agent import conversation_managers
+
+        assert "test-session-123" in conversation_managers
+        assert conversation_managers["test-session-123"]["manager"] is not None
+
+    @pytest.mark.asyncio
+    @patch("services.single_agent.create_react_agent")
+    async def test_conversation_manager_session_reuse(self, mock_create_react):
+        """Test that conversation manager is reused for same session."""
+        from services.single_agent import conversation_managers
+
+        mock_agent = MagicMock()
+        mock_create_react.return_value = mock_agent
+
+        session_id = "test-session-reuse"
+
+        # Clear any existing session
+        if session_id in conversation_managers:
+            del conversation_managers[session_id]
+
+        model_settings = ModelSettings(model_provider="openai", model_name="gpt-4", max_tokens=4000)
+
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-key"}):
+            # First call
+            await create_geo_agent(
+                model_settings=model_settings,
+                use_summarization=True,
+                session_id=session_id,
+            )
+
+            # Get reference to first manager
+            first_manager = conversation_managers[session_id]["manager"]
+
+            # Second call with same session_id
+            await create_geo_agent(
+                model_settings=model_settings,
+                use_summarization=True,
+                session_id=session_id,
+            )
+
+            # Should be same manager instance
+            second_manager = conversation_managers[session_id]["manager"]
+            assert first_manager is second_manager
+
+    @pytest.mark.asyncio
+    @patch("services.single_agent.create_react_agent")
+    async def test_no_summarization_without_session_id(self, mock_create_react):
+        """Test that summarization is disabled if no session_id provided."""
+        mock_agent = MagicMock()
+        mock_create_react.return_value = mock_agent
+
+        model_settings = ModelSettings(model_provider="openai", model_name="gpt-4", max_tokens=4000)
+
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-key"}):
+            agent = await create_geo_agent(
+                model_settings=model_settings,
+                use_summarization=True,
+                session_id=None,  # No session ID
+            )
+
+        assert agent is not None
+        # Should still create agent, just without summarization
+
+    @pytest.mark.asyncio
+    @patch("services.single_agent.create_react_agent")
+    async def test_session_cleanup_on_ttl(self, mock_create_react):
+        """Test that expired sessions are cleaned up."""
+        import time
+        from services.single_agent import SESSION_TTL, conversation_managers
+
+        mock_agent = MagicMock()
+        mock_create_react.return_value = mock_agent
+
+        session_id = "test-session-cleanup"
+
+        # Clear any existing session
+        if session_id in conversation_managers:
+            del conversation_managers[session_id]
+
+        model_settings = ModelSettings(model_provider="openai", model_name="gpt-4", max_tokens=4000)
+
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-key"}):
+            # Create session
+            await create_geo_agent(
+                model_settings=model_settings,
+                use_summarization=True,
+                session_id=session_id,
+            )
+
+            assert session_id in conversation_managers
+
+            # Manually set last_access to expired time
+            conversation_managers[session_id]["last_access"] = time.time() - SESSION_TTL - 1
+
+            # Create another session, which should trigger cleanup
+            await create_geo_agent(
+                model_settings=model_settings,
+                use_summarization=True,
+                session_id="test-session-new",
+            )
+
+            # Old session should be cleaned up
+            assert session_id not in conversation_managers
+            assert "test-session-new" in conversation_managers
+
+    def test_conversation_manager_parameters(self):
+        """Test conversation manager creation with correct parameters."""
+        from services.single_agent import get_conversation_manager
+
+        session_id = "test-params"
+        message_window_size = 15
+
+        manager = get_conversation_manager(session_id, message_window_size)
+
+        assert manager.max_messages == message_window_size * 2  # 30
+        assert manager.summarize_threshold == message_window_size + 5  # 20
+        assert manager.summary_window == message_window_size  # 15
