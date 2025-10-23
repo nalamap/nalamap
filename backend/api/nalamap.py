@@ -534,9 +534,40 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest):
                     tool_output = event_data.get("output", {})
                     # Make tool_output JSON serializable
                     serializable_output = make_json_serializable(tool_output)
-                    output_str = str(serializable_output)[:200]
+
+                    # Check if output is a state update (dict with messages, etc.)
+                    # vs actual tool result (string, dict with data, etc.)
+                    is_state_update = isinstance(serializable_output, dict) and (
+                        "messages" in serializable_output
+                        or "geodata_results" in serializable_output
+                        or "geodata_layers" in serializable_output
+                    )
+
+                    # For state updates, only send summary
+                    # For actual results, send full output
+                    if is_state_update:
+                        msg_count = len(serializable_output.get("messages", []))
+                        output_preview = f"State update with {msg_count} messages"
+                        output_data = {
+                            "tool": tool_name,
+                            "output_preview": output_preview,
+                            "is_state_update": True,
+                            "output_type": "state"
+                        }
+                    else:
+                        # Send full result but also include a preview
+                        output_str = str(serializable_output)
+                        ellipsis = "..." if len(output_str) > 200 else ""
+                        output_data = {
+                            "tool": tool_name,
+                            "output": serializable_output,
+                            "output_preview": output_str[:200] + ellipsis,
+                            "is_state_update": False,
+                            "output_type": type(serializable_output).__name__
+                        }
+
                     yield "event: tool_end\n"
-                    data = json.dumps({"tool": tool_name, "output": output_str})
+                    data = json.dumps(output_data)
                     yield f"data: {data}\n\n"
 
                 # Handle LLM streaming tokens

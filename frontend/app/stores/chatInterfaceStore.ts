@@ -8,6 +8,10 @@ export type ToolUpdate = {
   timestamp: number;
   error?: string;
   input?: any; // Tool input parameters
+  output?: any; // Tool output result (full data)
+  output_preview?: string; // Preview string (truncated)
+  is_state_update?: boolean; // True if output is agent state update
+  output_type?: string; // Type of output (for display purposes)
 };
 
 export type ChatInterfaceState = {
@@ -50,6 +54,10 @@ export type ChatInterfaceState = {
     toolName: string,
     status: ToolUpdate["status"],
     error?: string,
+    output?: any,
+    output_preview?: string,
+    is_state_update?: boolean,
+    output_type?: string,
   ) => void;
   appendStreamingToken: (token: string) => void;
   setStreamingMessage: (message: string) => void;
@@ -106,11 +114,20 @@ export const useChatInterfaceStore = create<ChatInterfaceState>((set, get) => ({
       ],
     })),
 
-  updateToolStatus: (toolName, status, error) =>
+  updateToolStatus: (toolName, status, error, output, output_preview, is_state_update, output_type) =>
     set((state) => ({
       toolUpdates: state.toolUpdates.map((tool) =>
         tool.name === toolName
-          ? { ...tool, status, error, timestamp: Date.now() }
+          ? { 
+              ...tool, 
+              status, 
+              error, 
+              output, 
+              output_preview, 
+              is_state_update, 
+              output_type,
+              timestamp: Date.now() 
+            }
           : tool,
       ),
     })),

@@ -538,4 +538,245 @@ test.describe("Tool Progress UI", () => {
     const toolName = page.locator(".tool-progress-name");
     await expect(toolName).toContainText("Overpass Search Tool");
   });
+
+  test("should handle tool_end with full output data", async ({ page }) => {
+    // Mock tool execution with full output
+    await mockSSEStream(page, [
+      {
+        event: "tool_start",
+        data: { tool: "geocode_location", input: { query: "Berlin" } },
+      },
+      {
+        event: "tool_end",
+        data: {
+          tool: "geocode_location",
+          output: { lat: 52.52, lon: 13.405, name: "Berlin, Germany" },
+          output_preview: "{ lat: 52.52, lon: 13.405, name: Berlin, Germany }",
+          is_state_update: false,
+          output_type: "dict",
+        },
+      },
+      {
+        event: "result",
+        data: {
+          messages: [{ type: "ai", content: "Found Berlin" }],
+          geodata_results: [],
+          geodata_layers: [],
+          metrics: {},
+        },
+      },
+      {
+        event: "done",
+        data: { status: "complete" },
+      },
+    ]);
+    await page.goto("/map");
+
+    const input = page.getByPlaceholder("Ask about maps, search for data, or request analysis...");
+    await input.fill("Find Berlin");
+    await input.press("Enter");
+
+    // Wait for tool to complete
+    await page.waitForTimeout(2000);
+
+    // Verify tool executed (by checking final message appeared)
+    await expect(page.getByText("Found Berlin")).toBeVisible();
+  });
+
+  test("should handle tool_end with state update", async ({ page }) => {
+    // Mock tool execution that returns state update
+    await mockSSEStream(page, [
+      {
+        event: "tool_start",
+        data: { tool: "overpass_search", input: { query: "parks" } },
+      },
+      {
+        event: "tool_end",
+        data: {
+          tool: "overpass_search",
+          output_preview: "State update with 3 messages",
+          is_state_update: true,
+          output_type: "state",
+        },
+      },
+      {
+        event: "result",
+        data: {
+          messages: [{ type: "ai", content: "Found parks" }],
+          geodata_results: [],
+          geodata_layers: [],
+          metrics: {},
+        },
+      },
+      {
+        event: "done",
+        data: { status: "complete" },
+      },
+    ]);
+    await page.goto("/map");
+
+    const input = page.getByPlaceholder("Ask about maps, search for data, or request analysis...");
+    await input.fill("Show parks");
+    await input.press("Enter");
+
+    // Wait for completion
+    await page.waitForTimeout(2000);
+
+    // Verify tool executed and result displayed
+    await expect(page.getByText("Found parks")).toBeVisible();
+  });
+
+  test("should handle tool_end with large output", async ({ page }) => {
+    // Mock tool with large output that gets truncated in preview
+    const largeOutput = {
+      features: Array.from({ length: 100 }, (_, i) => ({
+        id: i,
+        name: `Feature ${i}`,
+        geometry: { type: "Point", coordinates: [13.4 + i * 0.01, 52.5 + i * 0.01] },
+      })),
+    };
+    
+    await mockSSEStream(page, [
+      {
+        event: "tool_start",
+        data: { tool: "overpass_search", input: {} },
+      },
+      {
+        event: "tool_end",
+        data: {
+          tool: "overpass_search",
+          output: largeOutput,
+          output_preview: JSON.stringify(largeOutput).substring(0, 200) + "...",
+          is_state_update: false,
+          output_type: "dict",
+        },
+      },
+      {
+        event: "result",
+        data: {
+          messages: [{ type: "ai", content: "Found 100 features" }],
+          geodata_results: [],
+          geodata_layers: [],
+          metrics: {},
+        },
+      },
+      {
+        event: "done",
+        data: { status: "complete" },
+      },
+    ]);
+    await page.goto("/map");
+
+    const input = page.getByPlaceholder("Ask about maps, search for data, or request analysis...");
+    await input.fill("Find features");
+    await input.press("Enter");
+
+    // Wait for completion
+    await page.waitForTimeout(2000);
+
+    // Verify result displayed
+    await expect(page.getByText("Found 100 features")).toBeVisible();
+  });
+
+  test("should handle tool_end with empty output", async ({ page }) => {
+    // Mock tool with empty/null output
+    await mockSSEStream(page, [
+      {
+        event: "tool_start",
+        data: { tool: "geocode_location", input: { query: "NonexistentPlace" } },
+      },
+      {
+        event: "tool_end",
+        data: {
+          tool: "geocode_location",
+          output: null,
+          output_preview: "null",
+          is_state_update: false,
+          output_type: "NoneType",
+        },
+      },
+      {
+        event: "result",
+        data: {
+          messages: [{ type: "ai", content: "Location not found" }],
+          geodata_results: [],
+          geodata_layers: [],
+          metrics: {},
+        },
+      },
+      {
+        event: "done",
+        data: { status: "complete" },
+      },
+    ]);
+    await page.goto("/map");
+
+    const input = page.getByPlaceholder("Ask about maps, search for data, or request analysis...");
+    await input.fill("Find NonexistentPlace");
+    await input.press("Enter");
+
+    // Wait for completion
+    await page.waitForTimeout(2000);
+
+    // Verify error message displayed
+    await expect(page.getByText("Location not found")).toBeVisible();
+  });
+
+  test("should handle multiple tools with different output types", async ({ page }) => {
+    // Mock multiple tools with various output formats
+    await mockSSEStream(page, [
+      {
+        event: "tool_start",
+        data: { tool: "geocode_location", input: { query: "Berlin" } },
+      },
+      {
+        event: "tool_end",
+        data: {
+          tool: "geocode_location",
+          output: { lat: 52.52, lon: 13.405 },
+          output_preview: "{ lat: 52.52, lon: 13.405 }",
+          is_state_update: false,
+          output_type: "dict",
+        },
+      },
+      {
+        event: "tool_start",
+        data: { tool: "overpass_search", input: { query: "parks" } },
+      },
+      {
+        event: "tool_end",
+        data: {
+          tool: "overpass_search",
+          output_preview: "State update with 5 messages",
+          is_state_update: true,
+          output_type: "state",
+        },
+      },
+      {
+        event: "result",
+        data: {
+          messages: [{ type: "ai", content: "Found parks in Berlin" }],
+          geodata_results: [],
+          geodata_layers: [],
+          metrics: {},
+        },
+      },
+      {
+        event: "done",
+        data: { status: "complete" },
+      },
+    ]);
+    await page.goto("/map");
+
+    const input = page.getByPlaceholder("Ask about maps, search for data, or request analysis...");
+    await input.fill("Find parks in Berlin");
+    await input.press("Enter");
+
+    // Wait for all tools to complete
+    await page.waitForTimeout(3000);
+
+    // Verify final result displayed
+    await expect(page.getByText("Found parks in Berlin")).toBeVisible();
+  });
 });
+

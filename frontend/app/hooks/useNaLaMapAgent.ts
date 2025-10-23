@@ -364,8 +364,21 @@ export function useNaLaMapAgent(apiUrl: string) {
                 break;
 
               case "tool_end":
-                Logger.log(`Tool completed: ${data.tool}`);
-                chatInterfaceStore.updateToolStatus(data.tool, "complete");
+                Logger.log(`Tool completed: ${data.tool}`, {
+                  output: data.output,
+                  output_preview: data.output_preview,
+                  is_state_update: data.is_state_update,
+                  output_type: data.output_type,
+                });
+                chatInterfaceStore.updateToolStatus(
+                  data.tool, 
+                  "complete",
+                  undefined, // no error
+                  data.output, // full output
+                  data.output_preview, // preview
+                  data.is_state_update, // state update flag
+                  data.output_type, // output type
+                );
                 break;
 
               case "llm_token":
