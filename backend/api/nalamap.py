@@ -552,7 +552,7 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest):
                             "tool": tool_name,
                             "output_preview": output_preview,
                             "is_state_update": True,
-                            "output_type": "state"
+                            "output_type": "state",
                         }
                     else:
                         # Send full result but also include a preview
@@ -563,7 +563,7 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest):
                             "output": serializable_output,
                             "output_preview": output_str[:200] + ellipsis,
                             "is_state_update": False,
-                            "output_type": type(serializable_output).__name__
+                            "output_type": type(serializable_output).__name__,
                         }
 
                     yield "event: tool_end\n"

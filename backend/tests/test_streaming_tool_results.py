@@ -43,9 +43,7 @@ def get_test_payload(query: str, tools: list | None = None):
 @pytest.mark.integration
 async def test_tool_end_includes_full_output(async_client: AsyncClient):
     """Test that tool_end events include full output data."""
-    payload = get_test_payload(
-        "Find rivers near Berlin, Germany", tools=["overpass_search"]
-    )
+    payload = get_test_payload("Find rivers near Berlin, Germany", tools=["overpass_search"])
 
     tool_end_events = []
 
@@ -82,9 +80,7 @@ async def test_tool_end_includes_full_output(async_client: AsyncClient):
 async def test_tool_end_state_update_detection(async_client: AsyncClient):
     """Test that state updates are properly detected and flagged."""
     # Query that likely triggers tool usage
-    payload = get_test_payload(
-        "Show me restaurants in Paris", tools=["overpass_search"]
-    )
+    payload = get_test_payload("Show me restaurants in Paris", tools=["overpass_search"])
 
     tool_end_events = []
 
@@ -104,9 +100,7 @@ async def test_tool_end_state_update_detection(async_client: AsyncClient):
     # Verify structure for all tool_end events
     for event in tool_end_events:
         # All events should have is_state_update flag
-        assert isinstance(
-            event.get("is_state_update"), bool
-        ), "is_state_update should be boolean"
+        assert isinstance(event.get("is_state_update"), bool), "is_state_update should be boolean"
 
         # State updates should have different structure than regular outputs
         if event.get("is_state_update"):
@@ -122,9 +116,7 @@ async def test_tool_end_state_update_detection(async_client: AsyncClient):
 async def test_tool_end_preview_truncation(async_client: AsyncClient):
     """Test that large outputs are properly truncated in preview."""
     # Use a query that might generate significant output
-    payload = get_test_payload(
-        "Tell me about geographic information systems", tools=[]
-    )
+    payload = get_test_payload("Tell me about geographic information systems", tools=[])
 
     tool_end_events = []
 
@@ -220,9 +212,7 @@ async def test_tool_end_output_types(async_client: AsyncClient):
 async def test_tool_end_json_serialization(async_client: AsyncClient):
     """Test that all tool outputs are properly JSON serializable."""
     # Use a query that might trigger tool usage
-    payload = get_test_payload(
-        "Find the location of Eiffel Tower", tools=["geocode_location"]
-    )
+    payload = get_test_payload("Find the location of Eiffel Tower", tools=["geocode_location"])
 
     tool_end_events = []
 
