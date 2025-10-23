@@ -283,10 +283,11 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
         # Get enable_parallel_tools from model settings
         enable_parallel_tools = getattr(options.model_settings, "enable_parallel_tools", False)
 
-        single_agent = create_geo_agent(
+        single_agent = await create_geo_agent(
             model_settings=options.model_settings,
             selected_tools=options.tools,
             enable_parallel_tools=enable_parallel_tools,
+            query=request.query,  # Pass query for dynamic tool selection
         )
 
         # Create performance callback handler
@@ -319,6 +320,13 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
         # Collect metrics from callback handler
         callback_metrics = perf_callback.get_metrics()
         metrics.metrics.update(callback_metrics)
+
+        # Collect tool selector metrics (Week 3 - Performance Monitoring)
+        from services.tool_selector import get_last_selector_metrics
+
+        tool_selector_metrics = get_last_selector_metrics()
+        if tool_selector_metrics:
+            metrics.metrics["tool_selector"] = tool_selector_metrics
 
         # Extract token usage from messages if not captured by callback
         if callback_metrics["token_usage"]["total"] == 0:
@@ -495,10 +503,11 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest):
 
             # Create agent
             enable_parallel_tools = getattr(options.model_settings, "enable_parallel_tools", False)
-            single_agent = create_geo_agent(
+            single_agent = await create_geo_agent(
                 model_settings=options.model_settings,
                 selected_tools=options.tools,
                 enable_parallel_tools=enable_parallel_tools,
+                query=request.query,  # Pass query for dynamic tool selection
             )
 
             # Create performance callback handler
