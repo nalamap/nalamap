@@ -25,8 +25,8 @@ export default function AgentInterface() {
   
   // Use hook for functions only
   const {
-    queryNaLaMapAgent,
     queryNaLaMapAgentStream,
+    cancelRequest,
   } = useNaLaMapAgent(API_BASE_URL);
 
   // Subscribe to store values directly for reactivity
@@ -69,6 +69,11 @@ export default function AgentInterface() {
     
     // Use streaming version for better UX
     await queryNaLaMapAgentStream("chat");
+  };
+
+  const handleCancel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await cancelRequest();
   };
 
   const handleLayerSelect = (layer: GeoDataObject) => {
@@ -146,6 +151,8 @@ export default function AgentInterface() {
           value={input}
           onChange={setInput}
           onSubmit={handleSubmit}
+          onCancel={handleCancel}
+          isStreaming={isStreaming}
           placeholder="Ask about maps, search for data, or request analysis..."
           disabled={loading}
         />

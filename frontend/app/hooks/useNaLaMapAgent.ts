@@ -84,6 +84,10 @@ function normalizeSettings(raw: Record<string, any>): Record<string, any> {
 export function useNaLaMapAgent(apiUrl: string) {
   const layerStore = useLayerStore();
   const chatInterfaceStore = useChatInterfaceStore();
+  
+  // AbortController for cancelling ongoing streaming requests
+  let abortController: AbortController | null = null;
+  let currentSessionId: string | null = null;
 
   const appendHumanMessage = (query: string) => {
     /* // Don't normalize for now to keep all arguments
@@ -278,6 +282,11 @@ export function useNaLaMapAgent(apiUrl: string) {
     await useSettingsStore.getState().initializeIfNeeded();
     const rawSettings = useSettingsStore.getState().getSettings();
     const settingsObj = normalizeSettings(rawSettings);
+    
+    // Create new AbortController for this request
+    abortController = new AbortController();
+    // Generate session_id for this request (same format as backend)
+    currentSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     try {
       const selectedLayers = useLayerStore
@@ -292,6 +301,11 @@ export function useNaLaMapAgent(apiUrl: string) {
         geodata_layers: layerStore.layers,
         options: settingsObj,
       };
+      
+      // Add session_id to options for cancellation tracking
+      if (currentSessionId && payload.options) {
+        (payload.options as any).session_id = currentSessionId;
+      }
 
       chatInterfaceStore.setInput("");
       Logger.log("Streaming payload:", payload);
@@ -304,6 +318,7 @@ export function useNaLaMapAgent(apiUrl: string) {
         },
         credentials: "include",
         body: JSON.stringify(payload),
+        signal: abortController.signal, // Add abort signal for cancellation
       });
 
       if (!response.ok) {
@@ -440,6 +455,11 @@ export function useNaLaMapAgent(apiUrl: string) {
               case "done":
                 Logger.log("Stream done:", data);
                 break;
+              
+              case "cancelled":
+                Logger.log("Stream cancelled:", data);
+                chatInterfaceStore.setError("Request was cancelled");
+                break;
 
               default:
                 Logger.warn("Unknown event type:", eventType);
@@ -450,8 +470,14 @@ export function useNaLaMapAgent(apiUrl: string) {
         }
       }
     } catch (e: any) {
-      Logger.error("Streaming error:", e);
-      chatInterfaceStore.setError(e.message || "Something went wrong");
+      // Handle abort errors gracefully
+      if (e.name === "AbortError") {
+        Logger.log("Request was aborted by user");
+        chatInterfaceStore.setError("Request was cancelled");
+      } else {
+        Logger.error("Streaming error:", e);
+        chatInterfaceStore.setError(e.message || "Something went wrong");
+      }
     } finally {
       Logger.log("Stream finally block - setting loading and isStreaming to false");
       Logger.log("Messages before finally:", chatInterfaceStore.getMessages());
@@ -463,12 +489,55 @@ export function useNaLaMapAgent(apiUrl: string) {
     }
   }
 
+  /**
+   * Cancel the currently running streaming request
+   */
+  async function cancelRequest() {
+    if (!currentSessionId) {
+      Logger.warn("No active session to cancel");
+      return;
+    }
+    
+    Logger.log(`Cancelling request for session: ${currentSessionId}`);
+    
+    // Abort the fetch request
+    if (abortController) {
+      abortController.abort();
+    }
+    
+    // Notify the backend to stop processing
+    try {
+      await fetch(`${apiUrl}/chat/cancel?session_id=${currentSessionId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      });
+      Logger.log("Backend notified of cancellation");
+    } catch (error) {
+      Logger.error("Failed to notify backend of cancellation:", error);
+      // Continue anyway - the abort should have stopped the stream
+    }
+    
+    // Clear state
+    chatInterfaceStore.setLoading(false);
+    chatInterfaceStore.setIsStreaming(false);
+    chatInterfaceStore.clearStreamingMessage();
+    chatInterfaceStore.clearToolUpdates();
+    
+    // Reset references
+    abortController = null;
+    currentSessionId = null;
+  }
+
   return {
     // Only return functions, not state values
     // State should be accessed directly via useChatInterfaceStore selectors
     // for proper reactivity in components
     queryNaLaMapAgent,
-    queryNaLaMapAgentStream, // Export new streaming function
+    queryNaLaMapAgentStream, // Export streaming function
+    cancelRequest, // Export cancel function
     setInput: chatInterfaceStore.setInput,
   };
 }

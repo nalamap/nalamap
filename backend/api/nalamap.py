@@ -1,6 +1,7 @@
 import json
 import logging
 from typing import Any, Dict, List, Optional
+import asyncio
 
 from fastapi import APIRouter, HTTPException, Query
 from langchain_core.messages import (
@@ -23,6 +24,10 @@ from models.states import DataState, GeoDataAgentState
 # import openai
 
 logger = logging.getLogger(__name__)
+
+# Global dict to track cancellation requests by session_id
+_cancellation_flags: Dict[str, bool] = {}
+_cancellation_lock = asyncio.Lock()
 
 
 def make_json_serializable(obj: Any) -> Any:
@@ -464,6 +469,7 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest):
 
     async def event_generator():
         """Generate SSE events from agent execution."""
+        session_id = "unknown"  # Initialize at function scope
         try:
             # Initialize performance tracking
             metrics = PerformanceMetrics()
@@ -478,6 +484,9 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest):
             # Parse options
             options_orig: dict = request.options
             options: SettingsSnapshot = SettingsSnapshot.model_validate(options_orig, strict=False)
+
+            # Get session_id early for cancellation tracking
+            session_id = getattr(options, "session_id", None) or "unknown"
 
             # Get message window size
             message_window_size = getattr(options.model_settings, "message_window_size", None)
@@ -531,9 +540,27 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest):
             async for event in single_agent.astream_events(
                 state, version="v2", config={"callbacks": [perf_callback]}
             ):
+                # Check for cancellation before processing each event
+                if await is_cancelled(session_id):
+                    logger.warning(
+                        f"🛑 Cancellation detected for session: {session_id} at event loop"
+                    )
+                    yield "event: cancelled\n"
+                    yield f"data: {json.dumps({'message': 'Request cancelled by user'})}\n\n"
+                    yield "event: done\n"
+                    yield f"data: {json.dumps({'status': 'cancelled'})}\n\n"
+                    return
+
                 event_type = event.get("event")
                 event_name = event.get("name", "")
                 event_data = event.get("data", {})
+
+                # Debug logging for cancellation checking
+                if event_type in ["on_tool_start", "on_tool_end", "on_chain_start"]:
+                    logger.info(
+                        f"Event: {event_type} | name: {event_name} | "
+                        f"session: {session_id} | cancelled: {await is_cancelled(session_id)}"
+                    )
 
                 # Debug logging for all events
                 if event_type in ["on_chain_start", "on_chain_end"]:
@@ -703,6 +730,10 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest):
             yield "event: done\n"
             yield f"data: {json.dumps({'status': 'error'})}\n\n"
 
+        finally:
+            # Always clear cancellation flag when stream ends
+            await clear_cancellation(session_id)
+
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
@@ -740,6 +771,36 @@ async def get_metrics(
         "data": stats,
         "storage_info": {"total_entries": storage.get_count()},
     }
+
+
+@router.post("/chat/cancel", tags=["nalamap"])
+async def cancel_chat_request(session_id: str):
+    """
+    Cancel an ongoing chat/streaming request for a specific session.
+
+    Args:
+        session_id: The session ID of the request to cancel
+
+    Returns:
+        Status message indicating cancellation was requested
+    """
+    async with _cancellation_lock:
+        _cancellation_flags[session_id] = True
+        logger.info(f"Cancellation requested for session: {session_id}")
+
+    return {"status": "cancellation_requested", "session_id": session_id}
+
+
+async def is_cancelled(session_id: str) -> bool:
+    """Check if cancellation has been requested for a session."""
+    async with _cancellation_lock:
+        return _cancellation_flags.get(session_id, False)
+
+
+async def clear_cancellation(session_id: str):
+    """Clear cancellation flag for a session after completion."""
+    async with _cancellation_lock:
+        _cancellation_flags.pop(session_id, None)
 
 
 @router.get("/metrics/recent", tags=["nalamap"])
