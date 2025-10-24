@@ -3,8 +3,13 @@ import { test, expect } from '@playwright/test';
 test.describe('Scale Control - User Experience Test', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('http://localhost:3000');
+    await page.waitForLoadState('networkidle');
+    
+    // Wait for map components to be visible
     await page.waitForSelector('.leaflet-container', { state: 'visible' });
     await page.waitForSelector('.leaflet-control-scale', { state: 'visible' });
+    
+    // Give map a moment to fully initialize
     await page.waitForTimeout(1000);
   });
 
@@ -109,8 +114,11 @@ test.describe('Scale Control - User Experience Test', () => {
     // Zoom in to level 7
     for (let i = 0; i < 5; i++) {
       await page.click('a.leaflet-control-zoom-in');
-      await page.waitForTimeout(200);
+      await page.waitForTimeout(300);
     }
+
+    // Wait for scale to stabilize after all the zoom actions
+    await page.waitForTimeout(1000);
 
     const scaleAtZoom7 = await page.locator('.leaflet-control-scale-line').first().textContent();
     console.log(`Scale at zoom 7: ${scaleAtZoom7}`);
