@@ -287,4 +287,221 @@ test.describe("MCP Server Settings", () => {
     // Should be enabled now
     await expect(addButton).toBeEnabled();
   });
+
+  test("can add API key to custom MCP server", async ({ page }) => {
+    await page.goto("/settings");
+    await page.waitForLoadState("networkidle");
+
+    // Expand MCP Servers section
+    const mcpButton = page.locator("button:has-text('MCP Servers')");
+    await mcpButton.scrollIntoViewIfNeeded();
+    await mcpButton.click();
+    await page.waitForTimeout(500);
+
+    // Fill in custom MCP server form with API key
+    const urlInput = page.locator('input[placeholder*="MCP Server URL"]');
+    await urlInput.scrollIntoViewIfNeeded();
+    await urlInput.fill("http://localhost:9000/mcp");
+
+    const nameInput = page.locator('input[placeholder*="Name (optional)"]').last();
+    await nameInput.fill("Authenticated Server");
+
+    const apiKeyInput = page.locator('input[placeholder*="API Key"]');
+    await apiKeyInput.fill("test-api-key-12345");
+
+    // Click Add button
+    const addButton = page.locator("button:has-text('Add MCP Server')");
+    await addButton.click();
+
+    // Verify server appears with API key indicator
+    await expect(page.locator("text=Authenticated Server")).toBeVisible();
+    await expect(page.locator("text=🔑 API Key configured")).toBeVisible();
+  });
+
+  test("can add custom headers to MCP server", async ({ page }) => {
+    await page.goto("/settings");
+    await page.waitForLoadState("networkidle");
+
+    // Expand MCP Servers section
+    const mcpButton = page.locator("button:has-text('MCP Servers')");
+    await mcpButton.scrollIntoViewIfNeeded();
+    await mcpButton.click();
+    await page.waitForTimeout(500);
+
+    // Fill in URL
+    const urlInput = page.locator('input[placeholder*="MCP Server URL"]');
+    await urlInput.scrollIntoViewIfNeeded();
+    await urlInput.fill("http://localhost:9000/mcp");
+
+    const nameInput = page.locator('input[placeholder*="Name (optional)"]').last();
+    await nameInput.fill("Server with Headers");
+
+    // Add first custom header
+    const headerKeyInput = page.locator('input[placeholder*="Header name"]');
+    const headerValueInput = page.locator('input[placeholder*="Header value"]');
+    const addHeaderButton = page.locator('button[aria-label="Add header"]');
+
+    await headerKeyInput.fill("X-API-Key");
+    await headerValueInput.fill("my-api-key");
+    await addHeaderButton.click();
+
+    // Verify header appears in the list
+    await expect(page.locator("text=X-API-Key: my-api-key")).toBeVisible();
+
+    // Add second header
+    await headerKeyInput.fill("X-Custom-Header");
+    await headerValueInput.fill("custom-value");
+    await addHeaderButton.click();
+
+    // Verify second header appears
+    await expect(page.locator("text=X-Custom-Header: custom-value")).toBeVisible();
+
+    // Click Add MCP Server button
+    const addButton = page.locator("button:has-text('Add MCP Server')");
+    await addButton.click();
+
+    // Verify server appears with headers indicator
+    await expect(page.locator("text=Server with Headers")).toBeVisible();
+    await expect(page.locator("text=📋 2 custom header(s)")).toBeVisible();
+  });
+
+  test("can remove custom headers before adding server", async ({ page }) => {
+    await page.goto("/settings");
+    await page.waitForLoadState("networkidle");
+
+    // Expand MCP Servers section
+    const mcpButton = page.locator("button:has-text('MCP Servers')");
+    await mcpButton.scrollIntoViewIfNeeded();
+    await mcpButton.click();
+    await page.waitForTimeout(500);
+
+    // Fill in URL
+    const urlInput = page.locator('input[placeholder*="MCP Server URL"]');
+    await urlInput.scrollIntoViewIfNeeded();
+    await urlInput.fill("http://localhost:9000/mcp");
+
+    // Add a custom header
+    const headerKeyInput = page.locator('input[placeholder*="Header name"]');
+    const headerValueInput = page.locator('input[placeholder*="Header value"]');
+    const addHeaderButton = page.locator('button[aria-label="Add header"]');
+
+    await headerKeyInput.fill("X-Test-Header");
+    await headerValueInput.fill("test-value");
+    await addHeaderButton.click();
+
+    // Verify header appears
+    await expect(page.locator("text=X-Test-Header: test-value")).toBeVisible();
+
+    // Remove the header
+    const removeHeaderButton = page.locator('button[aria-label="Remove header X-Test-Header"]');
+    await removeHeaderButton.click();
+
+    // Verify header is removed
+    await expect(page.locator("text=X-Test-Header: test-value")).not.toBeVisible();
+  });
+
+  test("Add Header button is disabled when fields are empty", async ({ page }) => {
+    await page.goto("/settings");
+    await page.waitForLoadState("networkidle");
+
+    // Expand MCP Servers section
+    const mcpButton = page.locator("button:has-text('MCP Servers')");
+    await mcpButton.scrollIntoViewIfNeeded();
+    await mcpButton.click();
+    await page.waitForTimeout(500);
+
+    const addHeaderButton = page.locator('button[aria-label="Add header"]');
+    
+    // Should be disabled when both fields are empty
+    await expect(addHeaderButton).toBeDisabled();
+
+    // Fill only key
+    const headerKeyInput = page.locator('input[placeholder*="Header name"]');
+    await headerKeyInput.fill("X-Test");
+    
+    // Should still be disabled with only key
+    await expect(addHeaderButton).toBeDisabled();
+
+    // Clear key and fill only value
+    await headerKeyInput.clear();
+    const headerValueInput = page.locator('input[placeholder*="Header value"]');
+    await headerValueInput.fill("test-value");
+    
+    // Should still be disabled with only value
+    await expect(addHeaderButton).toBeDisabled();
+
+    // Fill both
+    await headerKeyInput.fill("X-Test");
+    
+    // Should be enabled now
+    await expect(addHeaderButton).toBeEnabled();
+  });
+
+  test("form clears after adding MCP server with authentication", async ({ page }) => {
+    await page.goto("/settings");
+    await page.waitForLoadState("networkidle");
+
+    // Expand MCP Servers section
+    const mcpButton = page.locator("button:has-text('MCP Servers')");
+    await mcpButton.scrollIntoViewIfNeeded();
+    await mcpButton.click();
+    await page.waitForTimeout(500);
+
+    // Fill in all fields
+    const urlInput = page.locator('input[placeholder*="MCP Server URL"]');
+    await urlInput.fill("http://localhost:9000/mcp");
+
+    const nameInput = page.locator('input[placeholder*="Name (optional)"]').last();
+    await nameInput.fill("Test Server");
+
+    const descInput = page.locator('textarea[placeholder*="Description"]').last();
+    await descInput.fill("Test description");
+
+    const apiKeyInput = page.locator('input[placeholder*="API Key"]');
+    await apiKeyInput.fill("test-key");
+
+    // Add a header
+    const headerKeyInput = page.locator('input[placeholder*="Header name"]');
+    const headerValueInput = page.locator('input[placeholder*="Header value"]');
+    const addHeaderButton = page.locator('button[aria-label="Add header"]');
+    
+    await headerKeyInput.fill("X-Test");
+    await headerValueInput.fill("value");
+    await addHeaderButton.click();
+
+    // Add the server
+    const addButton = page.locator("button:has-text('Add MCP Server')");
+    await addButton.click();
+
+    // Wait a bit for state to update
+    await page.waitForTimeout(300);
+
+    // Verify all form fields are cleared
+    await expect(urlInput).toHaveValue("");
+    await expect(nameInput).toHaveValue("");
+    await expect(descInput).toHaveValue("");
+    await expect(apiKeyInput).toHaveValue("");
+    await expect(headerKeyInput).toHaveValue("");
+    await expect(headerValueInput).toHaveValue("");
+    
+    // Verify header list is empty
+    await expect(page.locator("text=X-Test: value")).not.toBeVisible();
+  });
+
+  test("displays custom headers section with helpful text", async ({ page }) => {
+    await page.goto("/settings");
+    await page.waitForLoadState("networkidle");
+
+    // Expand MCP Servers section
+    const mcpButton = page.locator("button:has-text('MCP Servers')");
+    await mcpButton.scrollIntoViewIfNeeded();
+    await mcpButton.click();
+    await page.waitForTimeout(500);
+
+    // Verify custom headers section exists
+    await expect(page.locator("text=Custom Headers (optional)")).toBeVisible();
+    await expect(
+      page.locator("text=Add custom HTTP headers for advanced authentication")
+    ).toBeVisible();
+  });
 });

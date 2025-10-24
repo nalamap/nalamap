@@ -88,15 +88,16 @@ def test_mcp_server_serialization():
 
 @pytest.mark.asyncio
 async def test_create_geo_agent_with_mcp_servers(monkeypatch):
-    """Test that create_geo_agent accepts and processes MCP server URLs."""
+    """Test that create_geo_agent accepts and processes MCP servers."""
     from services.single_agent import create_geo_agent
+    from models.settings_model import MCPServer
 
     # Mock the MCP integration to avoid actual server connections
     mcp_tools_loaded = []
 
-    async def mock_load_mcp_tools(server_url):
+    async def mock_load_mcp_tools(server_url, api_key=None, headers=None):
         """Mock MCP tool loading."""
-        mcp_tools_loaded.append(server_url)
+        mcp_tools_loaded.append((server_url, api_key, headers))
         # Return empty list (no actual tools)
         return []
 
@@ -104,10 +105,19 @@ async def test_create_geo_agent_with_mcp_servers(monkeypatch):
     monkeypatch.setattr("services.mcp.integration.load_mcp_tools", mock_load_mcp_tools)
 
     # Create agent with MCP servers
-    mcp_server_urls = ["http://localhost:8001/mcp", "http://localhost:8002/mcp"]
+    mcp_servers = [
+        MCPServer(url="http://localhost:8001/mcp", enabled=True),
+        MCPServer(
+            url="http://localhost:8002/mcp",
+            enabled=True,
+            api_key="test-key",
+        ),
+    ]
 
     agent = await create_geo_agent(
-        selected_tools=[], session_id="test-session", mcp_server_urls=mcp_server_urls
+        selected_tools=[],
+        session_id="test-session",
+        mcp_servers=mcp_servers,
     )
 
     # Verify agent was created
@@ -115,8 +125,10 @@ async def test_create_geo_agent_with_mcp_servers(monkeypatch):
 
     # Verify MCP tools were attempted to be loaded
     assert len(mcp_tools_loaded) == 2
-    assert "http://localhost:8001/mcp" in mcp_tools_loaded
-    assert "http://localhost:8002/mcp" in mcp_tools_loaded
+    assert mcp_tools_loaded[0][0] == "http://localhost:8001/mcp"
+    assert mcp_tools_loaded[0][1] is None  # No API key
+    assert mcp_tools_loaded[1][0] == "http://localhost:8002/mcp"
+    assert mcp_tools_loaded[1][1] == "test-key"  # Has API key
 
 
 @pytest.mark.asyncio
@@ -126,7 +138,9 @@ async def test_create_geo_agent_with_no_mcp_servers():
 
     # Create agent without MCP servers
     agent = await create_geo_agent(
-        selected_tools=[], session_id="test-session", mcp_server_urls=None
+        selected_tools=[],
+        session_id="test-session",
+        mcp_servers=None,
     )
 
     # Verify agent was created
@@ -139,7 +153,11 @@ async def test_create_geo_agent_with_empty_mcp_servers():
     from services.single_agent import create_geo_agent
 
     # Create agent with empty MCP server list
-    agent = await create_geo_agent(selected_tools=[], session_id="test-session", mcp_server_urls=[])
+    agent = await create_geo_agent(
+        selected_tools=[],
+        session_id="test-session",
+        mcp_servers=[],
+    )
 
     # Verify agent was created
     assert agent is not None

@@ -240,12 +240,30 @@ async def get_settings_options(request: Request, response: Response):
     ]
 
     # Example MCP servers
+    # Note: Most MCP servers are self-hosted/local, not public cloud services.
+    # These examples assume you have the servers running locally.
+    # See https://github.com/modelcontextprotocol/servers for official implementations.
     example_mcp_servers = [
         ExampleMCPServer(
-            url="http://localhost:8001/mcp",
-            name="Local MCP Test Server",
+            url="http://localhost:3000",
+            name="MCP Filesystem Server",
             description=(
-                "Example local MCP server for testing. Replace with your own MCP server URL."
+                "Local filesystem access tools (requires @modelcontextprotocol/server-filesystem)"
+            ),
+        ),
+        ExampleMCPServer(
+            url="http://localhost:3001",
+            name="MCP Git Server",
+            description=(
+                "Git repository management tools (requires @modelcontextprotocol/server-git)"
+            ),
+        ),
+        ExampleMCPServer(
+            url="http://localhost:3002",
+            name="MCP Brave Search",
+            description=(
+                "Web search via Brave API "
+                "(requires @modelcontextprotocol/server-brave-search + API key)"
             ),
         ),
     ]

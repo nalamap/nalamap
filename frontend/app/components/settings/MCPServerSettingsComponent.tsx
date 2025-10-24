@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useInitializedSettingsStore } from "../../hooks/useInitializedSettingsStore";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, X } from "lucide-react";
 import { MCPServer } from "../../stores/settingsStore";
 
 export default function MCPServerSettingsComponent() {
@@ -12,7 +12,11 @@ export default function MCPServerSettingsComponent() {
     url: "",
     name: "",
     description: "",
+    api_key: "",
+    headers: {},
   });
+  const [newHeaderKey, setNewHeaderKey] = useState("");
+  const [newHeaderValue, setNewHeaderValue] = useState("");
 
   const mcpServers = useInitializedSettingsStore((s) => s.mcp_servers);
   const addMCPServer = useInitializedSettingsStore((s) => s.addMCPServer);
@@ -43,7 +47,30 @@ export default function MCPServerSettingsComponent() {
       ...newMCPServer,
       enabled: true,
     });
-    setNewMCPServer({ url: "", name: "", description: "" });
+    setNewMCPServer({ url: "", name: "", description: "", api_key: "", headers: {} });
+    setNewHeaderKey("");
+    setNewHeaderValue("");
+  };
+
+  const handleAddHeader = () => {
+    if (!newHeaderKey.trim() || !newHeaderValue.trim()) return;
+    setNewMCPServer({
+      ...newMCPServer,
+      headers: {
+        ...newMCPServer.headers,
+        [newHeaderKey]: newHeaderValue,
+      },
+    });
+    setNewHeaderKey("");
+    setNewHeaderValue("");
+  };
+
+  const handleRemoveHeader = (key: string) => {
+    const { [key]: removed, ...remainingHeaders } = newMCPServer.headers || {};
+    setNewMCPServer({
+      ...newMCPServer,
+      headers: remainingHeaders,
+    });
   };
 
   return (
@@ -157,6 +184,80 @@ export default function MCPServerSettingsComponent() {
                 placeholder="Description (optional)"
                 className="border border-primary-300 dark:border-primary-700 rounded p-2 w-full h-20 bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
               />
+              <input
+                type="password"
+                value={newMCPServer.api_key || ""}
+                onChange={(e) =>
+                  setNewMCPServer({ ...newMCPServer, api_key: e.target.value })
+                }
+                placeholder="API Key (optional, for authentication)"
+                className="border border-primary-300 dark:border-primary-700 rounded p-2 w-full bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
+              />
+              <p className="text-xs text-primary-700 dark:text-primary-400">
+                If the MCP server requires authentication, provide an API key. It will be sent as a Bearer token.
+              </p>
+
+              {/* Custom Headers Section */}
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold text-primary-900 dark:text-primary-100">
+                  Custom Headers (optional)
+                </h4>
+                <p className="text-xs text-primary-700 dark:text-primary-400">
+                  Add custom HTTP headers for advanced authentication (e.g., X-API-Key, Authorization with custom scheme).
+                </p>
+                
+                {/* Display existing headers */}
+                {newMCPServer.headers && Object.keys(newMCPServer.headers).length > 0 && (
+                  <div className="space-y-1 mb-2">
+                    {Object.entries(newMCPServer.headers).map(([key, value]) => (
+                      <div
+                        key={key}
+                        className="flex items-center justify-between bg-primary-100 dark:bg-primary-800 rounded px-3 py-2"
+                      >
+                        <div className="flex-1 font-mono text-sm text-primary-900 dark:text-primary-100">
+                          <span className="font-semibold">{key}:</span> {value}
+                        </div>
+                        <button
+                          onClick={() => handleRemoveHeader(key)}
+                          className="ml-2 text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                          aria-label={`Remove header ${key}`}
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add new header */}
+                <div className="flex space-x-2">
+                  <input
+                    value={newHeaderKey}
+                    onChange={(e) => setNewHeaderKey(e.target.value)}
+                    placeholder="Header name (e.g., X-API-Key)"
+                    className="border border-primary-300 dark:border-primary-700 rounded p-2 flex-1 bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
+                  />
+                  <input
+                    value={newHeaderValue}
+                    onChange={(e) => setNewHeaderValue(e.target.value)}
+                    placeholder="Header value"
+                    className="border border-primary-300 dark:border-primary-700 rounded p-2 flex-1 bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
+                  />
+                  <button
+                    onClick={handleAddHeader}
+                    disabled={!newHeaderKey.trim() || !newHeaderValue.trim()}
+                    className={`flex items-center space-x-1 px-3 py-2 rounded ${
+                      !newHeaderKey.trim() || !newHeaderValue.trim()
+                        ? "bg-primary-300 dark:bg-primary-700 text-primary-500 dark:text-primary-400 cursor-not-allowed"
+                        : "bg-tertiary-600 hover:bg-tertiary-700 text-white cursor-pointer"
+                    }`}
+                    aria-label="Add header"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
               <button
                 onClick={handleAddCustomMCPServer}
                 disabled={!newMCPServer.url.trim()}
@@ -201,6 +302,16 @@ export default function MCPServerSettingsComponent() {
                         {server.description && (
                           <span className="text-xs text-primary-600 dark:text-primary-400 mt-1">
                             {server.description}
+                          </span>
+                        )}
+                        {server.api_key && (
+                          <span className="text-xs text-tertiary-600 dark:text-tertiary-400 mt-1">
+                            🔑 API Key configured
+                          </span>
+                        )}
+                        {server.headers && Object.keys(server.headers).length > 0 && (
+                          <span className="text-xs text-tertiary-600 dark:text-tertiary-400 mt-1">
+                            📋 {Object.keys(server.headers).length} custom header(s)
                           </span>
                         )}
                       </div>

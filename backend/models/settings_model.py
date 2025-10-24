@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -26,6 +26,14 @@ class MCPServer(BaseModel):
         None, description="Optional description of tools/capabilities"
     )
     enabled: bool = Field(True, description="Enable or disable this MCP server")
+    api_key: Optional[str] = Field(
+        None,
+        description="API key for authentication (e.g., Bearer token, API key)",
+    )
+    headers: Optional[Dict[str, str]] = Field(
+        None,
+        description="Additional HTTP headers for authentication (e.g., {'X-API-Key': 'xxx'})",
+    )
 
 
 class SearchPortal(BaseModel):

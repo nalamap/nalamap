@@ -31,6 +31,8 @@ export interface MCPServer {
   name?: string;
   description?: string;
   enabled: boolean;
+  api_key?: string; // Optional API key for authentication
+  headers?: Record<string, string>; // Optional custom headers for auth
 }
 
 export interface SearchPortal {

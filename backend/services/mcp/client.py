@@ -16,15 +16,35 @@ class MCPClient:
     enabling integration with third-party AI tools and services.
     """
 
-    def __init__(self, server_url: str, timeout: float = 30.0):
+    def __init__(
+        self,
+        server_url: str,
+        timeout: float = 30.0,
+        api_key: Optional[str] = None,
+        headers: Optional[Dict[str, str]] = None,
+    ):
         """Initialize MCP client.
 
         Args:
             server_url: Base URL of the MCP server
             timeout: Request timeout in seconds (default: 30)
+            api_key: Optional API key for authentication (added as Bearer token)
+            headers: Optional custom headers for authentication
         """
         self.server_url = server_url.rstrip("/")
-        self.session = httpx.AsyncClient(timeout=timeout)
+        self.timeout = timeout
+        self.api_key = api_key
+        self.custom_headers = headers or {}
+
+        # Build headers for httpx client
+        client_headers = {}
+        if api_key:
+            client_headers["Authorization"] = f"Bearer {api_key}"
+        client_headers.update(self.custom_headers)
+
+        self.session = httpx.AsyncClient(
+            timeout=timeout, headers=client_headers if client_headers else None
+        )
         self.initialized = False
         self.server_info: Optional[Dict[str, Any]] = None
         self.available_tools: list = []

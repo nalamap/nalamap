@@ -113,11 +113,17 @@ def _create_args_schema_from_mcp(tool_name: str, input_schema: Dict[str, Any]) -
     return create_model(model_name, **field_definitions)
 
 
-async def load_mcp_tools(server_url: str) -> list[BaseTool]:
+async def load_mcp_tools(
+    server_url: str,
+    api_key: Optional[str] = None,
+    headers: Optional[dict] = None,
+) -> list[BaseTool]:
     """Load tools from an MCP server as LangChain tools.
 
     Args:
         server_url: URL of the MCP server
+        api_key: Optional API key for authentication
+        headers: Optional custom headers for authentication
 
     Returns:
         List of LangChain-compatible tool wrappers
@@ -125,7 +131,7 @@ async def load_mcp_tools(server_url: str) -> list[BaseTool]:
     Raises:
         Exception: If connection or tool loading fails
     """
-    client = MCPClient(server_url)
+    client = MCPClient(server_url, api_key=api_key, headers=headers)
 
     try:
         await client.initialize()

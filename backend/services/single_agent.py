@@ -162,7 +162,7 @@ async def create_geo_agent(
     query: Optional[str] = None,
     use_summarization: bool = False,
     session_id: Optional[str] = None,
-    mcp_server_urls: Optional[List[str]] = None,
+    mcp_servers: Optional[List] = None,  # List of MCPServer objects
 ) -> CompiledStateGraph:
     """Create a geo agent with specified model and tools.
 
@@ -178,8 +178,8 @@ async def create_geo_agent(
             (default: False)
         session_id: Unique session identifier for conversation tracking
             (required if use_summarization=True)
-        mcp_server_urls: List of MCP server URLs to load external tools from
-            (optional)
+        mcp_servers: List of MCPServer objects to load external tools from
+            (optional, supports authentication via api_key and headers fields)
 
     Returns:
         CompiledStateGraph configured with the specified model and tools
@@ -282,22 +282,22 @@ async def create_geo_agent(
         tools: List[BaseTool] = list(tools_dict.values())
 
     # Load external MCP tools if configured
-    if mcp_server_urls:
+    if mcp_servers:
         try:
             from services.mcp.integration import load_mcp_tools
 
-            for server_url in mcp_server_urls:
+            for mcp_server in mcp_servers:
                 try:
+                    server_url = mcp_server.url
+                    api_key = getattr(mcp_server, "api_key", None)
+                    headers = getattr(mcp_server, "headers", None)
+
                     logger.info(f"Loading tools from MCP server: {server_url}")
-                    mcp_tools = await load_mcp_tools(server_url)
+                    mcp_tools = await load_mcp_tools(server_url, api_key=api_key, headers=headers)
                     tools.extend(mcp_tools)
-                    logger.info(
-                        f"Loaded {len(mcp_tools)} tools from MCP server: {server_url}"
-                    )
+                    logger.info(f"Loaded {len(mcp_tools)} tools from MCP server: {server_url}")
                 except Exception as e:
-                    logger.error(
-                        f"Failed to load tools from MCP server {server_url}: {e}"
-                    )
+                    logger.error(f"Failed to load tools from MCP server {mcp_server.url}: {e}")
                     # Continue with other servers even if one fails
         except Exception as e:
             logger.error(f"Failed to import MCP integration: {e}")
