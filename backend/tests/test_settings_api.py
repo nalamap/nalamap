@@ -161,4 +161,3 @@ def test_options_endpoint_returns_example_mcp_servers(api_client):
     assert isinstance(data["example_mcp_servers"], list)
     # Example list can be empty (users add their own custom servers)
     assert len(data["example_mcp_servers"]) >= 0
-

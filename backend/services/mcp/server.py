@@ -314,7 +314,7 @@ class MCPServer:
             result = await handlers[method](params)
             return {"result": result}
 
-        except Exception as e:
+        except Exception:
             logger.exception(f"Error handling MCP request: {method}")
             return {
                 "error": {
