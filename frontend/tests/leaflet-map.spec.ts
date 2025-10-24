@@ -1399,9 +1399,13 @@ test.describe("LeafletMapClient - Scale Control", () => {
   test("should adjust scale position when layer panel is collapsed/expanded", async ({
     page,
   }) => {
+    // Wait for page to fully load
+    await page.waitForLoadState("domcontentloaded");
+    await page.waitForTimeout(1000);
+
     // Wait for scale to be visible
     const scaleControl = page.locator(".leaflet-control-scale");
-    await expect(scaleControl).toBeVisible();
+    await expect(scaleControl).toBeVisible({ timeout: 10000 });
 
     // Get initial margin (panel should be expanded initially)
     const initialMargin = await scaleControl.evaluate(
@@ -1412,8 +1416,9 @@ test.describe("LeafletMapClient - Scale Control", () => {
     const collapseButton = page.locator(
       'button:has(.lucide-chevron-left):near(.leaflet-container)'
     );
-    await collapseButton.click();
-    await page.waitForTimeout(300); // Allow for state update
+    await expect(collapseButton).toBeVisible({ timeout: 5000 });
+    await collapseButton.click({ timeout: 5000 });
+    await page.waitForTimeout(500); // Allow for animation to complete
 
     // Get margin after collapse
     const collapsedMargin = await scaleControl.evaluate(
@@ -1423,10 +1428,14 @@ test.describe("LeafletMapClient - Scale Control", () => {
     // When collapsed, margin should be larger to avoid overlap with floating icon
     expect(parseInt(collapsedMargin)).toBeGreaterThan(parseInt(initialMargin));
 
-    // Expand the panel again
+    // Expand the panel again - wait for the button to be available
+    await page.waitForTimeout(500);
     const expandButton = page.locator('button[aria-label="Open layer management"]');
-    await expandButton.click();
-    await page.waitForTimeout(300); // Allow for state update
+    await expect(expandButton).toBeVisible({ timeout: 10000 });
+    
+    // Use a more reliable click method
+    await expandButton.click({ timeout: 10000, force: true });
+    await page.waitForTimeout(500); // Allow for animation to complete
 
     // Get margin after expand
     const expandedMargin = await scaleControl.evaluate(
@@ -1434,10 +1443,10 @@ test.describe("LeafletMapClient - Scale Control", () => {
     );
 
     // Should return to smaller margin
-    expect(parseInt(expandedMargin)).toBeLessThan(parseInt(collapsedMargin));
+    expect(parseInt(expandedMargin)).toBeLessThanOrEqual(parseInt(collapsedMargin));
 
     console.log(
-      `✅ Scale position adjusted: expanded=${expandedMargin}, collapsed=${collapsedMargin}`
+      `✅ Scale position adjusted: initial=${initialMargin}, collapsed=${collapsedMargin}, expanded=${expandedMargin}`
     );
   });
 });

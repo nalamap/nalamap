@@ -155,7 +155,11 @@ test.describe("Model Settings Component", () => {
   });
 
   test("should display system prompt textarea", async ({ page }) => {
-    await expandModelSettings(page);
+    // System prompt is now in Agent Settings, not Model Settings
+    const agentButton = page.locator("button:has-text('Agent Settings')");
+    await expect(agentButton).toBeVisible({ timeout: 5000 });
+    await agentButton.click();
+    await page.waitForTimeout(300);
 
     const systemPromptTextarea = page.locator("textarea").first();
     await expect(systemPromptTextarea).toBeVisible();
@@ -163,7 +167,11 @@ test.describe("Model Settings Component", () => {
   });
 
   test("should allow editing system prompt", async ({ page }) => {
-    await expandModelSettings(page);
+    // System prompt is now in Agent Settings, not Model Settings
+    const agentButton = page.locator("button:has-text('Agent Settings')");
+    await expect(agentButton).toBeVisible({ timeout: 5000 });
+    await agentButton.click();
+    await page.waitForTimeout(300);
 
     const systemPromptTextarea = page.locator("textarea").first();
     await systemPromptTextarea.fill("You are a specialized geospatial assistant.");
