@@ -150,3 +150,23 @@ def test_preload_endpoint_uses_session_cookie(api_client, monkeypatch):
     assert called["executed"] is True
     assert called["session"] == session_id
     assert called["stored_layers"] == 2
+
+
+def test_options_endpoint_returns_example_mcp_servers(api_client):
+    """Test that the /settings/options endpoint returns example MCP servers."""
+    response = api_client.get("/settings/options")
+    assert response.status_code == 200
+    data = response.json()
+    assert "example_mcp_servers" in data
+    assert isinstance(data["example_mcp_servers"], list)
+    # Should have at least one example MCP server
+    assert len(data["example_mcp_servers"]) >= 1
+
+    # Check structure of first example
+    example = data["example_mcp_servers"][0]
+    assert "url" in example
+    assert "name" in example
+    assert "description" in example
+    assert isinstance(example["url"], str)
+    assert isinstance(example["name"], str)
+    assert isinstance(example["description"], str)

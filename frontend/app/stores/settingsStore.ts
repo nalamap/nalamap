@@ -10,6 +10,12 @@ export interface ExampleGeoServer {
   password?: string;
 }
 
+export interface ExampleMCPServer {
+  url: string;
+  name: string;
+  description: string;
+}
+
 export interface GeoServerBackend {
   url: string;
   name?: string;
@@ -18,6 +24,13 @@ export interface GeoServerBackend {
   password?: string;
   enabled: boolean;
   allow_insecure?: boolean; // Allow insecure connections (expired/self-signed SSL certs)
+}
+
+export interface MCPServer {
+  url: string;
+  name?: string;
+  description?: string;
+  enabled: boolean;
 }
 
 export interface SearchPortal {
@@ -104,6 +117,7 @@ export interface ColorSettings {
 export interface SettingsSnapshot {
   search_portals?: SearchPortal[]; // DEPRECATED: No longer used in the application
   geoserver_backends: GeoServerBackend[];
+  mcp_servers?: MCPServer[]; // MCP server configuration
   model_settings: ModelSettings;
   tools: ToolConfig[];
   tool_options: Record<string, ToolOption>;
@@ -121,6 +135,7 @@ export interface SettingsState extends SettingsSnapshot {
     system_prompt: string;
     tool_options: Record<string, ToolOption>;
     example_geoserver_backends: ExampleGeoServer[];
+    example_mcp_servers: ExampleMCPServer[];
     model_options: Record<string, ModelOption[]>;
     color_settings: ColorSettings;
     session_id: string;
@@ -136,6 +151,13 @@ export interface SettingsState extends SettingsSnapshot {
   removeBackend: (url: string) => void;
   toggleBackend: (url: string) => void;
   toggleBackendInsecure: (url: string) => void;
+
+  // MCP server actions
+  addMCPServer: (
+    server: Omit<MCPServer, "enabled"> & { enabled?: boolean },
+  ) => void;
+  removeMCPServer: (url: string) => void;
+  toggleMCPServer: (url: string) => void;
 
   // Model actions
   setModelProvider: (provider: string) => void;
@@ -164,6 +186,8 @@ export interface SettingsState extends SettingsSnapshot {
   setAvailableTools: (tools: string[]) => void;
   available_example_geoservers: ExampleGeoServer[];
   setAvailableExampleGeoServers: (geoservers: ExampleGeoServer[]) => void;
+  available_example_mcp_servers: ExampleMCPServer[];
+  setAvailableExampleMCPServers: (servers: ExampleMCPServer[]) => void;
   available_model_providers: string[];
   setAvailableModelProviders: (providers: string[]) => void;
   available_model_names: string[];
@@ -239,6 +263,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       setToolOptions,
       addToolConfig,
       setAvailableExampleGeoServers,
+      setAvailableExampleMCPServers,
       setAvailableModelProviders,
       setModelProvider,
       setModelOptions,
@@ -249,6 +274,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       model_settings,
       available_tools,
       available_example_geoservers,
+      available_example_mcp_servers,
       model_options,
       color_settings,
       setSessionId,
@@ -281,6 +307,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       setAvailableExampleGeoServers(opts.example_geoserver_backends);
     }
 
+    if (available_example_mcp_servers.length === 0) {
+      setAvailableExampleMCPServers(opts.example_mcp_servers);
+    }
+
     if (Object.keys(model_options).length === 0) {
       setModelOptions(opts.model_options);
       const providers = Object.keys(opts.model_options);
@@ -297,6 +327,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   // initial
   search_portals: [],
   geoserver_backends: [],
+  mcp_servers: [],
   model_settings: {
     model_provider: "",
     model_name: "",
@@ -319,6 +350,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   // available
   available_tools: [],
   available_example_geoservers: [],
+  available_example_mcp_servers: [],
   available_model_providers: [],
   available_model_names: [],
 
@@ -383,6 +415,43 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set((state) => ({
       geoserver_backends: state.geoserver_backends.map((b) =>
         b.url === url ? { ...b, allow_insecure: !b.allow_insecure } : b,
+      ),
+    })),
+
+  // mcp servers
+  addMCPServer: (server) =>
+    set((state) => {
+      const existingIndex = (state.mcp_servers || []).findIndex(
+        (s) => s.url === server.url,
+      );
+      if (existingIndex >= 0) {
+        const next = [...(state.mcp_servers || [])];
+        const previous = next[existingIndex];
+        next[existingIndex] = {
+          ...previous,
+          ...server,
+          enabled: server.enabled ?? previous.enabled,
+        };
+        return { mcp_servers: next };
+      }
+      return {
+        mcp_servers: [
+          ...(state.mcp_servers || []),
+          {
+            ...server,
+            enabled: server.enabled ?? true,
+          },
+        ],
+      };
+    }),
+  removeMCPServer: (url) =>
+    set((state) => ({
+      mcp_servers: (state.mcp_servers || []).filter((s) => s.url !== url),
+    })),
+  toggleMCPServer: (url) =>
+    set((state) => ({
+      mcp_servers: (state.mcp_servers || []).map((s) =>
+        s.url === url ? { ...s, enabled: !s.enabled } : s,
       ),
     })),
 
@@ -473,6 +542,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setAvailableTools: (tools) => set({ available_tools: tools }),
   setAvailableExampleGeoServers: (geoservers) =>
     set({ available_example_geoservers: geoservers }),
+  setAvailableExampleMCPServers: (servers) =>
+    set({ available_example_mcp_servers: servers }),
   setAvailableModelProviders: (providers) =>
     set({ available_model_providers: providers }),
   setAvailableModelNames: (names) => set({ available_model_names: names }),

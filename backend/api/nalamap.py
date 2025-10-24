@@ -291,6 +291,11 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
         # Get use_summarization from model settings (default: False)
         use_summarization = getattr(options.model_settings, "use_summarization", False)
 
+        # Get enabled MCP server URLs from options
+        mcp_server_urls = [
+            server.url for server in getattr(options, "mcp_servers", []) if server.enabled
+        ]
+
         single_agent = await create_geo_agent(
             model_settings=options.model_settings,
             selected_tools=options.tools,
@@ -298,6 +303,7 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
             query=request.query,  # Pass query for dynamic tool selection
             use_summarization=use_summarization,
             session_id=options.session_id,
+            mcp_server_urls=mcp_server_urls if mcp_server_urls else None,
         )
 
         # Create performance callback handler
@@ -521,6 +527,11 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest):
             # Get use_summarization from model settings (default: False)
             use_summarization = getattr(options.model_settings, "use_summarization", False)
 
+            # Get enabled MCP server URLs from options
+            mcp_server_urls = [
+                server.url for server in getattr(options, "mcp_servers", []) if server.enabled
+            ]
+
             single_agent = await create_geo_agent(
                 model_settings=options.model_settings,
                 selected_tools=options.tools,
@@ -528,6 +539,7 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest):
                 query=request.query,  # Pass query for dynamic tool selection
                 use_summarization=use_summarization,
                 session_id=options.session_id,
+                mcp_server_urls=mcp_server_urls if mcp_server_urls else None,
             )
 
             # Create performance callback handler

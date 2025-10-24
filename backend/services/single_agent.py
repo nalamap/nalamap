@@ -162,6 +162,7 @@ async def create_geo_agent(
     query: Optional[str] = None,
     use_summarization: bool = False,
     session_id: Optional[str] = None,
+    mcp_server_urls: Optional[List[str]] = None,
 ) -> CompiledStateGraph:
     """Create a geo agent with specified model and tools.
 
@@ -177,6 +178,8 @@ async def create_geo_agent(
             (default: False)
         session_id: Unique session identifier for conversation tracking
             (required if use_summarization=True)
+        mcp_server_urls: List of MCP server URLs to load external tools from
+            (optional)
 
     Returns:
         CompiledStateGraph configured with the specified model and tools
@@ -192,6 +195,9 @@ async def create_geo_agent(
         Conversation summarization automatically condenses older messages when conversations
         exceed the threshold, maintaining context while reducing token usage. Requires
         session_id to track conversation state across requests.
+
+        MCP server integration allows loading external tools from Model Context Protocol
+        servers, enabling NaLaMap to use third-party tools seamlessly.
     """
     # Get or create conversation manager if summarization is enabled
     # Note: Manager is stored in module-level dict for reuse across requests
@@ -274,6 +280,27 @@ async def create_geo_agent(
         logger.info(f"Dynamic tool selection: {len(tools)}/{len(tools_dict)} tools selected")
     else:
         tools: List[BaseTool] = list(tools_dict.values())
+
+    # Load external MCP tools if configured
+    if mcp_server_urls:
+        try:
+            from services.mcp.integration import load_mcp_tools
+
+            for server_url in mcp_server_urls:
+                try:
+                    logger.info(f"Loading tools from MCP server: {server_url}")
+                    mcp_tools = await load_mcp_tools(server_url)
+                    tools.extend(mcp_tools)
+                    logger.info(
+                        f"Loaded {len(mcp_tools)} tools from MCP server: {server_url}"
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Failed to load tools from MCP server {server_url}: {e}"
+                    )
+                    # Continue with other servers even if one fails
+        except Exception as e:
+            logger.error(f"Failed to import MCP integration: {e}")
 
     # Enable langgraph debug logging when global log level is DEBUG
     debug_enabled = logger.isEnabledFor(logging.DEBUG)

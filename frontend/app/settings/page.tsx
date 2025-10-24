@@ -10,6 +10,7 @@ import ModelSettingsComponent from "../components/settings/ModelSettingsComponen
 import AgentSettingsComponent from "../components/settings/AgentSettingsComponent";
 import ToolSettingsComponent from "../components/settings/ToolSettingsComponent";
 import GeoServerSettingsComponent from "../components/settings/GeoServerSettingsComponent";
+import MCPServerSettingsComponent from "../components/settings/MCPServerSettingsComponent";
 
 import { useInitializedSettingsStore } from "../hooks/useInitializedSettingsStore";
 import { getApiBase } from "../utils/apiBase";
@@ -808,6 +809,11 @@ export default function SettingsPage() {
           {/* Tools Configuration */}
           <section>
             <ToolSettingsComponent />
+          </section>
+
+          {/* MCP Servers */}
+          <section>
+            <MCPServerSettingsComponent />
           </section>
 
           {/* GeoServer Backends */}
