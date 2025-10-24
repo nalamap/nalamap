@@ -152,7 +152,7 @@ export default function MCPServerSettingsComponent() {
           )}
 
           {/* Custom MCP Server Section */}
-          <div className="space-y-4 border-t border-primary-200 pt-6">
+          <div className={`space-y-4 ${availableExampleMCPServers && availableExampleMCPServers.length > 0 ? 'border-t border-primary-200 pt-6' : ''}`}>
             <h3 className="text-lg font-semibold text-primary-900 dark:text-primary-100">
               Add Custom MCP Server
             </h3>

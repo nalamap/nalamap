@@ -9,6 +9,22 @@ const mockSettingsWithMCP = {
     },
   },
   example_geoserver_backends: [],
+  example_mcp_servers: [],
+  model_options: {
+    MockProvider: [{ name: "mock-model", max_tokens: 999 }],
+  },
+  session_id: "test-session-123",
+};
+
+const mockSettingsWithExampleMCP = {
+  system_prompt: "You are a helpful assistant.",
+  tool_options: {
+    search: {
+      default_prompt: "Search prompt",
+      settings: {},
+    },
+  },
+  example_geoserver_backends: [],
   example_mcp_servers: [
     {
       url: "http://localhost:8001/mcp",
@@ -65,7 +81,16 @@ test.describe("MCP Server Settings", () => {
     await expect(page.locator("text=Add Custom MCP Server")).not.toBeVisible();
   });
 
-  test("displays example MCP servers", async ({ page }) => {
+  test("displays example MCP servers when provided", async ({ page }) => {
+    // Override with settings that have example servers
+    await page.route("**/settings/options", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockSettingsWithExampleMCP),
+      });
+    });
+
     await page.goto("/settings");
     await page.waitForLoadState("networkidle");
 
@@ -87,6 +112,25 @@ test.describe("MCP Server Settings", () => {
     const dropdown = page.locator("select").filter({ hasText: "Select an example MCP server" });
     await expect(dropdown).toBeVisible();
     await expect(dropdown).toContainText("Local Test MCP Server");
+  });
+
+  test("hides example MCP servers section when none provided", async ({ page }) => {
+    await page.goto("/settings");
+    await page.waitForLoadState("networkidle");
+
+    // Expand MCP Servers section
+    const mcpButton = page.locator("button:has-text('MCP Servers')");
+    await mcpButton.scrollIntoViewIfNeeded();
+    await mcpButton.click();
+
+    // Wait for section to expand
+    await page.waitForTimeout(500);
+
+    // Example servers section should not be visible
+    await expect(page.locator("text=Example MCP Servers")).not.toBeVisible();
+    
+    // Custom server section should still be visible
+    await expect(page.locator("text=Add Custom MCP Server")).toBeVisible();
   });
 
   test("can add custom MCP server", async ({ page }) => {
@@ -125,6 +169,15 @@ test.describe("MCP Server Settings", () => {
   });
 
   test("can add example MCP server from dropdown", async ({ page }) => {
+    // Override with settings that have example servers
+    await page.route("**/settings/options", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockSettingsWithExampleMCP),
+      });
+    });
+
     await page.goto("/settings");
     await page.waitForLoadState("networkidle");
 
@@ -266,6 +319,15 @@ test.describe("MCP Server Settings", () => {
   test("Add Example Server button is disabled when nothing selected", async ({
     page,
   }) => {
+    // Override with settings that have example servers
+    await page.route("**/settings/options", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockSettingsWithExampleMCP),
+      });
+    });
+
     await page.goto("/settings");
     await page.waitForLoadState("networkidle");
 

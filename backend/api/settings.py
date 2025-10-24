@@ -239,34 +239,9 @@ async def get_settings_options(request: Request, response: Response):
         ),
     ]
 
-    # Example MCP servers
-    # Note: Most MCP servers are self-hosted/local, not public cloud services.
-    # These examples assume you have the servers running locally.
-    # See https://github.com/modelcontextprotocol/servers for official implementations.
-    example_mcp_servers = [
-        ExampleMCPServer(
-            url="http://localhost:3000",
-            name="MCP Filesystem Server",
-            description=(
-                "Local filesystem access tools (requires @modelcontextprotocol/server-filesystem)"
-            ),
-        ),
-        ExampleMCPServer(
-            url="http://localhost:3001",
-            name="MCP Git Server",
-            description=(
-                "Git repository management tools (requires @modelcontextprotocol/server-git)"
-            ),
-        ),
-        ExampleMCPServer(
-            url="http://localhost:3002",
-            name="MCP Brave Search",
-            description=(
-                "Web search via Brave API "
-                "(requires @modelcontextprotocol/server-brave-search + API key)"
-            ),
-        ),
-    ]
+    # Example MCP servers - empty for now
+    # Users can add their own custom MCP servers through the UI
+    example_mcp_servers = []
 
     # Dynamically discover available LLM providers and models
     from services.ai.provider_interface import get_all_providers
