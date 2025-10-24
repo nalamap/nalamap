@@ -286,7 +286,9 @@ export function useNaLaMapAgent(apiUrl: string) {
     // Create new AbortController for this request
     abortController = new AbortController();
     // Generate session_id for this request (same format as backend)
-    currentSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Use cryptographically secure random number for session ID
+    const randomSuffix = window.crypto.getRandomValues(new Uint32Array(1))[0].toString(36).substr(2, 9);
+    currentSessionId = `session_${Date.now()}_${randomSuffix}`;
 
     try {
       const selectedLayers = useLayerStore
