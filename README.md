@@ -19,10 +19,7 @@ NaLaMap is an open-source platform that helps users find and analyze geospatial 
 
 We use GitHub [Milestones](https://github.com/nalamap/nalamap/milestones) and a [Kanban board](https://github.com/orgs/nalamap/projects/1/) to collaborate on our Minimal Viable Product (MVP). We hope to realize this first major release (V.1.0.0) in February 2026. 
 
-Our next Milestone is V 0.2.0 scheduled for the 20th of September 2025. You can See a collection of planned improvements below. Issues describing those improvements will be added to the Kanban Board continously. 
-
-<img width="1202" height="607" alt="image" src="https://github.com/user-attachments/assets/68bd8a33-0b43-4c1f-8b24-28196a3a07ff" />
-
+Our next Milestone is V 0.3.0 is scheduled for the 10th of Junuary 2026. We will add the noew roadmap here as soon as it is available. 
 
 
 ## Versioning Strategy
