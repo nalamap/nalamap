@@ -54,7 +54,7 @@ test.describe("Chat interface", () => {
 
     await page.goto("/map");
 
-    const chatInput = page.getByPlaceholder("Type a chat command...");
+    const chatInput = page.getByPlaceholder("Ask about maps, search for data, or request analysis...");
     await chatInput.fill("Hello agent!");
 
     await Promise.all([

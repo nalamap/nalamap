@@ -1,90 +1,21 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import wellknown from "wellknown";
 import { useNaLaMapAgent } from "../../hooks/useNaLaMapAgent";
-import { ArrowUp, X, Loader2 } from "lucide-react";
 import { useLayerStore } from "../../stores/layerStore";
 import { GeoDataObject } from "../../models/geodatamodel";
-import { hashString } from "../../utils/hashUtil";
-import ReactMarkdown from "react-markdown";
 import { getApiBase } from "../../utils/apiBase";
-
-// Helper function to determine score color and appropriate text color
-const getScoreStyle = (
-  score?: number,
-): { backgroundColor: string; color: string } => {
-  if (typeof score !== "number" || score < 0 || score > 100) {
-    return { backgroundColor: "#9ca3af", color: "#ffffff" }; // Default gray bg, white text (Tailwind gray-400)
-  }
-  // Map 0-100 to 0-120 hue (red to green)
-  const hue = (score / 100) * 120;
-  const saturation = 60;
-  const lightness = 55;
-  const backgroundColor = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-  const textColor = "#ffffff";
-  return { backgroundColor, color: textColor };
-};
-
-// Helper function to extract text content from message content
-// Handles both string content and content blocks array formats
-const extractTextContent = (content: any): string => {
-  if (typeof content === "string") {
-    return content;
-  }
-
-  if (Array.isArray(content)) {
-    // Extract text from content blocks
-    return content
-      .filter((block) => block.type === "text")
-      .map((block) => block.text || "")
-      .join("\n");
-  }
-
-  // Fallback for unexpected content types
-  return String(content);
-};
-
-// helper to get a WKT string from whatever format the store has
-function toWkt(bbox: GeoDataObject["bounding_box"]): string | undefined {
-  if (!bbox) return undefined;
-
-  // 1) If it's already an object, stringify directly
-  if (typeof bbox === "object") {
-    return wellknown.stringify({
-      type: "Polygon",
-      coordinates: [
-        [
-          [bbox[0], bbox[1]],
-          [bbox[2], bbox[1]],
-          [bbox[2], bbox[3]],
-          [bbox[0], bbox[3]],
-          [bbox[0], bbox[1]],
-        ],
-      ],
-    });
-  }
-
-  // 2) If it's a string that looks like JSON, parse then stringify
-  const trimmed = bbox.trim();
-  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-    try {
-      const geojson = JSON.parse(bbox);
-      return wellknown.stringify(geojson);
-    } catch {
-      // fall through: maybe it wasn't valid JSON after all
-    }
-  }
-
-  // 3) Otherwise assume the string is already WKT
-  return bbox;
-}
+import ChatMessages from "./ChatMessages";
+import SearchResults from "./SearchResults";
+import ChatInput from "./ChatInput";
 
 export default function AgentInterface() {
   const API_BASE_URL = getApiBase();
-  const [activeTool, setActiveTool] = useState<
-    "search" | "chat" | "geocode" | "geoprocess" | "ai-style" | null
-  >("chat");
+  const [expandedToolMessage, setExpandedToolMessage] = useState<
+    Record<number, boolean>
+  >({});
+  
   const {
     input,
     setInput,
@@ -94,476 +25,65 @@ export default function AgentInterface() {
     error,
     queryNaLaMapAgent,
   } = useNaLaMapAgent(API_BASE_URL);
-  // useNaLaMapAgent hook provides `conversation` (messages) state, no local state needed here
-  const containerRef = useRef<HTMLDivElement>(null);
+  
   const addLayer = useLayerStore((s) => s.addLayer);
-  const getLayers = useLayerStore.getState;
-  // show only first 5 results or all
-  const [showAllResults, setShowAllResults] = useState(false);
-  // state for description modal
-  const [modalData, setModalData] = useState<GeoDataObject | null>(null);
-  const [overlayData, setOverlayData] = useState<GeoDataObject | null>(null);
-  // which one we'll use for the bbox filter
-  const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
-  // portal filter string
-  const [portalFilter, setPortalFilter] = useState<string>("");
-  // show/hide tool responses
-  const [expandedToolMessage, setExpandedToolMessage] = useState<
-    Record<number, boolean>
-  >({});
-  // State for score info tooltip
-  const [activeScoreInfoId, setActiveScoreInfoId] = useState<string | null>(
-    null,
-  );
-  // State for new Details pop-up
-  const [activeDetailsId, setActiveDetailsId] = useState<string | null>(null);
-  let apiOptions: { portal?: string; bboxWkt?: string } | undefined = undefined;
-
   const showToolMessages = false; // TODO: Move to settings
-
-  //automate scroll to bottom with new entry
-  useEffect(() => {
-    const el = containerRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [conversation]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
-
-    // The hook (queryNaLaMapAgent) will append the human message for us
-
-    if (activeTool === "search") {
-      let wkt: string | undefined = undefined;
-      let portal: string | undefined = undefined;
-      let fullQuery = input;
-      const selected = useLayerStore.getState().layers.find((l) => l.selected);
-      if (selected?.bounding_box) {
-        wkt = toWkt(selected.bounding_box);
-        if (wkt) {
-          fullQuery += ` with given ${wkt}`;
-        }
-      }
-      if (portalFilter.trim()) {
-        fullQuery += ` portal:${portalFilter.trim()}`;
-      }
-
-      apiOptions = {
-        // Pass bbox and portal as separate structured options
-        portal: portal,
-        bboxWkt: wkt,
-      };
-
-      await queryNaLaMapAgent("search", undefined, apiOptions);
-    } else if (activeTool === "geocode") {
-      await queryNaLaMapAgent(activeTool);
-    } else if (activeTool === "geoprocess") {
-      await queryNaLaMapAgent(activeTool);
-    } else if (activeTool === "chat") {
-      await queryNaLaMapAgent(activeTool);
-    } else if (activeTool === "ai-style") {
-      // AI styling is now integrated into the main chat agent, so use "chat" endpoint
-      await queryNaLaMapAgent("chat");
-
-      /* TODO: Move to Backend
-      // pass current layer URLs to the geoprocess endpoint
-      const urls = getLayers().layers.map((l) => l.access_url);
-      await query("geoprocess", urls);
-
-      // once done, add each new URL as a layer
-      processedUrls.forEach((url) => {
-        const id = url.split("/").pop()!;
-        addLayer({
-          resource_id: id,
-          name: `Processed ${id}`,
-          source_type: "processed",
-          access_url: url,
-          format: "geojson",
-          visible: true,
-        });
-      });
-
-      // report back to user
-      setConversation((c) => [
-        ...c,
-        {
-          role: "agent",
-          content: `Finished. Tools used: ${toolsUsed.join(", ")}`,
-        },
-      ]);*/
-    }
+    await queryNaLaMapAgent("chat");
   };
 
-  const handleLayerSelect = (layer: any) => {
+  const handleLayerSelect = (layer: GeoDataObject) => {
     useLayerStore.getState().addLayer(layer);
   };
 
-  // determine which results to show
-  const resultsToShow = showAllResults ? geoDataList : geoDataList.slice(0, 5);
+  const handleToggleToolMessage = (idx: number) => {
+    setExpandedToolMessage((prev) => ({
+      ...prev,
+      [idx]: !prev[idx],
+    }));
+  };
 
   return (
     <div className="h-full w-full bg-primary-50 p-4 flex flex-col overflow-hidden relative border-l border-primary-300">
       {/* Header */}
-      <h2 className="text-xl font-bold mb-4 text-primary-900 text-center">Map Assistant</h2>
+      <h2 className="text-xl font-bold mb-4 text-primary-900 text-center flex-shrink-0">
+        Map Assistant
+      </h2>
 
-      {/* Chat content area */}
-      <div
-        ref={containerRef}
-        className="overflow-auto flex-1 scroll-smooth pb-2"
-      >
-        <div className="flex flex-col space-y-3">
-          {conversation.map((msg, idx) => {
-            const msgKey =
-              msg.id?.trim() || hashString(`${idx}:${msg.type}:${msg.content}`);
+      {/* Scrollable content area */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
+        {/* Chat Messages */}
+        <ChatMessages
+          conversation={conversation}
+          loading={loading}
+          showToolMessages={showToolMessages}
+          expandedToolMessage={expandedToolMessage}
+          onToggleToolMessage={handleToggleToolMessage}
+        />
 
-            // 1) Handle an AI message that kicked off a tool call
-            if (
-              msg.type === "ai" &&
-              msg.additional_kwargs?.tool_calls?.length
-            ) {
-              if (!showToolMessages) return; //
-
-              const call = msg.additional_kwargs.tool_calls[0];
-              const isOpen = !!expandedToolMessage[idx];
-
-              return (
-                <div key={msgKey} className="flex justify-start">
-                  <div className="max-w px-4 py-2 rounded-lg bg-primary-100 rounded-tl-none border border-primary-300">
-                    {/* "Using tool…" header */}
-                    <div className="text-sm font-medium text-primary-900">
-                      Using tool ' {call.function.name} ' with arguments '{" "}
-                      {call.function.arguments} '
-                    </div>
-
-                    {/* toggle button */}
-                    <button
-                      className="ml-2 px-2 py-1 bg-second-primary-600 text-white rounded text-xs hover:bg-second-primary-700"
-                      onClick={() =>
-                        setExpandedToolMessage((prev) => ({
-                          ...prev,
-                          [idx]: !prev[idx],
-                        }))
-                      }
-                    >
-                      {isOpen ? "Hide result" : "Show result"}
-                    </button>
-
-                    {/* if expanded, show the next message's content (must be type "tool") */}
-                    {isOpen && conversation[idx + 1]?.type === "tool" && (
-                      <div className="mt-2 text-sm break-words whitespace-pre-wrap text-primary-800">
-                        {conversation[idx + 1].content}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            }
-
-            // 2) Don't render standalone tool messages (they'll live under their AI caller)
-            if (msg.type === "tool") {
-              return null;
-            }
-
-            // 3) Fall back to your normal human/AI rendering
-            const isHuman = msg.type === "human";
-            return (
-              <div
-                key={msgKey}
-                className={`flex ${isHuman ? "justify-end" : "justify-start"}`}
-              >
-                <div
-                  className={`max-w-[80%] px-4 py-2 rounded-lg ${
-                    isHuman
-                      ? "bg-second-primary-200 rounded-tr-none text-right border border-primary-300"
-                      : "bg-neutral-50 rounded-tl-none border border-primary-200"
-                  }`}
-                >
-                  {isHuman ? (
-                    <div className="text-sm break-words text-primary-900">
-                      {extractTextContent(msg.content)}
-                    </div>
-                  ) : (
-                    <div className="text-sm break-words chat-markdown text-primary-900">
-                      <ReactMarkdown>
-                        {extractTextContent(msg.content)}
-                      </ReactMarkdown>
-                    </div>
-                  )}
-                  <div className="text-xs text-primary-500 mt-1">
-                    {isHuman ? "You" : msg.type === "ai" ? "Agent" : "Unknown"}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-
-          {loading && (
-            <div className="flex justify-start mb-2">
-              <div className="flex items-center space-x-2 max-w-[80%] px-4 py-2 rounded-lg bg-neutral-50 rounded-tl-none border border-primary-200">
-                {/* spinning loader */}
-                <Loader2 size={16} className="animate-spin text-second-primary-600" />
-                <span className="text-sm text-primary-700">
-                  NaLaMap Agent is working on your request...
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {(activeTool === "search" ||
-          activeTool === "geocode" ||
-          activeTool === "chat" ||
-          activeTool === "geoprocess") &&
-          geoDataList.length > 0 &&
-          !loading && (
-            <div className="mt-6 mb-2 px-2 bg-neutral-50 rounded border">
-              <div className="font-semibold p-1">Search Results:</div>
-              {resultsToShow.map((result) => (
-                <div
-                  key={result.id}
-                  className="p-2 border-b last:border-none hover:bg-neutral-100"
-                >
-                  <div
-                    onClick={() => handleLayerSelect(result)}
-                    className="cursor-pointer"
-                  >
-                    <div className="font-bold text-sm">{result.title}</div>
-                    <div
-                      className="text-xs text-gray-600 truncate"
-                      title={result.llm_description}
-                    >
-                      {result.llm_description}
-                    </div>
-                    <div
-                      className="flex items-center mt-1"
-                      style={{ position: "relative" }}
-                    >
-                      {/* Score Button with color scaling 
-                    <button
-                      className="px-2 py-1 text-xs rounded"
-                      style={getScoreStyle(result.score != null ? Math.round(result.score * 100) : undefined)}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // If score button were to have its own pop-up via activeScoreInfoId:
-                        // setActiveScoreInfoId(activeScoreInfoId === result.id ? null : result.id);
-                        setActiveDetailsId(null); // Close details if score is clicked
-                      }}
-                    >
-                      Score: {result.score != null ? Math.round(result.score * 100) : 'N/A'}
-                    </button>*/}
-                      {/* Layer Type Button */}
-                      <button
-                        className="px-2 py-1 text-xs rounded bg-primary-200 text-primary-900 hover:bg-primary-300"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveDetailsId(null); // Close details if score is clicked
-                        }}
-                      >
-                        Type: {result.layer_type && `${result.layer_type}`}
-                      </button>
-                      {/* Details Button */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveDetailsId(
-                            activeDetailsId === result.id ? null : result.id,
-                          );
-                          setActiveScoreInfoId(null); // Close score tooltip if details is clicked
-                        }}
-                        className="ml-2 px-2 py-1 bg-neutral-300 text-neutral-900 rounded text-xs hover:bg-neutral-400"
-                      >
-                        Details
-                      </button>
-
-                      {/* Add to Map Button */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleLayerSelect(result);
-                        }}
-                        className="ml-2 px-2 py-1 bg-info-600 text-neutral-50 rounded text-xs hover:bg-info-700"
-                      >
-                        Add to Map
-                      </button>
-
-                      {/* Details Pop-up */}
-                      {activeDetailsId === result.id && (
-                        <div
-                          style={{
-                            position: "absolute",
-                            bottom: "100%", // Position above the button row
-                            left: "0",
-                            marginBottom: "5px",
-                            backgroundColor: "white",
-                            color: "#333",
-                            border: "1px solid #ddd",
-                            padding: "10px",
-                            borderRadius: "4px",
-                            boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-                            zIndex: 50,
-                            fontSize: "12px",
-                            width: "280px",
-                            textAlign: "left",
-                          }}
-                          onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside pop-up
-                        >
-                          <h4 className="font-bold text-sm mb-1">
-                            {result.title || "Details"}
-                          </h4>
-                          <p className="text-xs mb-1">
-                            <strong>Description:</strong>{" "}
-                            {result.llm_description ||
-                              result.description ||
-                              "N/A"}
-                          </p>
-                          <p className="text-xs mb-1">
-                            <strong>Data Source:</strong>{" "}
-                            {result.data_source || "N/A"}
-                          </p>
-                          <p className="text-xs mb-1">
-                            <strong>Layer Type:</strong>{" "}
-                            {result.layer_type || "N/A"}
-                          </p>
-                          {result.bounding_box && (
-                            <p className="text-xs whitespace-pre-wrap break-all">
-                              <strong>BBox:</strong>{" "}
-                              {typeof result.bounding_box === "string"
-                                ? result.bounding_box
-                                : JSON.stringify(result.bounding_box)}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    <div className="text-[10px] text-gray-500 mt-1">
-                      {result.data_origin}
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {geoDataList.length > 5 && (
-                <button
-                  onClick={() => setShowAllResults((s) => !s)}
-                  className="w-full py-2 text-center text-blue-600 hover:underline"
-                >
-                  {showAllResults
-                    ? "Show Less"
-                    : `Show More (${geoDataList.length - 5} more)`}
-                </button>
-              )}
-            </div>
-          )}
+        {/* Search Results */}
+        <SearchResults
+          results={geoDataList}
+          loading={loading}
+          onSelectLayer={handleLayerSelect}
+        />
       </div>
 
-      <hr className="my-4" />
+      <hr className="my-4 flex-shrink-0" />
 
-      {/* Tool selector and input */}
-      <div className="mb-4">
-        <div className="flex flex-wrap gap-2 justify-center sm:flex-row flex-col">
-          <button
-            onClick={() => setActiveTool("chat")}
-            className={`px-2 py-1 rounded text-white font-medium transition-colors ${activeTool === "chat" ? "bg-second-primary-600 hover:bg-second-primary-700" : "bg-primary-600 hover:bg-primary-700"}`}
-          >
-            Chat
-          </button>
-          <button
-            onClick={() => setActiveTool("search")}
-            className={`px-2 py-1 rounded text-white font-medium transition-colors hidden ${activeTool === "search" ? "bg-second-primary-600 hover:bg-second-primary-700" : "bg-primary-600 hover:bg-primary-700"}`}
-          >
-            Search
-          </button>
-          <button
-            onClick={() => setActiveTool("geoprocess")}
-            className={`px-2 py-1 rounded text-white font-medium transition-colors hidden ${activeTool === "geoprocess" ? "bg-second-primary-600 hover:bg-second-primary-700" : "bg-primary-600 hover:bg-primary-700"}`}
-          >
-            Geoprocessing
-          </button>
-          <button
-            onClick={() => setActiveTool("geocode")}
-            className={`px-2 py-1 rounded text-white font-medium transition-colors hidden ${activeTool === "geocode" ? "bg-second-primary-600 hover:bg-second-primary-700" : "bg-primary-600 hover:bg-primary-700"}`}
-          >
-            Geocode
-          </button>
-          <button
-            onClick={() => setActiveTool("ai-style")}
-            className={`px-2 py-1 rounded text-white font-medium transition-colors hidden ${activeTool === "ai-style" ? "bg-second-primary-600 hover:bg-second-primary-700" : "bg-primary-600 hover:bg-primary-700"}`}
-          >
-            AI Style
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="relative mt-4">
-          <textarea
-            value={input}
-            onChange={(e) => {
-              setInput(e.target.value);
-              // Auto-resize the textarea
-              e.target.style.height = "auto";
-              e.target.style.height = `${e.target.scrollHeight}px`;
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmit(e);
-              }
-            }}
-            placeholder={
-              activeTool === "ai-style"
-                ? "Describe how to style your layers (e.g., 'make it red', 'thick blue borders', 'transparent fill')..."
-                : `Type a ${activeTool} command...`
-            }
-            className="w-full border border-primary-300 bg-neutral-50 rounded px-4 py-3 pr-10 focus:outline-none focus:ring focus:ring-secondary-300 resize-none overflow-hidden text-primary-900"
-            style={{ minHeight: "45px", maxHeight: "200px" }}
-            rows={1}
-          />
-          <button
-            type="submit"
-            className="absolute right-2 bottom-2 text-secondary-600 hover:text-secondary-700 transition-colors"
-            title="Send"
-          >
-            <ArrowUp size={20} />
-          </button>
-        </form>
+      {/* Chat Input */}
+      <div className="flex-shrink-0">
+        <ChatInput
+          value={input}
+          onChange={setInput}
+          onSubmit={handleSubmit}
+          placeholder="Ask about maps, search for data, or request analysis..."
+          disabled={loading}
+        />
       </div>
-      {/* Overlay details panel */}
-      {overlayData && (
-        <div className="fixed right-4 top-16 w-1/3 max-h-[70vh] overflow-y-auto bg-neutral-50 shadow-lg rounded p-4 z-50 border border-primary-300">
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="text-lg font-bold text-primary-900">{overlayData.title}</h3>
-            <button onClick={() => setOverlayData(null)} className="text-primary-600 hover:text-primary-800">
-              <X />
-            </button>
-          </div>
-          <p className="text-sm text-primary-700 mb-2">
-            {overlayData.llm_description}
-          </p>
-          <div className="text-[10px] text-primary-500 mb-1">
-            Source: {overlayData.data_source}
-          </div>
-          <div className="text-[10px] text-primary-500 mb-1">
-            Layer Type: {overlayData.layer_type}
-          </div>
-          <div className="text-[10px] text-primary-500 mb-1">
-            <span
-              style={getScoreStyle(
-                overlayData.score != null
-                  ? Math.round(overlayData.score * 100)
-                  : undefined,
-              )}
-            >
-              Score:{" "}
-              {overlayData.score != null
-                ? Math.round(overlayData.score * 100)
-                : "N/A"}
-            </span>
-          </div>
-          {overlayData.bounding_box && (
-            <pre className="text-[10px] text-primary-500 mt-2 whitespace-pre-wrap break-all">
-              BBox: {overlayData.bounding_box}
-            </pre>
-          )}
-        </div>
-      )}
     </div>
   );
 }

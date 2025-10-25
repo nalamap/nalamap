@@ -268,7 +268,7 @@ test.describe("Agent Chat Interface - Add Layer Button", () => {
     await page.waitForLoadState("networkidle");
 
     // Enter query in chat
-    const chatInput = page.getByPlaceholder("Type a chat command...");
+    const chatInput = page.getByPlaceholder("Ask about maps, search for data, or request analysis...");
     await chatInput.fill("geocode Hospitals in Brazil");
 
     // Submit and wait for response
@@ -378,7 +378,7 @@ test.describe("Agent Chat Interface - Add Layer Button", () => {
     await page.waitForLoadState("networkidle");
 
     // Submit query - use Promise.all to ensure waitForResponse is set up before pressing Enter
-    const chatInput = page.getByPlaceholder("Type a chat command...");
+    const chatInput = page.getByPlaceholder("Ask about maps, search for data, or request analysis...");
     await chatInput.fill("show hospitals");
 
     await Promise.all([
@@ -472,7 +472,7 @@ test.describe("Agent Chat Interface - Add Layer Button", () => {
     await page.goto("/map");
     await page.waitForLoadState("networkidle");
 
-    const chatInput = page.getByPlaceholder("Type a chat command...");
+    const chatInput = page.getByPlaceholder("Ask about maps, search for data, or request analysis...");
     await chatInput.fill("show data");
     await chatInput.press("Enter");
 
