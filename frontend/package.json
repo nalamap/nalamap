@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "next lint",
     "test": "playwright test",
-    "test:e2e": "playwright test"
+    "test:ui": "playwright test",
+    "test:e2e": "playwright test e2e-tests/",
+    "test:performance": "cd ../e2e-performance && python3 -m pytest tests/ -v"
   },
   "dependencies": {
     "@ai-sdk/react": "^1.1.19",

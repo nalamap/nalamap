@@ -39,7 +39,7 @@ The following components have been created:
 If your development stack is already running (via `dev.docker-compose.yml`):
 
 ```bash
-cd e2e-tests
+cd e2e-performance
 
 # Run all baseline performance tests
 python3 -m pytest tests/ -v
@@ -59,7 +59,7 @@ python3 -m pytest tests/test_file_transfer_performance.py::TestBaselinePerforman
 If you want to run tests with a dedicated E2E stack:
 
 ```bash
-cd e2e-tests
+cd e2e-performance
 
 # Start the E2E stack
 docker-compose -f docker-compose.e2e.yml up --build -d
@@ -82,7 +82,7 @@ docker-compose -f docker-compose.e2e.yml down
 Alternatively, use the provided quick start script:
 
 ```bash
-cd e2e-tests
+cd e2e-performance
 ./quickstart.sh
 ```
 
@@ -154,7 +154,7 @@ Tests validate:
 
 ### Need to regenerate test data?
 ```bash
-cd e2e-tests
+cd e2e-performance
 python3 utils/generate_test_files.py
 cp test_data/*.geojson ../uploads/
 ```

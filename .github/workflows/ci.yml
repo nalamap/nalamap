@@ -90,11 +90,12 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
 
-      - name: Run frontend end-to-end tests
+      - name: Run frontend E2E tests
         run: npm run test:e2e
         env:
           NEXT_TELEMETRY_DISABLED: '1'
           CI: 'true'
+        # Runs tests from e2e-tests/ directory (geocoding, styling, etc.)
 
   frontend-performance:
     runs-on: ubuntu-latest
