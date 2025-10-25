@@ -1345,3 +1345,108 @@ test.describe("LeafletMapClient - Performance Tests", () => {
     console.log(`✅ Bounds fitting performance test passed`);
   });
 });
+
+test.describe("LeafletMapClient - Scale Control", () => {
+  test.beforeEach(async ({ page }) => {
+    await setupBackendMocks(page);
+    await page.goto("/map");
+    await waitForMapReady(page);
+  });
+
+  test("should display scale control on the map", async ({ page }) => {
+    // Wait for the Leaflet scale control to be rendered
+    const scaleControl = page.locator(".leaflet-control-scale");
+    await expect(scaleControl).toBeVisible({ timeout: 5000 });
+
+    // Verify both metric and imperial scales are present
+    const scaleLines = page.locator(".leaflet-control-scale-line");
+    await expect(scaleLines).toHaveCount(2); // Metric and imperial
+
+    // Check that the scales show some distance values
+    const metricText = await scaleLines.first().textContent();
+    const imperialText = await scaleLines.last().textContent();
+    
+    expect(metricText).toBeTruthy();
+    expect(metricText?.length).toBeGreaterThan(0);
+    expect(imperialText).toBeTruthy();
+    expect(imperialText?.length).toBeGreaterThan(0);
+
+    console.log(`✅ Scale control is visible with metric: ${metricText}, imperial: ${imperialText}`);
+  });
+
+  test("should update scale when zooming", async ({ page }) => {
+    // Get initial scale text
+    const scaleControl = page.locator(".leaflet-control-scale-line").first();
+    await expect(scaleControl).toBeVisible();
+    const initialScale = await scaleControl.textContent();
+
+    // Zoom in on the map
+    const zoomInButton = page.locator(".leaflet-control-zoom-in");
+    await zoomInButton.click();
+    await page.waitForTimeout(500);
+
+    // Get updated scale text
+    const updatedScale = await scaleControl.textContent();
+
+    // Scale should change when zoom level changes
+    expect(updatedScale).not.toEqual(initialScale);
+
+    console.log(
+      `✅ Scale updated from "${initialScale}" to "${updatedScale}" after zoom`,
+    );
+  });
+
+  test("should adjust scale position when layer panel is collapsed/expanded", async ({
+    page,
+  }) => {
+    // Wait for page to fully load
+    await page.waitForLoadState("domcontentloaded");
+    await page.waitForTimeout(1000);
+
+    // Wait for scale to be visible
+    const scaleControl = page.locator(".leaflet-control-scale");
+    await expect(scaleControl).toBeVisible({ timeout: 10000 });
+
+    // Get initial margin (panel should be expanded initially)
+    const initialMargin = await scaleControl.evaluate(
+      (el) => window.getComputedStyle(el).marginLeft
+    );
+
+    // Find and click the collapse button for layer panel
+    const collapseButton = page.locator(
+      'button:has(.lucide-chevron-left):near(.leaflet-container)'
+    );
+    await expect(collapseButton).toBeVisible({ timeout: 5000 });
+    await collapseButton.click({ timeout: 5000 });
+    await page.waitForTimeout(500); // Allow for animation to complete
+
+    // Get margin after collapse
+    const collapsedMargin = await scaleControl.evaluate(
+      (el) => window.getComputedStyle(el).marginLeft
+    );
+
+    // When collapsed, margin should be larger to avoid overlap with floating icon
+    expect(parseInt(collapsedMargin)).toBeGreaterThan(parseInt(initialMargin));
+
+    // Expand the panel again - wait for the button to be available
+    await page.waitForTimeout(500);
+    const expandButton = page.locator('button[aria-label="Open layer management"]');
+    await expect(expandButton).toBeVisible({ timeout: 10000 });
+    
+    // Use a more reliable click method
+    await expandButton.click({ timeout: 10000, force: true });
+    await page.waitForTimeout(500); // Allow for animation to complete
+
+    // Get margin after expand
+    const expandedMargin = await scaleControl.evaluate(
+      (el) => window.getComputedStyle(el).marginLeft
+    );
+
+    // Should return to smaller margin
+    expect(parseInt(expandedMargin)).toBeLessThanOrEqual(parseInt(collapsedMargin));
+
+    console.log(
+      `✅ Scale position adjusted: initial=${initialMargin}, collapsed=${collapsedMargin}, expanded=${expandedMargin}`
+    );
+  });
+});

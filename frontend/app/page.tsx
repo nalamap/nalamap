@@ -19,6 +19,7 @@ export default function Home() {
   const getLayoutWidths = useUIStore((s) => s.getLayoutWidths);
   const setLayoutWidths = useUIStore((s) => s.setLayoutWidths);
   const sidebarWidth = useUIStore((s) => s.sidebarWidth);
+  const setLayerPanelCollapsed = useUIStore((s) => s.setLayerPanelCollapsed);
   
   // Initialize with default values to avoid hydration mismatch
   const [widths, setWidths] = useState<number[]>([4, 18, 56, 22]);
@@ -154,7 +155,10 @@ export default function Home() {
           >
             <button
               className="absolute top-2 right-2 p-1 bg-primary-200 rounded shadow z-10 hover:bg-primary-300"
-              onClick={() => setLayerCollapsed(true)}
+              onClick={() => {
+                setLayerCollapsed(true);
+                setLayerPanelCollapsed(true);
+              }}
             >
               <ChevronLeft className="w-4 h-4 text-primary-700" />
             </button>
@@ -168,7 +172,10 @@ export default function Home() {
           <button
             className="fixed bottom-4 p-3 bg-primary-800 rounded-full shadow-lg z-[25] hover:bg-primary-700 touch-manipulation"
             style={{ left: `calc(1rem + ${sidebarWidth}vw)` }}
-            onClick={() => setLayerCollapsed(false)}
+            onClick={() => {
+              setLayerCollapsed(false);
+              setLayerPanelCollapsed(false);
+            }}
             aria-label="Open layer management"
           >
             <Layers className="w-9 h-9 text-white" />

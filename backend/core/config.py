@@ -116,3 +116,17 @@ def get_geoserver_embedding_factory_path() -> Optional[str]:
 
     value = os.getenv(GEOSERVER_EMBEDDING_FACTORY_ENV)
     return value or None
+
+
+# MCP (Model Context Protocol) Configuration --------------------------------------------
+
+# Enable MCP server to expose NaLaMap tools to external AI assistants
+MCP_ENABLED = _env_bool("MCP_ENABLED", default="false")
+
+# MCP server port (if running standalone, not used with FastAPI integration)
+MCP_SERVER_PORT = int(os.getenv("MCP_SERVER_PORT", "8001"))
+
+# External MCP servers to connect to (comma-separated URLs)
+# Example: "http://localhost:3001/mcp,http://tools.example.com/mcp"
+RAW_MCP_EXTERNAL_SERVERS = os.getenv("MCP_EXTERNAL_SERVERS", "")
+MCP_EXTERNAL_SERVERS = [url.strip() for url in RAW_MCP_EXTERNAL_SERVERS.split(",") if url.strip()]

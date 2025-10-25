@@ -2,6 +2,18 @@
 import { create } from "zustand";
 import { ChatMessage, GeoDataObject } from "../models/geodatamodel";
 
+export type ToolUpdate = {
+  name: string;
+  status: "running" | "complete" | "error";
+  timestamp: number;
+  error?: string;
+  input?: any; // Tool input parameters
+  output?: any; // Tool output result (full data)
+  output_preview?: string; // Preview string (truncated)
+  is_state_update?: boolean; // True if output is agent state update
+  output_type?: string; // Type of output (for display purposes)
+};
+
 export type ChatInterfaceState = {
   // state fields
   input: string;
@@ -10,12 +22,20 @@ export type ChatInterfaceState = {
   loading: boolean;
   error: string;
 
+  // streaming state
+  toolUpdates: ToolUpdate[];
+  streamingMessage: string;
+  isStreaming: boolean;
+
   // getters
   getInput: () => string;
   getMessages: () => ChatMessage[];
   getGeoDataList: () => GeoDataObject[];
   getLoading: () => boolean;
   getError: () => string;
+  getToolUpdates: () => ToolUpdate[];
+  getStreamingMessage: () => string;
+  getIsStreaming: () => boolean;
 
   // setters / mutators
   setInput: (input: string) => void;
@@ -27,6 +47,23 @@ export type ChatInterfaceState = {
   setLoading: (flag: boolean) => void;
   setError: (error: string) => void;
   clearError: () => void;
+
+  // streaming actions
+  addToolUpdate: (tool: Omit<ToolUpdate, "timestamp">) => void;
+  updateToolStatus: (
+    toolName: string,
+    status: ToolUpdate["status"],
+    error?: string,
+    output?: any,
+    output_preview?: string,
+    is_state_update?: boolean,
+    output_type?: string,
+  ) => void;
+  appendStreamingToken: (token: string) => void;
+  setStreamingMessage: (message: string) => void;
+  clearStreamingMessage: () => void;
+  clearToolUpdates: () => void;
+  setIsStreaming: (flag: boolean) => void;
 };
 
 export const useChatInterfaceStore = create<ChatInterfaceState>((set, get) => ({
@@ -37,12 +74,20 @@ export const useChatInterfaceStore = create<ChatInterfaceState>((set, get) => ({
   loading: false,
   error: "",
 
+  // streaming state
+  toolUpdates: [],
+  streamingMessage: "",
+  isStreaming: false,
+
   // getters
   getInput: () => get().input,
   getMessages: () => get().messages,
   getGeoDataList: () => get().geoDataList,
   getLoading: () => get().loading,
   getError: () => get().error,
+  getToolUpdates: () => get().toolUpdates,
+  getStreamingMessage: () => get().streamingMessage,
+  getIsStreaming: () => get().isStreaming,
 
   // mutators
   setInput: (input) => set({ input }),
@@ -59,4 +104,49 @@ export const useChatInterfaceStore = create<ChatInterfaceState>((set, get) => ({
 
   setError: (error) => set({ error }),
   clearError: () => set({ error: "" }),
+
+  // streaming actions
+  addToolUpdate: (tool) =>
+    set((state) => ({
+      toolUpdates: [
+        ...state.toolUpdates,
+        { ...tool, timestamp: Date.now() },
+      ],
+    })),
+
+  updateToolStatus: (toolName, status, error, output, output_preview, is_state_update, output_type) =>
+    set((state) => ({
+      toolUpdates: state.toolUpdates.map((tool) =>
+        tool.name === toolName
+          ? { 
+              ...tool, 
+              status, 
+              error, 
+              output, 
+              output_preview, 
+              is_state_update, 
+              output_type,
+              timestamp: Date.now() 
+            }
+          : tool,
+      ),
+    })),
+
+  appendStreamingToken: (token) =>
+    set((state) => ({
+      streamingMessage: state.streamingMessage + token,
+    })),
+
+  setStreamingMessage: (message) => set({ streamingMessage: message }),
+
+  clearStreamingMessage: () => set({ streamingMessage: "" }),
+
+  clearToolUpdates: () => set({ toolUpdates: [] }),
+
+  setIsStreaming: (flag) => set({ isStreaming: flag }),
 }));
+
+// Expose store for testing in development/test environments
+if (typeof window !== "undefined") {
+  (window as any).useChatInterfaceStore = useChatInterfaceStore;
+}

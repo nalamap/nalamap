@@ -58,9 +58,10 @@ def _get_llm_from_options(state: Optional[GeoDataAgentState] = None):
 
     if provider:
         try:
-            return get_llm_for_provider(
+            llm, _ = get_llm_for_provider(
                 provider_name=provider, max_tokens=max_tokens, model_name=model_name
             )
+            return llm
         except Exception as e:
             logger.warning(f"Failed to get LLM for provider {provider}: {e}. Using default.")
             return get_llm()

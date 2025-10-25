@@ -4,6 +4,9 @@ import { useState } from "react";
 import Link from "next/link";
 import Head from "next/head";
 import { User, Maximize, RefreshCcw, Settings, Home, Layers } from "lucide-react";
+import { useChatInterfaceStore } from "../../stores/chatInterfaceStore";
+import { useLayerStore } from "../../stores/layerStore";
+import { useSettingsStore } from "../../stores/settingsStore";
 
 const toggleFullscreen = () => {
   const elem = document.documentElement;
@@ -24,6 +27,48 @@ const toggleFullscreen = () => {
     } else if ((document as any).msExitFullscreen) {
       (document as any).msExitFullscreen(); // IE11
     }
+  }
+};
+
+const handleReset = () => {
+  if (
+    !window.confirm(
+      "Are you sure you want to reset the app? This will clear all chat history, layers, and settings."
+    )
+  ) {
+    return;
+  }
+
+  try {
+    // Clear chat interface store
+    useChatInterfaceStore.getState().clearMessages();
+    useChatInterfaceStore.getState().clearToolUpdates();
+    useChatInterfaceStore.getState().clearStreamingMessage();
+    useChatInterfaceStore.getState().setInput("");
+    useChatInterfaceStore.getState().setGeoDataList([]);
+    useChatInterfaceStore.getState().clearError();
+
+    // Clear layer store
+    useLayerStore.getState().resetLayers();
+
+    // Reset settings
+    useSettingsStore.getState().resetColorSettings();
+
+    // Clear all localStorage (except items we want to preserve)
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach((key) => localStorage.removeItem(key));
+
+    // Reload the page to ensure clean state
+    window.location.reload();
+  } catch (error) {
+    console.error("Error during reset:", error);
+    alert("An error occurred while resetting the app. Please try refreshing the page.");
   }
 };
 
@@ -78,8 +123,10 @@ export default function Sidebar({ onLayerToggle }: { onLayerToggle?: () => void 
 
         {/* Reset Icon */}
         <button
+          onClick={handleReset}
           className="hover:bg-secondary-800 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
           title="Reset App"
+          data-testid="reset-button"
         >
           <RefreshCcw className="w-6 h-6 md:mr-0 mr-3" />
           <span className="md:hidden text-base">Reset App</span>

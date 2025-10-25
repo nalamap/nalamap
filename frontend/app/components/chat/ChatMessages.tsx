@@ -27,6 +27,7 @@ interface ChatMessagesProps {
   showToolMessages?: boolean;
   expandedToolMessage?: Record<number, boolean>;
   onToggleToolMessage?: (idx: number) => void;
+  disableAutoScroll?: boolean;
 }
 
 export default function ChatMessages({
@@ -35,13 +36,16 @@ export default function ChatMessages({
   showToolMessages = false,
   expandedToolMessage = {},
   onToggleToolMessage,
+  disableAutoScroll = false,
 }: ChatMessagesProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom with new entry
+  // Auto-scroll to bottom with new entry, unless scroll is locked
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [conversation, loading]);
+    if (!disableAutoScroll) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [conversation, loading, disableAutoScroll]);
 
   return (
     <div className="flex-1 pb-2">

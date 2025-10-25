@@ -123,6 +123,12 @@ class ExampleGeoServer(BaseModel):
     password: Optional[str] = None
 
 
+class ExampleMCPServer(BaseModel):
+    url: str
+    name: str
+    description: str
+
+
 class ColorScale(BaseModel):
     """Represents a color scale with 11 shades (50-950)"""
 
@@ -159,6 +165,7 @@ class SettingsOptions(BaseModel):
     system_prompt: str
     tool_options: Dict[str, ToolOption]  # per-tool settings
     example_geoserver_backends: List[ExampleGeoServer]
+    example_mcp_servers: List[ExampleMCPServer]  # example MCP servers
     model_options: Dict[str, List[ModelOption]]  # per-provider model list
     session_id: str
     color_settings: ColorSettings  # default color settings
@@ -231,6 +238,10 @@ async def get_settings_options(request: Request, response: Response):
             ),
         ),
     ]
+
+    # Example MCP servers - empty for now
+    # Users can add their own custom MCP servers through the UI
+    example_mcp_servers = []
 
     # Dynamically discover available LLM providers and models
     from services.ai.provider_interface import get_all_providers
@@ -457,6 +468,7 @@ async def get_settings_options(request: Request, response: Response):
         system_prompt=DEFAULT_SYSTEM_PROMPT,
         tool_options=tool_options,
         example_geoserver_backends=example_geoserver_backends,
+        example_mcp_servers=example_mcp_servers,
         model_options=model_options,
         session_id=session_id,
         color_settings=default_color_settings,

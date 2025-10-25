@@ -8,7 +8,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from api import ai_style, auto_styling, data_management, debug, file_streaming, nalamap, settings
+from api import (
+    ai_style,
+    auto_styling,
+    data_management,
+    debug,
+    file_streaming,
+    mcp,
+    nalamap,
+    settings,
+)
 
 # from sqlalchemy.ext.asyncio import AsyncSession
 from core.config import ALLOWED_CORS_ORIGINS, LOCAL_UPLOAD_DIR
@@ -85,6 +94,7 @@ app.include_router(ai_style.router, prefix="/api")  # AI Style button functional
 app.include_router(auto_styling.router, prefix="/api")  # Automatic styling
 app.include_router(settings.router, prefix="/api")
 app.include_router(file_streaming.router, prefix="/api")  # Streaming files
+app.include_router(mcp.router, prefix="/api")  # MCP server endpoint
 
 
 @app.get("/")

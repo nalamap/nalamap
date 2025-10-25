@@ -88,7 +88,8 @@ def test_preload_endpoint_uses_session_cookie(api_client, monkeypatch):
             ),
         ]
         status = {"WMS": True, "WFS": True, "WCS": False, "WMTS": False}
-        return layers, status
+        errors = {}  # No errors
+        return layers, status, errors
 
     # Mock delete_layers and store_layers
     def fake_delete_layers(session, urls):
@@ -149,3 +150,14 @@ def test_preload_endpoint_uses_session_cookie(api_client, monkeypatch):
     assert called["executed"] is True
     assert called["session"] == session_id
     assert called["stored_layers"] == 2
+
+
+def test_options_endpoint_returns_example_mcp_servers(api_client):
+    """Test that the /settings/options endpoint returns example MCP servers."""
+    response = api_client.get("/settings/options")
+    assert response.status_code == 200
+    data = response.json()
+    assert "example_mcp_servers" in data
+    assert isinstance(data["example_mcp_servers"], list)
+    # Example list can be empty (users add their own custom servers)
+    assert len(data["example_mcp_servers"]) >= 0

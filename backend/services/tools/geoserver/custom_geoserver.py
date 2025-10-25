@@ -5,6 +5,8 @@ and their descriptions across WMS, WFS, WCS, and WMTS services.
 """
 
 import logging
+import socket
+import ssl
 from collections import Counter
 from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.parse import urlencode, urljoin
@@ -14,10 +16,10 @@ from langchain_core.tools import tool
 from langchain_core.tools.base import InjectedToolCallId
 from langgraph.prebuilt import InjectedState
 from langgraph.types import Command
-from owslib.wcs import WebCoverageService
-from owslib.wfs import WebFeatureService
-from owslib.wms import WebMapService
-from owslib.wmts import WebMapTileService
+
+# OWSLib imports are done lazily to allow SSL patching before import
+# DO NOT import owslib.wms, owslib.wfs, etc. at module level!
+# They must be imported AFTER patching for allow_insecure to work
 from pydantic import Field
 from pydantic.fields import FieldInfo
 from typing_extensions import Annotated
@@ -43,6 +45,177 @@ from services.tools.geoserver.vector_store import similarity_search as vector_si
 from services.tools.geoserver.vector_store import store_layers
 
 logger = logging.getLogger(__name__)
+
+
+class GeoServerConnectionError(Exception):
+    """Raised when unable to connect to GeoServer backend.
+
+    Attributes:
+        error_type: Category of error (ssl, dns, connection, timeout, http, unknown)
+        message: Human-readable error message
+        technical_details: Technical error details for debugging
+    """
+
+    def __init__(self, error_type: str, message: str, technical_details: str = ""):
+        self.error_type = error_type
+        self.message = message
+        self.technical_details = technical_details
+        super().__init__(message)
+
+
+def classify_connection_error(exception: Exception) -> Tuple[str, str, str]:
+    """Classify a connection exception into user-friendly categories.
+
+    Returns:
+        Tuple of (error_type, user_message, technical_details)
+
+    Error types:
+        - ssl_certificate: SSL certificate issues (expired, self-signed, invalid)
+        - dns: Domain name resolution failures
+        - connection: Connection refused, network unreachable
+        - timeout: Connection or read timeout
+        - http: HTTP error responses (404, 500, etc.)
+        - auth: Authentication failures
+        - unknown: Other errors
+    """
+    error_str = str(exception).lower()
+    exc_type = type(exception).__name__
+
+    # SSL Certificate Errors
+    if isinstance(exception, ssl.SSLError) or "ssl" in error_str or "certificate" in error_str:
+        if (
+            "certificate verify failed" in error_str
+            or "sslcertverificationerror" in exc_type.lower()
+        ):
+            return (
+                "ssl_certificate",
+                "SSL certificate verification failed. The server's certificate may be "
+                "expired, self-signed, or invalid. Enable 'Allow Insecure' to bypass "
+                "verification (not recommended for production).",
+                str(exception),
+            )
+        elif "certificate has expired" in error_str:
+            return (
+                "ssl_certificate",
+                "SSL certificate has expired. Contact the server administrator or enable "
+                "'Allow Insecure' to bypass verification.",
+                str(exception),
+            )
+        else:
+            return (
+                "ssl_certificate",
+                "SSL/TLS connection error. The server may have an invalid or "
+                "untrusted certificate.",
+                str(exception),
+            )
+
+    # DNS Resolution Errors
+    if (
+        isinstance(exception, socket.gaierror)
+        or "name or service not known" in error_str
+        or "nodename nor servname provided" in error_str
+        or "getaddrinfo failed" in error_str
+    ):
+        return (
+            "dns",
+            "Domain name resolution failed. The server address may be incorrect "
+            "or DNS is unavailable.",
+            str(exception),
+        )
+
+    # Connection Errors
+    connection_error_types = (
+        ConnectionRefusedError,
+        ConnectionResetError,
+        ConnectionAbortedError,
+        ConnectionError,
+    )
+    if (
+        isinstance(exception, connection_error_types)
+        or "connection refused" in error_str
+        or "connection reset" in error_str
+    ):
+        return (
+            "connection",
+            "Connection refused. The server may be down, firewalled, or the "
+            "URL/port may be incorrect.",
+            str(exception),
+        )
+
+    if "network is unreachable" in error_str or "no route to host" in error_str:
+        return (
+            "connection",
+            "Network unreachable. Check your network connection or the server may "
+            "be inaccessible.",
+            str(exception),
+        )
+
+    # Timeout Errors
+    if isinstance(exception, TimeoutError) or "timeout" in error_str or "timed out" in error_str:
+        return (
+            "timeout",
+            "Connection timeout. The server took too long to respond. It may be "
+            "slow or unreachable.",
+            str(exception),
+        )
+
+    # HTTP Errors
+    if hasattr(exception, "response"):
+        status_code = getattr(exception.response, "status_code", None)
+        if status_code:
+            if status_code == 401:
+                return (
+                    "auth",
+                    "Authentication required. Please provide valid username and password.",
+                    f"HTTP {status_code}: {str(exception)}",
+                )
+            elif status_code == 403:
+                return (
+                    "auth",
+                    "Access forbidden. Your credentials may not have sufficient permissions.",
+                    f"HTTP {status_code}: {str(exception)}",
+                )
+            elif status_code == 404:
+                return (
+                    "http",
+                    "GeoServer endpoint not found (404). The URL may be incorrect.",
+                    f"HTTP {status_code}: {str(exception)}",
+                )
+            elif status_code >= 500:
+                return (
+                    "http",
+                    f"Server error ({status_code}). The GeoServer may be misconfigured "
+                    "or experiencing issues.",
+                    f"HTTP {status_code}: {str(exception)}",
+                )
+            else:
+                return (
+                    "http",
+                    f"HTTP error {status_code}. See technical details for more information.",
+                    f"HTTP {status_code}: {str(exception)}",
+                )
+
+    # Authentication errors in exception message
+    if "401" in error_str or "unauthorized" in error_str:
+        return (
+            "auth",
+            "Authentication required. Please provide valid username and password.",
+            str(exception),
+        )
+
+    if "403" in error_str or "forbidden" in error_str:
+        return (
+            "auth",
+            "Access forbidden. Your credentials may not have sufficient permissions.",
+            str(exception),
+        )
+
+    # Unknown errors
+    return (
+        "unknown",
+        "An unexpected error occurred while connecting to the GeoServer. " "See technical details.",
+        str(exception),
+    )
 
 
 def _sanitize_crs_list(crs_options: Any) -> List[str]:
@@ -465,17 +638,138 @@ def parse_wmts_capabilities(
 
 def fetch_all_service_capabilities_with_status(
     backend: GeoServerBackend, search_term: Optional[str] = None
-) -> Tuple[List[GeoDataObject], Dict[str, bool]]:
-    """Fetch capabilities from all services and capture per-service success flags."""
+) -> Tuple[List[GeoDataObject], Dict[str, bool], Dict[str, Dict[str, str]]]:
+    """Fetch capabilities from all services and capture per-service success flags.
+
+    Returns:
+        Tuple of (layers, service_status, service_errors)
+        - layers: List of discovered GeoDataObjects
+        - service_status: Dict mapping service name to success boolean
+        - service_errors: Dict mapping service name to error details
+            {error_type, message, technical_details}
+    """
 
     if not backend.enabled:
-        return [], {}
+        return [], {}, {}
 
     base_url = backend.url
     username = backend.username
     password = backend.password
+    allow_insecure = backend.allow_insecure
+
+    # Log the allow_insecure setting for debugging
+    logger.info(
+        f"Processing backend {base_url}: allow_insecure={allow_insecure}, "
+        f"enabled={backend.enabled}"
+    )
+
     all_layers: List[GeoDataObject] = []
     service_status: Dict[str, bool] = {}
+    service_errors: Dict[str, Dict[str, str]] = {}
+
+    # Configure SSL verification for OWSLib
+    import urllib3
+    import ssl
+
+    # Store original values for restoration
+    original_ssl_context = None
+    original_openURL = None
+
+    if allow_insecure:
+        # Suppress only the InsecureRequestWarning when explicitly allowed
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        logger.warning(
+            f"SSL verification disabled for {base_url} (allow_insecure=True). "
+            "This is insecure and should only be used in development."
+        )
+
+        # Method 1: Patch SSL context globally - affects all SSL connections
+        try:
+            original_ssl_context = ssl._create_default_https_context
+            ssl._create_default_https_context = ssl._create_unverified_context
+            logger.info(f"Patched SSL context for {base_url}")
+        except AttributeError as e:
+            logger.warning(f"Could not patch SSL context: {e}")
+
+        # Method 2: Patch OWSLib's openURL function to force verify=False
+        # This must be done BEFORE importing OWSLib service classes
+        try:
+            # First, reload owslib.util to get a fresh module state
+            import importlib
+            import owslib.util
+
+            importlib.reload(owslib.util)
+
+            from owslib.util import openURL as orig_openURL
+
+            original_openURL = orig_openURL
+
+            def patched_openURL(
+                url_base,
+                data=None,
+                method="Get",
+                cookies=None,
+                username=None,
+                password=None,
+                timeout=30,
+                headers=None,
+                verify=True,
+                cert=None,
+                auth=None,
+            ):
+                # Force verify=False regardless of what was passed
+                logger.debug(
+                    f"[PATCHED] openURL called: url={url_base}, "
+                    f"verify={verify} -> forcing verify=False"
+                )
+                return original_openURL(
+                    url_base,
+                    data,
+                    method,
+                    cookies,
+                    username,
+                    password,
+                    timeout,
+                    headers,
+                    verify=False,
+                    cert=cert,
+                    auth=auth,
+                )
+
+            owslib.util.openURL = patched_openURL
+            logger.info(f"Patched owslib.util.openURL for {base_url}")
+        except Exception as e:
+            logger.warning(f"Could not patch owslib.util.openURL: {e}")
+
+    # Re-import OWSLib services AFTER patching to ensure they use the patched openURL
+    # This is critical: the classes must be imported AFTER we patch owslib.util.openURL
+    if allow_insecure:
+        # Force reload of OWSLib modules to pick up the patched openURL
+        import importlib
+        import owslib.wcs
+        import owslib.wfs
+        import owslib.wms
+        import owslib.wmts
+
+        importlib.reload(owslib.wcs)
+        importlib.reload(owslib.wfs)
+        importlib.reload(owslib.wms)
+        importlib.reload(owslib.wmts)
+
+        from owslib.wcs import WebCoverageService as WCS_Local
+        from owslib.wfs import WebFeatureService as WFS_Local
+        from owslib.wms import WebMapService as WMS_Local
+        from owslib.wmts import WebMapTileService as WMTS_Local
+        from owslib.util import Authentication  # Import after reload!
+
+        logger.info("Reloaded OWSLib modules after patching")
+    else:
+        # Import normally when not bypassing SSL
+        from owslib.wcs import WebCoverageService as WCS_Local
+        from owslib.wfs import WebFeatureService as WFS_Local
+        from owslib.wms import WebMapService as WMS_Local
+        from owslib.wmts import WebMapTileService as WMTS_Local
+        from owslib.util import Authentication
 
     # Ensure base_url ends with / for proper urljoin behavior
     # Without trailing slash:
@@ -489,45 +783,93 @@ def fetch_all_service_capabilities_with_status(
 
     # WMS
     wms_url = urljoin(base_url, "wms")
+    logger.info(f"Fetching WMS capabilities from {wms_url} (allow_insecure={allow_insecure})")
     try:
-        wms = WebMapService(wms_url, version="1.3.0", username=username, password=password)
+        wms = WMS_Local(wms_url, version="1.3.0", username=username, password=password)
         all_layers.extend(parse_wms_capabilities(wms, wms_url, search_term))
         service_status["WMS"] = True
+        logger.info(f"Successfully fetched WMS capabilities from {wms_url}")
     except Exception as e:
         logger.warning(f"Could not fetch WMS capabilities from {wms_url}: {e}")
         service_status["WMS"] = False
+        error_type, message, technical = classify_connection_error(e)
+        service_errors["WMS"] = {
+            "error_type": error_type,
+            "message": message,
+            "technical_details": technical,
+        }
 
     # WFS
     wfs_url = urljoin(base_url, "wfs")
     try:
-        wfs = WebFeatureService(wfs_url, version="2.0.0", username=username, password=password)
+        wfs = WFS_Local(wfs_url, version="2.0.0", username=username, password=password)
         all_layers.extend(parse_wfs_capabilities(wfs, wfs_url, search_term))
         service_status["WFS"] = True
     except Exception as e:
         logger.warning(f"Could not fetch WFS capabilities from {wfs_url}: {e}")
         service_status["WFS"] = False
+        error_type, message, technical = classify_connection_error(e)
+        service_errors["WFS"] = {
+            "error_type": error_type,
+            "message": message,
+            "technical_details": technical,
+        }
 
     # WCS
     wcs_url = urljoin(base_url, "wcs")
     try:
-        wcs = WebCoverageService(wcs_url, version="2.0.1")
+        wcs = WCS_Local(wcs_url, version="2.0.1")
         all_layers.extend(parse_wcs_capabilities(wcs, wcs_url, search_term))
         service_status["WCS"] = True
     except Exception as e:
         logger.warning(f"Could not fetch WCS capabilities from {wcs_url}: {e}")
         service_status["WCS"] = False
+        error_type, message, technical = classify_connection_error(e)
+        service_errors["WCS"] = {
+            "error_type": error_type,
+            "message": message,
+            "technical_details": technical,
+        }
 
     # WMTS
     wmts_url = urljoin(base_url, "gwc/service/wmts")
     try:
-        wmts = WebMapTileService(wmts_url, username=username, password=password)
+        # Create Authentication object with verify=False for insecure connections
+        wmts_auth = Authentication(
+            username=username,
+            password=password,
+            verify=(not allow_insecure),  # verify=False when allow_insecure=True
+        )
+
+        wmts = WMTS_Local(wmts_url, auth=wmts_auth)
         all_layers.extend(parse_wmts_capabilities(wmts, wmts_url, search_term))
         service_status["WMTS"] = True
     except Exception as e:
         logger.warning(f"Could not fetch WMTS capabilities from {wmts_url}: {e}")
         service_status["WMTS"] = False
+        error_type, message, technical = classify_connection_error(e)
+        service_errors["WMTS"] = {
+            "error_type": error_type,
+            "message": message,
+            "technical_details": technical,
+        }
 
-    return all_layers, service_status
+    # Restore original SSL context and openURL if they were patched
+    if original_ssl_context is not None:
+        try:
+            ssl._create_default_https_context = original_ssl_context
+        except Exception:
+            pass
+
+    if original_openURL is not None:
+        try:
+            import owslib.util
+
+            owslib.util.openURL = original_openURL
+        except Exception:
+            pass
+
+    return all_layers, service_status, service_errors
 
 
 def fetch_all_service_capabilities(
@@ -535,7 +877,7 @@ def fetch_all_service_capabilities(
 ) -> List[GeoDataObject]:
     """Fetches capabilities from all services and returns a flat list."""
 
-    layers, _ = fetch_all_service_capabilities_with_status(backend, search_term=search_term)
+    layers, _, _ = fetch_all_service_capabilities_with_status(backend, search_term=search_term)
     return layers
 
 
@@ -575,9 +917,22 @@ def preload_backend_layers_with_state(
         result = preload_backend_layers(session_id, backend, search_term)
         # State is set to "completed" in store_layers finally block
         return result
+    except GeoServerConnectionError as exc:
+        # Set error state with detailed information
+        error_message = f"[{exc.error_type}] {exc.message}"
+        set_processing_state(
+            session_id,
+            backend_url,
+            "error",
+            error=error_message,
+            error_type=exc.error_type,
+            error_details=exc.technical_details,
+        )
+        raise
     except Exception as exc:
-        # Set error state
+        # Set generic error state
         set_processing_state(session_id, backend_url, "error", error=str(exc))
+        raise
         raise
 
 
@@ -592,14 +947,39 @@ def preload_backend_layers(
 
     backend_url = backend.url.rstrip("/")
 
-    # Set processing state before fetching
-    set_processing_state(session_id, backend_url, "processing", total=0)
+    # Set processing state before fetching - clear any previous errors
+    set_processing_state(
+        session_id,
+        backend_url,
+        "processing",
+        total=0,
+        error=None,
+        error_type=None,
+        error_details=None,
+    )
 
-    layers, status = fetch_all_service_capabilities_with_status(backend, search_term=search_term)
+    layers, status, errors = fetch_all_service_capabilities_with_status(
+        backend, search_term=search_term
+    )
+
     if not any(status.values()):
-        raise ConnectionError(
-            "Unable to reach the GeoServer backend. All capability requests failed."
-        )
+        # All services failed - raise detailed error
+        if errors:
+            # Get the first error (they're likely all the same root cause)
+            first_error = next(iter(errors.values()))
+            error_type = first_error["error_type"]
+            error_msg = first_error["message"]
+            technical = first_error["technical_details"]
+
+            raise GeoServerConnectionError(
+                error_type=error_type,
+                message=f"Unable to reach GeoServer backend. {error_msg}",
+                technical_details=technical,
+            )
+        else:
+            raise ConnectionError(
+                "Unable to reach the GeoServer backend. All capability requests failed."
+            )
 
     annotated_layers = _annotate_layers_with_backend(layers, backend)
     delete_layers(session_id, [backend.url])
@@ -617,6 +997,7 @@ def preload_backend_layers(
         "total_layers": stored_count,
         "service_status": status,
         "service_counts": dict(service_counts),
+        "service_errors": errors,  # Include error details in response
     }
 
 

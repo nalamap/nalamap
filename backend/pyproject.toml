@@ -32,6 +32,7 @@ kml2geojson = "*"
 geopandas = "*"
 webcolors = "*"
 matplotlib = "*"
+httpx-sse = "^0.4.3"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "*"
@@ -93,7 +94,8 @@ markers = [
     "performance: Performance and stress tests",
     "edge_case: Edge case and boundary condition tests",
     "styling: All styling-related tests",
-    "color_theory: Tests related to color theory and cartography"
+    "color_theory: Tests related to color theory and cartography",
+    "mcp: Tests for Model Context Protocol (MCP) functionality"
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",

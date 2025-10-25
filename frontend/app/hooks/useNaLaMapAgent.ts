@@ -84,6 +84,10 @@ function normalizeSettings(raw: Record<string, any>): Record<string, any> {
 export function useNaLaMapAgent(apiUrl: string) {
   const layerStore = useLayerStore();
   const chatInterfaceStore = useChatInterfaceStore();
+  
+  // AbortController for cancelling ongoing streaming requests
+  let abortController: AbortController | null = null;
+  let currentSessionId: string | null = null;
 
   const appendHumanMessage = (query: string) => {
     /* // Don't normalize for now to keep all arguments
@@ -261,13 +265,281 @@ export function useNaLaMapAgent(apiUrl: string) {
     }
   }
 
+  /**
+   * Streaming version of queryNaLaMapAgent using Server-Sent Events (SSE).
+   * Provides real-time updates for tool execution and LLM token streaming.
+   */
+  async function queryNaLaMapAgentStream(
+    endpoint: "chat" = "chat",
+    options?: { portal?: string; bboxWkt?: string },
+  ) {
+    chatInterfaceStore.setLoading(true);
+    chatInterfaceStore.setIsStreaming(true);
+    chatInterfaceStore.setError("");
+    chatInterfaceStore.clearStreamingMessage();
+    chatInterfaceStore.clearToolUpdates();
+
+    await useSettingsStore.getState().initializeIfNeeded();
+    const rawSettings = useSettingsStore.getState().getSettings();
+    const settingsObj = normalizeSettings(rawSettings);
+    
+    // Create new AbortController for this request
+    abortController = new AbortController();
+    // Generate session_id for this request (same format as backend)
+    // Use cryptographically secure random number for session ID
+    const randomSuffix = window.crypto.getRandomValues(new Uint32Array(1))[0].toString(36).substr(2, 9);
+    currentSessionId = `session_${Date.now()}_${randomSuffix}`;
+
+    try {
+      const selectedLayers = useLayerStore
+        .getState()
+        .layers.filter((l) => l.selected);
+      appendHumanMessage(chatInterfaceStore.input);
+
+      const payload: NaLaMapRequest = {
+        messages: chatInterfaceStore.messages,
+        query: chatInterfaceStore.input,
+        geodata_last_results: chatInterfaceStore.geoDataList,
+        geodata_layers: layerStore.layers,
+        options: settingsObj,
+      };
+      
+      // Add session_id to options for cancellation tracking
+      if (currentSessionId && payload.options) {
+        (payload.options as any).session_id = currentSessionId;
+      }
+
+      chatInterfaceStore.setInput("");
+      Logger.log("Streaming payload:", payload);
+
+      const response = await fetch(`${apiUrl}/chat/stream`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+        },
+        credentials: "include",
+        body: JSON.stringify(payload),
+        signal: abortController.signal, // Add abort signal for cancellation
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      if (!response.body) {
+        throw new Error("Response body is null");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) {
+          Logger.log("Stream complete");
+          break;
+        }
+
+        // Decode chunk and add to buffer
+        buffer += decoder.decode(value, { stream: true });
+
+        // Process complete SSE messages (event: ...\ndata: ...\n\n)
+        const messages = buffer.split("\n\n");
+        buffer = messages.pop() || ""; // Keep incomplete message in buffer
+
+        for (const message of messages) {
+          if (!message.trim()) continue;
+
+          const lines = message.split("\n");
+          let eventType = "";
+          let eventData = "";
+
+          for (const line of lines) {
+            if (line.startsWith("event: ")) {
+              eventType = line.substring(7).trim();
+            } else if (line.startsWith("data: ")) {
+              eventData = line.substring(6).trim();
+            }
+          }
+
+          if (!eventType || !eventData) continue;
+
+          try {
+            const data = JSON.parse(eventData);
+
+            switch (eventType) {
+              case "tool_start":
+                Logger.log(`Tool started: ${data.tool}`, data.input);
+                chatInterfaceStore.addToolUpdate({
+                  name: data.tool,
+                  status: "running",
+                  input: data.input, // Store tool input parameters
+                });
+                break;
+
+              case "tool_end":
+                Logger.log(`Tool completed: ${data.tool}`, {
+                  output: data.output,
+                  output_preview: data.output_preview,
+                  is_state_update: data.is_state_update,
+                  output_type: data.output_type,
+                });
+                chatInterfaceStore.updateToolStatus(
+                  data.tool, 
+                  "complete",
+                  undefined, // no error
+                  data.output, // full output
+                  data.output_preview, // preview
+                  data.is_state_update, // state update flag
+                  data.output_type, // output type
+                );
+                break;
+
+              case "llm_token":
+                // Append token to streaming message
+                chatInterfaceStore.appendStreamingToken(data.token);
+                break;
+
+              case "result":
+                Logger.log("Final result received:", data);
+                Logger.log("Messages BEFORE setting:", chatInterfaceStore.getMessages());
+                Logger.log("GeoData BEFORE setting:", chatInterfaceStore.getGeoDataList());
+
+                // Convert serialized messages back to ChatMessage format
+                // Filter out empty AI messages (from tool calls/thoughts)
+                const messages: ChatMessage[] = data.messages
+                  .map((msg: any) => ({
+                    type: msg.type,
+                    content: msg.content,
+                  }))
+                  .filter((msg: ChatMessage) => {
+                    // Keep all human messages
+                    if (msg.type === "human") return true;
+                    // Keep AI messages only if they have content
+                    if (msg.type === "ai") {
+                      const content = typeof msg.content === "string" ? msg.content.trim() : "";
+                      return content.length > 0;
+                    }
+                    // Keep other message types
+                    return true;
+                  });
+
+                Logger.log("Setting messages to:", messages);
+                Logger.log("Setting geodata results to:", data.geodata_results);
+
+                chatInterfaceStore.setGeoDataList(data.geodata_results);
+                chatInterfaceStore.setMessages(messages);
+
+                if (data.geodata_layers) {
+                  layerStore.synchronizeLayersFromBackend(data.geodata_layers);
+                }
+
+                // Clear streaming UI state since we now have the final result
+                chatInterfaceStore.clearStreamingMessage();
+                chatInterfaceStore.clearToolUpdates();
+                
+                Logger.log("Messages AFTER setting:", chatInterfaceStore.getMessages());
+                Logger.log("GeoData AFTER setting:", chatInterfaceStore.getGeoDataList());
+                Logger.log("Loading state:", chatInterfaceStore.getLoading());
+                Logger.log("IsStreaming state:", chatInterfaceStore.getIsStreaming());
+                break;
+
+              case "error":
+                Logger.error("Streaming error:", data);
+                chatInterfaceStore.setError(
+                  data.message || "An error occurred during streaming",
+                );
+                break;
+
+              case "done":
+                Logger.log("Stream done:", data);
+                break;
+              
+              case "cancelled":
+                Logger.log("Stream cancelled:", data);
+                chatInterfaceStore.setError("Request was cancelled");
+                break;
+
+              default:
+                Logger.warn("Unknown event type:", eventType);
+            }
+          } catch (parseError) {
+            Logger.error("Failed to parse event data:", parseError);
+          }
+        }
+      }
+    } catch (e: any) {
+      // Handle abort errors gracefully
+      if (e.name === "AbortError") {
+        Logger.log("Request was aborted by user");
+        chatInterfaceStore.setError("Request was cancelled");
+      } else {
+        Logger.error("Streaming error:", e);
+        chatInterfaceStore.setError(e.message || "Something went wrong");
+      }
+    } finally {
+      Logger.log("Stream finally block - setting loading and isStreaming to false");
+      Logger.log("Messages before finally:", chatInterfaceStore.getMessages());
+      Logger.log("GeoData before finally:", chatInterfaceStore.getGeoDataList());
+      chatInterfaceStore.setLoading(false);
+      chatInterfaceStore.setIsStreaming(false);
+      Logger.log("Messages after finally:", chatInterfaceStore.getMessages());
+      Logger.log("GeoData after finally:", chatInterfaceStore.getGeoDataList());
+    }
+  }
+
+  /**
+   * Cancel the currently running streaming request
+   */
+  async function cancelRequest() {
+    if (!currentSessionId) {
+      Logger.warn("No active session to cancel");
+      return;
+    }
+    
+    Logger.log(`Cancelling request for session: ${currentSessionId}`);
+    
+    // Abort the fetch request
+    if (abortController) {
+      abortController.abort();
+    }
+    
+    // Notify the backend to stop processing
+    try {
+      await fetch(`${apiUrl}/chat/cancel?session_id=${currentSessionId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+      });
+      Logger.log("Backend notified of cancellation");
+    } catch (error) {
+      Logger.error("Failed to notify backend of cancellation:", error);
+      // Continue anyway - the abort should have stopped the stream
+    }
+    
+    // Clear state
+    chatInterfaceStore.setLoading(false);
+    chatInterfaceStore.setIsStreaming(false);
+    chatInterfaceStore.clearStreamingMessage();
+    chatInterfaceStore.clearToolUpdates();
+    
+    // Reset references
+    abortController = null;
+    currentSessionId = null;
+  }
+
   return {
-    input: chatInterfaceStore.input,
-    setInput: chatInterfaceStore.setInput,
-    messages: chatInterfaceStore.messages,
-    geoDataList: chatInterfaceStore.geoDataList,
-    loading: chatInterfaceStore.loading,
-    error: chatInterfaceStore.error,
+    // Only return functions, not state values
+    // State should be accessed directly via useChatInterfaceStore selectors
+    // for proper reactivity in components
     queryNaLaMapAgent,
+    queryNaLaMapAgentStream, // Export streaming function
+    cancelRequest, // Export cancel function
+    setInput: chatInterfaceStore.setInput,
   };
 }

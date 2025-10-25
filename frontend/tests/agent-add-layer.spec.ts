@@ -240,7 +240,7 @@ test.describe("Agent Chat Interface - Add Layer Button", () => {
      * EXPECTED: Layers should render immediately after clicking "Add to Map"
      */
 
-    // Mock the /api/chat endpoint to return hospital layers
+    // Mock the streaming endpoint to return hospital layers
     const mockChatResponse = {
       messages: [
         { type: "human", content: "geocode Hospitals in Brazil" },
@@ -252,16 +252,48 @@ test.describe("Agent Chat Interface - Add Layer Button", () => {
       ],
       geodata_results: [mockHospitalPointsLayer, mockHospitalAreasLayer],
       geodata_layers: [], // No layers added to map yet
+      metrics: {
+        agent_execution_time: 2.5,
+        token_usage: { total: 100, prompt: 50, completion: 50 },
+      },
     };
 
-    await page.route("**/api/chat", async (route) => {
-      console.log("Mock /api/chat route hit!");
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(mockChatResponse),
-      });
-    });
+    // Mock streaming endpoint with proper SSE format
+    await page.addInitScript((response) => {
+      const originalFetch = window.fetch;
+      (window as any).fetch = async function(input: RequestInfo | URL, init?: RequestInit) {
+        const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+        
+        if (url.includes('/chat/stream')) {
+          console.log('[MOCK] Intercepting streaming request');
+          const encoder = new TextEncoder();
+          
+          const stream = new ReadableStream({
+            async start(controller) {
+              // Send result event
+              const resultMessage = `event: result\ndata: ${JSON.stringify(response)}\n\n`;
+              controller.enqueue(encoder.encode(resultMessage));
+              
+              // Send done event
+              const doneMessage = `event: done\ndata: ${JSON.stringify({ status: 'complete' })}\n\n`;
+              controller.enqueue(encoder.encode(doneMessage));
+              
+              controller.close();
+            }
+          });
+          
+          return new Response(stream, {
+            status: 200,
+            headers: {
+              'Content-Type': 'text/event-stream',
+              'Cache-Control': 'no-cache'
+            }
+          });
+        }
+        
+        return originalFetch(input, init);
+      };
+    }, mockChatResponse);
 
     // Navigate to the app
     await page.goto("/map");
@@ -270,12 +302,7 @@ test.describe("Agent Chat Interface - Add Layer Button", () => {
     // Enter query in chat
     const chatInput = page.getByPlaceholder("Ask about maps, search for data, or request analysis...");
     await chatInput.fill("geocode Hospitals in Brazil");
-
-    // Submit and wait for response
-    await Promise.all([
-      page.waitForResponse("**/chat"),
-      chatInput.press("Enter"),
-    ]);
+    await chatInput.press("Enter");
 
     // Wait for results to appear
     await expect(page.getByText("I found 2 layers")).toBeVisible({
@@ -356,7 +383,7 @@ test.describe("Agent Chat Interface - Add Layer Button", () => {
      * 3. No multiple clicks or workarounds needed
      */
 
-    // Mock chat response
+    // Mock chat response with streaming
     const mockChatResponse = {
       messages: [
         { type: "human", content: "show hospitals" },
@@ -364,27 +391,48 @@ test.describe("Agent Chat Interface - Add Layer Button", () => {
       ],
       geodata_results: [mockHospitalPointsLayer],
       geodata_layers: [],
+      metrics: {
+        agent_execution_time: 2.5,
+        token_usage: { total: 100, prompt: 50, completion: 50 },
+      },
     };
 
-    await page.route("**/api/chat", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(mockChatResponse),
-      });
-    });
+    // Mock streaming endpoint
+    await page.addInitScript((response) => {
+      const originalFetch = window.fetch;
+      (window as any).fetch = async function(input: RequestInfo | URL, init?: RequestInit) {
+        const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+        
+        if (url.includes('/chat/stream')) {
+          const encoder = new TextEncoder();
+          const stream = new ReadableStream({
+            async start(controller) {
+              const resultMessage = `event: result\ndata: ${JSON.stringify(response)}\n\n`;
+              controller.enqueue(encoder.encode(resultMessage));
+              const doneMessage = `event: done\ndata: ${JSON.stringify({ status: 'complete' })}\n\n`;
+              controller.enqueue(encoder.encode(doneMessage));
+              controller.close();
+            }
+          });
+          return new Response(stream, {
+            status: 200,
+            headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' }
+          });
+        }
+        return originalFetch(input, init);
+      };
+    }, mockChatResponse);
 
     await page.goto("/map");
     await page.waitForLoadState("networkidle");
 
-    // Submit query - use Promise.all to ensure waitForResponse is set up before pressing Enter
+    // Submit query
     const chatInput = page.getByPlaceholder("Ask about maps, search for data, or request analysis...");
     await chatInput.fill("show hospitals");
-
-    await Promise.all([
-      page.waitForResponse("**/chat"),
-      chatInput.press("Enter"),
-    ]);
+    await chatInput.press("Enter");
+    
+    // Wait for response to appear
+    await page.waitForTimeout(500);
 
     await expect(page.getByText("Here are the hospitals.")).toBeVisible();
 
@@ -459,15 +507,37 @@ test.describe("Agent Chat Interface - Add Layer Button", () => {
       ],
       geodata_results: [mockHospitalPointsLayer],
       geodata_layers: [],
+      metrics: {
+        agent_execution_time: 2.5,
+        token_usage: { total: 100, prompt: 50, completion: 50 },
+      },
     };
 
-    await page.route("**/chat", async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(mockChatResponse),
-      });
-    });
+    // Mock streaming endpoint
+    await page.addInitScript((response) => {
+      const originalFetch = window.fetch;
+      (window as any).fetch = async function(input: RequestInfo | URL, init?: RequestInit) {
+        const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+        
+        if (url.includes('/chat/stream')) {
+          const encoder = new TextEncoder();
+          const stream = new ReadableStream({
+            async start(controller) {
+              const resultMessage = `event: result\ndata: ${JSON.stringify(response)}\n\n`;
+              controller.enqueue(encoder.encode(resultMessage));
+              const doneMessage = `event: done\ndata: ${JSON.stringify({ status: 'complete' })}\n\n`;
+              controller.enqueue(encoder.encode(doneMessage));
+              controller.close();
+            }
+          });
+          return new Response(stream, {
+            status: 200,
+            headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' }
+          });
+        }
+        return originalFetch(input, init);
+      };
+    }, mockChatResponse);
 
     await page.goto("/map");
     await page.waitForLoadState("networkidle");
@@ -476,7 +546,7 @@ test.describe("Agent Chat Interface - Add Layer Button", () => {
     await chatInput.fill("show data");
     await chatInput.press("Enter");
 
-    await page.waitForResponse("**/chat");
+    await page.waitForTimeout(500);
 
     // Click "Add to Map" multiple times rapidly
     const addButton = page.getByRole("button", { name: "Add to Map" }).first();

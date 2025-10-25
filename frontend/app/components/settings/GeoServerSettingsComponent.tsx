@@ -24,6 +24,8 @@ interface GeoServerSettingsComponentProps {
       in_progress: boolean;
       complete: boolean;
       error: string | null;
+      error_type?: string | null;
+      error_details?: string | null;
     };
   };
   interpolatedProgress: {
@@ -35,6 +37,7 @@ interface GeoServerSettingsComponentProps {
       lastUpdate: number;
     };
   };
+  handleToggleBackendInsecure?: (url: string) => void;
 }
 
 export default function GeoServerSettingsComponent({
@@ -49,12 +52,19 @@ export default function GeoServerSettingsComponent({
   backendSuccess,
   embeddingStatus,
   interpolatedProgress,
+  handleToggleBackendInsecure,
 }: GeoServerSettingsComponentProps) {
   const [collapsed, setCollapsed] = useState(true);
 
   const backends = useInitializedSettingsStore((s) => s.geoserver_backends);
   const removeBackend = useInitializedSettingsStore((s) => s.removeBackend);
   const toggleBackend = useInitializedSettingsStore((s) => s.toggleBackend);
+  const toggleBackendInsecureStore = useInitializedSettingsStore(
+    (s) => s.toggleBackendInsecure,
+  );
+  
+  // Use the handler if provided, otherwise fall back to store action
+  const toggleBackendInsecure = handleToggleBackendInsecure || toggleBackendInsecureStore;
   const availableExampleGeoServers = useInitializedSettingsStore(
     (s) => s.available_example_geoservers,
   );
@@ -176,6 +186,25 @@ export default function GeoServerSettingsComponent({
                 placeholder="Password (optional)"
                 className="border border-primary-300 dark:border-primary-700 rounded p-2 w-full bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
               />
+              <label className="flex items-center space-x-2 p-3 bg-warning-50 dark:bg-warning-900/20 border border-warning-300 dark:border-warning-700 rounded">
+                <input
+                  type="checkbox"
+                  checked={newBackend.allow_insecure || false}
+                  onChange={(e) =>
+                    setNewBackend({
+                      ...newBackend,
+                      allow_insecure: e.target.checked,
+                    })
+                  }
+                  className="form-checkbox h-4 w-4 text-warning-600"
+                />
+                <span className="text-sm text-gray-900 dark:text-warning-300 flex items-center">
+                  Allow insecure connections (expired/self-signed SSL certificates)
+                  <span className="ml-1 text-base" title="Warning: Only enable for trusted servers">
+                    ⚠️
+                  </span>
+                </span>
+              </label>
               <button
                 onClick={handleAddBackend}
                 disabled={backendLoading}
@@ -348,6 +377,63 @@ export default function GeoServerSettingsComponent({
                               )}
                           </div>
                         )}
+
+                      {/* Enhanced Error Display */}
+                      {b.enabled &&
+                        embeddingStatus[b.url] &&
+                        embeddingStatus[b.url].state === "error" && (
+                          <div className="mt-2 bg-error-100 dark:bg-error-900 border-l-4 border-l-error-500 border border-error-300 dark:border-error-700 rounded shadow-sm overflow-hidden">
+                            <div className="p-3 bg-error-100 dark:bg-error-900">
+                              <p className="text-sm font-semibold text-error-900 dark:text-error-100 flex items-center gap-2">
+                                <span className="text-lg text-error-600 dark:text-error-300">✗</span>
+                                <span>{embeddingStatus[b.url].error || "Connection error"}</span>
+                              </p>
+                              {embeddingStatus[b.url].error_details && (
+                                <details className="mt-3 group">
+                                  <summary className="text-xs text-gray-900 dark:text-error-200 cursor-pointer hover:text-error-900 dark:hover:text-error-100 font-medium list-none flex items-center gap-1.5 select-none">
+                                    <span className="inline-block transition-transform group-open:rotate-90">▶</span>
+                                    Show technical details
+                                  </summary>
+                                  <pre className="text-xs mt-2 p-2 bg-error-200 dark:bg-error-800 border border-error-300 dark:border-error-600 rounded overflow-x-auto whitespace-pre-wrap text-gray-900 dark:text-error-100 font-mono">
+                                    {embeddingStatus[b.url].error_details}
+                                  </pre>
+                                </details>
+                              )}
+                            </div>
+                            {embeddingStatus[b.url].error_type === "ssl_certificate" && (
+                              <div className="px-3 py-2 bg-error-200 dark:bg-error-800 border-t border-error-300 dark:border-error-600">
+                                <p className="text-xs text-gray-900 dark:text-error-100 flex items-start gap-1.5">
+                                  <span className="text-base shrink-0">💡</span>
+                                  <span>Try enabling "Allow insecure connections" below</span>
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                      {/* Allow Insecure Toggle */}
+                      {b.enabled && (
+                        <div className="mt-2">
+                          <label className="flex items-center space-x-2 text-xs p-2.5 bg-warning-100 dark:bg-warning-900 border-l-4 border-l-warning-500 border border-warning-300 dark:border-warning-700 rounded cursor-pointer hover:bg-warning-200 dark:hover:bg-warning-800 transition-colors shadow-sm">
+                            <input
+                              type="checkbox"
+                              checked={b.allow_insecure || false}
+                              onChange={() => toggleBackendInsecure(b.url)}
+                              className="form-checkbox h-4 w-4 text-warning-600 rounded border-gray-400"
+                            />
+                            <span className="text-gray-900 dark:text-warning-100 flex items-center gap-1.5 font-medium">
+                              <span className="text-base">⚠️</span>
+                              <span>Allow insecure connections</span>
+                              <span
+                                className="text-[10px] text-gray-700 dark:text-warning-200 font-normal"
+                                title="Bypass SSL certificate verification (expired/self-signed). Only use for trusted servers."
+                              >
+                                (expired/self-signed SSL)
+                              </span>
+                            </span>
+                          </label>
+                        </div>
+                      )}
                     </div>
                   </label>
                   <button

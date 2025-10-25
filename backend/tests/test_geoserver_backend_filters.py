@@ -56,7 +56,7 @@ class _StubBackendFetcher:
                     properties={"srs": ["EPSG:4326"]},
                 )
             )
-        return layers, {"WMS": True, "WFS": False, "WCS": False, "WMTS": False}
+        return layers, {"WMS": True, "WFS": False, "WCS": False, "WMTS": False}, {}
 
 
 @pytest.fixture

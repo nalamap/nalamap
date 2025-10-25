@@ -201,10 +201,10 @@ def test_parse_wmts_capabilities_filtered(monkeypatch, mock_wmts_service):
     assert len(layers) == 0
 
 
-@patch("services.tools.geoserver.custom_geoserver.WebMapService")
-@patch("services.tools.geoserver.custom_geoserver.WebFeatureService")
-@patch("services.tools.geoserver.custom_geoserver.WebCoverageService")
-@patch("services.tools.geoserver.custom_geoserver.WebMapTileService")
+@patch("owslib.wms.WebMapService")
+@patch("owslib.wfs.WebFeatureService")
+@patch("owslib.wcs.WebCoverageService")
+@patch("owslib.wmts.WebMapTileService")
 def test_fetch_all_service_capabilities(
     mock_wmts_constructor,
     mock_wcs_constructor,
@@ -250,7 +250,11 @@ def test_prefetch_and_query_returns_layers(mock_fetch, initial_agent_state):
         data_source_id="test_source_1",
         data_link="http://mock.link",
     )
-    mock_fetch.return_value = ([layer], {"WMS": True, "WFS": False, "WCS": False, "WMTS": False})
+    mock_fetch.return_value = (
+        [layer],
+        {"WMS": True, "WFS": False, "WCS": False, "WMTS": False},
+        {},
+    )
 
     preload_backend_layers(session_id, backend)
 
@@ -291,7 +295,11 @@ def test_prefetch_and_query_with_search(mock_fetch, initial_agent_state):
             data_link="http://mock.link/2",
         ),
     ]
-    mock_fetch.return_value = (layers, {"WMS": True, "WFS": False, "WCS": False, "WMTS": False})
+    mock_fetch.return_value = (
+        layers,
+        {"WMS": True, "WFS": False, "WCS": False, "WMTS": False},
+        {},
+    )
 
     preload_backend_layers(session_id, backend)
 

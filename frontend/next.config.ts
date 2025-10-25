@@ -5,7 +5,11 @@ const nextConfig: NextConfig = {
   output: "standalone",
   
   // Allow Playwright to make cross-origin requests during testing  
-  allowedDevOrigins: ['http://127.0.0.1:3000', 'http://localhost:3000'],
+  allowedDevOrigins: [
+    'http://127.0.0.1:3000',
+    'http://localhost:3000',
+    'http://0.0.0.0:3000',
+  ],
   
   // Disable ESLint during production builds (errors will still be caught in development)
   eslint: {
