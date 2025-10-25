@@ -1,6 +1,7 @@
 """Unified interface for querying all LLM providers."""
 
 import logging
+import os
 from typing import Dict, List
 
 from models.model_info import ModelInfo, ProviderInfo
@@ -13,9 +14,10 @@ def get_all_providers() -> Dict[str, ProviderInfo]:
 
     Returns:
         Dictionary mapping provider name to ProviderInfo with availability
-        status and available models.
+        status and available models. Order is determined by DEFAULT_LLM_PROVIDER
+        or LLM_PROVIDER environment variable if set.
     """
-    providers: Dict[str, ProviderInfo] = {}
+    providers_unordered: Dict[str, ProviderInfo] = {}
 
     # OpenAI
     try:
@@ -24,7 +26,7 @@ def get_all_providers() -> Dict[str, ProviderInfo]:
         is_available = openai.is_available()
         models: List[ModelInfo] = openai.get_available_models() if is_available else []
 
-        providers["openai"] = ProviderInfo(
+        providers_unordered["openai"] = ProviderInfo(
             name="openai",
             display_name="OpenAI",
             available=is_available,
@@ -33,7 +35,7 @@ def get_all_providers() -> Dict[str, ProviderInfo]:
         )
     except Exception as e:
         logger.warning(f"Failed to load OpenAI provider: {e}")
-        providers["openai"] = ProviderInfo(
+        providers_unordered["openai"] = ProviderInfo(
             name="openai",
             display_name="OpenAI",
             available=False,
@@ -48,7 +50,7 @@ def get_all_providers() -> Dict[str, ProviderInfo]:
         is_available = azureai.is_available()
         models = azureai.get_available_models() if is_available else []
 
-        providers["azure"] = ProviderInfo(
+        providers_unordered["azure"] = ProviderInfo(
             name="azure",
             display_name="Azure OpenAI",
             available=is_available,
@@ -57,7 +59,7 @@ def get_all_providers() -> Dict[str, ProviderInfo]:
         )
     except Exception as e:
         logger.warning(f"Failed to load Azure OpenAI provider: {e}")
-        providers["azure"] = ProviderInfo(
+        providers_unordered["azure"] = ProviderInfo(
             name="azure",
             display_name="Azure OpenAI",
             available=False,
@@ -72,7 +74,7 @@ def get_all_providers() -> Dict[str, ProviderInfo]:
         is_available = google_genai.is_available()
         models = google_genai.get_available_models() if is_available else []
 
-        providers["google"] = ProviderInfo(
+        providers_unordered["google"] = ProviderInfo(
             name="google",
             display_name="Google Gemini",
             available=is_available,
@@ -81,7 +83,7 @@ def get_all_providers() -> Dict[str, ProviderInfo]:
         )
     except Exception as e:
         logger.warning(f"Failed to load Google Gemini provider: {e}")
-        providers["google"] = ProviderInfo(
+        providers_unordered["google"] = ProviderInfo(
             name="google",
             display_name="Google Gemini",
             available=False,
@@ -96,7 +98,7 @@ def get_all_providers() -> Dict[str, ProviderInfo]:
         is_available = mistralai.is_available()
         models = mistralai.get_available_models() if is_available else []
 
-        providers["mistral"] = ProviderInfo(
+        providers_unordered["mistral"] = ProviderInfo(
             name="mistral",
             display_name="Mistral AI",
             available=is_available,
@@ -105,7 +107,7 @@ def get_all_providers() -> Dict[str, ProviderInfo]:
         )
     except Exception as e:
         logger.warning(f"Failed to load Mistral AI provider: {e}")
-        providers["mistral"] = ProviderInfo(
+        providers_unordered["mistral"] = ProviderInfo(
             name="mistral",
             display_name="Mistral AI",
             available=False,
@@ -120,7 +122,7 @@ def get_all_providers() -> Dict[str, ProviderInfo]:
         is_available = deepseek.is_available()
         models = deepseek.get_available_models() if is_available else []
 
-        providers["deepseek"] = ProviderInfo(
+        providers_unordered["deepseek"] = ProviderInfo(
             name="deepseek",
             display_name="DeepSeek",
             available=is_available,
@@ -129,13 +131,31 @@ def get_all_providers() -> Dict[str, ProviderInfo]:
         )
     except Exception as e:
         logger.warning(f"Failed to load DeepSeek provider: {e}")
-        providers["deepseek"] = ProviderInfo(
+        providers_unordered["deepseek"] = ProviderInfo(
             name="deepseek",
             display_name="DeepSeek",
             available=False,
             models=[],
             error_message=str(e),
         )
+
+    # Order providers based on DEFAULT_LLM_PROVIDER or LLM_PROVIDER env var
+    # The first provider in the ordered dict will be selected by default in the UI
+    preferred_provider = (
+        os.getenv("DEFAULT_LLM_PROVIDER", "").lower().strip()
+        or os.getenv("LLM_PROVIDER", "").lower().strip()
+    )
+
+    # If a preferred provider is set and exists, put it first
+    providers: Dict[str, ProviderInfo] = {}
+    if preferred_provider and preferred_provider in providers_unordered:
+        providers[preferred_provider] = providers_unordered[preferred_provider]
+        logger.info(f"Prioritizing provider '{preferred_provider}' as default")
+
+    # Add remaining providers in their original order
+    for name, info in providers_unordered.items():
+        if name not in providers:
+            providers[name] = info
 
     return providers
 
