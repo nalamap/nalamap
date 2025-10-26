@@ -484,7 +484,7 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
 
     async def event_generator():
         """Generate SSE events from agent execution."""
-        session_id = "unknown"  # Initialize at function scope
+        stream_id = "unknown"  # Initialize at function scope
         try:
             # Initialize performance tracking
             metrics = PerformanceMetrics()
@@ -511,8 +511,12 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                 else:
                     logger.warning("Streaming: No session_id provided in options or cookies")
 
-            # Get session_id early for cancellation tracking
+            # Get session_id for GeoServer layer lookup and conversation tracking
             session_id = getattr(options, "session_id", None) or "unknown"
+
+            # Get stream_id for cancellation tracking (separate from session_id)
+            # stream_id is request-specific, session_id is user-specific
+            stream_id = getattr(options_orig, "stream_id", None) or session_id
 
             # Get message window size
             message_window_size = getattr(options.model_settings, "message_window_size", None)
@@ -572,10 +576,10 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
             async for event in single_agent.astream_events(
                 state, version="v2", config={"callbacks": [perf_callback]}
             ):
-                # Check for cancellation before processing each event
-                if await is_cancelled(session_id):
+                # Check for cancellation before processing each event (use stream_id)
+                if await is_cancelled(stream_id):
                     logger.warning(
-                        f"🛑 Cancellation detected for session: {session_id} at event loop"
+                        f"🛑 Cancellation detected for stream: {stream_id} at event loop"
                     )
                     yield "event: cancelled\n"
                     yield f"data: {json.dumps({'message': 'Request cancelled by user'})}\n\n"
@@ -591,7 +595,7 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                 if event_type in ["on_tool_start", "on_tool_end", "on_chain_start"]:
                     logger.info(
                         f"Event: {event_type} | name: {event_name} | "
-                        f"session: {session_id} | cancelled: {await is_cancelled(session_id)}"
+                        f"stream: {stream_id} | cancelled: {await is_cancelled(stream_id)}"
                     )
 
                 # Debug logging for all events
@@ -763,8 +767,8 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
             yield f"data: {json.dumps({'status': 'error'})}\n\n"
 
         finally:
-            # Always clear cancellation flag when stream ends
-            await clear_cancellation(session_id)
+            # Always clear cancellation flag when stream ends (use stream_id)
+            await clear_cancellation(stream_id)
 
     return StreamingResponse(
         event_generator(),
@@ -808,17 +812,18 @@ async def get_metrics(
 @router.post("/chat/cancel", tags=["nalamap"])
 async def cancel_chat_request(session_id: str):
     """
-    Cancel an ongoing chat/streaming request for a specific session.
+    Cancel an ongoing chat/streaming request for a specific stream.
 
     Args:
-        session_id: The session ID of the request to cancel
+        session_id: The stream ID of the request to cancel (can be user session_id
+                   for backward compatibility or stream_id for new requests)
 
     Returns:
         Status message indicating cancellation was requested
     """
     async with _cancellation_lock:
         _cancellation_flags[session_id] = True
-        logger.info(f"Cancellation requested for session: {session_id}")
+        logger.info(f"Cancellation requested for stream: {session_id}")
 
     return {"status": "cancellation_requested", "session_id": session_id}
 

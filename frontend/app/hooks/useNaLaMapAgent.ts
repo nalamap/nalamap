@@ -283,12 +283,21 @@ export function useNaLaMapAgent(apiUrl: string) {
     const rawSettings = useSettingsStore.getState().getSettings();
     const settingsObj = normalizeSettings(rawSettings);
     
+    // Two types of IDs:
+    // 1. User session_id (persistent): from settings, used for GeoServer layers, conversation history
+    // 2. Request stream_id (ephemeral): unique per request, used for cancellation tracking
+    
+    // Get persistent user session_id from settings (set by backend via cookie)
+    // This MUST be preserved - it's used to find preloaded GeoServer layers
+    const userSessionId = (settingsObj as any).session_id;
+    
+    // Generate unique stream_id for this specific request (for cancellation)
+    const randomSuffix = window.crypto.getRandomValues(new Uint32Array(1))[0].toString(36).substr(2, 9);
+    const streamId = `stream_${Date.now()}_${randomSuffix}`;
+    currentSessionId = streamId; // Used for cancellation
+    
     // Create new AbortController for this request
     abortController = new AbortController();
-    // Generate session_id for this request (same format as backend)
-    // Use cryptographically secure random number for session ID
-    const randomSuffix = window.crypto.getRandomValues(new Uint32Array(1))[0].toString(36).substr(2, 9);
-    currentSessionId = `session_${Date.now()}_${randomSuffix}`;
 
     try {
       const selectedLayers = useLayerStore
@@ -301,12 +310,12 @@ export function useNaLaMapAgent(apiUrl: string) {
         query: chatInterfaceStore.input,
         geodata_last_results: chatInterfaceStore.geoDataList,
         geodata_layers: layerStore.layers,
-        options: settingsObj,
+        options: settingsObj, // Contains userSessionId for GeoServer layer lookup
       };
       
-      // Add session_id to options for cancellation tracking
-      if (currentSessionId && payload.options) {
-        (payload.options as any).session_id = currentSessionId;
+      // Add stream_id for request cancellation (separate from user session_id)
+      if (payload.options) {
+        (payload.options as any).stream_id = streamId;
       }
 
       chatInterfaceStore.setInput("");
