@@ -95,8 +95,23 @@ jobs:
       - name: Generate test data
         run: python utils/generate_test_files.py
 
+      - name: Copy test data to backend uploads directory
+        run: |
+          mkdir -p ../backend/uploads
+          cp -r test_data/*.geojson ../backend/uploads/ || true
+          ls -lh ../backend/uploads/
+
       - name: Start full stack for E2E tests
         run: docker compose -f docker-compose.e2e.yml up -d --build
+
+      - name: Copy test files into backend container
+        run: |
+          echo "Waiting for backend container to be ready..."
+          sleep 10
+          # Copy test files into the running backend container
+          docker cp test_data/. $(docker compose -f docker-compose.e2e.yml ps -q backend):/app/uploads/
+          # Verify files are there
+          docker compose -f docker-compose.e2e.yml exec backend ls -lh /app/uploads/
 
       - name: Wait for services to be ready
         run: |

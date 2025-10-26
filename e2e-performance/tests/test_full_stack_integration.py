@@ -43,7 +43,7 @@ class TestFullStackIntegration:
 
     def test_backend_health_through_nginx(self):
         """Verify backend is accessible through nginx."""
-        response = requests.get(f"{BASE_URL}/health/backend", timeout=10)
+        response = requests.get(f"{BASE_URL}/api/health", timeout=10)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "healthy"

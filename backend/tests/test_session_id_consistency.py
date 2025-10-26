@@ -45,9 +45,10 @@ class TestSessionIDConsistency:
     def test_preload_uses_cookie_session_id(self, client, sample_session_id, sample_backend):
         """Test that preload endpoint uses session_id from cookies when available."""
         # Mock the background task submission
-        with patch("api.settings.get_task_manager") as mock_task_manager, patch(
-            "api.settings.set_processing_state"
-        ) as mock_set_state:
+        with (
+            patch("api.settings.get_task_manager") as mock_task_manager,
+            patch("api.settings.set_processing_state") as mock_set_state,
+        ):
             mock_manager = MagicMock()
             mock_task_manager.return_value = mock_manager
 
@@ -71,9 +72,10 @@ class TestSessionIDConsistency:
     def test_preload_uses_payload_session_id(self, client, sample_session_id, sample_backend):
         """Test that preload endpoint uses session_id from payload when no cookie."""
         # Mock the background task submission
-        with patch("api.settings.get_task_manager") as mock_task_manager, patch(
-            "api.settings.set_processing_state"
-        ) as mock_set_state:
+        with (
+            patch("api.settings.get_task_manager") as mock_task_manager,
+            patch("api.settings.set_processing_state") as mock_set_state,
+        ):
             mock_manager = MagicMock()
             mock_task_manager.return_value = mock_manager
 
@@ -100,9 +102,10 @@ class TestSessionIDConsistency:
         other_session_id = uuid4().hex
 
         # Mock the background task submission
-        with patch("api.settings.get_task_manager") as mock_task_manager, patch(
-            "api.settings.set_processing_state"
-        ) as mock_set_state:
+        with (
+            patch("api.settings.get_task_manager") as mock_task_manager,
+            patch("api.settings.set_processing_state") as mock_set_state,
+        ):
             mock_manager = MagicMock()
             mock_task_manager.return_value = mock_manager
 
@@ -220,6 +223,5 @@ class TestSessionIDValidation:
 
         # With whitespace
         assert (
-            normalize_geoserver_url("  example.com/geoserver  ")
-            == "https://example.com/geoserver"
+            normalize_geoserver_url("  example.com/geoserver  ") == "https://example.com/geoserver"
         )
