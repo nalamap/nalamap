@@ -3,7 +3,7 @@ import logging
 from typing import Any, Dict, List, Optional
 import asyncio
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from langchain_core.messages import (
     AIMessage,
     BaseMessage,
@@ -228,7 +228,7 @@ async def ask_nalamap_orchestrator(request: NaLaMapRequest):
 
 
 @router.post("/chat", tags=["nalamap"], response_model=NaLaMapResponse)
-async def ask_nalamap_agent(request: NaLaMapRequest):
+async def ask_nalamap_agent(request: NaLaMapRequest, raw_request: Request):
     """Ask a question to the NaLaMap Single Agent, which uses tools to respond
     and analyse geospatial information."""
     # Lazy import: only load heavy modules when chat endpoint is actually called
@@ -258,6 +258,17 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
     options_orig: dict = request.options
 
     options: SettingsSnapshot = SettingsSnapshot.model_validate(options_orig, strict=False)
+
+    # CRITICAL FIX: Ensure session_id consistency between preload and chat
+    # Priority: options.session_id > cookie session_id
+    # This ensures the chat endpoint can find layers preloaded with the same session_id
+    if not options.session_id:
+        cookie_session_id = raw_request.cookies.get("session_id")
+        if cookie_session_id:
+            logger.info(f"Using session_id from cookie: {cookie_session_id}")
+            options.session_id = cookie_session_id
+        else:
+            logger.warning("No session_id provided in options or cookies")
 
     # Get message window size from model settings or use environment default
     message_window_size = getattr(options.model_settings, "message_window_size", None)
@@ -446,7 +457,7 @@ async def ask_nalamap_agent(request: NaLaMapRequest):
 
 
 @router.post("/chat/stream", tags=["nalamap"])
-async def ask_nalamap_agent_stream(request: NaLaMapRequest):
+async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request):
     """
     Streaming version of the NaLaMap agent that emits real-time events
     using Server-Sent Events (SSE).
@@ -488,6 +499,17 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest):
             # Parse options
             options_orig: dict = request.options
             options: SettingsSnapshot = SettingsSnapshot.model_validate(options_orig, strict=False)
+
+            # CRITICAL FIX: Ensure session_id consistency between preload and chat
+            # Priority: options.session_id > cookie session_id
+            # This ensures streaming chat can find layers preloaded with the same session_id
+            if not options.session_id:
+                cookie_session_id = raw_request.cookies.get("session_id")
+                if cookie_session_id:
+                    logger.info(f"Streaming: Using session_id from cookie: {cookie_session_id}")
+                    options.session_id = cookie_session_id
+                else:
+                    logger.warning("Streaming: No session_id provided in options or cookies")
 
             # Get session_id early for cancellation tracking
             session_id = getattr(options, "session_id", None) or "unknown"
