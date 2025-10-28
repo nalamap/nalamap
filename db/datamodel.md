@@ -24,6 +24,7 @@ erDiagram
 
   Stac_Collection {
     text id PK
+    text catalog "FK -> Stac_Catalog.id"
     text type
     text stac_version
     jsonb stac_extensions
@@ -37,6 +38,16 @@ erDiagram
     jsonb links
     jsonb assets
     jsonb item_assets
+  }
+
+  Stac_Catalog {
+    text id PK
+    text type
+    text stac_version
+    jsonb stac_extensions
+    text title
+    text description
+    jsonb links
   }
 
   Layers {
@@ -144,6 +155,12 @@ erDiagram
     uuid user_stac_coll_id "PK -> (user_id, collection_id)"
   }
 
+  User_Stac_Catalog {
+    uuid user_id "FK -> Users.id"
+    text catalog_id "FK -> Stac_Catalog.id"
+    uuid user_stac_cata_id "PK -> (user_id, catalog_id)"
+  }
+
   Map_Layers {
     uuid map_id "FK -> Maps.id"
     uuid layer_id "FK -> Layers.id"
@@ -154,13 +171,12 @@ erDiagram
 
   %% ===================== Relationships =====================
 
-  %% Collections & Items
+  %% Catalog & Collections & Items
   Stac_Collection ||--o{ Stac_item : "has items"
-  %% External service registered as its own STAC collection
-  External_Services ||--|| Stac_Collection : "registered as collection (caveat)"
+  %% External service registered as its own STAC catalog
+  External_Services ||--|| Stac_Catalog : "is a"
 
   %% Styles
-  Stac_item ||--o{ Styles : "styled by"
   Users ||--o{ Styles : "created_by"
 
   %% Layers <-> Maps (M:N)
