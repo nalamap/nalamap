@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from api import (
     ai_style,
+    auth,
     auto_styling,
     data_management,
     debug,
@@ -45,7 +46,19 @@ tags_metadata = [
     },
 ]
 
-app = FastAPI()
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Initialize and dispose database engine via ORM on app startup/shutdown."""
+    from db.session import init_db
+
+    await init_db()
+    yield
+    from db.session import engine
+
+    await engine.dispose()
 
 
 app = FastAPI(
@@ -53,6 +66,7 @@ app = FastAPI(
     description="API for making geospatial data accessible",
     version="0.1.0",
     openapi_tags=tags_metadata,
+    lifespan=lifespan,
 )
 
 # CORS
@@ -84,10 +98,15 @@ os.makedirs(LOCAL_UPLOAD_DIR, exist_ok=True)
 # NOTE: This may have issues with large files in Azure Container Apps
 # Prefer using /api/stream/ for new code (uses async generator)
 # We keep this for backward compatibility, but redirect internally where possible
+# Legacy /uploads/ endpoint using StaticFiles
+# NOTE: This may have issues with large files in Azure Container Apps
+# Prefer using /api/stream/ for new code (uses async generator)
+# We keep this for backward compatibility, but redirect internally where possible
 app.mount("/uploads", StaticFiles(directory=LOCAL_UPLOAD_DIR), name="uploads")
 
 # Include API routers
 app.include_router(debug.router, prefix="/api")
+app.include_router(auth.router, prefix="/api")
 app.include_router(nalamap.router, prefix="/api")  # Main chat functionality
 app.include_router(data_management.router, prefix="/api")
 app.include_router(ai_style.router, prefix="/api")  # AI Style button functionality

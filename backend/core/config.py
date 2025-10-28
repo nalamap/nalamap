@@ -27,7 +27,7 @@ BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
 
 # CORS configuration
 # Comma-separated list of allowed origins; if empty, allow all (not recommended with credentials)
-RAW_ALLOWED_ORIGINS = os.getenv("ALLOWED_CORS_ORIGINS", "")
+RAW_ALLOWED_ORIGINS = os.getenv("ALLOWED_CORS_ORIGINS", "*")
 ALLOWED_CORS_ORIGINS = [o.strip() for o in RAW_ALLOWED_ORIGINS.split(",") if o.strip()]
 
 # Cookie Security Configuration
@@ -45,7 +45,12 @@ MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB in bytes
 # Database
 
 # Database connection URL
-DATABASE_URL = os.getenv("DATABASE_AZURE_URL")
+# Database connection URL
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+# Authentication settings
+SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 
 # ----------------------------------------------------------------------------
 # Mapping / Geospatial Service Flags
