@@ -120,6 +120,7 @@ class TestStreamingPerformance:
             print(f"  Avg TTFB: {stats['avg_ttfb']:.3f}s")
             print(f"  Avg rate: {stats['avg_rate']:.2f} MB/s")
 
+    @pytest.mark.slow
     def test_xlarge_files_streaming(self, tester, test_files):
         """Test streaming performance for extra large files (25MB-50MB+)."""
         xlarge_files = [f for f in test_files if "25mb" in f or "50mb" in f]
@@ -145,6 +146,7 @@ class TestStreamingPerformance:
                 print(f"  Avg TTFB: {stats['avg_ttfb']:.3f}s")
                 print(f"  Avg rate: {stats['avg_rate']:.2f} MB/s")
 
+    @pytest.mark.slow
     def test_save_streaming_results(self, tester, test_files):
         """Run comprehensive streaming tests and save results."""
         RESULTS_DIR.mkdir(parents=True, exist_ok=True)
