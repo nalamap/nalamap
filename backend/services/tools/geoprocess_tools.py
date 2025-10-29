@@ -168,7 +168,7 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
     else:
         # Fall back to environment-configured provider
         llm = get_llm()
-    
+
     system_msg = (
         "You are a geospatial task execution assistant. Your role is to "
         "translate the user's most recent request into a single geoprocessing "
@@ -517,7 +517,7 @@ def geoprocess_tool(
     options = state.get("options")
     enable_smart_crs = True  # Default to enabled
     model_settings = None  # Will be passed to executor
-    
+
     if options and hasattr(options, "model_settings"):
         enable_smart_crs = getattr(options.model_settings, "enable_smart_crs", True)
         model_settings = options.model_settings  # Pass model settings to executor
@@ -650,6 +650,7 @@ def geoprocess_tool(
                     auto_selected=crs_meta.get("auto_selected", False),
                     selection_reason=crs_meta.get("selection_reason"),
                     expected_error=crs_meta.get("expected_error"),
+                    origin_layers=operation_details.get("input_layers", []),
                 )
                 # Remove the internal metadata from properties before storing
                 del layer_props["_crs_metadata"]

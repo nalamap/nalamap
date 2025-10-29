@@ -112,6 +112,55 @@ export default function SearchResults({
                     </p>
                   )}
                   
+                  {/* Processing Metadata Section */}
+                  {result.processing_metadata && (
+                    <div className="pt-3 mt-3 border-t border-neutral-200">
+                      <h5 className="font-semibold text-neutral-700 mb-2 text-xs">Processing Information</h5>
+                      
+                      {/* Operation Summary */}
+                      <div className="mb-2 p-2 bg-info-50 rounded border border-info-200">
+                        <p className="text-xs text-neutral-700">
+                          <strong className="text-info-700">
+                            {result.processing_metadata.operation.charAt(0).toUpperCase() + 
+                             result.processing_metadata.operation.slice(1)}
+                          </strong> operation
+                          {result.processing_metadata.operation === 'buffer' && 
+                           result.description?.match(/\d+\.?\d*\s*(m|km|meters|kilometers)/i) && 
+                           ` with ${result.description.match(/\d+\.?\d*\s*(m|km|meters|kilometers)/i)![0]}`}
+                          {' using '}
+                          <strong className="text-info-700">{result.processing_metadata.crs_used}</strong>
+                          {result.processing_metadata.auto_selected && ' 🎯'}
+                          {result.processing_metadata.origin_layers && 
+                           result.processing_metadata.origin_layers.length > 0 && (
+                            <span className="block mt-1 text-neutral-600">
+                              Generated from: {result.processing_metadata.origin_layers.join(', ')}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      
+                      {/* CRS Details */}
+                      <div className="space-y-1">
+                        <p className="text-xs">
+                          <strong>CRS Name:</strong> {result.processing_metadata.crs_name}
+                        </p>
+                        <p className="text-xs capitalize">
+                          <strong>Projection:</strong> {result.processing_metadata.projection_property}
+                        </p>
+                        {result.processing_metadata.auto_selected && result.processing_metadata.selection_reason && (
+                          <p className="text-xs">
+                            <strong>Selection Reason:</strong> {result.processing_metadata.selection_reason}
+                          </p>
+                        )}
+                        {result.processing_metadata.expected_error !== undefined && (
+                          <p className="text-xs">
+                            <strong>Expected Error:</strong> &lt;{result.processing_metadata.expected_error}%
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
                   {/* Close button for mobile */}
                   <button
                     onClick={(e) => {

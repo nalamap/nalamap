@@ -33,6 +33,10 @@ class ProcessingMetadata(BaseModel):
         None,
         description="Expected error percentage for this CRS/operation combination",
     )
+    origin_layers: Optional[List[str]] = Field(
+        None,
+        description="Names of the input layers used to generate this result",
+    )
 
     model_config = ConfigDict(extra="ignore")
 

@@ -14,6 +14,7 @@ export interface ProcessingMetadata {
   auto_selected: boolean; // true if auto-selected, false if user-specified
   selection_reason?: string; // e.g., "Local extent - UTM zone 33N"
   expected_error?: number; // e.g., 0.1 for <0.1% error
+  origin_layers?: string[]; // Names of input layers used to generate this result
 }
 
 export interface LayerStyle {

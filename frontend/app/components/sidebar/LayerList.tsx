@@ -405,16 +405,6 @@ export default function LayerList({
                           <div className="flex-1 min-w-0 font-bold text-neutral-800 whitespace-normal break-words">
                             {layer.title || layer.name}
                           </div>
-                          {/* CRS metadata badge */}
-                          {layer.processing_metadata && (
-                            <div
-                              className="flex-shrink-0 px-2 py-0.5 text-xs rounded bg-info-100 text-info-700 border border-info-300 cursor-help"
-                              title={`CRS: ${layer.processing_metadata.crs_name}\nOperation: ${layer.processing_metadata.operation}\nProperty: ${layer.processing_metadata.projection_property}${layer.processing_metadata.selection_reason ? `\n${layer.processing_metadata.selection_reason}` : ''}${layer.processing_metadata.expected_error !== undefined ? `\nExpected error: <${layer.processing_metadata.expected_error}%` : ''}`}
-                            >
-                              {layer.processing_metadata.crs_used}
-                              {layer.processing_metadata.auto_selected && " 🎯"}
-                            </div>
-                          )}
                           <button
                             ref={(el) => { infoButtonRefs.current[layer.id] = el; }}
                             onClick={(e) => {
@@ -960,6 +950,66 @@ export default function LayerList({
                       : JSON.stringify(layer.bounding_box)
                     }]
                   </p>
+                </div>
+              )}
+              
+              {/* Processing Metadata Section */}
+              {layer.processing_metadata && (
+                <div className="pt-3 mt-3 border-t border-neutral-200">
+                  <h4 className="font-semibold text-neutral-700 mb-2">Processing Information</h4>
+                  
+                  {/* Operation Summary */}
+                  <div className="mb-3 p-2 bg-info-50 rounded border border-info-200">
+                    <p className="text-sm text-neutral-700">
+                      <strong className="text-info-700">
+                        {layer.processing_metadata.operation.charAt(0).toUpperCase() + 
+                         layer.processing_metadata.operation.slice(1)}
+                      </strong> operation
+                      {layer.processing_metadata.operation === 'buffer' && 
+                       layer.description?.match(/\d+\.?\d*\s*(m|km|meters|kilometers)/i) && 
+                       ` with ${layer.description.match(/\d+\.?\d*\s*(m|km|meters|kilometers)/i)![0]}`}
+                      {' using '}
+                      <strong className="text-info-700">{layer.processing_metadata.crs_used}</strong>
+                      {layer.processing_metadata.auto_selected && ' 🎯'}
+                      {layer.processing_metadata.origin_layers && 
+                       layer.processing_metadata.origin_layers.length > 0 && (
+                        <span className="block mt-1 text-xs text-neutral-600">
+                          Generated from: {layer.processing_metadata.origin_layers.join(', ')}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  
+                  {/* CRS Details */}
+                  <div className="space-y-1">
+                    <div>
+                      <span className="font-semibold text-neutral-700">CRS Name:</span>
+                      <p className="text-neutral-600 text-sm">{layer.processing_metadata.crs_name}</p>
+                    </div>
+                    <div>
+                      <span className="font-semibold text-neutral-700">Projection Property:</span>
+                      <p className="text-neutral-600 text-sm capitalize">
+                        {layer.processing_metadata.projection_property}
+                      </p>
+                    </div>
+                    {layer.processing_metadata.auto_selected && (
+                      <div>
+                        <span className="font-semibold text-neutral-700">Auto-Selected:</span>
+                        <p className="text-neutral-600 text-sm">
+                          Yes {layer.processing_metadata.selection_reason && 
+                               `- ${layer.processing_metadata.selection_reason}`}
+                        </p>
+                      </div>
+                    )}
+                    {layer.processing_metadata.expected_error !== undefined && (
+                      <div>
+                        <span className="font-semibold text-neutral-700">Expected Error:</span>
+                        <p className="text-neutral-600 text-sm">
+                          &lt;{layer.processing_metadata.expected_error}%
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

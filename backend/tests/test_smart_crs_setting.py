@@ -195,3 +195,57 @@ def test_buffer_with_auto_optimize_includes_metadata():
     assert "projection_property" in crs_meta
     assert "auto_selected" in crs_meta
     assert crs_meta["auto_selected"] is True
+
+
+@pytest.mark.unit
+def test_processing_metadata_with_origin_layers():
+    """Test ProcessingMetadata with origin_layers field."""
+    metadata = ProcessingMetadata(
+        operation="buffer",
+        crs_used="EPSG:32633",
+        crs_name="WGS 84 / UTM zone 33N",
+        projection_property="conformal",
+        auto_selected=True,
+        selection_reason="Local extent - UTM zone 33N",
+        expected_error=0.1,
+        origin_layers=["rivers_africa", "lakes_africa"],
+    )
+
+    assert metadata.operation == "buffer"
+    assert metadata.origin_layers == ["rivers_africa", "lakes_africa"]
+    assert metadata.origin_layers is not None
+    assert len(metadata.origin_layers) == 2
+
+
+@pytest.mark.unit
+def test_processing_metadata_serialization_with_origin_layers():
+    """Test ProcessingMetadata serialization includes origin_layers."""
+    metadata = ProcessingMetadata(
+        operation="overlay",
+        crs_used="EPSG:3857",
+        crs_name="WGS 84 / Pseudo-Mercator",
+        projection_property="conformal",
+        auto_selected=False,
+        origin_layers=["layer1", "layer2", "layer3"],
+    )
+
+    # Serialize to dict
+    metadata_dict = metadata.model_dump()
+
+    assert metadata_dict["origin_layers"] == ["layer1", "layer2", "layer3"]
+    assert metadata_dict["operation"] == "overlay"
+    assert metadata_dict["auto_selected"] is False
+
+
+@pytest.mark.unit
+def test_processing_metadata_without_origin_layers():
+    """Test ProcessingMetadata with origin_layers as None."""
+    metadata = ProcessingMetadata(
+        operation="area",
+        crs_used="EPSG:4326",
+        crs_name="WGS 84",
+        projection_property="equidistant",
+        auto_selected=True,
+    )
+
+    assert metadata.origin_layers is None
