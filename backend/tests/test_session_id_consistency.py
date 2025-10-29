@@ -140,7 +140,7 @@ class TestSessionIDConsistency:
                     "geoserver_backends": [],
                     "model_settings": {
                         "model_provider": "openai",
-                        "model_name": "gpt-4",
+                        "model_name": "gpt-4o-mini",
                         "max_tokens": 1000,
                         "system_prompt": "",
                     },

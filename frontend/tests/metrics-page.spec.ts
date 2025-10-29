@@ -15,7 +15,7 @@ const mockSettings = {
   model_options: {
     openai: [
       {
-        name: "gpt-4",
+        name: "gpt-4o-mini",
         max_tokens: 4000,
         input_cost_per_million: 30.0,
         output_cost_per_million: 60.0,
@@ -32,7 +32,7 @@ const mockSettings = {
   },
   model_settings: {
     model_provider: "openai",
-    model_name: "gpt-4",
+    model_name: "gpt-4o-mini",
     max_tokens: 4000,
     system_prompt: "You are a helpful AI assistant.",
     message_window_size: 20,

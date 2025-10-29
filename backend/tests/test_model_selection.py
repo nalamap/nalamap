@@ -180,7 +180,7 @@ class TestConversationSummarization:
 
         model_settings = ModelSettings(
             model_provider="openai",
-            model_name="gpt-4",
+            model_name="gpt-4o-mini",
             max_tokens=4000,
             use_summarization=True,  # Set during initialization
         )
@@ -214,7 +214,7 @@ class TestConversationSummarization:
         if session_id in conversation_managers:
             del conversation_managers[session_id]
 
-        model_settings = ModelSettings(model_provider="openai", model_name="gpt-4", max_tokens=4000)
+        model_settings = ModelSettings(model_provider="openai", model_name="gpt-4o-mini", max_tokens=4000)
 
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-key"}):
             # First call
@@ -245,7 +245,7 @@ class TestConversationSummarization:
         mock_agent = MagicMock()
         mock_create_react.return_value = mock_agent
 
-        model_settings = ModelSettings(model_provider="openai", model_name="gpt-4", max_tokens=4000)
+        model_settings = ModelSettings(model_provider="openai", model_name="gpt-4o-mini", max_tokens=4000)
 
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-key"}):
             agent = await create_geo_agent(
@@ -273,7 +273,7 @@ class TestConversationSummarization:
         if session_id in conversation_managers:
             del conversation_managers[session_id]
 
-        model_settings = ModelSettings(model_provider="openai", model_name="gpt-4", max_tokens=4000)
+        model_settings = ModelSettings(model_provider="openai", model_name="gpt-4o-mini", max_tokens=4000)
 
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-key"}):
             # Create session

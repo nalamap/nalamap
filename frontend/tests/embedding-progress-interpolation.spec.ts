@@ -47,7 +47,7 @@ test.describe('Embedding Progress Interpolation', () => {
           geoserver_backends: [],
           model_settings: {
             provider: 'openai',
-            model: 'gpt-4-turbo',
+            model: 'gpt-4o-mini',
           },
         }),
       });
@@ -190,7 +190,7 @@ test.describe('Embedding Progress - Default Configuration (No Interpolation)', (
           geoserver_backends: [],
           model_settings: {
             provider: 'openai',
-            model: 'gpt-4-turbo',
+            model: 'gpt-4o-mini',
           },
         }),
       });

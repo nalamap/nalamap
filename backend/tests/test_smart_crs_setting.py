@@ -10,7 +10,7 @@ def test_model_settings_enable_smart_crs_default_true():
     """Test that enable_smart_crs defaults to True in ModelSettings."""
     settings = ModelSettings(
         model_provider="openai",
-        model_name="gpt-4",
+        model_name="gpt-4o-mini",
         max_tokens=4000,
     )
     assert settings.enable_smart_crs is True
@@ -21,7 +21,7 @@ def test_model_settings_enable_smart_crs_can_be_disabled():
     """Test that enable_smart_crs can be set to False."""
     settings = ModelSettings(
         model_provider="openai",
-        model_name="gpt-4",
+        model_name="gpt-4o-mini",
         max_tokens=4000,
         enable_smart_crs=False,
     )
@@ -33,7 +33,7 @@ def test_model_settings_enable_smart_crs_serialization():
     """Test that enable_smart_crs is properly serialized."""
     settings = ModelSettings(
         model_provider="openai",
-        model_name="gpt-4",
+        model_name="gpt-4o-mini",
         max_tokens=4000,
         enable_smart_crs=True,
     )
@@ -47,7 +47,7 @@ def test_model_settings_enable_smart_crs_from_dict():
     """Test that enable_smart_crs can be loaded from dict."""
     data = {
         "model_provider": "openai",
-        "model_name": "gpt-4",
+        "model_name": "gpt-4o-mini",
         "max_tokens": 4000,
         "enable_smart_crs": False,
     }

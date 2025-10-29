@@ -5,7 +5,7 @@ const mockSettings = {
   tool_options: {},
   example_geoserver_backends: [],
   model_options: {
-    openai: [{ name: "gpt-4", max_tokens: 4096 }],
+    openai: [{ name: "gpt-4o-mini", max_tokens: 4096 }],
   },
   color_settings: {
     primary: { shade_50: "#FFFFFF", shade_900: "#000000", shade_950: "#000000" },

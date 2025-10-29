@@ -14,7 +14,7 @@ const mockSettings = {
   },
   model_settings: {
     model_provider: "openai",
-    model_name: "gpt-4",
+    model_name: "gpt-4o-mini",
     max_tokens: 4000,
     use_summarization: false,
     enable_smart_crs: true,
