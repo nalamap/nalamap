@@ -405,6 +405,16 @@ export default function LayerList({
                           <div className="flex-1 min-w-0 font-bold text-neutral-800 whitespace-normal break-words">
                             {layer.title || layer.name}
                           </div>
+                          {/* CRS metadata badge */}
+                          {layer.processing_metadata && (
+                            <div
+                              className="flex-shrink-0 px-2 py-0.5 text-xs rounded bg-info-100 text-info-700 border border-info-300 cursor-help"
+                              title={`CRS: ${layer.processing_metadata.crs_name}\nOperation: ${layer.processing_metadata.operation}\nProperty: ${layer.processing_metadata.projection_property}${layer.processing_metadata.selection_reason ? `\n${layer.processing_metadata.selection_reason}` : ''}${layer.processing_metadata.expected_error !== undefined ? `\nExpected error: <${layer.processing_metadata.expected_error}%` : ''}`}
+                            >
+                              {layer.processing_metadata.crs_used}
+                              {layer.processing_metadata.auto_selected && " 🎯"}
+                            </div>
+                          )}
                           <button
                             ref={(el) => { infoButtonRefs.current[layer.id] = el; }}
                             onClick={(e) => {

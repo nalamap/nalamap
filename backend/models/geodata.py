@@ -2,7 +2,39 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, List, NamedTuple, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class ProcessingMetadata(BaseModel):
+    """Metadata about CRS and processing applied to geodata."""
+
+    operation: str = Field(..., description="Operation performed (buffer, area, etc.)")
+    crs_used: str = Field(
+        ...,
+        description="EPSG code of CRS used for processing (e.g., EPSG:32633)",
+    )
+    crs_name: str = Field(
+        ...,
+        description="Human-readable CRS name (e.g., WGS 84 / UTM zone 33N)",
+    )
+    projection_property: str = Field(
+        ...,
+        description="Projection property (equal-area, conformal, equidistant, compromise)",
+    )
+    auto_selected: bool = Field(
+        ...,
+        description="Whether CRS was automatically selected (True) or user-specified (False)",
+    )
+    selection_reason: Optional[str] = Field(
+        None,
+        description="Reason for CRS selection (e.g., 'Local extent - UTM zone 33N')",
+    )
+    expected_error: Optional[float] = Field(
+        None,
+        description="Expected error percentage for this CRS/operation combination",
+    )
+
+    model_config = ConfigDict(extra="ignore")
 
 
 class DataType(str, Enum):
@@ -88,6 +120,8 @@ class GeoDataObject(BaseModel):
     # Optional integrity metadata for locally stored files
     sha256: Optional[str] = None
     size: Optional[int] = None
+    # Optional processing metadata (CRS selection, operations applied)
+    processing_metadata: Optional[ProcessingMetadata] = None
 
     # Pydantic v2: use `model_config` with ConfigDict instead of class Config
     model_config = ConfigDict(

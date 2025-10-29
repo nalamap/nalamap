@@ -293,6 +293,8 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
                 "simplify",
             ]:
                 params["auto_optimize_crs"] = enable_smart_crs
+                # Also request projection metadata when auto-optimizing
+                params["projection_metadata"] = True
 
             result = func(result, **params)
             executed_ops.append(op_name)
@@ -607,6 +609,34 @@ def geoprocess_tool(
         unique_name = ensure_unique_name(slug_name, existing_layer_names, short_uuid)
         existing_layer_names.append(unique_name)  # Add to list to avoid duplicates
 
+        # Extract CRS metadata if present in the layer
+        processing_metadata = None
+        if isinstance(layer, dict) and "properties" in layer:
+            layer_props = layer.get("properties", {})
+            if "_crs_metadata" in layer_props:
+                crs_meta = layer_props["_crs_metadata"]
+                # Get the operation name from the last executed step
+                last_operation = (
+                    operation_details.get("steps", [{}])[-1].get("operation", "unknown")
+                    if operation_details.get("steps")
+                    else "unknown"
+                )
+
+                # Import ProcessingMetadata here to avoid circular imports
+                from models.geodata import ProcessingMetadata
+
+                processing_metadata = ProcessingMetadata(
+                    operation=last_operation,
+                    crs_used=crs_meta.get("epsg_code", "EPSG:4326"),
+                    crs_name=crs_meta.get("crs_name", "Unknown"),
+                    projection_property=crs_meta.get("projection_property", "unknown"),
+                    auto_selected=crs_meta.get("auto_selected", False),
+                    selection_reason=crs_meta.get("selection_reason"),
+                    expected_error=crs_meta.get("expected_error"),
+                )
+                # Remove the internal metadata from properties before storing
+                del layer_props["_crs_metadata"]
+
         # Create a filename with the unique name and serialize to JSON
         filename = f"{unique_name}_{short_uuid}.geojson"
         json_content = json.dumps(layer).encode("utf-8")
@@ -658,6 +688,7 @@ def geoprocess_tool(
                 bounding_box=None,
                 layer_type="GeoJSON",
                 properties=None,
+                processing_metadata=processing_metadata,
             )
         )
 

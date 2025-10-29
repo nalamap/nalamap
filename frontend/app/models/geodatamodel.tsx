@@ -6,6 +6,16 @@ export interface ChatMessage {
   tool_calls?: any;
 }
 
+export interface ProcessingMetadata {
+  operation: string; // e.g., "buffer", "area", "overlay"
+  crs_used: string; // e.g., "EPSG:32633"
+  crs_name: string; // e.g., "WGS 84 / UTM zone 33N"
+  projection_property: string; // e.g., "conformal", "equal-area", "equidistant"
+  auto_selected: boolean; // true if auto-selected, false if user-specified
+  selection_reason?: string; // e.g., "Local extent - UTM zone 33N"
+  expected_error?: number; // e.g., 0.1 for <0.1% error
+}
+
 export interface LayerStyle {
   // Common stroke properties for all geometry types
   stroke_color?: string;
@@ -66,6 +76,8 @@ export interface GeoDataObject {
   // Optional integrity metadata for locally stored files
   sha256?: string;
   size?: number;
+  // Optional processing metadata (CRS selection, operations applied)
+  processing_metadata?: ProcessingMetadata;
 }
 
 export interface NaLaMapRequest {
