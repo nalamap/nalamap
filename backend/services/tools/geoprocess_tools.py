@@ -134,6 +134,7 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
     query = state.get("query", "")
     layers: List[Dict[str, Any]] = state.get("input_layers", [])
     available_ops: List[str] = state.get("available_operations_and_params", [])
+    model_settings = state.get("model_settings")  # Get user's model configuration
 
     # 0) Summarize layers to metadata to reduce context size
     layer_meta = []
@@ -154,8 +155,20 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
             }
         )
 
-        # 1) Invoke LLM planner with metadata only
-    llm = get_llm()
+    # 1) Invoke LLM planner with metadata only
+    # Use user-configured model if available, otherwise fall back to environment default
+    if model_settings is not None:
+        from services.ai.llm_config import get_llm_for_provider
+
+        llm, _ = get_llm_for_provider(
+            provider_name=model_settings.model_provider,
+            max_tokens=model_settings.max_tokens,
+            model_name=model_settings.model_name,
+        )
+    else:
+        # Fall back to environment-configured provider
+        llm = get_llm()
+    
     system_msg = (
         "You are a geospatial task execution assistant. Your role is to "
         "translate the user's most recent request into a single geoprocessing "
@@ -503,14 +516,18 @@ def geoprocess_tool(
     # Get enable_smart_crs from model settings (default to True for better accuracy)
     options = state.get("options")
     enable_smart_crs = True  # Default to enabled
+    model_settings = None  # Will be passed to executor
+    
     if options and hasattr(options, "model_settings"):
         enable_smart_crs = getattr(options.model_settings, "enable_smart_crs", True)
+        model_settings = options.model_settings  # Pass model settings to executor
 
     # Build the state for the geoprocess executor
     processing_state = {
         "query": query,
         "input_layers": input_layers,
         "enable_smart_crs": enable_smart_crs,
+        "model_settings": model_settings,  # Pass user's model configuration
         "available_operations_and_params": [
             (
                 "operation: area params: unit=<square_meters|square_kilometers|"
