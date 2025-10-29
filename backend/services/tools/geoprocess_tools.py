@@ -283,8 +283,14 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
             # Inject auto_optimize_crs for operations that support it
             # Only inject if not already specified by user
             if "auto_optimize_crs" not in params and op_name in [
-                "buffer", "area", "overlay", "clip", "dissolve",
-                "sjoin_nearest", "sjoin", "simplify"
+                "buffer",
+                "area",
+                "overlay",
+                "clip",
+                "dissolve",
+                "sjoin_nearest",
+                "sjoin",
+                "simplify",
             ]:
                 params["auto_optimize_crs"] = enable_smart_crs
 
@@ -657,8 +663,7 @@ def geoprocess_tool(
 
     # Create reference data for tool message
     ref_data = [
-        {"id": r.id, "data_source_id": r.data_source_id, "title": r.title}
-        for r in new_geodata
+        {"id": r.id, "data_source_id": r.data_source_id, "title": r.title} for r in new_geodata
     ]
 
     # Return the update command
