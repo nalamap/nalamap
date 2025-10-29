@@ -7,6 +7,10 @@ import logging
 from typing import Any, Dict, List
 
 import geopandas as gpd
+from services.tools.geoprocessing.projection_utils import (
+    prepare_gdf_for_operation,
+    OperationType,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +20,7 @@ def op_area(
     unit: str = "square_meters",
     crs: str = "EPSG:3857",
     area_column: str = "area",
+    auto_optimize_crs: bool = False,
 ) -> List[Dict[str, Any]]:
     """
     Calculate the area of each geometry and add it as a property.
@@ -80,17 +85,31 @@ def op_area(
             if gdf.crs is None:
                 gdf.set_crs("EPSG:4326", inplace=True)
 
-            # Reproject to calculation CRS
-            gdf = gdf.to_crs(crs)
+            # Prepare/reproject GeoDataFrame according to optimization flag
+            if auto_optimize_crs:
+                gdf_calc, crs_info = prepare_gdf_for_operation(
+                    gdf,
+                    OperationType.AREA,
+                    auto_optimize_crs=True,
+                    override_crs=(None if crs == "EPSG:3857" else crs),
+                )
+            else:
+                gdf_calc = gdf.to_crs(crs)
 
-            # Calculate area in square meters
-            gdf[area_column] = gdf.geometry.area * factor
+            # Calculate area in calculation CRS units (assumed meters)
+            gdf_calc[area_column] = gdf_calc.geometry.area * factor
 
             # Reproject back to EPSG:4326
-            gdf = gdf.to_crs("EPSG:4326")
+            gdf_calc = gdf_calc.to_crs("EPSG:4326")
 
-            # Convert back to GeoJSON
-            fc = json.loads(gdf.to_json())
+            # Convert back to GeoJSON and include metadata if available
+            fc = json.loads(gdf_calc.to_json())
+            if auto_optimize_crs and isinstance(fc, dict) and fc.get("features"):
+                # attach calculation CRS metadata to top-level properties
+                if "properties" not in fc:
+                    fc["properties"] = {}
+                fc["properties"]["_crs_metadata"] = crs_info
+
             result_layers.append(fc)
 
         except Exception as exc:

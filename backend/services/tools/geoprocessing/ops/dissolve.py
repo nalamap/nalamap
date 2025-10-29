@@ -10,6 +10,10 @@ import geopandas as gpd
 from shapely.ops import unary_union
 
 from services.tools.geoprocessing.utils import flatten_features
+from services.tools.geoprocessing.projection_utils import (
+    prepare_gdf_for_operation,
+    OperationType,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +23,9 @@ def op_dissolve(
     by: Optional[str] = None,
     aggfunc: str = "first",
     crs: str = "EPSG:3857",
+    auto_optimize_crs: bool = False,
+    projection_metadata: bool = False,
+    override_crs: str | None = None,
 ) -> List[Dict[str, Any]]:
     """
     Dissolve geometries into a unified geometry, optionally grouped by an attribute.
@@ -52,8 +59,13 @@ def op_dissolve(
         if gdf.crs is None:
             gdf.set_crs("EPSG:4326", inplace=True)
 
-        # Reproject to working CRS
-        gdf = gdf.to_crs(crs)
+        # Prepare GeoDataFrame with smart CRS selection
+        gdf, crs_info = prepare_gdf_for_operation(
+            gdf,
+            OperationType.DISSOLVE,
+            auto_optimize_crs=auto_optimize_crs,
+            override_crs=override_crs or (None if crs == "EPSG:3857" else crs),
+        )
 
         # Perform dissolve
         if by and by in gdf.columns:

@@ -5,6 +5,10 @@ from typing import Any, Dict, List
 import geopandas as gpd
 
 from services.tools.geoprocessing.utils import flatten_features
+from services.tools.geoprocessing.projection_utils import (
+    prepare_gdf_for_operation,
+    OperationType,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +17,9 @@ def op_overlay(
     layers: List[Dict[str, Any]],
     how: str = "intersection",
     crs: str = "EPSG:3857",
+    auto_optimize_crs: bool = False,
+    projection_metadata: bool = False,
+    override_crs: str | None = None,
 ) -> List[Dict[str, Any]]:
     """
     Perform a set-based overlay across N layers. Supports 'intersection', 'union',
@@ -36,7 +43,14 @@ def op_overlay(
         gdf = gpd.GeoDataFrame.from_features(feats)
         if gdf.crs is None:
             gdf.set_crs("EPSG:4326", inplace=True)
-        return gdf.to_crs(crs)
+        # Use smart CRS selection for each layer
+        gdf_prepared, crs_info = prepare_gdf_for_operation(
+            gdf,
+            OperationType.OVERLAY,
+            auto_optimize_crs=auto_optimize_crs,
+            override_crs=override_crs or (None if crs == "EPSG:3857" else crs),
+        )
+        return gdf_prepared
 
     try:
         result_gdf = _layer_to_gdf(layers[0])
@@ -65,4 +79,7 @@ def op_overlay(
         return [{"type": "FeatureCollection", "features": []}]
 
     fc = json.loads(result_gdf.to_json())
+    # Note: we don't have a single crs_info here; projection metadata per-layer
+    # would be verbose. The op returns the result and no metadata unless requested
+    # in future enhancements.
     return [fc]

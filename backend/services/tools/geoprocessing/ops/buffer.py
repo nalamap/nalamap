@@ -4,10 +4,24 @@ import logging
 import geopandas as gpd
 from shapely.ops import unary_union
 
+from services.tools.geoprocessing.projection_utils import (
+    prepare_gdf_for_operation,
+    OperationType,
+)
+
 logger = logging.getLogger(__name__)
 
 
-def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857", radius_unit="meters", dissolve=False):
+def op_buffer(
+    layers,
+    radius=10000,
+    buffer_crs="EPSG:3857",
+    radius_unit="meters",
+    dissolve=False,
+    auto_optimize_crs: bool = False,
+    projection_metadata: bool = False,
+    override_crs: str | None = None,
+):
     """
     Buffers features of a single input layer item individually or dissolved.
     If multiple layers are provided, this function will raise a ValueError.
@@ -88,7 +102,22 @@ def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857", radius_unit="meters"
         gdf = gpd.GeoDataFrame.from_features(current_features)
         gdf.set_crs("EPSG:4326", inplace=True)
 
-        gdf_reprojected = gdf.to_crs(buffer_crs)
+        # Smart CRS selection / preparation
+        if auto_optimize_crs:
+            gdf_reprojected, crs_info = prepare_gdf_for_operation(
+                gdf,
+                OperationType.BUFFER,
+                auto_optimize_crs=auto_optimize_crs,
+                override_crs=override_crs or (None if buffer_crs == "EPSG:3857" else buffer_crs),
+            )
+        else:
+            gdf_reprojected = gdf.to_crs(buffer_crs)
+            crs_info = {
+                "epsg_code": buffer_crs,
+                "selection_reason": "User-specified or default",
+                "auto_selected": False,
+            }
+
         gdf_reprojected["geometry"] = gdf_reprojected.geometry.buffer(actual_radius_meters)
 
         # If dissolve is True, merge all buffered geometries into one
@@ -113,6 +142,14 @@ def op_buffer(layers, radius=10000, buffer_crs="EPSG:3857", radius_unit="meters"
             return []  # Resulting GeoDataFrame is empty
 
         fc = json.loads(gdf_buffered_individual.to_json())
+
+        # Inject projection metadata if requested
+        if projection_metadata and fc:
+            # fc is a FeatureCollection dict
+            if "properties" not in fc:
+                fc["properties"] = {}
+            fc["properties"]["_crs_metadata"] = crs_info
+
         return [fc]  # Return a list containing the single FeatureCollection
     except Exception as e:
         logger.exception(f"Error in op_buffer: {e}")
