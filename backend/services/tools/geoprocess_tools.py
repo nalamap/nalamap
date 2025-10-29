@@ -271,11 +271,23 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
     result = layers
     executed_ops = []
     executed_steps = []
+
+    # Get enable_smart_crs setting from state (defaults to True for better accuracy)
+    enable_smart_crs = state.get("enable_smart_crs", True)
+
     for step in steps:
         op_name = step.get("operation")
         params = step.get("params", {})
         func = TOOL_REGISTRY.get(op_name)
         if func:
+            # Inject auto_optimize_crs for operations that support it
+            # Only inject if not already specified by user
+            if "auto_optimize_crs" not in params and op_name in [
+                "buffer", "area", "overlay", "clip", "dissolve",
+                "sjoin_nearest", "sjoin", "simplify"
+            ]:
+                params["auto_optimize_crs"] = enable_smart_crs
+
             result = func(result, **params)
             executed_ops.append(op_name)
             executed_steps.append({"operation": op_name, "params": params})
@@ -480,10 +492,17 @@ def geoprocess_tool(
     if operation:
         query = f"{operation} {query}"
 
+    # Get enable_smart_crs from model settings (default to True for better accuracy)
+    options = state.get("options")
+    enable_smart_crs = True  # Default to enabled
+    if options and hasattr(options, "model_settings"):
+        enable_smart_crs = getattr(options.model_settings, "enable_smart_crs", True)
+
     # Build the state for the geoprocess executor
     processing_state = {
         "query": query,
         "input_layers": input_layers,
+        "enable_smart_crs": enable_smart_crs,
         "available_operations_and_params": [
             (
                 "operation: area params: unit=<square_meters|square_kilometers|"
@@ -636,15 +655,23 @@ def geoprocess_tool(
             )
         )
 
+    # Create reference data for tool message
+    ref_data = [
+        {"id": r.id, "data_source_id": r.data_source_id, "title": r.title}
+        for r in new_geodata
+    ]
+
     # Return the update command
     return Command(
         update={
             "messages": [
                 ToolMessage(
                     name="geoprocess_tool",
-                    content="Tools used: "
-                    + ", ".join(tools_used)
-                    + f". Added GeoDataObjects into the global_state, use id and data_source_id for reference: {json.dumps([{'id': result.id, 'data_source_id': result.data_source_id, 'title': result.title} for result in new_geodata])}",
+                    content=(
+                        f"Tools used: {', '.join(tools_used)}. "
+                        f"Added GeoDataObjects into the global_state, use id and "
+                        f"data_source_id for reference: {json.dumps(ref_data)}"
+                    ),
                     tool_call_id=tool_call_id,
                 )
             ],

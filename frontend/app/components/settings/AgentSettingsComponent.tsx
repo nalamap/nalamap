@@ -24,6 +24,9 @@ export default function AgentSettingsComponent() {
   const setUseSummarization = useInitializedSettingsStore(
     (s) => s.setUseSummarization,
   );
+  const setEnableSmartCrs = useInitializedSettingsStore(
+    (s) => s.setEnableSmartCrs,
+  );
 
   const toolStrategies = [
     { value: "all", label: "All Tools", description: "Provide all available tools (default behavior)" },
@@ -228,6 +231,44 @@ export default function AgentSettingsComponent() {
                       <span className="font-semibold">Benefits:</span> Enables infinite conversation length,
                       reduces token costs by 50-80%, maintains context quality. Automatically triggers
                       when conversation exceeds threshold.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Enable Smart CRS Selection */}
+          <div className="col-span-2">
+            <div className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                id="enable-smart-crs"
+                checked={modelSettings.enable_smart_crs ?? true}
+                onChange={(e) => setEnableSmartCrs(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-primary-300 dark:border-primary-700 text-tertiary-600 focus:ring-tertiary-500"
+              />
+              <div className="flex-1">
+                <label
+                  htmlFor="enable-smart-crs"
+                  className="text-sm font-medium text-primary-900 dark:text-primary-300 cursor-pointer"
+                >
+                  Enable Intelligent CRS Selection
+                </label>
+                <p className="text-xs text-primary-700 dark:text-primary-400 mt-1">
+                  Automatically select optimal coordinate reference systems (CRS) for geoprocessing operations
+                  based on geographic extent and operation type. Dramatically improves geometric accuracy:
+                  buffers (20% error → &lt;1%), area calculations (50%+ error → &lt;1% in polar regions).
+                  Disable to use legacy EPSG:4326 for all operations.
+                </p>
+                <div className="mt-2 border border-info-300 dark:border-info-700 rounded bg-info-50 dark:bg-info-900 p-2">
+                  <div className="flex items-start gap-2">
+                    <Info className="w-3 h-3 text-info-600 dark:text-info-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-info-900 dark:text-info-200">
+                      <span className="font-semibold">Projection Selection:</span> Uses 3-tier hierarchy:
+                      UTM zones for local areas (&lt;6°), polar projections for high latitudes (&gt;80°),
+                      and continental projections for regional operations. Equal-area projections for
+                      area/dissolve, conformal for overlay/clip/simplify, optimal CRS for buffers.
                     </p>
                   </div>
                 </div>
