@@ -249,3 +249,93 @@ def test_processing_metadata_without_origin_layers():
     )
 
     assert metadata.origin_layers is None
+
+
+@pytest.mark.integration
+def test_buffer_with_manual_crs_override():
+    """Test that buffer operation with manual CRS specification overrides auto-selection."""
+    from services.tools.geoprocessing.ops.buffer import op_buffer
+
+    # Create a simple test layer
+    layers = [
+        {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [10.0, 50.0]},
+                    "properties": {"name": "test_point"},
+                }
+            ],
+        }
+    ]
+
+    # Call buffer with manual CRS specification
+    result = op_buffer(
+        layers,
+        radius=1000,
+        auto_optimize_crs=False,  # Disabled because CRS is manually specified
+        projection_metadata=True,
+        override_crs="EPSG:32633",  # Manually specify UTM zone 33N
+    )
+
+    # Verify result includes CRS metadata
+    assert len(result) > 0
+    feature_collection = result[0]
+    assert "properties" in feature_collection
+    assert "_crs_metadata" in feature_collection["properties"]
+
+    crs_meta = feature_collection["properties"]["_crs_metadata"]
+    assert crs_meta["epsg_code"] == "EPSG:32633"
+    assert crs_meta["auto_selected"] is False
+    assert "User-specified" in crs_meta.get("selection_reason", "")
+
+
+@pytest.mark.integration
+def test_buffer_auto_vs_manual_crs():
+    """Test that manual CRS override produces different metadata than auto-selection."""
+    from services.tools.geoprocessing.ops.buffer import op_buffer
+
+    layers = [
+        {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [10.0, 50.0]},
+                    "properties": {"name": "test_point"},
+                }
+            ],
+        }
+    ]
+
+    # Test with auto-selection
+    result_auto = op_buffer(
+        layers,
+        radius=1000,
+        auto_optimize_crs=True,
+        projection_metadata=True,
+    )
+
+    # Test with manual CRS
+    result_manual = op_buffer(
+        layers,
+        radius=1000,
+        auto_optimize_crs=False,
+        projection_metadata=True,
+        override_crs="EPSG:3857",  # Web Mercator
+    )
+
+    # Verify both have metadata
+    assert "_crs_metadata" in result_auto[0]["properties"]
+    assert "_crs_metadata" in result_manual[0]["properties"]
+
+    auto_meta = result_auto[0]["properties"]["_crs_metadata"]
+    manual_meta = result_manual[0]["properties"]["_crs_metadata"]
+
+    # Auto-selected should be True for auto, False for manual
+    assert auto_meta["auto_selected"] is True
+    assert manual_meta["auto_selected"] is False
+
+    # Manual should use the specified CRS
+    assert manual_meta["epsg_code"] == "EPSG:3857"

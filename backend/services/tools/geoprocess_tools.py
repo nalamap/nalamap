@@ -293,21 +293,41 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
         params = step.get("params", {})
         func = TOOL_REGISTRY.get(op_name)
         if func:
+            # Check if user specified a CRS parameter
+            user_specified_crs = params.get("crs") or params.get("buffer_crs")
+
             # Inject auto_optimize_crs for operations that support it
-            # Only inject if not already specified by user
-            if "auto_optimize_crs" not in params and op_name in [
-                "buffer",
-                "area",
-                "overlay",
-                "clip",
-                "dissolve",
-                "sjoin_nearest",
-                "sjoin",
-                "simplify",
-            ]:
+            # Only inject if CRS not already specified by user
+            if (
+                not user_specified_crs
+                and "auto_optimize_crs" not in params
+                and op_name
+                in [
+                    "buffer",
+                    "area",
+                    "overlay",
+                    "clip",
+                    "dissolve",
+                    "sjoin_nearest",
+                    "sjoin",
+                    "simplify",
+                ]
+            ):
                 params["auto_optimize_crs"] = enable_smart_crs
                 # Also request projection metadata when auto-optimizing
                 params["projection_metadata"] = True
+            elif user_specified_crs:
+                # User specified CRS - pass it as override_crs for operations that support it
+                if op_name in ["buffer", "area", "overlay", "clip", "dissolve"]:
+                    # Remove the generic 'crs' parameter if present
+                    if "crs" in params:
+                        del params["crs"]
+                    # Set override_crs to disable auto-selection
+                    params["override_crs"] = user_specified_crs
+                    # Still request metadata to show what was used
+                    params["projection_metadata"] = True
+                    # Disable auto-optimization when user specifies CRS
+                    params["auto_optimize_crs"] = False
 
             result = func(result, **params)
             executed_ops.append(op_name)
@@ -530,26 +550,32 @@ def geoprocess_tool(
         "model_settings": model_settings,  # Pass user's model configuration
         "available_operations_and_params": [
             (
+                "CRS PARAMETER: Most operations support an optional 'crs' parameter "
+                "(e.g., EPSG:4326, EPSG:3857, EPSG:32633) to override automatic CRS "
+                "selection. If not specified, the system will auto-select an optimal "
+                "CRS. Example: 'crs=EPSG:32633' to force UTM zone 33N projection."
+            ),
+            (
                 "operation: area params: unit=<square_meters|square_kilometers|"
-                "hectares|square_miles|acres>, crs=<string>, "
+                "hectares|square_miles|acres>, crs=<EPSG_code_optional>, "
                 "area_column=<string>"
             ),
             (
                 "operation: buffer params: radius=<number>, "
-                "radius_unit=<meters|kilometers|miles>, buffer_crs=<string>, "
+                "radius_unit=<meters|kilometers|miles>, crs=<EPSG_code_optional>, "
                 "dissolve=<bool>"
             ),
             "operation: centroid params:",
-            "operation: clip params: crs=<string>",
+            "operation: clip params: crs=<EPSG_code_optional>",
             (
                 "operation: dissolve params: by=<string>|null, "
-                "aggfunc=<first|last|sum|mean|min|max>, crs=<string>"
+                "aggfunc=<first|last|sum|mean|min|max>, crs=<EPSG_code_optional>"
             ),
             ("operation: merge params: on=<list_of_strings>|null, " "how=<inner|left|right|outer>"),
             (
                 "operation: overlay params: "
                 "how=<intersection|union|difference|symmetric_difference|identity>, "
-                "crs=<string>"
+                "crs=<EPSG_code_optional>"
             ),
             ("operation: simplify params: tolerance=<number>, " "preserve_topology=<bool>"),
             ("operation: sjoin params: how=<inner|left|right>, " "predicate=<string>"),
@@ -715,17 +741,40 @@ def geoprocess_tool(
         {"id": r.id, "data_source_id": r.data_source_id, "title": r.title} for r in new_geodata
     ]
 
+    # Build CRS information message for the agent
+    crs_info_messages = []
+    for r in new_geodata:
+        if r.processing_metadata:
+            pm = r.processing_metadata
+            crs_msg = (
+                f"{r.title}: Used {pm.crs_used} ({pm.crs_name}) "
+                f"{'🎯 AUTO-SELECTED' if pm.auto_selected else 'USER-SPECIFIED'}"
+            )
+            if pm.auto_selected and pm.selection_reason:
+                crs_msg += f" - {pm.selection_reason}"
+            if pm.expected_error is not None:
+                crs_msg += f" (Expected error: <{pm.expected_error}%)"
+            crs_info_messages.append(crs_msg)
+
+    # Construct the tool message content
+    tool_content = (
+        f"Successfully processed {len(new_geodata)} layer(s). "
+        f"Operations: {', '.join(tools_used)}. "
+    )
+
+    if crs_info_messages:
+        crs_details = "\n".join(f"- {msg}" for msg in crs_info_messages)
+        tool_content += f"\n\nCRS Information:\n{crs_details}"
+
+    tool_content += f"\n\nReference data (use id and data_source_id): " f"{json.dumps(ref_data)}"
+
     # Return the update command
     return Command(
         update={
             "messages": [
                 ToolMessage(
                     name="geoprocess_tool",
-                    content=(
-                        f"Tools used: {', '.join(tools_used)}. "
-                        f"Added GeoDataObjects into the global_state, use id and "
-                        f"data_source_id for reference: {json.dumps(ref_data)}"
-                    ),
+                    content=tool_content,
                     tool_call_id=tool_call_id,
                 )
             ],

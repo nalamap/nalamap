@@ -110,11 +110,20 @@ def op_buffer(
                 auto_optimize_crs=auto_optimize_crs,
                 override_crs=override_crs or (None if buffer_crs == "EPSG:3857" else buffer_crs),
             )
+        elif override_crs:
+            # User specified a CRS explicitly
+            gdf_reprojected = gdf.to_crs(override_crs)
+            crs_info = {
+                "epsg_code": override_crs,
+                "selection_reason": "User-specified CRS",
+                "auto_selected": False,
+            }
         else:
+            # Use default buffer_crs
             gdf_reprojected = gdf.to_crs(buffer_crs)
             crs_info = {
                 "epsg_code": buffer_crs,
-                "selection_reason": "User-specified or default",
+                "selection_reason": "Default CRS",
                 "auto_selected": False,
             }
 
