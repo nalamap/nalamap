@@ -72,6 +72,7 @@ jobs:
 
   e2e-performance:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: e2e-performance
@@ -102,7 +103,10 @@ jobs:
           ls -lh ../backend/uploads/
 
       - name: Start full stack for E2E tests
-        run: docker compose -f docker-compose.e2e.yml up -d --build
+        run: |
+          # Note: docker-compose.e2e.yml is configured WITHOUT OpenAI API keys
+          # This forces the backend to use mock/hashing embeddings for free tests
+          docker compose -f docker-compose.e2e.yml up -d --build
 
       - name: Copy test files into backend container
         run: |
@@ -121,7 +125,13 @@ jobs:
           curl --retry 10 --retry-delay 5 --retry-connrefused http://localhost/api/health || true
 
       - name: Run E2E performance tests
-        run: python -m pytest tests/ -v --tb=short
+        timeout-minutes: 30
+        run: |
+          # Skip expensive Playwright tests that require AI API calls
+          # Run only file transfer and integration tests
+          python -m pytest tests/ -v --tb=short \
+            --ignore=tests/test_chat_streaming_e2e.py \
+            -m "not slow"
 
       - name: Stop stack
         if: always()
