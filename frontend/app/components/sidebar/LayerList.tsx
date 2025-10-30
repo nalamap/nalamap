@@ -414,9 +414,36 @@ export default function LayerList({
                               
                               if (newActiveId && infoButtonRefs.current[layer.id]) {
                                 const rect = infoButtonRefs.current[layer.id]!.getBoundingClientRect();
+                                const viewportHeight = window.innerHeight;
+                                const viewportWidth = window.innerWidth;
+                                const popupWidth = 400; // max-w-[400px]
+                                const popupMaxHeight = viewportHeight * 0.8; // Max 80% of viewport height
+                                
+                                // Calculate initial position
+                                let top = rect.bottom + 4;
+                                let left = rect.left;
+                                
+                                // Adjust horizontal position if popup would overflow right edge
+                                if (left + popupWidth > viewportWidth) {
+                                  left = Math.max(8, viewportWidth - popupWidth - 8);
+                                }
+                                
+                                // Adjust vertical position if popup would overflow bottom
+                                // Reserve some space (estimate ~300px for popup, but will be constrained by max-height)
+                                if (top + 300 > viewportHeight) {
+                                  // Try positioning above the button instead
+                                  const topAbove = rect.top - 300 - 4;
+                                  if (topAbove > 8) {
+                                    top = topAbove;
+                                  } else {
+                                    // If neither works well, position near top with some margin
+                                    top = 8;
+                                  }
+                                }
+                                
                                 setPopupPosition({
-                                  top: rect.bottom + 4,
-                                  left: rect.left
+                                  top,
+                                  left
                                 });
                               }
                             }}
@@ -896,10 +923,11 @@ export default function LayerList({
         
         return (
           <div 
-            className="fixed bg-white border border-neutral-300 rounded-lg shadow-xl p-3 text-sm z-[100] min-w-[300px] max-w-[400px]"
+            className="fixed bg-white border border-neutral-300 rounded-lg shadow-xl p-3 text-sm z-[100] min-w-[300px] max-w-[400px] overflow-y-auto"
             style={{
               top: `${popupPosition.top}px`,
               left: `${popupPosition.left}px`,
+              maxHeight: 'calc(80vh - 16px)', // 80% of viewport height minus some margin
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -958,8 +986,19 @@ export default function LayerList({
                 <div className="pt-3 mt-3 border-t border-neutral-200">
                   <h4 className="font-semibold text-neutral-700 mb-2">Processing Information</h4>
                   
+                  {/* Source Layers - Prominently displayed */}
+                  {layer.processing_metadata.origin_layers && 
+                   layer.processing_metadata.origin_layers.length > 0 && (
+                    <div className="mb-3 p-2 bg-secondary-50 dark:bg-secondary-900 rounded border border-secondary-200 dark:border-secondary-700">
+                      <span className="font-semibold text-secondary-700 dark:text-secondary-300 text-xs uppercase tracking-wide">Source Layers</span>
+                      <p className="text-sm text-neutral-700 dark:text-neutral-300 mt-1">
+                        {layer.processing_metadata.origin_layers.join(', ')}
+                      </p>
+                    </div>
+                  )}
+                  
                   {/* Operation Summary */}
-                  <div className="mb-3 p-2 bg-info-50 rounded border border-info-200">
+                  <div className="mb-3 p-2 bg-info-50 dark:bg-info-900 rounded border border-info-200 dark:border-info-700">
                     <p className="text-sm text-neutral-700">
                       <strong className="text-info-700">
                         {layer.processing_metadata.operation.charAt(0).toUpperCase() + 
@@ -971,12 +1010,6 @@ export default function LayerList({
                       {' using '}
                       <strong className="text-info-700">{layer.processing_metadata.crs_used}</strong>
                       {layer.processing_metadata.auto_selected && ' 🎯'}
-                      {layer.processing_metadata.origin_layers && 
-                       layer.processing_metadata.origin_layers.length > 0 && (
-                        <span className="block mt-1 text-xs text-neutral-600">
-                          Generated from: {layer.processing_metadata.origin_layers.join(', ')}
-                        </span>
-                      )}
                     </p>
                   </div>
                   

@@ -117,8 +117,19 @@ export default function SearchResults({
                     <div className="pt-3 mt-3 border-t border-neutral-200">
                       <h5 className="font-semibold text-neutral-700 mb-2 text-xs">Processing Information</h5>
                       
+                      {/* Source Layers - Prominently displayed */}
+                      {result.processing_metadata.origin_layers && 
+                       result.processing_metadata.origin_layers.length > 0 && (
+                        <div className="mb-2 p-2 bg-secondary-50 dark:bg-secondary-900 rounded border border-secondary-200 dark:border-secondary-700">
+                          <span className="font-semibold text-secondary-700 dark:text-secondary-300 text-xs uppercase tracking-wide block mb-1">Source Layers</span>
+                          <p className="text-xs text-neutral-700 dark:text-neutral-300">
+                            {result.processing_metadata.origin_layers.join(', ')}
+                          </p>
+                        </div>
+                      )}
+                      
                       {/* Operation Summary */}
-                      <div className="mb-2 p-2 bg-info-50 rounded border border-info-200">
+                      <div className="mb-2 p-2 bg-info-50 dark:bg-info-900 rounded border border-info-200 dark:border-info-700">
                         <p className="text-xs text-neutral-700">
                           <strong className="text-info-700">
                             {result.processing_metadata.operation.charAt(0).toUpperCase() + 
@@ -130,12 +141,6 @@ export default function SearchResults({
                           {' using '}
                           <strong className="text-info-700">{result.processing_metadata.crs_used}</strong>
                           {result.processing_metadata.auto_selected && ' 🎯'}
-                          {result.processing_metadata.origin_layers && 
-                           result.processing_metadata.origin_layers.length > 0 && (
-                            <span className="block mt-1 text-neutral-600">
-                              Generated from: {result.processing_metadata.origin_layers.join(', ')}
-                            </span>
-                          )}
                         </p>
                       </div>
                       
