@@ -980,13 +980,15 @@ const LeafletGeoJSONLayer = memo(function LeafletGeoJSONLayer({
     });
 
     // Highlight on hover, only for non-marker layers
+    // Only change the border (stroke) properties to keep the feature transparent
     layer.on({
       mouseover: (e) => {
         if ("setStyle" in e.target) {
           e.target.setStyle({
-            weight: 3,
-            color: "#666",
-            fillOpacity: 0.7,
+            weight: 4,           // Increase border width
+            color: "#FF6B35",    // Use a vibrant highlight color
+            opacity: 1.0,        // Full opacity for the border
+            // fillOpacity unchanged - keeps the fill transparent so user can see through
           });
         }
       },
