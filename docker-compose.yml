@@ -19,7 +19,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     environment:
-      - DATABASE_AZURE_URL=${DATABASE_AZURE_URL}
+      - DATABASE_URL=${DATABASE_URL}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
       - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
@@ -44,15 +44,15 @@ services:
     ports:
       - "3000:3000"
 
-    db:
-      image: postgis/postgis:16-3.4
-      environment:
-        POSTGRES_DB: app
-        POSTGRES_USER: app
-        POSTGRES_PASSWORD: app
-      ports: ["5432:5432"]
-      volumes:
-        - postgres-data:/var/lib/postgresql/data
-  volumes:
-      postgres-data:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: app
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports: ["5432:5432"]
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+volumes:
+    postgres-data:
 
