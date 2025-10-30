@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useLayoutEffect } from "react";
 import {
   Eye,
   EyeOff,
@@ -173,6 +173,49 @@ export default function LayerList({
   const [activeMetadataId, setActiveMetadataId] = useState<string | null>(null);
   const [popupPosition, setPopupPosition] = useState<{ top: number; left: number } | null>(null);
   const infoButtonRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
+  const popupRef = useRef<HTMLDivElement | null>(null);
+
+  // Adjust popup position after render to ensure it stays in viewport
+  useLayoutEffect(() => {
+    if (popupRef.current && popupPosition) {
+      const popup = popupRef.current;
+      const rect = popup.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      
+      let { top, left } = popupPosition;
+      let adjusted = false;
+      
+      // Check if popup overflows right edge
+      if (rect.right > viewportWidth - 8) {
+        left = Math.max(8, viewportWidth - rect.width - 8);
+        adjusted = true;
+      }
+      
+      // Check if popup overflows bottom edge
+      if (rect.bottom > viewportHeight - 8) {
+        top = Math.max(8, viewportHeight - rect.height - 8);
+        adjusted = true;
+      }
+      
+      // Check if popup overflows top edge
+      if (top < 8) {
+        top = 8;
+        adjusted = true;
+      }
+      
+      // Check if popup overflows left edge
+      if (left < 8) {
+        left = 8;
+        adjusted = true;
+      }
+      
+      // Update position if adjustments were needed
+      if (adjusted) {
+        setPopupPosition({ top, left });
+      }
+    }
+  }, [activeMetadataId, popupPosition]);
 
   // Download layer as GeoJSON
   const downloadLayer = async (layer: any) => {
@@ -417,7 +460,6 @@ export default function LayerList({
                                 const viewportHeight = window.innerHeight;
                                 const viewportWidth = window.innerWidth;
                                 const popupWidth = 400; // max-w-[400px]
-                                const popupMaxHeight = viewportHeight * 0.8; // Max 80% of viewport height
                                 
                                 // Calculate initial position
                                 let top = rect.bottom + 4;
@@ -923,6 +965,7 @@ export default function LayerList({
         
         return (
           <div 
+            ref={popupRef}
             className="fixed bg-white border border-neutral-300 rounded-lg shadow-xl p-3 text-sm z-[100] min-w-[300px] max-w-[400px] overflow-y-auto"
             style={{
               top: `${popupPosition.top}px`,
@@ -989,9 +1032,9 @@ export default function LayerList({
                   {/* Source Layers - Prominently displayed */}
                   {layer.processing_metadata.origin_layers && 
                    layer.processing_metadata.origin_layers.length > 0 && (
-                    <div className="mb-3 p-2 bg-secondary-50 dark:bg-secondary-900 rounded border border-secondary-200 dark:border-secondary-700">
-                      <span className="font-semibold text-secondary-700 dark:text-secondary-300 text-xs uppercase tracking-wide">Source Layers</span>
-                      <p className="text-sm text-neutral-700 dark:text-neutral-300 mt-1">
+                    <div className="mb-3 p-2 bg-secondary-50 dark:bg-secondary-900 rounded border border-secondary-300 dark:border-secondary-600">
+                      <span className="font-semibold text-secondary-800 dark:text-secondary-200 text-xs uppercase tracking-wide">Source Layers</span>
+                      <p className="text-sm text-neutral-800 dark:text-neutral-200 mt-1">
                         {layer.processing_metadata.origin_layers.join(', ')}
                       </p>
                     </div>

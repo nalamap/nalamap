@@ -120,9 +120,9 @@ export default function SearchResults({
                       {/* Source Layers - Prominently displayed */}
                       {result.processing_metadata.origin_layers && 
                        result.processing_metadata.origin_layers.length > 0 && (
-                        <div className="mb-2 p-2 bg-secondary-50 dark:bg-secondary-900 rounded border border-secondary-200 dark:border-secondary-700">
-                          <span className="font-semibold text-secondary-700 dark:text-secondary-300 text-xs uppercase tracking-wide block mb-1">Source Layers</span>
-                          <p className="text-xs text-neutral-700 dark:text-neutral-300">
+                        <div className="mb-2 p-2 bg-secondary-50 dark:bg-secondary-900 rounded border border-secondary-300 dark:border-secondary-600">
+                          <span className="font-semibold text-secondary-800 dark:text-secondary-200 text-xs uppercase tracking-wide block mb-1">Source Layers</span>
+                          <p className="text-xs text-neutral-800 dark:text-neutral-200">
                             {result.processing_metadata.origin_layers.join(', ')}
                           </p>
                         </div>

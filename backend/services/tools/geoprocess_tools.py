@@ -337,7 +337,7 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
     operation_details = {
         "query": query,
         "steps": executed_steps,
-        "input_layers": [layer.get("name", "") for layer in layer_meta],
+        "input_layers": state.get("layer_titles", []),  # Use actual layer titles
     }
 
     return {
@@ -411,9 +411,13 @@ def geoprocess_tool(
 
     # Load GeoJSONs from either local disk or remote URL
     input_layers: List[Dict[str, Any]] = []
+    layer_titles: List[str] = []  # Track layer titles for origin_layers metadata
     for layer in selected:
         if layer.data_type not in (DataType.GEOJSON, DataType.UPLOADED):
             continue
+        
+        # Store layer title for metadata
+        layer_titles.append(layer.title or layer.name)
 
         url = layer.data_link
         gj: Optional[Dict[str, Any]] = None
@@ -546,6 +550,7 @@ def geoprocess_tool(
     processing_state = {
         "query": query,
         "input_layers": input_layers,
+        "layer_titles": layer_titles,  # Pass layer titles for origin_layers metadata
         "enable_smart_crs": enable_smart_crs,
         "model_settings": model_settings,  # Pass user's model configuration
         "available_operations_and_params": [
