@@ -445,7 +445,7 @@ export default function LayerList({
                       <div className="flex-1 min-w-0 flex flex-col gap-2 relative">
                         {/* Title row with info icon */}
                         <div className="flex items-center gap-2 min-w-0">
-                          <div className="flex-1 min-w-0 font-bold text-neutral-900 dark:text-neutral-100 whitespace-normal break-words">
+                          <div className="flex-1 min-w-0 font-bold text-neutral-800 whitespace-normal break-words">
                             {layer.title || layer.name}
                           </div>
                           <button
