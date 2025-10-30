@@ -668,6 +668,13 @@ def geoprocess_tool(
                 # Import ProcessingMetadata here to avoid circular imports
                 from models.geodata import ProcessingMetadata
 
+                # Filter out None values from origin_layers
+                origin_layer_names = [
+                    name
+                    for name in operation_details.get("input_layers", [])
+                    if name is not None and name != ""
+                ]
+
                 processing_metadata = ProcessingMetadata(
                     operation=last_operation,
                     crs_used=crs_meta.get("epsg_code", "EPSG:4326"),
@@ -676,7 +683,7 @@ def geoprocess_tool(
                     auto_selected=crs_meta.get("auto_selected", False),
                     selection_reason=crs_meta.get("selection_reason"),
                     expected_error=crs_meta.get("expected_error"),
-                    origin_layers=operation_details.get("input_layers", []),
+                    origin_layers=origin_layer_names,
                 )
                 # Remove the internal metadata from properties before storing
                 del layer_props["_crs_metadata"]
