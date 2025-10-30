@@ -1,7 +1,8 @@
 """Security utilities for password hashing and JWT tokens."""
+
 from datetime import datetime, timedelta
 
-from jose import JWTError, jwt
+from jose import jwt  # , JWTError
 from passlib.context import CryptContext
 
 from core.config import SECRET_KEY, ACCESS_TOKEN_EXPIRE_MINUTES

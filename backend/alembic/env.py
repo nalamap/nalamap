@@ -6,7 +6,8 @@ from logging.config import fileConfig
 
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+
+from sqlalchemy.ext.asyncio import create_async_engine  # , AsyncEngine
 
 from alembic import context
 
@@ -15,11 +16,20 @@ from alembic import context
 config = context.config
 
 # Interpret the config file for Python logging.
+# configure Python logging from file
 fileConfig(config.config_file_name)
+# override sqlalchemy URL from environment if provided
+try:
+    from core.config import DATABASE_URL
+except ImportError:
+    DATABASE_URL = os.getenv("DATABASE_URL")
+if DATABASE_URL:
+    config.set_main_option("sqlalchemy.url", DATABASE_URL)
 
 # Import your ORM's Base and models so Alembic can autogenerate
 from db.base import Base  # noqa: E402
-from db.models.user import User  # noqa: E402
+
+# from db.models.user import User  # noqa: E402
 
 target_metadata = Base.metadata
 

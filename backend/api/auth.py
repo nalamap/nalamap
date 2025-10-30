@@ -1,4 +1,5 @@
 """Authentication endpoints for user registration and login."""
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
@@ -33,9 +34,7 @@ class LoginForm(BaseModel):
 
 
 @router.post("/auth/signup", status_code=status.HTTP_201_CREATED)
-async def signup(
-    form: SignUpForm, db: AsyncSession = Depends(get_session)
-) -> JSONResponse:
+async def signup(form: SignUpForm, db: AsyncSession = Depends(get_session)) -> JSONResponse:
     """Register a new user and set a session cookie."""
     # Check if email already exists
     result = await db.execute(select(User).filter_by(email=form.email))
@@ -75,9 +74,7 @@ async def signup(
 
 
 @router.post("/auth/login")
-async def login(
-    form: LoginForm, db: AsyncSession = Depends(get_session)
-) -> JSONResponse:
+async def login(form: LoginForm, db: AsyncSession = Depends(get_session)) -> JSONResponse:
     """Authenticate user credentials and set a session cookie."""
     result = await db.execute(select(User).filter_by(email=form.email))
     user = result.scalars().first()

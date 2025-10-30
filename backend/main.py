@@ -8,6 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from contextlib import asynccontextmanager
+
 from api import (
     ai_style,
     auth,
@@ -45,8 +47,6 @@ tags_metadata = [
         "NaLaMap answer geospatial questions.",
     },
 ]
-
-from contextlib import asynccontextmanager
 
 
 @asynccontextmanager
