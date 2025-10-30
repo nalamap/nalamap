@@ -121,8 +121,8 @@ export default function SearchResults({
                       {result.processing_metadata.origin_layers && 
                        result.processing_metadata.origin_layers.length > 0 && (
                         <div className="mb-2 p-2 bg-secondary-50 dark:bg-secondary-900 rounded border border-secondary-300 dark:border-secondary-600">
-                          <span className="font-semibold text-secondary-800 dark:text-secondary-200 text-xs uppercase tracking-wide block mb-1">Source Layers</span>
-                          <p className="text-xs text-neutral-800 dark:text-neutral-200">
+                          <span className="font-semibold text-secondary-900 dark:text-secondary-100 text-xs uppercase tracking-wide block mb-1">Source Layers</span>
+                          <p className="text-xs text-neutral-900 dark:text-neutral-100">
                             {result.processing_metadata.origin_layers.join(', ')}
                           </p>
                         </div>
@@ -130,8 +130,8 @@ export default function SearchResults({
                       
                       {/* Operation Summary */}
                       <div className="mb-2 p-2 bg-info-50 dark:bg-info-900 rounded border border-info-200 dark:border-info-700">
-                        <p className="text-xs text-neutral-700">
-                          <strong className="text-info-700">
+                        <p className="text-xs text-neutral-900 dark:text-neutral-100">
+                          <strong className="text-info-800 dark:text-info-200">
                             {result.processing_metadata.operation.charAt(0).toUpperCase() + 
                              result.processing_metadata.operation.slice(1)}
                           </strong> operation
@@ -139,7 +139,7 @@ export default function SearchResults({
                            result.description?.match(/\d+\.?\d*\s*(m|km|meters|kilometers)/i) && 
                            ` with ${result.description.match(/\d+\.?\d*\s*(m|km|meters|kilometers)/i)![0]}`}
                           {' using '}
-                          <strong className="text-info-700">{result.processing_metadata.crs_used}</strong>
+                          <strong className="text-info-800 dark:text-info-200">{result.processing_metadata.crs_used}</strong>
                           {result.processing_metadata.auto_selected && ' 🎯'}
                         </p>
                       </div>

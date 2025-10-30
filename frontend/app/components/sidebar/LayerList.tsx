@@ -966,7 +966,7 @@ export default function LayerList({
         return (
           <div 
             ref={popupRef}
-            className="fixed bg-white border border-neutral-300 rounded-lg shadow-xl p-3 text-sm z-[100] min-w-[300px] max-w-[400px] overflow-y-auto"
+            className="fixed bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-lg shadow-xl p-3 text-sm z-[100] min-w-[300px] max-w-[400px] overflow-y-auto"
             style={{
               top: `${popupPosition.top}px`,
               left: `${popupPosition.left}px`,
@@ -977,7 +977,7 @@ export default function LayerList({
             {/* Close button */}
             <button
               onClick={() => setActiveMetadataId(null)}
-              className="absolute top-2 right-2 text-neutral-400 hover:text-neutral-600"
+              className="absolute top-2 right-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
               aria-label="Close metadata"
             >
               <X size={16} />
@@ -985,37 +985,37 @@ export default function LayerList({
             
             <div className="space-y-2">
               <div>
-                <span className="font-semibold text-neutral-700">Title:</span>
-                <p className="text-neutral-600 break-words">{layer.title || layer.name}</p>
+                <span className="font-semibold text-neutral-700 dark:text-neutral-200">Title:</span>
+                <p className="text-neutral-900 dark:text-neutral-100 break-words">{layer.title || layer.name}</p>
               </div>
               {layer.data_type && (
                 <div>
-                  <span className="font-semibold text-neutral-700">Data Type:</span>
-                  <p className="text-neutral-600">{layer.data_type}</p>
+                  <span className="font-semibold text-neutral-700 dark:text-neutral-200">Data Type:</span>
+                  <p className="text-neutral-900 dark:text-neutral-100">{layer.data_type}</p>
                 </div>
               )}
               {layer.layer_type && (
                 <div>
-                  <span className="font-semibold text-neutral-700">Layer Type:</span>
-                  <p className="text-neutral-600">{layer.layer_type}</p>
+                  <span className="font-semibold text-neutral-700 dark:text-neutral-200">Layer Type:</span>
+                  <p className="text-neutral-900 dark:text-neutral-100">{layer.layer_type}</p>
                 </div>
               )}
               {layer.format && (
                 <div>
-                  <span className="font-semibold text-neutral-700">Format:</span>
-                  <p className="text-neutral-600">{layer.format}</p>
+                  <span className="font-semibold text-neutral-700 dark:text-neutral-200">Format:</span>
+                  <p className="text-neutral-900 dark:text-neutral-100">{layer.format}</p>
                 </div>
               )}
               {layer.data_source && (
                 <div>
-                  <span className="font-semibold text-neutral-700">Source:</span>
-                  <p className="text-neutral-600 break-all text-xs">{layer.data_source}</p>
+                  <span className="font-semibold text-neutral-700 dark:text-neutral-200">Source:</span>
+                  <p className="text-neutral-900 dark:text-neutral-100 break-all text-xs">{layer.data_source}</p>
                 </div>
               )}
               {layer.bounding_box && (
                 <div>
-                  <span className="font-semibold text-neutral-700">Bounding Box:</span>
-                  <p className="text-neutral-600 text-xs font-mono">
+                  <span className="font-semibold text-neutral-700 dark:text-neutral-200">Bounding Box:</span>
+                  <p className="text-neutral-900 dark:text-neutral-100 text-xs font-mono">
                     [{Array.isArray(layer.bounding_box) 
                       ? layer.bounding_box.join(', ')
                       : JSON.stringify(layer.bounding_box)
@@ -1026,15 +1026,15 @@ export default function LayerList({
               
               {/* Processing Metadata Section */}
               {layer.processing_metadata && (
-                <div className="pt-3 mt-3 border-t border-neutral-200">
-                  <h4 className="font-semibold text-neutral-700 mb-2">Processing Information</h4>
+                <div className="pt-3 mt-3 border-t border-neutral-200 dark:border-neutral-600">
+                  <h4 className="font-semibold text-neutral-700 dark:text-neutral-200 mb-2">Processing Information</h4>
                   
                   {/* Source Layers - Prominently displayed */}
                   {layer.processing_metadata.origin_layers && 
                    layer.processing_metadata.origin_layers.length > 0 && (
                     <div className="mb-3 p-2 bg-secondary-50 dark:bg-secondary-900 rounded border border-secondary-300 dark:border-secondary-600">
-                      <span className="font-semibold text-secondary-800 dark:text-secondary-200 text-xs uppercase tracking-wide">Source Layers</span>
-                      <p className="text-sm text-neutral-800 dark:text-neutral-200 mt-1">
+                      <span className="font-semibold text-secondary-900 dark:text-secondary-100 text-xs uppercase tracking-wide">Source Layers</span>
+                      <p className="text-sm text-neutral-900 dark:text-neutral-100 mt-1">
                         {layer.processing_metadata.origin_layers.join(', ')}
                       </p>
                     </div>
@@ -1042,8 +1042,8 @@ export default function LayerList({
                   
                   {/* Operation Summary */}
                   <div className="mb-3 p-2 bg-info-50 dark:bg-info-900 rounded border border-info-200 dark:border-info-700">
-                    <p className="text-sm text-neutral-700">
-                      <strong className="text-info-700">
+                    <p className="text-sm text-neutral-900 dark:text-neutral-100">
+                      <strong className="text-info-800 dark:text-info-200">
                         {layer.processing_metadata.operation.charAt(0).toUpperCase() + 
                          layer.processing_metadata.operation.slice(1)}
                       </strong> operation
@@ -1051,7 +1051,7 @@ export default function LayerList({
                        layer.description?.match(/\d+\.?\d*\s*(m|km|meters|kilometers)/i) && 
                        ` with ${layer.description.match(/\d+\.?\d*\s*(m|km|meters|kilometers)/i)![0]}`}
                       {' using '}
-                      <strong className="text-info-700">{layer.processing_metadata.crs_used}</strong>
+                      <strong className="text-info-800 dark:text-info-200">{layer.processing_metadata.crs_used}</strong>
                       {layer.processing_metadata.auto_selected && ' 🎯'}
                     </p>
                   </div>
@@ -1059,19 +1059,19 @@ export default function LayerList({
                   {/* CRS Details */}
                   <div className="space-y-1">
                     <div>
-                      <span className="font-semibold text-neutral-700">CRS Name:</span>
-                      <p className="text-neutral-600 text-sm">{layer.processing_metadata.crs_name}</p>
+                      <span className="font-semibold text-neutral-700 dark:text-neutral-200">CRS Name:</span>
+                      <p className="text-neutral-900 dark:text-neutral-100 text-sm">{layer.processing_metadata.crs_name}</p>
                     </div>
                     <div>
-                      <span className="font-semibold text-neutral-700">Projection Property:</span>
-                      <p className="text-neutral-600 text-sm capitalize">
+                      <span className="font-semibold text-neutral-700 dark:text-neutral-200">Projection Property:</span>
+                      <p className="text-neutral-900 dark:text-neutral-100 text-sm capitalize">
                         {layer.processing_metadata.projection_property}
                       </p>
                     </div>
                     {layer.processing_metadata.auto_selected && (
                       <div>
-                        <span className="font-semibold text-neutral-700">Auto-Selected:</span>
-                        <p className="text-neutral-600 text-sm">
+                        <span className="font-semibold text-neutral-700 dark:text-neutral-200">Auto-Selected:</span>
+                        <p className="text-neutral-900 dark:text-neutral-100 text-sm">
                           Yes {layer.processing_metadata.selection_reason && 
                                `- ${layer.processing_metadata.selection_reason}`}
                         </p>
@@ -1079,8 +1079,8 @@ export default function LayerList({
                     )}
                     {layer.processing_metadata.expected_error !== undefined && (
                       <div>
-                        <span className="font-semibold text-neutral-700">Expected Error:</span>
-                        <p className="text-neutral-600 text-sm">
+                        <span className="font-semibold text-neutral-700 dark:text-neutral-200">Expected Error:</span>
+                        <p className="text-neutral-900 dark:text-neutral-100 text-sm">
                           &lt;{layer.processing_metadata.expected_error}%
                         </p>
                       </div>
