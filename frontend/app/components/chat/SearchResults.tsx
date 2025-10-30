@@ -83,29 +83,29 @@ export default function SearchResults({
               {/* Details Pop-up */}
               {activeDetailsId === result.id && (
                 <div
-                  className="fixed left-4 right-4 bottom-20 max-h-[60vh] overflow-y-auto bg-white border border-gray-300 rounded-lg shadow-xl p-4 z-50 md:absolute md:bottom-full md:left-0 md:right-auto md:mb-2 md:w-80 md:max-h-96"
+                  className="fixed left-4 right-4 bottom-20 max-h-[60vh] overflow-y-auto bg-white dark:bg-neutral-800 border border-gray-300 dark:border-neutral-600 rounded-lg shadow-xl p-4 z-50 md:absolute md:bottom-full md:left-0 md:right-auto md:mb-2 md:w-80 md:max-h-96"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <h4 className="font-bold text-sm mb-2 break-words">
+                  <h4 className="font-bold text-sm mb-2 break-words text-neutral-900 dark:text-neutral-100">
                     {result.title || "Details"}
                   </h4>
-                  <p className="text-xs mb-2 break-words">
-                    <strong>Description:</strong>{" "}
+                  <p className="text-xs mb-2 break-words text-neutral-900 dark:text-neutral-100">
+                    <strong className="text-neutral-700 dark:text-neutral-200">Description:</strong>{" "}
                     {result.llm_description ||
                       result.description ||
                       "N/A"}
                   </p>
-                  <p className="text-xs mb-2 break-words">
-                    <strong>Data Source:</strong>{" "}
+                  <p className="text-xs mb-2 break-words text-neutral-900 dark:text-neutral-100">
+                    <strong className="text-neutral-700 dark:text-neutral-200">Data Source:</strong>{" "}
                     {result.data_source || "N/A"}
                   </p>
-                  <p className="text-xs mb-2">
-                    <strong>Layer Type:</strong>{" "}
+                  <p className="text-xs mb-2 text-neutral-900 dark:text-neutral-100">
+                    <strong className="text-neutral-700 dark:text-neutral-200">Layer Type:</strong>{" "}
                     {result.layer_type || "N/A"}
                   </p>
                   {result.bounding_box && (
-                    <p className="text-xs break-all">
-                      <strong>BBox:</strong>{" "}
+                    <p className="text-xs break-all text-neutral-900 dark:text-neutral-100">
+                      <strong className="text-neutral-700 dark:text-neutral-200">BBox:</strong>{" "}
                       {typeof result.bounding_box === "string"
                         ? result.bounding_box
                         : JSON.stringify(result.bounding_box)}
@@ -114,8 +114,8 @@ export default function SearchResults({
                   
                   {/* Processing Metadata Section */}
                   {result.processing_metadata && (
-                    <div className="pt-3 mt-3 border-t border-neutral-200">
-                      <h5 className="font-semibold text-neutral-700 mb-2 text-xs">Processing Information</h5>
+                    <div className="pt-3 mt-3 border-t border-neutral-200 dark:border-neutral-600">
+                      <h5 className="font-semibold text-neutral-700 dark:text-neutral-200 mb-2 text-xs">Processing Information</h5>
                       
                       {/* Source Layers - Prominently displayed */}
                       {result.processing_metadata.origin_layers && 
@@ -146,20 +146,20 @@ export default function SearchResults({
                       
                       {/* CRS Details */}
                       <div className="space-y-1">
-                        <p className="text-xs">
-                          <strong>CRS Name:</strong> {result.processing_metadata.crs_name}
+                        <p className="text-xs text-neutral-900 dark:text-neutral-100">
+                          <strong className="text-neutral-700 dark:text-neutral-200">CRS Name:</strong> {result.processing_metadata.crs_name}
                         </p>
-                        <p className="text-xs capitalize">
-                          <strong>Projection:</strong> {result.processing_metadata.projection_property}
+                        <p className="text-xs capitalize text-neutral-900 dark:text-neutral-100">
+                          <strong className="text-neutral-700 dark:text-neutral-200">Projection:</strong> {result.processing_metadata.projection_property}
                         </p>
                         {result.processing_metadata.auto_selected && result.processing_metadata.selection_reason && (
-                          <p className="text-xs">
-                            <strong>Selection Reason:</strong> {result.processing_metadata.selection_reason}
+                          <p className="text-xs text-neutral-900 dark:text-neutral-100">
+                            <strong className="text-neutral-700 dark:text-neutral-200">Selection Reason:</strong> {result.processing_metadata.selection_reason}
                           </p>
                         )}
                         {result.processing_metadata.expected_error !== undefined && (
-                          <p className="text-xs">
-                            <strong>Expected Error:</strong> &lt;{result.processing_metadata.expected_error}%
+                          <p className="text-xs text-neutral-900 dark:text-neutral-100">
+                            <strong className="text-neutral-700 dark:text-neutral-200">Expected Error:</strong> &lt;{result.processing_metadata.expected_error}%
                           </p>
                         )}
                       </div>
@@ -172,7 +172,7 @@ export default function SearchResults({
                       e.stopPropagation();
                       setActiveDetailsId(null);
                     }}
-                    className="mt-3 w-full py-2 bg-neutral-200 hover:bg-neutral-300 rounded text-xs font-medium md:hidden"
+                    className="mt-3 w-full py-2 bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 rounded text-xs font-medium text-neutral-900 dark:text-neutral-100 md:hidden"
                   >
                     Close
                   </button>
