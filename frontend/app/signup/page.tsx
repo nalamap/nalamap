@@ -22,9 +22,9 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="max-w-md mx-auto mt-16 p-4 border rounded">
+    <div className="max-w-md mx-auto mt-16 p-4 border border-primary-300 rounded">
       <h1 className="text-xl font-semibold mb-4">Sign Up</h1>
-      {error && <div className="text-red-600 mb-2">{error}</div>}
+      {error && <div className="text-danger-600 mb-2">{error}</div>}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label>Email</label>
@@ -32,7 +32,7 @@ export default function SignupPage() {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full border p-2 rounded"
+            className="w-full border border-primary-300 p-2 rounded"
             required
           />
         </div>
@@ -42,7 +42,7 @@ export default function SignupPage() {
             type="text"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
-            className="w-full border p-2 rounded"
+            className="w-full border border-primary-300 p-2 rounded"
             required
           />
         </div>
@@ -52,19 +52,22 @@ export default function SignupPage() {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full border p-2 rounded"
+            className="w-full border border-primary-300 p-2 rounded"
             required
           />
         </div>
         <button
           type="submit"
-          className="w-full bg-green-600 text-white p-2 rounded"
+          className="w-full bg-second-primary-600 text-neutral-50 p-2 rounded hover:bg-second-primary-700"
         >
           Sign Up
         </button>
       </form>
       <p className="mt-4 text-sm">
-        Already have an account? <a href="/login" className="text-blue-600">Login</a>
+        Already have an account?{' '}
+        <a href="/login" className="text-second-primary-600 hover:text-second-primary-700">
+          Login
+        </a>
       </p>
     </div>
   );

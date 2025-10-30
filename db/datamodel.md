@@ -126,7 +126,7 @@ erDiagram
     uuid user_id "FK -> Users.id"
     uuid project_id "FK -> Projects.id"
     text role "owner|editor|viewer"
-    uuid oriject_share_id "PK -> (user_id, project_id)"
+    uuid project_share_id "PK -> (user_id, project_id)"
   }
 
   Map_Shares {
