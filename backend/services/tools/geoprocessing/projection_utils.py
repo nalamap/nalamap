@@ -5,16 +5,22 @@ Implements deterministic, rule-based projection selection based on:
 - Geographic extent (local/regional/global)
 - Operation type (area/distance/topology)
 - Latitude zone (equatorial/mid-latitude/polar)
+- Orientation (EW vs NS dominant)
+- UTM zone boundaries
+- Antimeridian crossing
 
 This module provides:
 - get_optimal_crs_for_bbox(bbox, operation_type)
+- decide_projection(bbox, operation_type, ...)
 - prepare_gdf_for_operation(gdf, operation_type, ...)
 - validate_crs(epsg_code)
+- compute_bbox_metrics(bbox) - helper for extent analysis
 
 """
 
 import logging
-from typing import Tuple, Optional, Dict, Any
+import math
+from typing import Tuple, Optional, Dict, Any, List
 from enum import Enum
 
 from pyproj import CRS
@@ -88,6 +94,324 @@ REGIONAL_BOUNDARIES = {
 }
 
 
+# ========== Helper Functions for Bbox Analysis ==========
+
+
+def km_per_degree_lon(lat: float) -> float:
+    """
+    Calculate km per degree of longitude at given latitude.
+
+    At equator: ~111 km/degree
+    At poles: ~0 km/degree
+    """
+    return 111.32 * math.cos(math.radians(lat))
+
+
+def km_per_degree_lat() -> float:
+    """
+    Calculate km per degree of latitude (constant).
+
+    Returns ~111 km/degree
+    """
+    return 111.32
+
+
+def compute_utm_zone(lon: float) -> int:
+    """Compute UTM zone number from longitude."""
+    zone = int((lon + 180) / 6) + 1
+    return min(max(zone, 1), 60)
+
+
+def compute_zone_span(min_lon: float, max_lon: float) -> int:
+    """
+    Calculate how many UTM zones are spanned by longitude extent.
+
+    Returns:
+        Number of distinct zones (1 means single zone, 2+ means crossing)
+    """
+    if min_lon > max_lon:  # Antimeridian crossing
+        # Approximate: treat as large span
+        return 10
+
+    min_zone = compute_utm_zone(min_lon)
+    max_zone = compute_utm_zone(max_lon)
+    return abs(max_zone - min_zone) + 1
+
+
+def is_antimeridian_crossing(min_lon: float, max_lon: float) -> bool:
+    """
+    Check if bounding box crosses the antimeridian (±180°).
+
+    Returns:
+        True if crossing detected
+    """
+    return min_lon > max_lon
+
+
+def compute_bbox_metrics(bbox: Tuple[float, float, float, float]) -> Dict[str, Any]:
+    """
+    Compute comprehensive metrics for bbox to guide CRS selection.
+
+    Args:
+        bbox: (min_lon, min_lat, max_lon, max_lat) in EPSG:4326
+
+    Returns:
+        Dict with:
+        - center_lon, center_lat
+        - lon_extent, lat_extent (degrees)
+        - lon_extent_km, lat_extent_km (approximate)
+        - area_km2 (approximate)
+        - orientation_ratio (EW/NS; >1 means EW-dominant)
+        - zone_span (number of UTM zones)
+        - centroid_zone (UTM zone at centroid)
+        - is_polar (|center_lat| >= 80)
+        - is_near_equator (|center_lat| <= 10)
+        - antimeridian_crossing (bool)
+    """
+    min_lon, min_lat, max_lon, max_lat = bbox
+
+    # Handle antimeridian crossing
+    antimeridian = is_antimeridian_crossing(min_lon, max_lon)
+
+    # Compute center
+    if antimeridian:
+        # Wrap-around logic
+        center_lon = ((min_lon + max_lon + 360) / 2) % 360
+        if center_lon > 180:
+            center_lon -= 360
+        lon_extent = (360 - min_lon) + max_lon
+    else:
+        center_lon = (min_lon + max_lon) / 2
+        lon_extent = max_lon - min_lon
+
+    center_lat = (min_lat + max_lat) / 2
+    lat_extent = max_lat - min_lat
+
+    # Compute extents in km (approximate)
+    lat_extent_km = lat_extent * km_per_degree_lat()
+    # Use average latitude for lon calculation
+    avg_lat = center_lat
+    lon_extent_km = lon_extent * km_per_degree_lon(avg_lat)
+
+    # Approximate area
+    area_km2 = lat_extent_km * lon_extent_km
+
+    # Orientation ratio (EW / NS)
+    orientation_ratio = lon_extent_km / max(lat_extent_km, 1.0)
+
+    # UTM zone analysis
+    zone_span = compute_zone_span(min_lon, max_lon)
+    centroid_zone = compute_utm_zone(center_lon)
+
+    # Latitude classification
+    is_polar = abs(center_lat) >= 80 or max_lat > 85 or min_lat < -85
+    is_near_equator = abs(center_lat) <= 10
+
+    return {
+        "center_lon": center_lon,
+        "center_lat": center_lat,
+        "lon_extent": lon_extent,
+        "lat_extent": lat_extent,
+        "lon_extent_km": lon_extent_km,
+        "lat_extent_km": lat_extent_km,
+        "area_km2": area_km2,
+        "orientation_ratio": orientation_ratio,
+        "zone_span": zone_span,
+        "centroid_zone": centroid_zone,
+        "is_polar": is_polar,
+        "is_near_equator": is_near_equator,
+        "antimeridian_crossing": antimeridian,
+    }
+
+
+# ========== Main Decision Algorithm ==========
+
+
+def decide_projection(
+    bbox: Tuple[float, float, float, float],
+    operation_type: OperationType,
+    projection_priority: Optional[ProjectionProperty] = None,
+    fallback_crs: str = "EPSG:3857",
+) -> Dict[str, Any]:
+    """
+    Multi-factor CRS decision algorithm with full transparency.
+
+    Implements hybrid heuristic considering:
+    - Latitude (polar, equatorial, mid-latitude)
+    - Longitude span (UTM zone boundaries)
+    - Orientation (EW vs NS dominant)
+    - Size/extent
+    - Operation type requirements
+
+    Args:
+        bbox: (min_lon, min_lat, max_lon, max_lat) in EPSG:4326
+        operation_type: Type of geoprocessing operation
+        projection_priority: Override projection property
+        fallback_crs: Fallback if no optimal CRS found
+
+    Returns:
+        Dict with:
+        - epsg_code
+        - crs_name
+        - projection_property
+        - selection_reason
+        - expected_error
+        - decision_path (list of decision steps taken)
+        - decision_inputs (metrics used in decision)
+    """
+    decision_path = []
+    min_lon, min_lat, max_lon, max_lat = bbox
+
+    # Step 1: Validate bbox
+    if not (
+        -180 <= min_lon <= 180
+        and -90 <= min_lat <= 90
+        and -180 <= max_lon <= 180
+        and -90 <= max_lat <= 90
+    ):
+        decision_path.append("Invalid bbox coordinates")
+        return _create_response_with_metadata(
+            fallback_crs, "Invalid bounding box", decision_path, {}, 10.0
+        )
+
+    # Compute comprehensive metrics
+    metrics = compute_bbox_metrics(bbox)
+    decision_path.append(
+        f"Computed bbox metrics: center=({metrics['center_lon']:.2f}, {metrics['center_lat']:.2f})"
+    )
+
+    # Determine required projection property
+    if projection_priority:
+        required_property = projection_priority
+        decision_path.append(f"User override: property={required_property.value}")
+    else:
+        required_property = _get_required_property(operation_type)
+        decision_path.append(
+            f"Operation {operation_type.value} requires property={required_property.value}"
+        )
+
+    # Store inputs for metadata
+    decision_inputs = {
+        "bbox": bbox,
+        "centroid": (metrics["center_lon"], metrics["center_lat"]),
+        "extents_deg": (metrics["lon_extent"], metrics["lat_extent"]),
+        "extents_km": (metrics["lon_extent_km"], metrics["lat_extent_km"]),
+        "area_km2": metrics["area_km2"],
+        "orientation_ratio": metrics["orientation_ratio"],
+        "zone_span": metrics["zone_span"],
+        "operation_type": operation_type.value,
+        "required_property": required_property.value,
+    }
+
+    # Step 2: Check for global/near-global extent
+    if metrics["lon_extent"] >= 180 or metrics["lat_extent"] >= 170:
+        decision_path.append(
+            f"Near-global extent: {metrics['lon_extent']:.1f}° × {metrics['lat_extent']:.1f}°"
+        )
+        return _create_response_with_metadata(
+            fallback_crs,
+            f"Extent too large ({metrics['lon_extent']:.1f}° × {metrics['lat_extent']:.1f}°)",
+            decision_path,
+            decision_inputs,
+            10.0,
+        )
+
+    # Step 3: Check for polar regions
+    if metrics["is_polar"]:
+        decision_path.append(f"Polar region detected: center_lat={metrics['center_lat']:.1f}°")
+        result = _get_polar_crs(metrics["center_lat"], required_property)
+        result["decision_path"] = decision_path
+        result["decision_inputs"] = decision_inputs
+        return result
+
+    # Step 4: Local extent - consider UTM (with zone seam check)
+    if metrics["lon_extent"] <= 6 and metrics["lat_extent"] <= 6:
+        decision_path.append(
+            f"Local extent: {metrics['lon_extent']:.1f}° × {metrics['lat_extent']:.1f}°"
+        )
+
+        # Check if we're crossing UTM zone boundary
+        if metrics["zone_span"] >= 2 and metrics["lon_extent"] >= 3:
+            decision_path.append(
+                f"Crossing UTM zone seam: span={metrics['zone_span']} zones, skipping UTM"
+            )
+            # Fall through to regional selection
+        else:
+            decision_path.append(f"Using UTM zone {metrics['centroid_zone']}")
+            result = _get_utm_crs(metrics["center_lon"], metrics["center_lat"])
+            result["decision_path"] = decision_path
+            result["decision_inputs"] = decision_inputs
+            return result
+
+    # Step 5: Regional extent - check orientation and operation requirements
+    region = _identify_region(bbox)
+
+    if region:
+        decision_path.append(f"Region identified: {region}")
+
+        # Check for EW-dominant orientation
+        if metrics["orientation_ratio"] >= 1.5:
+            decision_path.append(
+                f"EW-dominant orientation: ratio={metrics['orientation_ratio']:.2f}, prefer LCC"
+            )
+            # Force conformal (LCC) for wide EW strips
+            result = _get_regional_crs(region, ProjectionProperty.CONFORMAL)
+            result["decision_path"] = decision_path
+            result["decision_inputs"] = decision_inputs
+            return result
+
+        # Check for large area requiring equal-area
+        if metrics["area_km2"] >= 2e6:
+            decision_path.append(f"Large area: {metrics['area_km2']:.0f} km², prefer equal-area")
+            result = _get_regional_crs(region, ProjectionProperty.EQUAL_AREA)
+            result["decision_path"] = decision_path
+            result["decision_inputs"] = decision_inputs
+            return result
+
+        # Use operation-appropriate projection
+        decision_path.append("Using operation-appropriate projection for region")
+        result = _get_regional_crs(region, required_property)
+        result["decision_path"] = decision_path
+        result["decision_inputs"] = decision_inputs
+        return result
+
+    # Step 6: Multi-zone or antimeridian crossing
+    if metrics["antimeridian_crossing"]:
+        decision_path.append("Antimeridian crossing detected")
+
+    if metrics["zone_span"] >= 3:
+        decision_path.append(f"Scattered across {metrics['zone_span']} UTM zones")
+
+    # Final fallback
+    decision_path.append("Using fallback projection")
+    return _create_response_with_metadata(
+        fallback_crs,
+        f"Cross-regional extent ({metrics['lon_extent']:.1f}° × {metrics['lat_extent']:.1f}°)",
+        decision_path,
+        decision_inputs,
+        10.0,
+    )
+
+
+def _create_response_with_metadata(
+    epsg_code: str,
+    reason: str,
+    decision_path: List[str],
+    decision_inputs: Dict[str, Any],
+    expected_error: float,
+) -> Dict[str, Any]:
+    """Create CRS response with full metadata."""
+    return {
+        "epsg_code": epsg_code,
+        "crs_name": VALIDATED_CRS.get(epsg_code.replace("EPSG:", ""), "Custom CRS"),
+        "projection_property": "compromise",
+        "selection_reason": reason,
+        "expected_error": expected_error,
+        "decision_path": decision_path,
+        "decision_inputs": decision_inputs,
+    }
+
+
 def get_optimal_crs_for_bbox(
     bbox: Tuple[float, float, float, float],
     operation_type: OperationType,
@@ -98,6 +422,9 @@ def get_optimal_crs_for_bbox(
     """
     Select optimal CRS for given bounding box and operation.
 
+    This is the main entry point for CRS selection. Uses the enhanced
+    decide_projection algorithm when auto_optimize=True.
+
     Args:
         bbox: (min_lon, min_lat, max_lon, max_lat) in EPSG:4326
         operation_type: Type of geoprocessing operation
@@ -106,7 +433,8 @@ def get_optimal_crs_for_bbox(
         fallback_crs: CRS to use if selection fails
 
     Returns:
-        Dict with epsg_code, crs_name, projection_property, selection_reason, expected_error
+        Dict with epsg_code, crs_name, projection_property, selection_reason,
+        expected_error, decision_path, decision_inputs
     """
 
     if not auto_optimize:
@@ -116,56 +444,12 @@ def get_optimal_crs_for_bbox(
             "projection_property": "unknown",
             "selection_reason": "Auto-optimization disabled",
             "expected_error": None,
+            "decision_path": ["Auto-optimization disabled by user"],
+            "decision_inputs": {},
         }
 
-    # Validate bbox
-    min_lon, min_lat, max_lon, max_lat = bbox
-    if not (
-        -180 <= min_lon <= 180
-        and -90 <= min_lat <= 90
-        and -180 <= max_lon <= 180
-        and -90 <= max_lat <= 90
-    ):
-        logger.warning(f"Invalid bbox: {bbox}, using fallback")
-        return _create_fallback_response(fallback_crs, "Invalid bounding box")
-
-    # Calculate extent metrics
-    lon_extent = max_lon - min_lon
-    lat_extent = max_lat - min_lat
-    center_lon = (min_lon + max_lon) / 2
-    center_lat = (min_lat + max_lat) / 2
-
-    # Determine required projection property
-    if projection_priority:
-        required_property = projection_priority
-    else:
-        required_property = _get_required_property(operation_type)
-
-    # 1. If extent is extremely large (global or near-global) -> fallback
-    # This prevents misclassification as 'polar' when the bbox spans the globe.
-    if lon_extent >= 180 or lat_extent >= 170:
-        return _create_fallback_response(
-            fallback_crs,
-            f"Extent too large ({lon_extent:.1f}° × {lat_extent:.1f}°), using fallback",
-        )
-
-    # 2. Check for polar regions (>80° latitude)
-    if abs(center_lat) > 80 or max_lat > 85 or min_lat < -85:
-        return _get_polar_crs(center_lat, required_property)
-
-    # 2. Check for local extent (<6° in both dimensions) -> UTM
-    if abs(lon_extent) <= 6 and abs(lat_extent) <= 6:
-        return _get_utm_crs(center_lon, center_lat)
-
-    # 3. Check for regional extent -> Continental projections
-    region = _identify_region(bbox)
-    if region:
-        return _get_regional_crs(region, required_property)
-
-    # 4. Fallback for cross-regional or global extents
-    return _create_fallback_response(
-        fallback_crs, f"Extent too large ({lon_extent:.1f}° × {lat_extent:.1f}°), using fallback"
-    )
+    # Use the enhanced decision algorithm
+    return decide_projection(bbox, operation_type, projection_priority, fallback_crs)
 
 
 def _get_required_property(operation_type: OperationType) -> ProjectionProperty:
@@ -320,15 +604,28 @@ def _get_regional_crs(region: str, required_property: ProjectionProperty) -> Dic
     }
 
 
-def _create_fallback_response(fallback_crs: str, reason: str) -> Dict[str, Any]:
-    """Create fallback CRS response."""
-    return {
+def _create_fallback_response(
+    fallback_crs: str,
+    reason: str,
+    decision_path: Optional[List[str]] = None,
+    decision_inputs: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Create fallback CRS response (backwards compatible)."""
+    response = {
         "epsg_code": fallback_crs,
         "crs_name": VALIDATED_CRS.get(fallback_crs.replace("EPSG:", ""), "Custom CRS"),
         "projection_property": "compromise",
         "selection_reason": reason,
         "expected_error": 10.0 if "3857" in fallback_crs else None,
     }
+
+    # Add optional metadata fields if provided
+    if decision_path is not None:
+        response["decision_path"] = decision_path
+    if decision_inputs is not None:
+        response["decision_inputs"] = decision_inputs
+
+    return response
 
 
 def validate_crs(epsg_code: str) -> bool:
