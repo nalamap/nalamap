@@ -415,7 +415,7 @@ def geoprocess_tool(
     for layer in selected:
         if layer.data_type not in (DataType.GEOJSON, DataType.UPLOADED):
             continue
-        
+
         # Store layer title for metadata
         layer_titles.append(layer.title or layer.name)
 

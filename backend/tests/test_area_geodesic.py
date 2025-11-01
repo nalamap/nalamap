@@ -376,9 +376,7 @@ class TestAreaOperationIntegration:
         # The reason will include multiple triggers (zone span, non-local, or antimeridian)
         # Any of these is valid for geodesic selection
         reason_lower = metadata["area_method_reason"].lower()
-        assert any(
-            keyword in reason_lower for keyword in ["antimeridian", "zone", "non-local"]
-        )
+        assert any(keyword in reason_lower for keyword in ["antimeridian", "zone", "non-local"])
 
 
 if __name__ == "__main__":

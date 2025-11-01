@@ -267,9 +267,7 @@ class TestProjectionDecision:
 
         assert "UTM" in result["crs_name"]
         # Zone 48N = EPSG:32648, Zone 49N = EPSG:32649
-        assert (
-            "EPSG:32648" in result["epsg_code"] or "EPSG:32649" in result["epsg_code"]
-        )
+        assert "EPSG:32648" in result["epsg_code"] or "EPSG:32649" in result["epsg_code"]
 
 
 if __name__ == "__main__":
