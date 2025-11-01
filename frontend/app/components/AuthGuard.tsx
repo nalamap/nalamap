@@ -9,13 +9,19 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    // redirect to login if not authenticated and not on auth pages
+    // If we've determined the user is not authenticated, redirect to login
+    // Note: user === undefined means the auth status is still loading
     if (user === null && !['/login', '/signup'].includes(pathname)) {
       router.push('/login');
     }
   }, [user, router, pathname]);
 
-  if (!user) {
+  // If auth status is loading, show a loader (don't redirect yet)
+  if (user === undefined) {
+    return <div>Loading...</div>;
+  }
+
+  if (user === null) {
     // allow public access to login and signup pages
     if (['/login', '/signup'].includes(pathname)) {
       return <>{children}</>;

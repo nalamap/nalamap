@@ -9,7 +9,8 @@ interface User {
 }
 
 interface AuthContextValue {
-  user: User | null;
+  // undefined = loading, null = not authenticated, User = authenticated
+  user: User | null | undefined;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, displayName: string) => Promise<void>;
   logout: () => void;
@@ -18,7 +19,8 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  // undefined = loading, null = not authenticated, User = authenticated
+  const [user, setUser] = useState<User | null | undefined>(undefined);
   const apiBase = getApiBase();
 
   // try to fetch current user on mount
@@ -29,10 +31,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (res.ok) {
           const data = await res.json();
           setUser(data);
+          return;
         }
-      } catch {
-        setUser(null);
+      } catch (err) {
+        // ignored - treat as not authenticated
       }
+      setUser(null);
     }
     fetchMe();
   }, []);
