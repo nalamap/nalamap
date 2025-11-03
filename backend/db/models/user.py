@@ -7,7 +7,7 @@ from db.base import Base
 
 
 class User(Base):
-    """User account information."""
+    """User Account information."""
 
     __tablename__ = "users"
 
