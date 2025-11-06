@@ -253,9 +253,8 @@ def decide_projection(
         Dict with:
         - epsg_code
         - crs_name
-        - projection_property
         - selection_reason
-        - expected_error
+        - auto_selected
         - decision_path (list of decision steps taken)
         - decision_inputs (metrics used in decision)
     """
@@ -271,7 +270,7 @@ def decide_projection(
     ):
         decision_path.append("Invalid bbox coordinates")
         return _create_response_with_metadata(
-            fallback_crs, "Invalid bounding box", decision_path, {}, 10.0
+            fallback_crs, "Invalid bounding box", decision_path, {}
         )
 
     # Compute comprehensive metrics
@@ -313,7 +312,6 @@ def decide_projection(
             f"Extent too large ({metrics['lon_extent']:.1f}° × {metrics['lat_extent']:.1f}°)",
             decision_path,
             decision_inputs,
-            10.0,
         )
 
     # Step 3: Check for polar regions
@@ -389,7 +387,6 @@ def decide_projection(
         f"Cross-regional extent ({metrics['lon_extent']:.1f}° × {metrics['lat_extent']:.1f}°)",
         decision_path,
         decision_inputs,
-        10.0,
     )
 
 
@@ -398,15 +395,13 @@ def _create_response_with_metadata(
     reason: str,
     decision_path: List[str],
     decision_inputs: Dict[str, Any],
-    expected_error: float,
 ) -> Dict[str, Any]:
     """Create CRS response with full metadata."""
     return {
         "epsg_code": epsg_code,
         "crs_name": VALIDATED_CRS.get(epsg_code.replace("EPSG:", ""), "Custom CRS"),
-        "projection_property": "compromise",
         "selection_reason": reason,
-        "expected_error": expected_error,
+        "auto_selected": True,
         "decision_path": decision_path,
         "decision_inputs": decision_inputs,
     }
@@ -433,17 +428,16 @@ def get_optimal_crs_for_bbox(
         fallback_crs: CRS to use if selection fails
 
     Returns:
-        Dict with epsg_code, crs_name, projection_property, selection_reason,
-        expected_error, decision_path, decision_inputs
+        Dict with epsg_code, crs_name, selection_reason, auto_selected,
+        decision_path, decision_inputs
     """
 
     if not auto_optimize:
         return {
             "epsg_code": fallback_crs,
             "crs_name": VALIDATED_CRS.get(fallback_crs.replace("EPSG:", ""), "Custom CRS"),
-            "projection_property": "unknown",
             "selection_reason": "Auto-optimization disabled",
-            "expected_error": None,
+            "auto_selected": False,
             "decision_path": ["Auto-optimization disabled by user"],
             "decision_inputs": {},
         }
@@ -482,11 +476,8 @@ def _get_utm_crs(center_lon: float, center_lat: float) -> Dict[str, Any]:
     return {
         "epsg_code": epsg_code,
         "crs_name": f"WGS 84 / UTM zone {zone}{hemisphere}",
-        "projection_property": "conformal",
-        "selection_reason": (
-            f"Local extent - UTM zone {zone}{hemisphere}; " "<0.1% distance error"
-        ),
-        "expected_error": 0.1,
+        "selection_reason": f"Local extent - UTM zone {zone}{hemisphere}",
+        "auto_selected": True,
     }
 
 
@@ -499,34 +490,30 @@ def _get_polar_crs(center_lat: float, required_property: ProjectionProperty) -> 
             return {
                 "epsg_code": "EPSG:3571",
                 "crs_name": "North Pole Lambert Azimuthal Equal Area",
-                "projection_property": "equal-area",
                 "selection_reason": "Arctic region - LAEA preserves areas",
-                "expected_error": 0.0,
+                "auto_selected": True,
             }
         else:
             return {
                 "epsg_code": "EPSG:3572",
                 "crs_name": "Antarctica Lambert Azimuthal Equal Area",
-                "projection_property": "equal-area",
                 "selection_reason": "Antarctic region - LAEA preserves areas",
-                "expected_error": 0.0,
+                "auto_selected": True,
             }
     else:
         if is_arctic:
             return {
                 "epsg_code": "EPSG:3995",
                 "crs_name": "Arctic Polar Stereographic",
-                "projection_property": "conformal",
                 "selection_reason": "Arctic region - Stereographic preserves shapes",
-                "expected_error": 2.0,
+                "auto_selected": True,
             }
         else:
             return {
                 "epsg_code": "EPSG:3031",
                 "crs_name": "Antarctic Polar Stereographic",
-                "projection_property": "conformal",
                 "selection_reason": "Antarctic region - Stereographic preserves shapes",
-                "expected_error": 2.0,
+                "auto_selected": True,
             }
 
 
@@ -550,57 +537,53 @@ def _get_regional_crs(region: str, required_property: ProjectionProperty) -> Dic
     """Get appropriate regional projection."""
     regional_crs = {
         "north_america": {
-            ProjectionProperty.EQUAL_AREA: ("EPSG:102008", "North America Albers Equal Area", 0.5),
+            ProjectionProperty.EQUAL_AREA: ("EPSG:102008", "North America Albers Equal Area"),
             ProjectionProperty.CONFORMAL: (
                 "EPSG:102009",
                 "North America Lambert Conformal Conic",
-                1.0,
             ),
         },
         "south_america": {
-            ProjectionProperty.EQUAL_AREA: ("EPSG:102011", "South America Albers Equal Area", 0.5),
+            ProjectionProperty.EQUAL_AREA: ("EPSG:102011", "South America Albers Equal Area"),
             ProjectionProperty.CONFORMAL: (
                 "EPSG:32040",
                 "South America Lambert Conformal Conic",
-                1.0,
             ),
         },
         "europe": {
-            ProjectionProperty.EQUAL_AREA: ("EPSG:3035", "Europe LAEA (ETRS89)", 0.5),
-            ProjectionProperty.CONFORMAL: ("EPSG:3034", "Europe LCC (ETRS89)", 1.0),
+            ProjectionProperty.EQUAL_AREA: ("EPSG:3035", "Europe LAEA (ETRS89)"),
+            ProjectionProperty.CONFORMAL: ("EPSG:3034", "Europe LCC (ETRS89)"),
         },
         "africa": {
-            ProjectionProperty.EQUAL_AREA: ("EPSG:102022", "Africa Albers Equal Area", 0.5),
-            ProjectionProperty.CONFORMAL: ("EPSG:102024", "Africa Lambert Conformal Conic", 1.0),
+            ProjectionProperty.EQUAL_AREA: ("EPSG:102022", "Africa Albers Equal Area"),
+            ProjectionProperty.CONFORMAL: ("EPSG:102024", "Africa Lambert Conformal Conic"),
         },
         "asia": {
-            ProjectionProperty.EQUAL_AREA: ("EPSG:102028", "Asia South Albers Equal Area", 0.5),
+            ProjectionProperty.EQUAL_AREA: ("EPSG:102028", "Asia South Albers Equal Area"),
             ProjectionProperty.CONFORMAL: (
                 "EPSG:102027",
                 "Asia North Lambert Conformal Conic",
-                1.0,
             ),
         },
         "australia": {
-            ProjectionProperty.EQUAL_AREA: ("EPSG:3577", "Australia Albers", 0.5),
-            ProjectionProperty.CONFORMAL: ("EPSG:3112", "Australia Lambert Conformal Conic", 1.0),
+            ProjectionProperty.EQUAL_AREA: ("EPSG:3577", "Australia Albers"),
+            ProjectionProperty.CONFORMAL: ("EPSG:3112", "Australia Lambert Conformal Conic"),
         },
     }
 
     region_projections = regional_crs.get(region, {})
     if required_property in region_projections:
-        epsg_code, crs_name, error = region_projections[required_property]
+        epsg_code, crs_name = region_projections[required_property]
     else:
-        epsg_code, crs_name, error = region_projections.get(
-            ProjectionProperty.EQUAL_AREA, ("EPSG:3857", "Web Mercator (fallback)", 10.0)
+        epsg_code, crs_name = region_projections.get(
+            ProjectionProperty.EQUAL_AREA, ("EPSG:3857", "Web Mercator (fallback)")
         )
 
     return {
         "epsg_code": epsg_code,
         "crs_name": crs_name,
-        "projection_property": required_property.value,
         "selection_reason": f"Regional extent ({region}) - {crs_name} optimized for region",
-        "expected_error": error,
+        "auto_selected": True,
     }
 
 
@@ -614,9 +597,8 @@ def _create_fallback_response(
     response = {
         "epsg_code": fallback_crs,
         "crs_name": VALIDATED_CRS.get(fallback_crs.replace("EPSG:", ""), "Custom CRS"),
-        "projection_property": "compromise",
         "selection_reason": reason,
-        "expected_error": 10.0 if "3857" in fallback_crs else None,
+        "auto_selected": True,
     }
 
     # Add optional metadata fields if provided
@@ -659,7 +641,6 @@ def prepare_gdf_for_operation(
             return gdf_transformed, {
                 "epsg_code": override_crs,
                 "crs_name": "User-specified CRS",
-                "projection_property": "unknown",
                 "selection_reason": "Manual override",
                 "auto_selected": False,
             }

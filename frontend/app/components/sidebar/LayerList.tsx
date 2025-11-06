@@ -1029,59 +1029,47 @@ export default function LayerList({
                 <div className="pt-3 mt-3 border-t border-neutral-200 dark:border-neutral-600">
                   <h4 className="font-semibold text-neutral-700 dark:text-neutral-200 mb-2">Processing Information</h4>
                   
-                  {/* Source Layers - Prominently displayed */}
-                  {layer.processing_metadata.origin_layers && 
-                   layer.processing_metadata.origin_layers.length > 0 && (
-                    <div className="mb-3 p-2 bg-secondary-50 dark:bg-secondary-900 rounded border border-secondary-300 dark:border-secondary-600">
-                      <span className="font-semibold text-secondary-900 dark:text-secondary-100 text-xs uppercase tracking-wide">Source Layers</span>
-                      <p className="text-sm text-neutral-900 dark:text-neutral-100 mt-1">
-                        {layer.processing_metadata.origin_layers.join(', ')}
-                      </p>
-                    </div>
-                  )}
-                  
-                  {/* Operation Summary */}
-                  <div className="mb-3 p-2 bg-info-50 dark:bg-info-900 rounded border border-info-200 dark:border-info-700">
-                    <p className="text-sm text-neutral-900 dark:text-neutral-100">
-                      <strong className="text-info-800 dark:text-info-200">
-                        {layer.processing_metadata.operation.charAt(0).toUpperCase() + 
-                         layer.processing_metadata.operation.slice(1)}
-                      </strong> operation
-                      {layer.processing_metadata.operation === 'buffer' && 
-                       layer.description?.match(/\d+\.?\d*\s*(m|km|meters|kilometers)/i) && 
-                       ` with ${layer.description.match(/\d+\.?\d*\s*(m|km|meters|kilometers)/i)![0]}`}
-                      {' using '}
-                      <strong className="text-info-800 dark:text-info-200">{layer.processing_metadata.crs_used}</strong>
-                      {layer.processing_metadata.auto_selected && ' 🎯'}
-                    </p>
-                  </div>
-                  
-                  {/* CRS Details */}
-                  <div className="space-y-1">
-                    <div>
-                      <span className="font-semibold text-neutral-700 dark:text-neutral-200">CRS Name:</span>
-                      <p className="text-neutral-900 dark:text-neutral-100 text-sm">{layer.processing_metadata.crs_name}</p>
-                    </div>
-                    <div>
-                      <span className="font-semibold text-neutral-700 dark:text-neutral-200">Projection Property:</span>
-                      <p className="text-neutral-900 dark:text-neutral-100 text-sm capitalize">
-                        {layer.processing_metadata.projection_property}
-                      </p>
-                    </div>
-                    {layer.processing_metadata.auto_selected && (
+                  <div className="space-y-2">
+                    {/* Source Layers */}
+                    {layer.processing_metadata.origin_layers && 
+                     layer.processing_metadata.origin_layers.length > 0 && (
                       <div>
-                        <span className="font-semibold text-neutral-700 dark:text-neutral-200">Auto-Selected:</span>
-                        <p className="text-neutral-900 dark:text-neutral-100 text-sm">
-                          Yes {layer.processing_metadata.selection_reason && 
-                               `- ${layer.processing_metadata.selection_reason}`}
+                        <span className="font-semibold text-neutral-700 dark:text-neutral-200">Source Layers:</span>
+                        <p className="text-sm text-neutral-900 dark:text-neutral-100">
+                          {layer.processing_metadata.origin_layers.join(', ')}
                         </p>
                       </div>
                     )}
-                    {layer.processing_metadata.expected_error !== undefined && (
+                    
+                    {/* Operation */}
+                    <div>
+                      <span className="font-semibold text-neutral-700 dark:text-neutral-200">Operation:</span>
+                      <p className="text-sm text-neutral-900 dark:text-neutral-100 capitalize">
+                        {layer.processing_metadata.operation}
+                      </p>
+                    </div>
+                    
+                    {/* CRS Used */}
+                    <div>
+                      <span className="font-semibold text-neutral-700 dark:text-neutral-200">CRS Used:</span>
+                      <p className="text-sm text-neutral-900 dark:text-neutral-100">
+                        {layer.processing_metadata.crs_used}
+                        {layer.processing_metadata.auto_selected && ' 🎯'}
+                      </p>
+                    </div>
+                    
+                    {/* CRS Name */}
+                    <div>
+                      <span className="font-semibold text-neutral-700 dark:text-neutral-200">CRS Name:</span>
+                      <p className="text-sm text-neutral-900 dark:text-neutral-100">{layer.processing_metadata.crs_name}</p>
+                    </div>
+                    
+                    {/* Selection Reason */}
+                    {layer.processing_metadata.selection_reason && (
                       <div>
-                        <span className="font-semibold text-neutral-700 dark:text-neutral-200">Expected Error:</span>
-                        <p className="text-neutral-900 dark:text-neutral-100 text-sm">
-                          &lt;{layer.processing_metadata.expected_error}%
+                        <span className="font-semibold text-neutral-700 dark:text-neutral-200">Selection Reason:</span>
+                        <p className="text-sm text-neutral-900 dark:text-neutral-100">
+                          {layer.processing_metadata.selection_reason}
                         </p>
                       </div>
                     )}

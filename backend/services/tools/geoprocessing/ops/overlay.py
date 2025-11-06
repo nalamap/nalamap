@@ -38,7 +38,10 @@ def op_overlay(
         # Not enough layers to overlay; return original layers unchanged
         return layers
 
+    first_layer_crs_info = None
+
     def _layer_to_gdf(layer: Dict[str, Any]) -> gpd.GeoDataFrame:
+        nonlocal first_layer_crs_info
         feats = flatten_features([layer])
         gdf = gpd.GeoDataFrame.from_features(feats)
         if gdf.crs is None:
@@ -50,6 +53,8 @@ def op_overlay(
             auto_optimize_crs=auto_optimize_crs,
             override_crs=override_crs or (None if crs == "EPSG:3857" else crs),
         )
+        if first_layer_crs_info is None:
+            first_layer_crs_info = crs_info
         return gdf_prepared
 
     try:
@@ -79,7 +84,10 @@ def op_overlay(
         return [{"type": "FeatureCollection", "features": []}]
 
     fc = json.loads(result_gdf.to_json())
-    # Note: we don't have a single crs_info here; projection metadata per-layer
-    # would be verbose. The op returns the result and no metadata unless requested
-    # in future enhancements.
+
+    if projection_metadata and isinstance(fc, dict) and first_layer_crs_info:
+        if "properties" not in fc:
+            fc["properties"] = {}
+        fc["properties"]["_crs_metadata"] = first_layer_crs_info
+
     return [fc]

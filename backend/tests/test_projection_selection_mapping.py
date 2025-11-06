@@ -12,18 +12,15 @@ def test_operation_property_mapping_and_regional_selection():
     bbox_local = (13.0, 52.0, 13.5, 52.5)
     res = get_optimal_crs_for_bbox(bbox_local, OperationType.BUFFER)
     assert res["epsg_code"].startswith("EPSG:326")
-    assert res["projection_property"] == "conformal"
     assert validate_crs(res["epsg_code"]) is True
 
     # Area operation in Europe -> Europe LAEA (3035)
     bbox_europe = (5.0, 45.0, 15.0, 55.0)
     res = get_optimal_crs_for_bbox(bbox_europe, OperationType.AREA)
     assert res["epsg_code"] == "EPSG:3035"
-    assert res["projection_property"] == "equal-area"
 
     # Overlay operation in Europe -> conformal regional (3034)
     res = get_optimal_crs_for_bbox(bbox_europe, OperationType.OVERLAY)
-    assert res["projection_property"] == "conformal"
     assert validate_crs(res["epsg_code"]) is True
 
 
@@ -34,11 +31,9 @@ def test_polar_selection_behaviour():
     # Area should choose LAEA for Arctic
     res_area = get_optimal_crs_for_bbox(bbox_arctic, OperationType.AREA)
     assert res_area["epsg_code"] in ("EPSG:3571", "EPSG:3572")
-    assert res_area["projection_property"] == "equal-area"
 
     # Overlay should choose stereographic (conformal)
     res_overlay = get_optimal_crs_for_bbox(bbox_arctic, OperationType.OVERLAY)
-    assert res_overlay["projection_property"] == "conformal"
     assert validate_crs(res_overlay["epsg_code"]) is True
 
 
@@ -122,7 +117,3 @@ def test_all_regional_projections(region, bbox, operation, expected_epsg, expect
     # Verify the CRS is valid (skip validation for ESRI codes like EPSG:102xxx)
     if not expected_epsg.startswith("EPSG:102"):
         assert validate_crs(res["epsg_code"]) is True
-    # Verify projection property matches expected (from smart heuristics)
-    assert (
-        res["projection_property"] == expected_property
-    ), f"Expected property: {expected_property}, Got: {res['projection_property']}"

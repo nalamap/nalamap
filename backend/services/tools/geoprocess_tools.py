@@ -684,10 +684,8 @@ def geoprocess_tool(
                     operation=last_operation,
                     crs_used=crs_meta.get("epsg_code", "EPSG:4326"),
                     crs_name=crs_meta.get("crs_name", "Unknown"),
-                    projection_property=crs_meta.get("projection_property", "unknown"),
                     auto_selected=crs_meta.get("auto_selected", False),
                     selection_reason=crs_meta.get("selection_reason"),
-                    expected_error=crs_meta.get("expected_error"),
                     origin_layers=origin_layer_names,
                 )
                 # Remove the internal metadata from properties before storing
@@ -764,8 +762,6 @@ def geoprocess_tool(
             )
             if pm.auto_selected and pm.selection_reason:
                 crs_msg += f" - {pm.selection_reason}"
-            if pm.expected_error is not None:
-                crs_msg += f" (Expected error: <{pm.expected_error}%)"
             crs_info_messages.append(crs_msg)
 
     # Construct the tool message content

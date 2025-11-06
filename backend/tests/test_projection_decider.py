@@ -137,7 +137,6 @@ class TestProjectionDecision:
         result = decide_projection(bbox, OperationType.DISSOLVE)
 
         # Should use equal-area (Albers) due to size and operation type
-        assert "Albers" in result["crs_name"] or "equal" in result["projection_property"].lower()
         assert result["decision_inputs"]["area_km2"] > 2e6
 
     def test_polar_arctic_equal_area(self):
@@ -146,7 +145,6 @@ class TestProjectionDecision:
         result = decide_projection(bbox, OperationType.AREA)
 
         assert "EPSG:3571" == result["epsg_code"]  # Arctic LAEA
-        assert "equal-area" in result["projection_property"]
         assert any("Polar" in step for step in result["decision_path"])
 
     def test_polar_arctic_conformal(self):
@@ -155,7 +153,6 @@ class TestProjectionDecision:
         result = decide_projection(bbox, OperationType.CLIP)
 
         assert "EPSG:3995" == result["epsg_code"]  # Arctic Stereographic
-        assert "conformal" in result["projection_property"]
 
     def test_polar_antarctic(self):
         """Test Antarctic region."""
@@ -172,7 +169,6 @@ class TestProjectionDecision:
         result = decide_projection(bbox, OperationType.OVERLAY)
 
         assert "europe" in result["crs_name"].lower() or "EPSG:3034" == result["epsg_code"]
-        assert "conformal" in result["projection_property"]
 
     def test_regional_north_america_equal_area(self):
         """Test North America regional projection for equal-area ops."""
@@ -180,7 +176,6 @@ class TestProjectionDecision:
         bbox = (-100.0, 35.0, -85.0, 50.0)  # 15° x 15° = balanced
         result = decide_projection(bbox, OperationType.AREA)
 
-        assert "Albers" in result["crs_name"] or "equal" in result["projection_property"].lower()
         assert any(
             "north_america" in step.lower() or "North America" in result["crs_name"]
             for step in result["decision_path"]
@@ -242,9 +237,7 @@ class TestProjectionDecision:
         # Check all required fields
         assert "epsg_code" in result
         assert "crs_name" in result
-        assert "projection_property" in result
         assert "selection_reason" in result
-        assert "expected_error" in result
         assert "decision_path" in result
         assert "decision_inputs" in result
 

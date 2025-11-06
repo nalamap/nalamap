@@ -332,7 +332,6 @@ class TestAreaOperationIntegration:
         # Check all required metadata fields
         assert "epsg_code" in metadata
         assert "crs_name" in metadata
-        assert "projection_property" in metadata
         assert "selection_reason" in metadata
         assert "area_method" in metadata
         assert "area_method_reason" in metadata

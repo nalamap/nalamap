@@ -224,7 +224,6 @@ def op_area(
                 crs_info = {
                     "epsg_code": "EPSG:4326",
                     "crs_name": "WGS84 Geographic (geodesic area)",
-                    "projection_property": "geodesic",
                     "selection_reason": "Geodesic area on ellipsoid",
                     "auto_selected": area_method == "auto",
                     "area_method": "geodesic",
@@ -245,7 +244,6 @@ def op_area(
                     crs_info = {
                         "epsg_code": crs,
                         "crs_name": f"User-specified CRS: {crs}",
-                        "projection_property": "unknown",
                         "selection_reason": "Default CRS",
                         "auto_selected": False,
                     }

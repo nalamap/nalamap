@@ -17,10 +17,6 @@ class ProcessingMetadata(BaseModel):
         ...,
         description="Human-readable CRS name (e.g., WGS 84 / UTM zone 33N)",
     )
-    projection_property: str = Field(
-        ...,
-        description="Projection property (equal-area, conformal, equidistant, compromise)",
-    )
     auto_selected: bool = Field(
         ...,
         description="Whether CRS was automatically selected (True) or user-specified (False)",
@@ -28,10 +24,6 @@ class ProcessingMetadata(BaseModel):
     selection_reason: Optional[str] = Field(
         None,
         description="Reason for CRS selection (e.g., 'Local extent - UTM zone 33N')",
-    )
-    expected_error: Optional[float] = Field(
-        None,
-        description="Expected error percentage for this CRS/operation combination",
     )
     origin_layers: Optional[List[str]] = Field(
         None,

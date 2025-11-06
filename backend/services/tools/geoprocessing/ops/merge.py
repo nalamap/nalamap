@@ -11,6 +11,7 @@ def op_merge(
     layers: List[Dict[str, Any]],
     on: Optional[List[str]] = None,
     how: str = "inner",
+    projection_metadata: bool = False,
 ) -> List[Dict[str, Any]]:
     """
     Perform an attribute-based merge (join) between two layers.
@@ -29,7 +30,19 @@ def op_merge(
         merged = gdf1.merge(gdf2.drop(columns="geometry"), on=on, how=how)
         # Retain geometry from gdf1
         merged.set_geometry(gdf1.geometry.name, inplace=True)
-        return [json.loads(merged.to_json())]
+        fc = json.loads(merged.to_json())
+
+        if projection_metadata and isinstance(fc, dict):
+            if "properties" not in fc:
+                fc["properties"] = {}
+            fc["properties"]["_crs_metadata"] = {
+                "epsg_code": "EPSG:4326",
+                "crs_name": "WGS 84 Geographic",
+                "selection_reason": "Merge operation is projection-insensitive (attribute join)",
+                "auto_selected": True,
+            }
+
+        return [fc]
     except Exception as e:
         logger.exception(f"Error in op_merge: {e}")
         return []

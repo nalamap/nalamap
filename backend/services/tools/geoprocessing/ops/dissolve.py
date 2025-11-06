@@ -108,6 +108,12 @@ def op_dissolve(
 
         # Convert to GeoJSON
         fc = json.loads(dissolved.to_json())
+
+        if projection_metadata and isinstance(fc, dict):
+            if "properties" not in fc:
+                fc["properties"] = {}
+            fc["properties"]["_crs_metadata"] = crs_info
+
         return [fc]
 
     except Exception as exc:
