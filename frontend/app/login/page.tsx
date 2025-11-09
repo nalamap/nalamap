@@ -14,7 +14,7 @@ export default function LoginPage() {
     e.preventDefault();
     try {
       await login(email, password);
-      router.push('/');
+      router.push('/map');
     } catch (err) {
       setError("Invalid credentials");
     }
@@ -29,6 +29,7 @@ export default function LoginPage() {
           <label>Email</label>
           <input
             type="email"
+            name="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="w-full border border-primary-300 p-2 rounded"
@@ -39,6 +40,7 @@ export default function LoginPage() {
           <label>Password</label>
           <input
             type="password"
+            name="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="w-full border border-primary-300 p-2 rounded"

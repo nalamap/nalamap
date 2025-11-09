@@ -15,7 +15,7 @@ export default function SignupPage() {
     e.preventDefault();
     try {
       await signup(email, password, displayName);
-      router.push('/');
+      router.push('/map');
     } catch {
       setError("Sign-up failed");
     }
@@ -30,6 +30,7 @@ export default function SignupPage() {
           <label>Email</label>
           <input
             type="email"
+            name="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="w-full border border-primary-300 p-2 rounded"
@@ -40,6 +41,7 @@ export default function SignupPage() {
           <label>Display Name</label>
           <input
             type="text"
+            name="displayName"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
             className="w-full border border-primary-300 p-2 rounded"
@@ -50,6 +52,7 @@ export default function SignupPage() {
           <label>Password</label>
           <input
             type="password"
+            name="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="w-full border border-primary-300 p-2 rounded"
