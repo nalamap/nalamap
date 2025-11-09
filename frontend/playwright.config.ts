@@ -9,7 +9,8 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   webServer: {
-    command: 'npm run dev',
+    // Inject a test flag so AuthGuard is bypassed in Playwright
+    command: 'NEXT_PUBLIC_TEST=1 npm run dev',
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,

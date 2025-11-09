@@ -30,7 +30,7 @@ npx playwright show-report
 ## 📁 Test Structure
 
 ```
-frontend/tests/
+tests/
 ├── leaflet-map.spec.ts           # Map functionality tests (25+ tests)
 ├── chat-interface.spec.ts        # AI chat interface tests
 ├── settings.spec.ts              # Settings panel tests
@@ -197,7 +197,15 @@ test.describe('Feature Name', () => {
 - Mock external APIs consistently
 - Keep tests independent (no shared state)
 - Use descriptive test names
-- Add comments for complex logic
+  - Add comments for complex logic
+
+## 🔐 Authentication Tests
+
+The authentication tests mock the signup, login, and current user endpoints so you do not need a real backend or database. See `authentication.spec.ts` for examples:
+```bash
+# Mock /api/auth/signup, /api/auth/login, and /api/auth/me
+# Navigate to /signup or /login, fill the forms, submit, and assert redirect to /map
+``` 
 - Test user workflows, not implementation
 
 ## 🐛 Known Issues & Fixes
