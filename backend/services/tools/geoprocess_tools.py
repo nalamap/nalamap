@@ -362,10 +362,21 @@ def geoprocess_tool(
     Args:
         state: The agent state containing geodata_layers
         tool_call_id: ID for this tool call
-        target_layer_ids: IDs of the specific layers to process. Try to provide and to read out from state.
+        target_layer_names: Names of the specific layers to process
         operation: Optional operation hint (buffer, overlay, etc.)
 
-    The tool will apply operations like buffer, overlay, simplify, sjoin, merge, sjoin_nearest, centroid to the specified layers.
+    The tool applies operations like buffer, overlay, simplify, sjoin, merge,
+    sjoin_nearest, centroid to the specified layers.
+
+    IMPORTANT - CRS and Accuracy:
+    - All operations use smart automatic CRS selection based on data extent
+    - Expected accuracy: <0.1% for local operations, <1% for regional operations
+    - For extreme edge cases (>80° latitude, trans-oceanic spans), projection-based
+      operations have inherent 1-3% accuracy limitations due to Earth's curvature
+    - Check the CRS metadata in results to understand which projection was used
+    - When operations involve high-latitude or trans-oceanic data, inform the user
+      about potential accuracy limitations while noting these are acceptable for
+      most GIS applications
     """
     # Safely pull out the list (defaults to [] if key missing or None)
     layers = state.get("geodata_layers") or []

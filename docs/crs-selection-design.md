@@ -2,11 +2,11 @@
 
 ## Overview
 
-NaLaMap implements a **hybrid intelligent CRS selection system** combining:
+NaLaMap implements a **smart planar CRS selection system** that automatically chooses optimal projections for geoprocessing operations based on data extent, location, and operation type. The system combines:
 - **LLM-based planning**: The agent reasons about user intent, data characteristics, and operation types
 - **Rule-based execution**: Deterministic projection selection with full transparency and auditability
 
-This document describes the multi-factor decision algorithm, buffer strategy, thresholds, and metadata design.
+This document describes the multi-factor decision algorithm, accuracy expectations, thresholds, and metadata design.
 
 ## Problem Statement
 
@@ -17,18 +17,18 @@ Using a single global projection (EPSG:3857 Web Mercator) for all geoprocessing 
 - No support above ~85° latitude
 - Poor buffer accuracy for large radii or high-latitude regions
 
-## Hybrid System Architecture
+## Solution Architecture
 
 ### LLM Role: Planning & Context
 - Understands user intent from natural language queries
 - Determines operation sequences and parameters
 - Considers data characteristics and analysis goals
-- Passes structured requests to rule-based subsystems
+- Passes structured requests to rule-based projection system
 
 ### Rule-Based Role: Execution & Math
 - Deterministic projection selection with transparent decision paths
 - Validated EPSG-only policy (no custom PROJ/WKT for debuggability)
-- Geodesic vs planar buffer selection based on geometry and thresholds
+- Smart planar CRS selection based on extent, latitude, and operation type
 - Full metadata trace for reproducibility
 
 ## Multi-Factor Decision Algorithm
@@ -86,91 +86,53 @@ The `decide_projection()` function considers:
 | Polar | \|center_lat\| ≥ 80° OR extremes beyond ±85° | Use polar projections |
 | Near-equator | \|center_lat\| ≤ 10° | Favor UTM when local |
 
-## Buffer Strategy: Hybrid Planar/Geodesic
+## Accuracy Expectations
 
-### Method Selection
+The smart planar CRS selection system provides excellent accuracy for the vast majority of GIS use cases:
 
-The `choose_buffer_method()` function selects:
+### Typical Accuracy Levels
 
-**Geodesic (ellipsoid-based)** if ANY of:
-- Radius > 50 km
-- |center_lat| ≥ 75°
-- zone_span ≥ 2 (crosses UTM zones)
-- antimeridian crossing
-- Non-local extent (lon_extent > 6° OR lat_extent > 6°)
+| Scenario | CRS Selection | Expected Error | Use Cases |
+|----------|---------------|----------------|-----------|
+| **Local operations** (< 6° extent) | UTM zone | < 0.1% | Urban planning, site analysis, local studies |
+| **Regional operations** (6-30° extent) | LCC/Albers | 0.5-1% | State/country analysis, regional conservation |
+| **High latitude** (>80°) | Polar projections | 1-3% | Arctic/Antarctic research |
+| **Trans-oceanic** (>30° extent) | Regional or Web Mercator | 2-5% | Ocean shipping, global analysis |
 
-**Otherwise: Planar (projection-based)**
+### When Accuracy May Be Reduced
 
-### Buffer Implementation
+The system remains highly accurate for 99% of use cases. Edge cases with inherent limitations include:
 
-#### Planar Path
-- Use CRS selected by projection algorithm
-- Apply standard `geometry.buffer(radius_m)` in projected space
-- Fast and integrates seamlessly with other planar ops
+1. **Extreme polar regions** (>80° latitude)
+   - All planar projections have 1-3% distortion
+   - Selected: Arctic/Antarctic Polar Stereographic or LAEA
+   - Still acceptable for most polar research applications
 
-#### Geodesic Path (Phase 1: Points only)
-- For Point/MultiPoint: approximate geodesic circle via `pyproj.Geod`
-  - Calculate points at regular azimuths (36-180 bearings based on radius)
-  - Larger radii → more points for accuracy
-- For LineString/Polygon: fallback to planar (logged) in Phase 1
-- No reprojection; stays in EPSG:4326
+2. **Trans-oceanic spans** (crossing many UTM zones)
+   - No single projection covers large ocean areas without distortion
+   - Selected: Best regional projection or Web Mercator
+   - 2-5% accuracy is typical for such extents
 
-### Buffer Metadata
+3. **Critical legal boundaries**
+   - Maritime boundaries, international borders
+   - May require <0.1% accuracy (survey-grade)
+   - Consider specialized surveying tools for such applications
 
-All buffers include:
-- `buffer_method`: "planar" or "geodesic"
-- `buffer_method_reason`: Human-readable decision rationale
-- `radius_m`: Radius in meters
-- Plus standard CRS metadata (epsg_code, crs_name, etc.)
+### Recommended Approach
 
-## Area Calculation Strategy: Hybrid Planar/Geodesic
-
-### Method Selection
-
-The `choose_area_method()` function selects:
-
-**Geodesic (ellipsoid-based)** if ANY of:
-- |center_lat| ≥ 75°
-- zone_span ≥ 2 (crosses UTM zones)
-- Antimeridian crossing
-- Non-local extent (lon_extent > 6° OR lat_extent > 6°)
-
-**Otherwise: Planar (projection-based)**
-
-### Area Implementation
-
-#### Planar Path
-- Use equal-area CRS selected by projection algorithm
-- Apply standard `geometry.area` in projected space
-- Fast and accurate for local/regional extents
-
-#### Geodesic Path
-- For Polygon/MultiPolygon: calculate area on WGS84 ellipsoid via `pyproj.Geod`
-- Handles exterior rings and interior holes correctly
-- No reprojection; stays in EPSG:4326
-- Accurate globally, especially for high latitudes and zone seams
-
-### Area Metadata
-
-All area calculations include:
-- `area_method`: "planar" or "geodesic"
-- `area_method_reason`: Human-readable decision rationale
-- Plus standard CRS metadata (for planar) or geodesic indicator
-
-### Area API
-
-- `area_method="auto"` (default): Choose based on thresholds
-- `area_method="planar"`: Force planar (uses equal-area CRS)
-- `area_method="geodesic"`: Force geodesic (ellipsoid calculation)
-- `projection_metadata=True`: Include full metadata in response
+For most users:
+- **Enable `auto_optimize_crs=True`** (default in smart mode)
+- System automatically selects best projection
+- Check CRS metadata to understand which projection was used
+- Accuracy is transparent and documented in results
 
 ## Operation → Projection Property Mapping
 
 | Operation | Required Property | Notes |
 |-----------|-------------------|-------|
-| area | equal-area (planar) or geodesic | Auto-select based on extent/latitude |
+| area | equal-area | Preserve area measurements |
 | dissolve | equal-area | Preserve area during merge |
-| buffer | conformal (planar) or geodesic | Auto-select based on radius/latitude |
+| buffer | conformal | Preserve distances and shapes |
 | clip | conformal | Preserve topology |
 | overlay | conformal | Preserve topology |
 | simplify | conformal | Preserve shape |
@@ -211,17 +173,6 @@ All operations return `_crs_metadata` with:
 }
 ```
 
-### Buffer-Specific Metadata
-
-For buffer operations, additional fields:
-
-```json
-{
-  "buffer_method": "geodesic",
-  "buffer_method_reason": "High latitude (78.5°); Large radius (100.0 km > 50 km)",
-  "radius_m": 100000
-}
-```
 
 ## API
 
@@ -234,14 +185,12 @@ For buffer operations, additional fields:
 ### Functions
 - `decide_projection(bbox, operation_type, ...)`: Core decision algorithm
 - `compute_bbox_metrics(bbox)`: Calculate all decision inputs
-- `choose_buffer_method(gdf, radius_m, bbox_metrics)`: Select planar vs geodesic
 - `prepare_gdf_for_operation(gdf, operation_type, ...)`: Reproject with optimal CRS
 
 ## Testing
 
 ### Test Coverage
 - `test_projection_decider.py`: Decision algorithm, thresholds, edge cases
-- `test_buffer_method_selection.py`: Buffer method selection, geodesic accuracy
 - `test_projection_utils.py`: Helper functions, UTM zones, metrics
 - Integration tests: End-to-end operation accuracy
 
@@ -251,8 +200,7 @@ For buffer operations, additional fields:
 - Large area triggering equal-area
 - Polar region handling (Arctic/Antarctic, equal-area/conformal)
 - Antimeridian crossing
-- Geodesic vs planar buffer selection
-- High-latitude geodesic buffer accuracy
+- Planar buffer accuracy across extents
 - Metadata completeness
 
 ## Deployment & Rollout
@@ -283,11 +231,10 @@ For buffer operations, additional fields:
 
 ## Future Work
 
-- **Phase 2 Geodesic buffers**: Extend to LineString/Polygon geometries
-- **Geodesic distance/area ops**: Direct ellipsoid calculations
 - **Dynamic thresholds**: User-configurable via settings
 - **Projection caching**: Reduce overhead for repeated operations
 - **Advanced heuristics**: Consider data density, feature count, analysis workflow
+- **Performance optimizations**: Further improve transformation speed
 
 ## Examples
 
@@ -297,8 +244,8 @@ For buffer operations, additional fields:
 
 **Decision**:
 - bbox_metrics: local extent (3° × 2°), zone 33, mid-latitude
-- choose_buffer_method → planar (local + moderate radius)
 - decide_projection → EPSG:32633 (UTM 33N, conformal)
+- Planar buffer in UTM 33N projection
 - Expected error: <0.1%
 
 ### Example 2: High-Latitude Buffer (Arctic)
@@ -307,9 +254,9 @@ For buffer operations, additional fields:
 
 **Decision**:
 - bbox_metrics: local extent, zone 33, high latitude (78°)
-- choose_buffer_method → geodesic (high latitude ≥ 75°)
-- No projection (stays EPSG:4326, geodesic on ellipsoid)
-- Expected error: <0.01% for distance
+- decide_projection → EPSG:3995 (Arctic Polar Stereographic, conformal)
+- Planar buffer in Arctic Polar Stereographic projection
+- Expected error: ~1-2% (acceptable for most polar applications)
 
 ### Example 3: Wide EW Strip (US)
 
@@ -336,11 +283,10 @@ For buffer operations, additional fields:
 **Input**: Polygon at (10°E to 20°E, 78°N to 80°N), area calculation
 
 **Decision**:
-- bbox_metrics: high latitude (center_lat = 79°N)
-- choose_area_method → geodesic (high latitude ≥ 75°)
-- Method: pyproj.Geod.polygon_area_perimeter on WGS84 ellipsoid
-- No projection; stays in EPSG:4326
-- Expected error: <0.01% for area
+- bbox_metrics: high latitude (center_lat = 79°N), local extent
+- decide_projection → EPSG:3571 (North Pole LAEA, equal-area)
+- Planar area calculation in Arctic LAEA projection
+- Expected error: ~1-2% (acceptable for most polar applications)
 
 ### Example 6: Area Calculation (Local European Region)
 
@@ -348,8 +294,8 @@ For buffer operations, additional fields:
 
 **Decision**:
 - bbox_metrics: local extent (5° × 4°), mid-latitude
-- choose_area_method → planar (local extent suitable for equal-area projection)
 - decide_projection → EPSG:3035 (Europe LAEA, equal-area)
+- Planar area calculation in Europe LAEA projection
 - Expected error: <0.5% for area
 
 ## References

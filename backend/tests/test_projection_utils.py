@@ -62,6 +62,8 @@ class TestCRSSelection:
     def test_operation_property_mapping(self, operation, expected_property):
         bbox = (0.0, 45.0, 10.0, 55.0)
         result = get_optimal_crs_for_bbox(bbox, operation)
+        assert result is not None
+        assert "epsg_code" in result
 
     def test_crs_validation(self):
         assert validate_crs("EPSG:4326") is True

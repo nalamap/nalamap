@@ -111,14 +111,10 @@ def test_polar_area_selection():
     fc_out = res_area[0]
     meta = fc_out.get("properties", {}).get("_crs_metadata")
     assert meta is not None
-    # Expect either: polar LAEA (3571/3572) for planar, or WGS84 (4326) for geodesic
-    # At high latitudes, our hybrid system prefers geodesic calculation
+    # Expect polar LAEA projections for high-latitude area calculations
     assert any(
-        code in meta.get("epsg_code", "") for code in ("EPSG:3571", "EPSG:3572", "EPSG:4326")
-    )
-    # If geodesic, verify the area_method metadata
-    if "EPSG:4326" in meta.get("epsg_code", ""):
-        assert meta.get("area_method") == "geodesic"
+        code in meta.get("epsg_code", "") for code in ("EPSG:3571", "EPSG:3572")
+    ), f"Expected polar LAEA projection, got {meta.get('epsg_code')}"
 
 
 def test_cross_antimeridian_overlay():
