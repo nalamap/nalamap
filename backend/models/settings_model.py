@@ -116,6 +116,17 @@ class ModelSettings(BaseModel):
             "conversation state across requests."
         ),
     )
+    enable_smart_crs: bool = Field(
+        True,
+        description=(
+            "Enable intelligent CRS (Coordinate Reference System) selection "
+            "for geoprocessing. When enabled, operations automatically select "
+            "geometrically optimal projections based on geographic extent and "
+            "operation type. Reduces geometric errors (buffers 20% → <1%, "
+            "area calculations 50% → <1% in polar regions). Users can disable "
+            "to use legacy EPSG:4326 behavior for all operations."
+        ),
+    )
 
 
 class ToolConfig(BaseModel):

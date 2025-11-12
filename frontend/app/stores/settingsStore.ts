@@ -86,6 +86,8 @@ export interface ModelSettings {
   max_tools_per_query?: number | null; // Optional: Maximum tools to load per query (default: null = unlimited)
   // Conversation Summarization (Week 3)
   use_summarization?: boolean; // Optional: Enable automatic conversation summarization (default: false)
+  // Intelligent CRS Selection (Projection Improvements)
+  enable_smart_crs?: boolean; // Optional: Enable intelligent CRS selection for geoprocessing (default: true)
 }
 
 export interface ColorScale {
@@ -176,6 +178,8 @@ export interface SettingsState extends SettingsSnapshot {
   setMaxToolsPerQuery: (max: number | null) => void;
   // Conversation Summarization (Week 3)
   setUseSummarization: (enabled: boolean) => void;
+  // Intelligent CRS Selection (Projection Improvements)
+  setEnableSmartCrs: (enabled: boolean) => void;
 
   // Tool config actions
   addToolConfig: (name: string) => void;
@@ -343,6 +347,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     tool_selection_strategy: "conservative", // Default strategy
     tool_similarity_threshold: 0.3, // Default threshold
     max_tools_per_query: null, // null = unlimited
+    // Conversation Summarization (Week 3)
+    use_summarization: false, // Default: disabled
+    // Intelligent CRS Selection (Projection Improvements)
+    enable_smart_crs: true, // Default: enabled for better geometric accuracy
   },
   tools: [],
 
@@ -509,6 +517,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setUseSummarization: (enabled: boolean) =>
     set((state) => ({
       model_settings: { ...state.model_settings, use_summarization: enabled },
+    })),
+
+  // Intelligent CRS Selection (Projection Improvements)
+  setEnableSmartCrs: (enabled: boolean) =>
+    set((state) => ({
+      model_settings: { ...state.model_settings, enable_smart_crs: enabled },
     })),
 
   // tools

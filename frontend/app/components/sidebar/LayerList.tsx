@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useLayoutEffect } from "react";
 import {
   Eye,
   EyeOff,
@@ -173,6 +173,49 @@ export default function LayerList({
   const [activeMetadataId, setActiveMetadataId] = useState<string | null>(null);
   const [popupPosition, setPopupPosition] = useState<{ top: number; left: number } | null>(null);
   const infoButtonRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
+  const popupRef = useRef<HTMLDivElement | null>(null);
+
+  // Adjust popup position after render to ensure it stays in viewport
+  useLayoutEffect(() => {
+    if (popupRef.current && popupPosition) {
+      const popup = popupRef.current;
+      const rect = popup.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      
+      let { top, left } = popupPosition;
+      let adjusted = false;
+      
+      // Check if popup overflows right edge
+      if (rect.right > viewportWidth - 8) {
+        left = Math.max(8, viewportWidth - rect.width - 8);
+        adjusted = true;
+      }
+      
+      // Check if popup overflows bottom edge
+      if (rect.bottom > viewportHeight - 8) {
+        top = Math.max(8, viewportHeight - rect.height - 8);
+        adjusted = true;
+      }
+      
+      // Check if popup overflows top edge
+      if (top < 8) {
+        top = 8;
+        adjusted = true;
+      }
+      
+      // Check if popup overflows left edge
+      if (left < 8) {
+        left = 8;
+        adjusted = true;
+      }
+      
+      // Update position if adjustments were needed
+      if (adjusted) {
+        setPopupPosition({ top, left });
+      }
+    }
+  }, [activeMetadataId, popupPosition]);
 
   // Download layer as GeoJSON
   const downloadLayer = async (layer: any) => {
@@ -402,7 +445,7 @@ export default function LayerList({
                       <div className="flex-1 min-w-0 flex flex-col gap-2 relative">
                         {/* Title row with info icon */}
                         <div className="flex items-center gap-2 min-w-0">
-                          <div className="flex-1 min-w-0 font-bold text-neutral-800 whitespace-normal break-words">
+                          <div className="flex-1 min-w-0 font-bold text-neutral-900 dark:text-neutral-100 whitespace-normal break-words">
                             {layer.title || layer.name}
                           </div>
                           <button
@@ -414,9 +457,35 @@ export default function LayerList({
                               
                               if (newActiveId && infoButtonRefs.current[layer.id]) {
                                 const rect = infoButtonRefs.current[layer.id]!.getBoundingClientRect();
+                                const viewportHeight = window.innerHeight;
+                                const viewportWidth = window.innerWidth;
+                                const popupWidth = 400; // max-w-[400px]
+                                
+                                // Calculate initial position
+                                let top = rect.bottom + 4;
+                                let left = rect.left;
+                                
+                                // Adjust horizontal position if popup would overflow right edge
+                                if (left + popupWidth > viewportWidth) {
+                                  left = Math.max(8, viewportWidth - popupWidth - 8);
+                                }
+                                
+                                // Adjust vertical position if popup would overflow bottom
+                                // Reserve some space (estimate ~300px for popup, but will be constrained by max-height)
+                                if (top + 300 > viewportHeight) {
+                                  // Try positioning above the button instead
+                                  const topAbove = rect.top - 300 - 4;
+                                  if (topAbove > 8) {
+                                    top = topAbove;
+                                  } else {
+                                    // If neither works well, position near top with some margin
+                                    top = 8;
+                                  }
+                                }
+                                
                                 setPopupPosition({
-                                  top: rect.bottom + 4,
-                                  left: rect.left
+                                  top,
+                                  left
                                 });
                               }
                             }}
@@ -896,17 +965,19 @@ export default function LayerList({
         
         return (
           <div 
-            className="fixed bg-white border border-neutral-300 rounded-lg shadow-xl p-3 text-sm z-[100] min-w-[300px] max-w-[400px]"
+            ref={popupRef}
+            className="fixed bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-lg shadow-xl p-3 text-sm z-[100] min-w-[300px] max-w-[400px] overflow-y-auto"
             style={{
               top: `${popupPosition.top}px`,
               left: `${popupPosition.left}px`,
+              maxHeight: 'calc(80vh - 16px)', // 80% of viewport height minus some margin
             }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Close button */}
             <button
               onClick={() => setActiveMetadataId(null)}
-              className="absolute top-2 right-2 text-neutral-400 hover:text-neutral-600"
+              className="absolute top-2 right-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
               aria-label="Close metadata"
             >
               <X size={16} />
@@ -914,42 +985,95 @@ export default function LayerList({
             
             <div className="space-y-2">
               <div>
-                <span className="font-semibold text-neutral-700">Title:</span>
-                <p className="text-neutral-600 break-words">{layer.title || layer.name}</p>
+                <span className="font-semibold text-neutral-700 dark:text-neutral-200">Title:</span>
+                <p className="text-neutral-900 dark:text-neutral-100 break-words">{layer.title || layer.name}</p>
               </div>
               {layer.data_type && (
                 <div>
-                  <span className="font-semibold text-neutral-700">Data Type:</span>
-                  <p className="text-neutral-600">{layer.data_type}</p>
+                  <span className="font-semibold text-neutral-700 dark:text-neutral-200">Data Type:</span>
+                  <p className="text-neutral-900 dark:text-neutral-100">{layer.data_type}</p>
                 </div>
               )}
               {layer.layer_type && (
                 <div>
-                  <span className="font-semibold text-neutral-700">Layer Type:</span>
-                  <p className="text-neutral-600">{layer.layer_type}</p>
+                  <span className="font-semibold text-neutral-700 dark:text-neutral-200">Layer Type:</span>
+                  <p className="text-neutral-900 dark:text-neutral-100">{layer.layer_type}</p>
                 </div>
               )}
               {layer.format && (
                 <div>
-                  <span className="font-semibold text-neutral-700">Format:</span>
-                  <p className="text-neutral-600">{layer.format}</p>
+                  <span className="font-semibold text-neutral-700 dark:text-neutral-200">Format:</span>
+                  <p className="text-neutral-900 dark:text-neutral-100">{layer.format}</p>
                 </div>
               )}
               {layer.data_source && (
                 <div>
-                  <span className="font-semibold text-neutral-700">Source:</span>
-                  <p className="text-neutral-600 break-all text-xs">{layer.data_source}</p>
+                  <span className="font-semibold text-neutral-700 dark:text-neutral-200">Source:</span>
+                  <p className="text-neutral-900 dark:text-neutral-100 break-all text-xs">{layer.data_source}</p>
                 </div>
               )}
               {layer.bounding_box && (
                 <div>
-                  <span className="font-semibold text-neutral-700">Bounding Box:</span>
-                  <p className="text-neutral-600 text-xs font-mono">
+                  <span className="font-semibold text-neutral-700 dark:text-neutral-200">Bounding Box:</span>
+                  <p className="text-neutral-900 dark:text-neutral-100 text-xs font-mono">
                     [{Array.isArray(layer.bounding_box) 
                       ? layer.bounding_box.join(', ')
                       : JSON.stringify(layer.bounding_box)
                     }]
                   </p>
+                </div>
+              )}
+              
+              {/* Processing Metadata Section */}
+              {layer.processing_metadata && (
+                <div className="pt-3 mt-3 border-t border-neutral-200 dark:border-neutral-600">
+                  <h4 className="font-semibold text-neutral-700 dark:text-neutral-200 mb-2">Processing Information</h4>
+                  
+                  <div className="space-y-2">
+                    {/* Source Layers */}
+                    {layer.processing_metadata.origin_layers && 
+                     layer.processing_metadata.origin_layers.length > 0 && (
+                      <div>
+                        <span className="font-semibold text-neutral-700 dark:text-neutral-200">Source Layers:</span>
+                        <p className="text-sm text-neutral-900 dark:text-neutral-100">
+                          {layer.processing_metadata.origin_layers.join(', ')}
+                        </p>
+                      </div>
+                    )}
+                    
+                    {/* Operation */}
+                    <div>
+                      <span className="font-semibold text-neutral-700 dark:text-neutral-200">Operation:</span>
+                      <p className="text-sm text-neutral-900 dark:text-neutral-100 capitalize">
+                        {layer.processing_metadata.operation}
+                      </p>
+                    </div>
+                    
+                    {/* CRS Used */}
+                    <div>
+                      <span className="font-semibold text-neutral-700 dark:text-neutral-200">CRS Used:</span>
+                      <p className="text-sm text-neutral-900 dark:text-neutral-100">
+                        {layer.processing_metadata.crs_used}
+                        {layer.processing_metadata.auto_selected && ' 🎯'}
+                      </p>
+                    </div>
+                    
+                    {/* CRS Name */}
+                    <div>
+                      <span className="font-semibold text-neutral-700 dark:text-neutral-200">CRS Name:</span>
+                      <p className="text-sm text-neutral-900 dark:text-neutral-100">{layer.processing_metadata.crs_name}</p>
+                    </div>
+                    
+                    {/* Selection Reason */}
+                    {layer.processing_metadata.selection_reason && (
+                      <div>
+                        <span className="font-semibold text-neutral-700 dark:text-neutral-200">Selection Reason:</span>
+                        <p className="text-sm text-neutral-900 dark:text-neutral-100">
+                          {layer.processing_metadata.selection_reason}
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

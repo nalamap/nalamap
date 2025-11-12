@@ -1,6 +1,8 @@
 # E2E Performance Tests
 
-End-to-end performance tests for the full nalamap stack, specifically testing file transfer performance for GeoJSON files ranging from 1KB to 50MB+.
+> **Performance testing for the full nalamap stack**
+> 
+> Tests file transfer performance for GeoJSON files ranging from 1KB to 50MB+.
 
 ## Structure
 

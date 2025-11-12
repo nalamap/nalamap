@@ -9,6 +9,10 @@ from typing import Any, Dict, List
 import geopandas as gpd
 
 from services.tools.geoprocessing.utils import flatten_features
+from services.tools.geoprocessing.projection_utils import (
+    prepare_gdf_for_operation,
+    OperationType,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +20,9 @@ logger = logging.getLogger(__name__)
 def op_clip(
     layers: List[Dict[str, Any]],
     crs: str = "EPSG:3857",
+    auto_optimize_crs: bool = False,
+    projection_metadata: bool = False,
+    override_crs: str | None = None,
 ) -> List[Dict[str, Any]]:
     """
     Clip the first layer by the geometry of the second layer.
@@ -53,7 +60,14 @@ def op_clip(
         target_gdf = gpd.GeoDataFrame.from_features(target_features)
         if target_gdf.crs is None:
             target_gdf.set_crs("EPSG:4326", inplace=True)
-        target_gdf = target_gdf.to_crs(crs)
+
+        # Prepare target with smart CRS selection
+        target_gdf, target_crs_info = prepare_gdf_for_operation(
+            target_gdf,
+            OperationType.CLIP,
+            auto_optimize_crs=auto_optimize_crs,
+            override_crs=override_crs or (None if crs == "EPSG:3857" else crs),
+        )
 
         # Convert mask layer to GeoDataFrame
         mask_features = flatten_features([mask_layer])
@@ -63,7 +77,14 @@ def op_clip(
         mask_gdf = gpd.GeoDataFrame.from_features(mask_features)
         if mask_gdf.crs is None:
             mask_gdf.set_crs("EPSG:4326", inplace=True)
-        mask_gdf = mask_gdf.to_crs(crs)
+
+        # Ensure mask is in same CRS as target
+        mask_gdf, mask_crs_info = prepare_gdf_for_operation(
+            mask_gdf,
+            OperationType.CLIP,
+            auto_optimize_crs=False,
+            override_crs=target_crs_info.get("epsg_code"),
+        )
 
         # Combine all mask geometries into one
         from shapely.ops import unary_union
@@ -82,6 +103,13 @@ def op_clip(
 
         # Convert to GeoJSON
         fc = json.loads(clipped_gdf.to_json())
+        if projection_metadata and isinstance(fc, dict):
+            if "properties" not in fc:
+                fc["properties"] = {}
+            fc["properties"]["_crs_metadata"] = {
+                "target": target_crs_info,
+                "mask": mask_crs_info,
+            }
         return [fc]
 
     except Exception as exc:
