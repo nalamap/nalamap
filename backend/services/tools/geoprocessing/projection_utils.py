@@ -77,7 +77,7 @@ VALIDATED_CRS = {
     # Regional Conformal
     "102004": "USA Contiguous Lambert Conformal Conic",
     "102009": "North America Lambert Conformal Conic",
-    "32040": "South America Lambert Conformal Conic",
+    "102016": "South America Lambert Conformal Conic",
     "3034": "Europe LCC (ETRS89)",
     "102024": "Africa Lambert Conformal Conic",
     "102027": "Asia North Lambert Conformal Conic",
@@ -556,7 +556,7 @@ def _get_regional_crs(region: str, required_property: ProjectionProperty) -> Dic
         "south_america": {
             ProjectionProperty.EQUAL_AREA: ("EPSG:102011", "South America Albers Equal Area"),
             ProjectionProperty.CONFORMAL: (
-                "EPSG:32040",
+                "EPSG:102016",
                 "South America Lambert Conformal Conic",
             ),
         },
