@@ -56,14 +56,14 @@ def test_global_extent_fallback_and_invalid_bbox():
             "north_america",
             (-120.0, 30.0, -80.0, 50.0),
             OperationType.AREA,
-            "EPSG:102009",
+            "ESRI:102009",
             "conformal",
         ),
         (
             "north_america",
             (-120.0, 30.0, -80.0, 50.0),
             OperationType.OVERLAY,
-            "EPSG:102009",
+            "ESRI:102009",
             "conformal",
         ),
         # South America - same bbox, Equal-area for area ops
@@ -71,25 +71,25 @@ def test_global_extent_fallback_and_invalid_bbox():
             "south_america",
             (-70.0, -30.0, -50.0, -10.0),
             OperationType.AREA,
-            "EPSG:102011",
+            "ESRI:102011",
             "equal-area",
         ),
         (
             "south_america",
             (-70.0, -30.0, -50.0, -10.0),
             OperationType.OVERLAY,
-            "EPSG:102011",
+            "ESRI:102011",
             "equal-area",
         ),
         # Europe - LAEA for equal-area, LCC for conformal
         ("europe", (5.0, 45.0, 15.0, 55.0), OperationType.AREA, "EPSG:3035", "equal-area"),
         ("europe", (5.0, 45.0, 15.0, 55.0), OperationType.DISSOLVE, "EPSG:3035", "equal-area"),
         # Africa - Equal-area for area ops
-        ("africa", (10.0, -10.0, 40.0, 20.0), OperationType.AREA, "EPSG:102022", "equal-area"),
-        ("africa", (10.0, -10.0, 40.0, 20.0), OperationType.CLIP, "EPSG:102022", "equal-area"),
+        ("africa", (10.0, -10.0, 40.0, 20.0), OperationType.AREA, "ESRI:102022", "equal-area"),
+        ("africa", (10.0, -10.0, 40.0, 20.0), OperationType.CLIP, "ESRI:102022", "equal-area"),
         # Asia - EW-dominant triggers LCC
-        ("asia", (80.0, 30.0, 120.0, 50.0), OperationType.AREA, "EPSG:102027", "conformal"),
-        ("asia", (80.0, 30.0, 120.0, 50.0), OperationType.SIMPLIFY, "EPSG:102027", "conformal"),
+        ("asia", (80.0, 30.0, 120.0, 50.0), OperationType.AREA, "ESRI:102027", "conformal"),
+        ("asia", (80.0, 30.0, 120.0, 50.0), OperationType.SIMPLIFY, "ESRI:102027", "conformal"),
         # Australia - Equal-area for area ops
         ("australia", (130.0, -35.0, 150.0, -20.0), OperationType.AREA, "EPSG:3577", "equal-area"),
         (
@@ -114,6 +114,6 @@ def test_all_regional_projections(region, bbox, operation, expected_epsg, expect
         f"Region: {region}, Operation: {operation}, "
         f"Expected: {expected_epsg}, Got: {res['epsg_code']}"
     )
-    # Verify the CRS is valid (skip validation for ESRI codes like EPSG:102xxx)
-    if not expected_epsg.startswith("EPSG:102"):
+    # Verify the CRS is valid (skip validation for ESRI codes like ESRI:102xxx)
+    if not expected_epsg.startswith("ESRI:102"):
         assert validate_crs(res["epsg_code"]) is True

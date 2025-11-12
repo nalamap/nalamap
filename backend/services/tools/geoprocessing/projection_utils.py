@@ -407,9 +407,11 @@ def _create_response_with_metadata(
     decision_inputs: Dict[str, Any],
 ) -> Dict[str, Any]:
     """Create CRS response with full metadata."""
+    # Extract code number from EPSG: or ESRI: prefix
+    code_number = epsg_code.replace("EPSG:", "").replace("ESRI:", "")
     return {
         "epsg_code": epsg_code,
-        "crs_name": VALIDATED_CRS.get(epsg_code.replace("EPSG:", ""), "Custom CRS"),
+        "crs_name": VALIDATED_CRS.get(code_number, "Custom CRS"),
         "selection_reason": reason,
         "auto_selected": True,
         "decision_path": decision_path,
@@ -443,9 +445,11 @@ def get_optimal_crs_for_bbox(
     """
 
     if not auto_optimize:
+        # Extract code number from EPSG: or ESRI: prefix
+        code_number = fallback_crs.replace("EPSG:", "").replace("ESRI:", "")
         return {
             "epsg_code": fallback_crs,
-            "crs_name": VALIDATED_CRS.get(fallback_crs.replace("EPSG:", ""), "Custom CRS"),
+            "crs_name": VALIDATED_CRS.get(code_number, "Custom CRS"),
             "selection_reason": "Auto-optimization disabled",
             "auto_selected": False,
             "decision_path": ["Auto-optimization disabled by user"],
@@ -547,16 +551,16 @@ def _get_regional_crs(region: str, required_property: ProjectionProperty) -> Dic
     """Get appropriate regional projection."""
     regional_crs = {
         "north_america": {
-            ProjectionProperty.EQUAL_AREA: ("EPSG:102008", "North America Albers Equal Area"),
+            ProjectionProperty.EQUAL_AREA: ("ESRI:102008", "North America Albers Equal Area"),
             ProjectionProperty.CONFORMAL: (
-                "EPSG:102009",
+                "ESRI:102009",
                 "North America Lambert Conformal Conic",
             ),
         },
         "south_america": {
-            ProjectionProperty.EQUAL_AREA: ("EPSG:102011", "South America Albers Equal Area"),
+            ProjectionProperty.EQUAL_AREA: ("ESRI:102011", "South America Albers Equal Area"),
             ProjectionProperty.CONFORMAL: (
-                "EPSG:102016",
+                "ESRI:102016",
                 "South America Lambert Conformal Conic",
             ),
         },
@@ -565,13 +569,13 @@ def _get_regional_crs(region: str, required_property: ProjectionProperty) -> Dic
             ProjectionProperty.CONFORMAL: ("EPSG:3034", "Europe LCC (ETRS89)"),
         },
         "africa": {
-            ProjectionProperty.EQUAL_AREA: ("EPSG:102022", "Africa Albers Equal Area"),
-            ProjectionProperty.CONFORMAL: ("EPSG:102024", "Africa Lambert Conformal Conic"),
+            ProjectionProperty.EQUAL_AREA: ("ESRI:102022", "Africa Albers Equal Area"),
+            ProjectionProperty.CONFORMAL: ("ESRI:102024", "Africa Lambert Conformal Conic"),
         },
         "asia": {
-            ProjectionProperty.EQUAL_AREA: ("EPSG:102028", "Asia South Albers Equal Area"),
+            ProjectionProperty.EQUAL_AREA: ("ESRI:102028", "Asia South Albers Equal Area"),
             ProjectionProperty.CONFORMAL: (
-                "EPSG:102027",
+                "ESRI:102027",
                 "Asia North Lambert Conformal Conic",
             ),
         },
@@ -604,9 +608,11 @@ def _create_fallback_response(
     decision_inputs: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Create fallback CRS response (backwards compatible)."""
+    # Extract code number from EPSG: or ESRI: prefix
+    code_number = fallback_crs.replace("EPSG:", "").replace("ESRI:", "")
     response = {
         "epsg_code": fallback_crs,
-        "crs_name": VALIDATED_CRS.get(fallback_crs.replace("EPSG:", ""), "Custom CRS"),
+        "crs_name": VALIDATED_CRS.get(code_number, "Custom CRS"),
         "selection_reason": reason,
         "auto_selected": True,
     }
