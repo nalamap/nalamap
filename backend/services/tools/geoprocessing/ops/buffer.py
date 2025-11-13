@@ -65,7 +65,7 @@ def op_buffer(
                         props = first_feat.get("properties", {})
                         if props:
                             name = props.get("name") or props.get("title")
-            layer_info.append("Layer {i+1}" + (": {name}" if name else ""))
+            layer_info.append(f"Layer {i+1}" + (f": {name}" if name else ""))
 
         layer_desc = ", ".join(layer_info)
         raise ValueError(
@@ -91,7 +91,7 @@ def op_buffer(
     if not current_features:
         # This case might occur if the single layer_item was an empty FeatureCollection or invalid
         print(
-            "Warning: The provided layer item is empty or not a recognizable Feature/FeatureCollection: {type(layer_item)}"
+            f"Warning: The provided layer item is empty or not a recognizable Feature/FeatureCollection: {type(layer_item)}"
         )
         return []
 
