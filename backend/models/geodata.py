@@ -17,6 +17,17 @@ class ProcessingMetadata(BaseModel):
         ...,
         description="Human-readable CRS name (e.g., WGS 84 / UTM zone 33N)",
     )
+    # Optional extended fields for custom WKT projections
+    authority: Optional[str] = Field(
+        default=None, description="CRS authority when not EPSG (e.g., 'WKT')"
+    )
+    wkt: Optional[str] = Field(default=None, description="Full WKT definition if authority=WKT")
+    wkt_hash: Optional[str] = Field(
+        default=None, description="Short hash fingerprint of WKT for display/logging"
+    )
+    wkt_params: Optional[Dict[str, Any]] = Field(
+        default=None, description="Projection parameters used to build WKT"
+    )
     auto_selected: bool = Field(
         ...,
         description="Whether CRS was automatically selected (True) or user-specified (False)",

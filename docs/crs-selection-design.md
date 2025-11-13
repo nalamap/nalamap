@@ -27,9 +27,9 @@ Using a single global projection (EPSG:3857 Web Mercator) for all geoprocessing 
 
 ### Rule-Based Role: Execution & Math
 - Deterministic projection selection with transparent decision paths
-- Validated EPSG-only policy (no custom PROJ/WKT for debuggability)
+- EPSG UTM for local/single-zone extents; WKT-based custom projections for regional/polar
 - Smart planar CRS selection based on extent, latitude, and operation type
-- Full metadata trace for reproducibility
+- Full metadata trace for reproducibility (includes WKT when used)
 
 ## Multi-Factor Decision Algorithm
 
@@ -52,8 +52,8 @@ The `decide_projection()` function considers:
    - If near-global (≥180° lon or ≥170° lat): fallback to EPSG:3857
 
 2. **Polar regions** (|center_lat| ≥ 80° OR extremes beyond ±85°)
-   - Equal-area ops → LAEA (EPSG:3571 Arctic, EPSG:3572 Antarctic)
-   - Conformal ops → Polar Stereographic (EPSG:3995 Arctic, EPSG:3031 Antarctic)
+   - Equal-area ops → custom WKT LAEA (centered on pole)
+   - Conformal ops → custom WKT Polar Stereographic
    - Expected error: 0-2%
 
 3. **Local extent** (lon_extent ≤ 6° AND lat_extent ≤ 6°)
@@ -64,9 +64,9 @@ The `decide_projection()` function considers:
 4. **Regional extent**
    - **EW-dominant check**: If orientation_ratio ≥ 1.5, prefer Lambert Conformal Conic (LCC)
    - **Large area check**: If area_km² ≥ 2,000,000, prefer equal-area (Albers/LAEA)
-   - Otherwise: Use operation-appropriate projection per region:
-     - Equal-area: Albers (North America: EPSG:102008, Europe: EPSG:3035, etc.)
-     - Conformal: LCC (North America: EPSG:102009, Europe: EPSG:3034, etc.)
+   - Otherwise: Use operation-appropriate projection:
+     - Equal-area: custom WKT Albers (2SP), parameters from bbox
+     - Conformal: custom WKT LCC (2SP), parameters from bbox
    - Expected error: 0.5-1%
 
 5. **Multi-zone or antimeridian crossing**
@@ -143,10 +143,11 @@ For most users:
 
 ### CRS Metadata Fields
 
-All operations return `_crs_metadata` with:
+All operations return `_crs_metadata` with (EPSG or WKT depending on selection):
 
 ```json
 {
+  "authority": "EPSG",
   "epsg_code": "EPSG:32633",
   "crs_name": "WGS 84 / UTM zone 33N",
   "projection_property": "conformal",
@@ -254,8 +255,8 @@ All operations return `_crs_metadata` with:
 
 **Decision**:
 - bbox_metrics: local extent, zone 33, high latitude (78°)
-- decide_projection → EPSG:3995 (Arctic Polar Stereographic, conformal)
-- Planar buffer in Arctic Polar Stereographic projection
+ - decide_projection → WKT Polar Stereographic (conformal)
+ - Planar buffer in custom Polar Stereographic projection
 - Expected error: ~1-2% (acceptable for most polar applications)
 
 ### Example 3: Wide EW Strip (US)
@@ -264,7 +265,7 @@ All operations return `_crs_metadata` with:
 
 **Decision**:
 - bbox_metrics: 50° × 10° extent, EW-dominant ratio = 5.0
-- decide_projection → EPSG:102009 (North America LCC, conformal)
+- decide_projection → WKT LCC (conformal)
 - Reason: EW-dominant orientation favors LCC over Albers
 - Expected error: ~1%
 
@@ -274,7 +275,7 @@ All operations return `_crs_metadata` with:
 
 **Decision**:
 - bbox_metrics: area ~8 million km², regional extent
-- decide_projection → EPSG:102008 (North America Albers, equal-area)
+- decide_projection → WKT Albers (equal-area)
 - Reason: Large area + equal-area operation
 - Expected error: ~0.5% for area
 
@@ -284,8 +285,8 @@ All operations return `_crs_metadata` with:
 
 **Decision**:
 - bbox_metrics: high latitude (center_lat = 79°N), local extent
-- decide_projection → EPSG:3571 (North Pole LAEA, equal-area)
-- Planar area calculation in Arctic LAEA projection
+- decide_projection → WKT LAEA (equal-area)
+- Planar area calculation in custom Polar LAEA
 - Expected error: ~1-2% (acceptable for most polar applications)
 
 ### Example 6: Area Calculation (Local European Region)
@@ -294,8 +295,8 @@ All operations return `_crs_metadata` with:
 
 **Decision**:
 - bbox_metrics: local extent (5° × 4°), mid-latitude
-- decide_projection → EPSG:3035 (Europe LAEA, equal-area)
-- Planar area calculation in Europe LAEA projection
+- decide_projection → WKT Albers (equal-area)
+- Planar area calculation in custom Albers projection
 - Expected error: <0.5% for area
 
 ## References

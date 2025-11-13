@@ -34,6 +34,13 @@ from typing import Tuple, Optional, Dict, Any, List
 from enum import Enum
 
 from pyproj import CRS
+from services.tools.geoprocessing.wkt_factory import (
+    build_lcc_wkt,
+    build_albers_wkt,
+    build_laea_polar_wkt,
+    build_polar_stere_wkt,
+    hash_wkt,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -66,21 +73,10 @@ VALIDATED_CRS = {
     **{f"326{str(i).zfill(2)}": f"UTM Zone {i}N" for i in range(1, 61)},
     # UTM Zones South (EPSG:32701-32760)
     **{f"327{str(i).zfill(2)}": f"UTM Zone {i}S" for i in range(1, 61)},
-    # Regional Equal-Area / Albers-like (note: many are ESRI codes; mapped by string)
-    "102003": "USA Contiguous Albers Equal Area",
-    "102008": "North America Albers Equal Area",
-    "102011": "South America Albers Equal Area",
+    # Selected regional EPSG (kept for name mapping if ever referenced)
     "3035": "Europe LAEA (ETRS89)",
-    "102022": "Africa Albers Equal Area",
-    "102028": "Asia South Albers Equal Area",
     "3577": "Australia Albers",
-    # Regional Conformal
-    "102004": "USA Contiguous Lambert Conformal Conic",
-    "102009": "North America Lambert Conformal Conic",
-    "102016": "South America Lambert Conformal Conic",
     "3034": "Europe LCC (ETRS89)",
-    "102024": "Africa Lambert Conformal Conic",
-    "102027": "Asia North Lambert Conformal Conic",
     "3112": "Australia Lambert Conformal Conic",
     # Polar Projections
     "3995": "Arctic Polar Stereographic",
@@ -327,7 +323,7 @@ def decide_projection(
     # Step 3: Check for polar regions
     if metrics["is_polar"]:
         decision_path.append(f"Polar region detected: center_lat={metrics['center_lat']:.1f}°")
-        result = _get_polar_crs(metrics["center_lat"], required_property)
+        result = _get_polar_custom(metrics["center_lat"], required_property)
         result["decision_path"] = decision_path
         result["decision_inputs"] = decision_inputs
         return result
@@ -363,7 +359,7 @@ def decide_projection(
                 f"EW-dominant orientation: ratio={metrics['orientation_ratio']:.2f}, prefer LCC"
             )
             # Force conformal (LCC) for wide EW strips
-            result = _get_regional_crs(region, ProjectionProperty.CONFORMAL)
+            result = _get_regional_crs(region, ProjectionProperty.CONFORMAL, bbox)
             result["decision_path"] = decision_path
             result["decision_inputs"] = decision_inputs
             return result
@@ -371,14 +367,14 @@ def decide_projection(
         # Check for large area requiring equal-area
         if metrics["area_km2"] >= 2e6:
             decision_path.append(f"Large area: {metrics['area_km2']:.0f} km², prefer equal-area")
-            result = _get_regional_crs(region, ProjectionProperty.EQUAL_AREA)
+            result = _get_regional_crs(region, ProjectionProperty.EQUAL_AREA, bbox)
             result["decision_path"] = decision_path
             result["decision_inputs"] = decision_inputs
             return result
 
         # Use operation-appropriate projection
         decision_path.append("Using operation-appropriate projection for region")
-        result = _get_regional_crs(region, required_property)
+        result = _get_regional_crs(region, required_property, bbox)
         result["decision_path"] = decision_path
         result["decision_inputs"] = decision_inputs
         return result
@@ -495,40 +491,25 @@ def _get_utm_crs(center_lon: float, center_lat: float) -> Dict[str, Any]:
     }
 
 
-def _get_polar_crs(center_lat: float, required_property: ProjectionProperty) -> Dict[str, Any]:
-    """Get appropriate polar projection."""
+def _get_polar_custom(center_lat: float, required_property: ProjectionProperty) -> Dict[str, Any]:
+    """Get appropriate polar custom WKT projection."""
     is_arctic = center_lat > 0
-
     if required_property == ProjectionProperty.EQUAL_AREA:
-        if is_arctic:
-            return {
-                "epsg_code": "EPSG:3571",
-                "crs_name": "North Pole Lambert Azimuthal Equal Area",
-                "selection_reason": "Arctic region - LAEA preserves areas",
-                "auto_selected": True,
-            }
-        else:
-            return {
-                "epsg_code": "EPSG:3572",
-                "crs_name": "Antarctica Lambert Azimuthal Equal Area",
-                "selection_reason": "Antarctic region - LAEA preserves areas",
-                "auto_selected": True,
-            }
+        info = build_laea_polar_wkt(is_arctic=is_arctic)
+        reason = "Polar region - LAEA preserves areas"
     else:
-        if is_arctic:
-            return {
-                "epsg_code": "EPSG:3995",
-                "crs_name": "Arctic Polar Stereographic",
-                "selection_reason": "Arctic region - Stereographic preserves shapes",
-                "auto_selected": True,
-            }
-        else:
-            return {
-                "epsg_code": "EPSG:3031",
-                "crs_name": "Antarctic Polar Stereographic",
-                "selection_reason": "Antarctic region - Stereographic preserves shapes",
-                "auto_selected": True,
-            }
+        info = build_polar_stere_wkt(is_arctic=is_arctic)
+        reason = "Polar region - Stereographic preserves shapes"
+    digest = hash_wkt(info["wkt"])
+    return {
+        "authority": "WKT",
+        "wkt": info["wkt"],
+        "crs_name": info["name"],
+        "selection_reason": reason,
+        "wkt_hash": digest,
+        "wkt_params": info.get("params", {}),
+        "auto_selected": True,
+    }
 
 
 def _identify_region(bbox: Tuple[float, float, float, float]) -> Optional[str]:
@@ -547,56 +528,24 @@ def _identify_region(bbox: Tuple[float, float, float, float]) -> Optional[str]:
     return None
 
 
-def _get_regional_crs(region: str, required_property: ProjectionProperty) -> Dict[str, Any]:
-    """Get appropriate regional projection."""
-    regional_crs = {
-        "north_america": {
-            ProjectionProperty.EQUAL_AREA: ("ESRI:102008", "North America Albers Equal Area"),
-            ProjectionProperty.CONFORMAL: (
-                "ESRI:102009",
-                "North America Lambert Conformal Conic",
-            ),
-        },
-        "south_america": {
-            ProjectionProperty.EQUAL_AREA: ("ESRI:102011", "South America Albers Equal Area"),
-            ProjectionProperty.CONFORMAL: (
-                "ESRI:102016",
-                "South America Lambert Conformal Conic",
-            ),
-        },
-        "europe": {
-            ProjectionProperty.EQUAL_AREA: ("EPSG:3035", "Europe LAEA (ETRS89)"),
-            ProjectionProperty.CONFORMAL: ("EPSG:3034", "Europe LCC (ETRS89)"),
-        },
-        "africa": {
-            ProjectionProperty.EQUAL_AREA: ("ESRI:102022", "Africa Albers Equal Area"),
-            ProjectionProperty.CONFORMAL: ("ESRI:102024", "Africa Lambert Conformal Conic"),
-        },
-        "asia": {
-            ProjectionProperty.EQUAL_AREA: ("ESRI:102028", "Asia South Albers Equal Area"),
-            ProjectionProperty.CONFORMAL: (
-                "ESRI:102027",
-                "Asia North Lambert Conformal Conic",
-            ),
-        },
-        "australia": {
-            ProjectionProperty.EQUAL_AREA: ("EPSG:3577", "Australia Albers"),
-            ProjectionProperty.CONFORMAL: ("EPSG:3112", "Australia Lambert Conformal Conic"),
-        },
-    }
-
-    region_projections = regional_crs.get(region, {})
-    if required_property in region_projections:
-        epsg_code, crs_name = region_projections[required_property]
+def _get_regional_crs(
+    region: str, required_property: ProjectionProperty, bbox: Tuple[float, float, float, float]
+) -> Dict[str, Any]:
+    """Get appropriate regional projection as WKT (consistency across regions)."""
+    if required_property == ProjectionProperty.EQUAL_AREA:
+        info = build_albers_wkt(bbox)
+        reason = f"Regional extent ({region}) - Custom Albers optimized for region"
     else:
-        epsg_code, crs_name = region_projections.get(
-            ProjectionProperty.EQUAL_AREA, ("EPSG:3857", "Web Mercator (fallback)")
-        )
-
+        info = build_lcc_wkt(bbox)
+        reason = f"Regional extent ({region}) - Custom LCC optimized for region"
+    digest = hash_wkt(info["wkt"])
     return {
-        "epsg_code": epsg_code,
-        "crs_name": crs_name,
-        "selection_reason": f"Regional extent ({region}) - {crs_name} optimized for region",
+        "authority": "WKT",
+        "wkt": info["wkt"],
+        "crs_name": info["name"],
+        "selection_reason": reason,
+        "wkt_hash": digest,
+        "wkt_params": info.get("params", {}),
         "auto_selected": True,
     }
 
@@ -680,27 +629,36 @@ def prepare_gdf_for_operation(
         bbox, operation_type, auto_optimize=auto_optimize_crs, **kwargs
     )
 
-    # Validate selected CRS, fallback if invalid
-    selected_epsg_raw = crs_info.get("epsg_code")
-    # Normalize and validate selected CRS; fallback if missing or invalid
-    if not isinstance(selected_epsg_raw, str) or not selected_epsg_raw:
-        logger.warning(f"Selected CRS {selected_epsg_raw!r} invalid, falling back to EPSG:3857")
-        crs_info = _create_fallback_response("EPSG:3857", "Selected CRS invalid")
-        selected_epsg = crs_info["epsg_code"]
-    else:
-        selected_epsg = selected_epsg_raw
-        if not validate_crs(selected_epsg):
-            logger.warning(
-                f"Selected CRS {selected_epsg} failed validation, falling back to EPSG:3857"
-            )
+    # Determine target CRS
+    target_crs_obj = None
+    if "wkt" in crs_info and isinstance(crs_info.get("wkt"), str) and crs_info["wkt"]:
+        try:
+            target_crs_obj = CRS.from_wkt(crs_info["wkt"])
+        except Exception as e:
+            logger.warning(f"Selected WKT CRS failed to parse: {e}; falling back to EPSG:3857")
             crs_info = _create_fallback_response("EPSG:3857", "Selected CRS invalid")
-            selected_epsg = crs_info["epsg_code"]
+    else:
+        # Validate selected CRS, fallback if invalid
+        selected_epsg_raw = crs_info.get("epsg_code")
+        if not isinstance(selected_epsg_raw, str) or not selected_epsg_raw:
+            logger.warning(f"Selected CRS {selected_epsg_raw!r} invalid, falling back to EPSG:3857")
+            crs_info = _create_fallback_response("EPSG:3857", "Selected CRS invalid")
+        else:
+            selected_epsg = selected_epsg_raw
+            if not validate_crs(selected_epsg):
+                logger.warning(
+                    f"Selected CRS {selected_epsg} failed validation, falling back to EPSG:3857"
+                )
+                crs_info = _create_fallback_response("EPSG:3857", "Selected CRS invalid")
 
     # Perform transformation
     try:
-        gdf_transformed = gdf.to_crs(selected_epsg)
+        if target_crs_obj is not None:
+            gdf_transformed = gdf.to_crs(target_crs_obj)
+        else:
+            gdf_transformed = gdf.to_crs(crs_info["epsg_code"])
     except Exception as e:
-        logger.warning(f"Failed to transform to {selected_epsg}: {e}; using original gdf")
+        logger.warning("Failed to transform to target CRS: %s; using original gdf", e)
         gdf_transformed = gdf
 
     crs_info["auto_selected"] = auto_optimize_crs

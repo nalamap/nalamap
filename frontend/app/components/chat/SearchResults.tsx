@@ -135,6 +135,22 @@ export default function SearchResults({
                         <p className="text-xs text-neutral-900 dark:text-neutral-100">
                           <strong className="text-neutral-700 dark:text-neutral-200">CRS Used:</strong> {result.processing_metadata.crs_used}
                           {result.processing_metadata.auto_selected && ' 🎯'}
+                          {result.processing_metadata.authority === 'WKT' && result.processing_metadata.wkt && (
+                            <>
+                              {' '}
+                              <button
+                                type="button"
+                                className="underline text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  alert(`Custom CRS definition (WKT):\n\n${result.processing_metadata!.wkt!}`);
+                                }}
+                                aria-label="Show custom CRS WKT details"
+                              >
+                                (details)
+                              </button>
+                            </>
+                          )}
                         </p>
                         
                         {/* CRS Name */}

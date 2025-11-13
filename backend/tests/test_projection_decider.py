@@ -144,7 +144,8 @@ class TestProjectionDecision:
         bbox = (-30.0, 80.0, 30.0, 85.0)
         result = decide_projection(bbox, OperationType.AREA)
 
-        assert "EPSG:3571" == result["epsg_code"]  # Arctic LAEA
+        assert result.get("authority") == "WKT"
+        assert "wkt" in result  # Arctic LAEA (custom)
         assert any("Polar" in step for step in result["decision_path"])
 
     def test_polar_arctic_conformal(self):
@@ -152,15 +153,16 @@ class TestProjectionDecision:
         bbox = (-30.0, 80.0, 30.0, 85.0)
         result = decide_projection(bbox, OperationType.CLIP)
 
-        assert "EPSG:3995" == result["epsg_code"]  # Arctic Stereographic
+        assert result.get("authority") == "WKT"
+        assert "wkt" in result  # Arctic Stereographic (custom)
 
     def test_polar_antarctic(self):
         """Test Antarctic region."""
         bbox = (-30.0, -85.0, 30.0, -80.0)
         result = decide_projection(bbox, OperationType.AREA)
 
-        assert "EPSG:3572" == result["epsg_code"]  # Antarctic LAEA
-        assert "Antarctica" in result["crs_name"]
+        assert result.get("authority") == "WKT"  # Antarctic LAEA (custom)
+        assert "wkt" in result
 
     def test_regional_europe_conformal(self):
         """Test Europe regional projection for conformal ops."""
@@ -168,7 +170,8 @@ class TestProjectionDecision:
         bbox = (5.0, 45.0, 20.0, 55.0)
         result = decide_projection(bbox, OperationType.OVERLAY)
 
-        assert "europe" in result["crs_name"].lower() or "EPSG:3034" == result["epsg_code"]
+        assert result.get("authority") == "WKT"
+        assert "wkt" in result
 
     def test_regional_north_america_equal_area(self):
         """Test North America regional projection for equal-area ops."""

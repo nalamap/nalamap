@@ -362,21 +362,10 @@ def geoprocess_tool(
     Args:
         state: The agent state containing geodata_layers
         tool_call_id: ID for this tool call
-        target_layer_names: Names of the specific layers to process
+        target_layer_ids: IDs of the specific layers to process. Try to provide and to read out from state.
         operation: Optional operation hint (buffer, overlay, etc.)
 
-    The tool applies operations like buffer, overlay, simplify, sjoin, merge,
-    sjoin_nearest, centroid to the specified layers.
-
-    IMPORTANT - CRS and Accuracy:
-    - All operations use smart automatic CRS selection based on data extent
-    - Expected accuracy: <0.1% for local operations, <1% for regional operations
-    - For extreme edge cases (>80° latitude, trans-oceanic spans), projection-based
-      operations have inherent 1-3% accuracy limitations due to Earth's curvature
-    - Check the CRS metadata in results to understand which projection was used
-    - When operations involve high-latitude or trans-oceanic data, inform the user
-      about potential accuracy limitations while noting these are acceptable for
-      most GIS applications
+    The tool will apply operations like buffer, overlay, simplify, sjoin, merge, sjoin_nearest, centroid to the specified layers.
     """
     # Safely pull out the list (defaults to [] if key missing or None)
     layers = state.get("geodata_layers") or []
@@ -695,8 +684,10 @@ def geoprocess_tool(
                     operation=last_operation,
                     crs_used=crs_meta.get("epsg_code", "EPSG:4326"),
                     crs_name=crs_meta.get("crs_name", "Unknown"),
+                    projection_property=crs_meta.get("projection_property", "unknown"),
                     auto_selected=crs_meta.get("auto_selected", False),
                     selection_reason=crs_meta.get("selection_reason"),
+                    expected_error=crs_meta.get("expected_error"),
                     origin_layers=origin_layer_names,
                 )
                 # Remove the internal metadata from properties before storing
@@ -773,6 +764,8 @@ def geoprocess_tool(
             )
             if pm.auto_selected and pm.selection_reason:
                 crs_msg += f" - {pm.selection_reason}"
+            if pm.expected_error is not None:
+                crs_msg += f" (Expected error: <{pm.expected_error}%)"
             crs_info_messages.append(crs_msg)
 
     # Construct the tool message content
