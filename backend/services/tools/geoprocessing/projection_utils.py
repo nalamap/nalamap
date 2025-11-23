@@ -32,6 +32,7 @@ import logging
 import math
 from typing import Tuple, Optional, Dict, Any, List
 from enum import Enum
+import numpy as np
 
 from pyproj import CRS
 from services.tools.geoprocessing.wkt_factory import (
@@ -43,6 +44,22 @@ from services.tools.geoprocessing.wkt_factory import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _convert_to_python_types(obj):
+    """
+    Recursively convert numpy types to Python native types for JSON serialization.
+    """
+    if isinstance(obj, dict):
+        return {k: _convert_to_python_types(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return type(obj)(_convert_to_python_types(item) for item in obj)
+    elif isinstance(obj, (np.integer, np.floating)):
+        return obj.item()
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    else:
+        return obj
 
 
 class ProjectionProperty(Enum):
@@ -597,10 +614,12 @@ def prepare_gdf_for_operation(
 
     Returns tuple (transformed_gdf, crs_info)
     """
+    logger.info(f"prepare_gdf_for_operation: Starting for {operation_type.value}, auto_optimize={auto_optimize_crs}, override={override_crs}")
     # geopandas is not required to be imported here; assume caller provides a GeoDataFrame
 
     # Manual override takes precedence
     if override_crs:
+        logger.info(f"prepare_gdf_for_operation: Using override CRS: {override_crs}")
         if validate_crs(override_crs):
             gdf_transformed = gdf.to_crs(override_crs)
             return gdf_transformed, {
@@ -623,15 +642,19 @@ def prepare_gdf_for_operation(
         gdf_wgs84 = gdf
 
     bounds = gdf_wgs84.total_bounds  # [minx, miny, maxx, maxy]
-    bbox = (bounds[0], bounds[1], bounds[2], bounds[3])
+    # Convert numpy types to Python floats for JSON serialization
+    bbox = (float(bounds[0]), float(bounds[1]), float(bounds[2]), float(bounds[3]))
+    logger.info(f"prepare_gdf_for_operation: Computed bbox: {bbox}")
 
     crs_info = get_optimal_crs_for_bbox(
         bbox, operation_type, auto_optimize=auto_optimize_crs, **kwargs
     )
+    logger.info(f"prepare_gdf_for_operation: Selected CRS info: epsg={crs_info.get('epsg_code')}, name={crs_info.get('crs_name')}, has_wkt={('wkt' in crs_info)}")
 
     # Determine target CRS
     target_crs_obj = None
     if "wkt" in crs_info and isinstance(crs_info.get("wkt"), str) and crs_info["wkt"]:
+        logger.info("prepare_gdf_for_operation: Using WKT projection")
         try:
             target_crs_obj = CRS.from_wkt(crs_info["wkt"])
         except Exception as e:
@@ -654,12 +677,18 @@ def prepare_gdf_for_operation(
     # Perform transformation
     try:
         if target_crs_obj is not None:
+            logger.info(f"prepare_gdf_for_operation: Transforming to WKT CRS object")
             gdf_transformed = gdf.to_crs(target_crs_obj)
         else:
+            logger.info(f"prepare_gdf_for_operation: Transforming to EPSG:{crs_info['epsg_code']}")
             gdf_transformed = gdf.to_crs(crs_info["epsg_code"])
+        logger.info(f"prepare_gdf_for_operation: Transformation successful, new CRS: {gdf_transformed.crs}")
     except Exception as e:
         logger.warning("Failed to transform to target CRS: %s; using original gdf", e)
         gdf_transformed = gdf
 
     crs_info["auto_selected"] = auto_optimize_crs
+    # Convert all numpy types to Python types for JSON serialization
+    crs_info = _convert_to_python_types(crs_info)
+    logger.info(f"prepare_gdf_for_operation: Complete, returning CRS info: {crs_info}")
     return gdf_transformed, crs_info

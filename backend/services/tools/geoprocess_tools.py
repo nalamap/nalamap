@@ -682,12 +682,14 @@ def geoprocess_tool(
 
                 processing_metadata = ProcessingMetadata(
                     operation=last_operation,
-                    crs_used=crs_meta.get("epsg_code", "EPSG:4326"),
+                    crs_used=crs_meta.get("epsg_code") or crs_meta.get("authority", "EPSG:4326"),
                     crs_name=crs_meta.get("crs_name", "Unknown"),
-                    projection_property=crs_meta.get("projection_property", "unknown"),
+                    authority=crs_meta.get("authority"),
+                    wkt=crs_meta.get("wkt"),
+                    wkt_hash=crs_meta.get("wkt_hash"),
+                    wkt_params=crs_meta.get("wkt_params"),
                     auto_selected=crs_meta.get("auto_selected", False),
                     selection_reason=crs_meta.get("selection_reason"),
-                    expected_error=crs_meta.get("expected_error"),
                     origin_layers=origin_layer_names,
                 )
                 # Remove the internal metadata from properties before storing
