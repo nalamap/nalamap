@@ -614,7 +614,10 @@ def prepare_gdf_for_operation(
 
     Returns tuple (transformed_gdf, crs_info)
     """
-    logger.info(f"prepare_gdf_for_operation: Starting for {operation_type.value}, auto_optimize={auto_optimize_crs}, override={override_crs}")
+    logger.info(
+        f"prepare_gdf_for_operation: Starting for {operation_type.value}, "
+        f"auto_optimize={auto_optimize_crs}, override={override_crs}"
+    )
     # geopandas is not required to be imported here; assume caller provides a GeoDataFrame
 
     # Manual override takes precedence
@@ -649,7 +652,10 @@ def prepare_gdf_for_operation(
     crs_info = get_optimal_crs_for_bbox(
         bbox, operation_type, auto_optimize=auto_optimize_crs, **kwargs
     )
-    logger.info(f"prepare_gdf_for_operation: Selected CRS info: epsg={crs_info.get('epsg_code')}, name={crs_info.get('crs_name')}, has_wkt={('wkt' in crs_info)}")
+    logger.info(
+        f"prepare_gdf_for_operation: Selected CRS info: epsg={crs_info.get('epsg_code')}, "
+        f"name={crs_info.get('crs_name')}, has_wkt={('wkt' in crs_info)}"
+    )
 
     # Determine target CRS
     target_crs_obj = None
@@ -677,12 +683,14 @@ def prepare_gdf_for_operation(
     # Perform transformation
     try:
         if target_crs_obj is not None:
-            logger.info(f"prepare_gdf_for_operation: Transforming to WKT CRS object")
+            logger.info("prepare_gdf_for_operation: Transforming to WKT CRS object")
             gdf_transformed = gdf.to_crs(target_crs_obj)
         else:
             logger.info(f"prepare_gdf_for_operation: Transforming to EPSG:{crs_info['epsg_code']}")
             gdf_transformed = gdf.to_crs(crs_info["epsg_code"])
-        logger.info(f"prepare_gdf_for_operation: Transformation successful, new CRS: {gdf_transformed.crs}")
+        logger.info(
+            f"prepare_gdf_for_operation: Transformation successful, new CRS: {gdf_transformed.crs}"
+        )
     except Exception as e:
         logger.warning("Failed to transform to target CRS: %s; using original gdf", e)
         gdf_transformed = gdf

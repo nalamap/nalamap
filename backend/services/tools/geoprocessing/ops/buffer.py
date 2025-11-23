@@ -103,11 +103,16 @@ def op_buffer(
 
     try:
         logger.info(f"op_buffer: Starting buffer operation with {len(current_features)} features")
-        logger.info(f"op_buffer: Parameters - radius={radius}, unit={radius_unit}, dissolve={dissolve}, auto_optimize_crs={auto_optimize_crs}, override_crs={override_crs}")
-        
+        logger.info(
+            f"op_buffer: Parameters - radius={radius}, unit={radius_unit}, dissolve={dissolve}, "
+            f"auto_optimize_crs={auto_optimize_crs}, override_crs={override_crs}"
+        )
+
         gdf = gpd.GeoDataFrame.from_features(current_features)
         gdf.set_crs("EPSG:4326", inplace=True)
-        logger.info(f"op_buffer: Created GeoDataFrame with {len(gdf)} rows, bounds: {gdf.total_bounds}")
+        logger.info(
+            f"op_buffer: Created GeoDataFrame with {len(gdf)} rows, bounds: {gdf.total_bounds}"
+        )
 
         # Planar buffering with smart CRS selection
         if auto_optimize_crs:
@@ -119,7 +124,9 @@ def op_buffer(
                 auto_optimize_crs=auto_optimize_crs,
                 override_crs=override_crs or (None if buffer_crs == "EPSG:3857" else buffer_crs),
             )
-            logger.info(f"op_buffer: Selected CRS - {crs_info.get('epsg_code')} ({crs_info.get('crs_name')}), reason: {crs_info.get('selection_reason')}")
+            logger.info(
+                f"op_buffer: Selected CRS - {crs_info.get('epsg_code')} ({crs_info.get('crs_name')}), reason: {crs_info.get('selection_reason')}"
+            )
         elif override_crs:
             # User specified a CRS explicitly
             logger.info(f"op_buffer: Using user-specified CRS: {override_crs}")
@@ -142,14 +149,18 @@ def op_buffer(
             }
 
         # Apply planar buffer in the selected CRS
-        logger.info(f"op_buffer: Applying buffer with radius {actual_radius_meters} meters in CRS {gdf_reprojected.crs}")
+        logger.info(
+            f"op_buffer: Applying buffer with radius {actual_radius_meters} meters in CRS {gdf_reprojected.crs}"
+        )
         gdf_reprojected["geometry"] = gdf_reprojected.geometry.buffer(actual_radius_meters)
         logger.info(f"op_buffer: Buffer applied successfully, {len(gdf_reprojected)} geometries")
 
         # Reproject back to EPSG:4326
         logger.info("op_buffer: Reprojecting result back to EPSG:4326")
         gdf_buffered_individual = gdf_reprojected.to_crs("EPSG:4326")
-        logger.info(f"op_buffer: Reprojection complete, bounds: {gdf_buffered_individual.total_bounds}")
+        logger.info(
+            f"op_buffer: Reprojection complete, bounds: {gdf_buffered_individual.total_bounds}"
+        )
 
         # If dissolve is True, merge all buffered geometries into one
         if dissolve:
