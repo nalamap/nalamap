@@ -4,6 +4,7 @@ from langchain_core.tools import BaseTool
 
 from services.tools.attribute_tool2 import attribute_tool2
 from services.tools.attribute_tools import attribute_tool
+from services.tools.ecmwf_weather import get_ecmwf_weather_data
 from services.tools.geocoding import (
     geocode_using_nominatim_to_geostate,
     geocode_using_overpass_to_geostate,
@@ -19,6 +20,7 @@ from services.tools.styling_tools import (
     check_and_auto_style_layers,
     style_map_layers,
 )
+from services.tools.world_bank_indicators import get_world_bank_data
 
 # Tool metadata for configuration and UI display
 TOOL_METADATA = {
@@ -87,6 +89,18 @@ TOOL_METADATA = {
         "category": "attributes",
         "group": "attribute_tools",  # Mutually exclusive group
         "enabled": True,  # Enabled by default
+    },
+    "world_bank_indicators": {
+        "display_name": "World Bank Economic Indicators",
+        "category": "osint",
+        "group": None,
+        "enabled": True,
+    },
+    "ecmwf_weather": {
+        "display_name": "ECMWF Weather Data",
+        "category": "osint",
+        "group": None,
+        "enabled": True,
     },
 }
 
@@ -349,5 +363,7 @@ DEFAULT_AVAILABLE_TOOLS: Dict[str, BaseTool] = {
     "get_custom_geoserver_data": get_custom_geoserver_data,
     "attribute_tool": attribute_tool,
     "attribute_tool2": attribute_tool2,  # Simplified attribute tool for better agent usability
+    "world_bank_indicators": get_world_bank_data,  # OSINT: World Bank economic indicators
+    "ecmwf_weather": get_ecmwf_weather_data,  # OSINT: Weather data (historical + forecast)
 }
 DEFAULT_SELECTED_TOOLS = []
