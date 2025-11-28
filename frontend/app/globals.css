@@ -1334,3 +1334,35 @@ body {
 }
 
 /* End of tool progress indicator */
+
+/* ============================================================================
+   CUSTOM MARKER ICONS - For AIS/OpenSky/Flight tracking data
+   ============================================================================ */
+
+/* Custom marker icons for AIS/OpenSky data with marker-symbol support */
+.custom-marker-icon {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.custom-marker-icon svg {
+  filter: drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.3));
+  transition: transform 0.15s ease-out;
+  display: block;
+}
+
+.custom-marker-icon:hover svg {
+  transform: scale(1.2);
+  filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.4));
+}
+
+/* Override Leaflet's default divIcon styles */
+.leaflet-div-icon.custom-marker-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+/* End of custom marker icons */
