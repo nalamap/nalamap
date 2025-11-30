@@ -9,6 +9,8 @@ from services.tools.geocoding import (
     geocode_using_nominatim_to_geostate,
     geocode_using_overpass_to_geostate,
 )
+from services.tools.nasa_firms_fire import get_nasa_fire_data
+from services.tools.nasa_gibs_imagery import get_nasa_gibs_layer, list_nasa_gibs_layers
 from services.tools.geoprocess_tools import geoprocess_tool
 from services.tools.geoserver.custom_geoserver import get_custom_geoserver_data
 from services.tools.geostate_management import metadata_search
@@ -98,6 +100,24 @@ TOOL_METADATA = {
     },
     "ecmwf_weather": {
         "display_name": "ECMWF Weather Data",
+        "category": "osint",
+        "group": None,
+        "enabled": True,
+    },
+    "nasa_fire_data": {
+        "display_name": "NASA FIRMS Fire Detection Data",
+        "category": "osint",
+        "group": None,
+        "enabled": True,
+    },
+    "nasa_gibs_layer": {
+        "display_name": "NASA GIBS Satellite Imagery",
+        "category": "osint",
+        "group": None,
+        "enabled": True,
+    },
+    "list_nasa_gibs_layers": {
+        "display_name": "List NASA GIBS Layers",
         "category": "osint",
         "group": None,
         "enabled": True,
@@ -365,5 +385,8 @@ DEFAULT_AVAILABLE_TOOLS: Dict[str, BaseTool] = {
     "attribute_tool2": attribute_tool2,  # Simplified attribute tool for better agent usability
     "world_bank_indicators": get_world_bank_data,  # OSINT: World Bank economic indicators
     "ecmwf_weather": get_ecmwf_weather_data,  # OSINT: Weather data (historical + forecast)
+    "nasa_fire_data": get_nasa_fire_data,  # OSINT: NASA FIRMS fire detection GeoJSON
+    "nasa_gibs_layer": get_nasa_gibs_layer,  # OSINT: NASA GIBS satellite imagery
+    "list_nasa_gibs_layers": list_nasa_gibs_layers,  # OSINT: List available GIBS layers
 }
 DEFAULT_SELECTED_TOOLS = []
