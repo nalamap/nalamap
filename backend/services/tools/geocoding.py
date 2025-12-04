@@ -607,7 +607,7 @@ def geocode_using_overpass_to_geostate(
         state: The current agent state containing geodata and messages.
         tool_call_id: The tool call ID for the response.
         query: The user-friendly query/description for the search.
-        amenity_key: The amenity type (e.g. "restaurant", "park", "hospital").
+        amenity_key: The OSM feature type to search for. Supports amenities (e.g. "restaurant", "hospital"), infrastructure (e.g. "road", "bridge", "highway"), military facilities (e.g. "military", "barracks"), aviation (e.g. "airport", "aeroway"), natural features (e.g. "waterway", "natural"), buildings, and places. Use generic terms like "road" or "military" to search for all features of that type.
         location_name: The location to search (e.g. "Paris", "London", "Germany").
         radius_meters: Search radius in meters (default: 10000).
         max_results: Maximum number of results to return (default: 2500).
@@ -747,6 +747,17 @@ def geocode_using_overpass_to_geostate(
     # 3. Construct Overpass API query
     osm_query_key, osm_query_value = osm_tag_kv.split("=", 1)
 
+    # Helper function to format tag filter for Overpass query
+    def format_tag_filter(key: str, value: str) -> str:
+        """Format OSM tag filter, handling wildcard queries."""
+        if value == "*":
+            # Wildcard query - match any value for the key
+            return f'["{key}"]'
+        else:
+            # Specific value query
+            return f'["{key}"="{value}"]'
+
+    tag_filter = format_tag_filter(osm_query_key, osm_query_value)
     overpass_query_parts: List[str] = [f"[out:json][timeout:{timeout}];"]
 
     if osm_relation_id is not None:
@@ -757,44 +768,26 @@ def geocode_using_overpass_to_geostate(
             f"area({overpass_area_id})->.search_area;"
         )  # Correct way to define area from relation ID
         overpass_query_parts.append("(")
-        overpass_query_parts.append(
-            f'  node["{osm_query_key}"="{osm_query_value}"](area.search_area);'
-        )
-        overpass_query_parts.append(
-            f'  way["{osm_query_key}"="{osm_query_value}"](area.search_area);'
-        )
-        overpass_query_parts.append(
-            f'  relation["{osm_query_key}"="{osm_query_value}"](area.search_area);'
-        )
+        overpass_query_parts.append(f"  node{tag_filter}(area.search_area);")
+        overpass_query_parts.append(f"  way{tag_filter}(area.search_area);")
+        overpass_query_parts.append(f"  relation{tag_filter}(area.search_area);")
         overpass_query_parts.append(");")
     elif bbox_coords:
         # Bounding box search
         s, w, n, e = bbox_coords
         location_filter = f"({s},{w},{n},{e})"
         overpass_query_parts.append("(")
-        overpass_query_parts.append(
-            f'  node["{osm_query_key}"="{osm_query_value}"]{location_filter};'
-        )
-        overpass_query_parts.append(
-            f'  way["{osm_query_key}"="{osm_query_value}"]{location_filter};'
-        )
-        overpass_query_parts.append(
-            f'  relation["{osm_query_key}"="{osm_query_value}"]{location_filter};'
-        )
+        overpass_query_parts.append(f"  node{tag_filter}{location_filter};")
+        overpass_query_parts.append(f"  way{tag_filter}{location_filter};")
+        overpass_query_parts.append(f"  relation{tag_filter}{location_filter};")
         overpass_query_parts.append(");")
     elif lat is not None and lon is not None:
         # Radius around point search
         location_filter = f"(around:{radius_meters},{lat},{lon})"
         overpass_query_parts.append("(")
-        overpass_query_parts.append(
-            f'  node["{osm_query_key}"="{osm_query_value}"]{location_filter};'
-        )
-        overpass_query_parts.append(
-            f'  way["{osm_query_key}"="{osm_query_value}"]{location_filter};'
-        )
-        overpass_query_parts.append(
-            f'  relation["{osm_query_key}"="{osm_query_value}"]{location_filter};'
-        )
+        overpass_query_parts.append(f"  node{tag_filter}{location_filter};")
+        overpass_query_parts.append(f"  way{tag_filter}{location_filter};")
+        overpass_query_parts.append(f"  relation{tag_filter}{location_filter};")
         overpass_query_parts.append(");")
     else:
         return Command(
