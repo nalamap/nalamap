@@ -1,5 +1,6 @@
 import hashlib
 import json
+import logging
 from typing import Any, Dict, List, Optional, Union
 
 import requests
@@ -15,6 +16,16 @@ from models.states import GeoDataAgentState
 from services.storage.file_management import store_file
 
 from .constants import AMENITY_MAPPING
+from .overpass import (
+    OverpassClient,
+    OverpassLocation,
+    OverpassQueryBuilder,
+    OverpassResultConverter,
+    create_feature_collection_geodata,
+    is_highway_query,
+)
+
+logger = logging.getLogger(__name__)
 
 headers_nalamap = {
     "User-Agent": "NaLaMap, github.com/nalamap, next generation geospatial analysis using agents"
@@ -195,6 +206,23 @@ def create_geodata_object_from_geojson(
         sha256=sha256_hex,
         size=size_bytes,
     )
+
+    # Apply automatic styling
+    try:
+        from services.ai.automatic_styling import generate_automatic_style
+
+        # Determine geometry type from GeoJSON
+        geometry_type = nominatim_response.get("geojson", {}).get("type")
+
+        # Generate and apply style
+        geoobject.style = generate_automatic_style(
+            layer_name=name,
+            layer_description=nominatim_response.get("display_name"),
+            geometry_type=geometry_type,
+        )
+    except Exception as e:
+        logger.warning(f"Error applying automatic styling to {name}: {e}")
+        # Fallback: do not apply style or apply default manually if needed
 
     return geoobject
 
@@ -584,6 +612,30 @@ def create_collection_geodata_object(
         sha256=sha256_hex,
         size=size_bytes,
     )
+
+    # Apply automatic styling
+    try:
+        from services.ai.automatic_styling import generate_automatic_style
+
+        # Map collection type to geometry type for styling
+        geometry_type_map = {
+            "Points": "Point",
+            "Lines": "LineString",
+            "Areas": "Polygon",
+            "Buildings": "Polygon",
+        }
+        geometry_type = geometry_type_map.get(collection_type_name, "Polygon")
+
+        # Generate and apply style
+        geo_object.style = generate_automatic_style(
+            layer_name=collection_name,
+            layer_description=description,
+            geometry_type=geometry_type,
+        )
+    except Exception as e:
+        logger.warning(f"Error applying automatic styling to {collection_name}: {e}")
+        # Fallback: do not apply style
+
     return geo_object
 
 
@@ -592,13 +644,13 @@ def geocode_using_overpass_to_geostate(
     state: Annotated[GeoDataAgentState, InjectedState],
     tool_call_id: Annotated[str, InjectedToolCallId],
     query: str,
-    amenity_key: str,  # e.g. "restaurant", "park", "hospital" - to be mapped to OSM tags
-    location_name: str,  # e.g. "Paris", "London", "near the Colosseum", or a country name like "Germany"
-    # Default search radius around a point, e.g. 10km. Used if location_name resolves to a point.
+    amenity_key: str,
+    location_name: str,
     radius_meters: int = 10000,
-    # Max results from Overpass. Default is 2500. User can specify a different limit.
     max_results: int = 2500,
-    timeout: int = 300,  # Default timeout in seconds
+    timeout: int = 300,
+    center_lat: Optional[float] = None,
+    center_lon: Optional[float] = None,
 ) -> Union[Dict[str, Any], Command]:
     """
     Geocode a location and search for amenities/POIs using the Overpass API.
@@ -612,12 +664,13 @@ def geocode_using_overpass_to_geostate(
         radius_meters: Search radius in meters (default: 10000).
         max_results: Maximum number of results to return (default: 2500).
         timeout: Timeout for API requests in seconds (default: 300).
+        center_lat: Optional explicit latitude for center point search.
+        center_lon: Optional explicit longitude for center point search.
 
     Returns:
         A Command object to update the agent state or a dictionary with results.
     """
     # 1. Map amenity_key to OSM tag
-    # Clean and process the amenity key
     amenity_key_cleaned = amenity_key.lower().replace(" ", "_")
     osm_tag_kv = AMENITY_MAPPING.get(amenity_key_cleaned)
 
@@ -628,7 +681,10 @@ def geocode_using_overpass_to_geostate(
                     *state["messages"],
                     ToolMessage(
                         name="geocode_using_overpass_to_geostate",
-                        content=f"Sorry, I don't know how to search for '{amenity_key}'. Please try a common amenity type.",
+                        content=(
+                            f"Sorry, I don't know how to search for '{amenity_key}'. "
+                            "Please try a common amenity type."
+                        ),
                         tool_call_id=tool_call_id,
                     ),
                 ]
@@ -636,258 +692,90 @@ def geocode_using_overpass_to_geostate(
         )
 
     amenity_key_display = amenity_key_cleaned.replace("_", " ").title()
+    osm_query_key, osm_query_value = osm_tag_kv.split("=", 1)
 
-    # 2. Geocode location_name: Attempt to get an OSM relation ID, then bbox, then point.
-    # Request addressdetails=1 to potentially get osm_type and osm_id for relations.
-    nominatim_url = f"https://nominatim.openstreetmap.org/search?q={location_name}&format=json&limit=1&addressdetails=1&polygon_geojson=0"
-
-    osm_relation_id: Optional[int] = None
-    lat: Optional[float] = None
-    lon: Optional[float] = None
-    bbox_coords: Optional[List[float]] = None
-    resolved_location_display_name: str = location_name
-    search_mode_description: str = ""
-
-    try:
-        nominatim_response_req = requests.get(nominatim_url, headers=headers_nalamap, timeout=20)
-        nominatim_response_req.raise_for_status()
-        location_data_list = nominatim_response_req.json()
-
-        if not location_data_list:
+    # 2. Create location object - use explicit coordinates if provided
+    if center_lat is not None and center_lon is not None:
+        # Use explicit lat/lon center
+        location = OverpassLocation(
+            display_name=location_name,
+            lat=center_lat,
+            lon=center_lon,
+        )
+        search_mode_description = (
+            f"within {radius_meters}m of coordinates ({center_lat}, {center_lon})"
+        )
+        logger.info(f"Using explicit center: lat={center_lat}, lon={center_lon}")
+    else:
+        # Geocode the location name
+        location, error_msg = _geocode_location_for_overpass(location_name)
+        if error_msg:
             return Command(
                 update={
                     "messages": [
                         *state["messages"],
                         ToolMessage(
                             name="geocode_using_overpass_to_geostate",
-                            content=f"Could not find location: {location_name}",
+                            content=error_msg,
                             tool_call_id=tool_call_id,
                         ),
                     ]
                 }
             )
+        search_mode_description = _get_search_mode_description(location, radius_meters)
 
-        location_data = location_data_list[0]
-        resolved_location_display_name = location_data.get("display_name", location_name)
+    # 3. Build and execute Overpass query
+    query_builder = OverpassQueryBuilder(timeout=timeout, max_results=max_results)
 
-        # Prioritize OSM relation ID for area search
-        if location_data.get("osm_type") == "relation" and "osm_id" in location_data:
-            try:
-                osm_relation_id = int(location_data["osm_id"])
-                search_mode_description = f"within the boundaries of '{resolved_location_display_name}' (OSM Relation ID: {osm_relation_id})"
-            except ValueError:
-                osm_relation_id = None  # Failed to parse ID, will fall back
+    # Prioritize ways/relations for highway queries to reduce point noise
+    prioritize_ways = is_highway_query(osm_query_key)
+    if prioritize_ways:
+        logger.info("Highway query detected, prioritizing ways/relations")
 
-        if osm_relation_id is None:  # Fallback to bounding box if no relation ID or if preferred
-            if "boundingbox" in location_data:
-                raw_bbox = location_data[
-                    "boundingbox"
-                ]  # [south_lat, north_lat, west_lon, east_lon]
-                if len(raw_bbox) == 4:
-                    try:
-                        bbox_coords = [
-                            float(raw_bbox[0]),
-                            float(raw_bbox[2]),
-                            float(raw_bbox[1]),
-                            float(raw_bbox[3]),
-                        ]  # s, w, n, e
-                        search_mode_description = (
-                            f"within the bounding box of '{resolved_location_display_name}'"
-                        )
-                    except ValueError:
-                        bbox_coords = None
-
-            if bbox_coords is None:  # Fallback to lat/lon if no relation or bbox
-                if "lat" in location_data and "lon" in location_data:
-                    lat = float(location_data["lat"])
-                    lon = float(location_data["lon"])
-                    search_mode_description = f"within {radius_meters}m of the center of '{resolved_location_display_name}'"
-                else:
-                    return Command(
-                        update={
-                            "messages": [
-                                *state["messages"],
-                                ToolMessage(
-                                    name="geocode_using_overpass_to_geostate",
-                                    content=f"Could not determine a usable geographic filter (area, bounding box, or center point) for: {location_name}",
-                                    tool_call_id=tool_call_id,
-                                ),
-                            ]
-                        }
-                    )
-
-    except requests.exceptions.RequestException as e:
-        return Command(
-            update={
-                "messages": [
-                    *state["messages"],
-                    ToolMessage(
-                        name="geocode_using_overpass_to_geostate",
-                        content=f"Error geocoding '{location_name}': {str(e)}",
-                        tool_call_id=tool_call_id,
-                    ),
-                ]
-            }
-        )
-    except (KeyError, IndexError, ValueError) as e:
-        print(f"Error processing location data: {e}")
-        return Command(
-            update={
-                "messages": [
-                    *state["messages"],
-                    ToolMessage(
-                        name="geocode_using_overpass_to_geostate",
-                        content=f"Could not parse geocoding result for '{location_name}': {str(e)}",
-                        tool_call_id=tool_call_id,
-                    ),
-                ]
-            }
-        )
-
-    # 3. Construct Overpass API query
-    osm_query_key, osm_query_value = osm_tag_kv.split("=", 1)
-
-    overpass_query_parts: List[str] = [f"[out:json][timeout:{timeout}];"]
-
-    if osm_relation_id is not None:
-        # Area-based search using relation ID
-        # Add 3600000000 to the OSM relation ID to make it an area ID for Overpass
-        overpass_area_id = osm_relation_id + 3600000000
-        overpass_query_parts.append(
-            f"area({overpass_area_id})->.search_area;"
-        )  # Correct way to define area from relation ID
-        overpass_query_parts.append("(")
-        overpass_query_parts.append(
-            f'  node["{osm_query_key}"="{osm_query_value}"](area.search_area);'
-        )
-        overpass_query_parts.append(
-            f'  way["{osm_query_key}"="{osm_query_value}"](area.search_area);'
-        )
-        overpass_query_parts.append(
-            f'  relation["{osm_query_key}"="{osm_query_value}"](area.search_area);'
-        )
-        overpass_query_parts.append(");")
-    elif bbox_coords:
-        # Bounding box search
-        s, w, n, e = bbox_coords
-        location_filter = f"({s},{w},{n},{e})"
-        overpass_query_parts.append("(")
-        overpass_query_parts.append(
-            f'  node["{osm_query_key}"="{osm_query_value}"]{location_filter};'
-        )
-        overpass_query_parts.append(
-            f'  way["{osm_query_key}"="{osm_query_value}"]{location_filter};'
-        )
-        overpass_query_parts.append(
-            f'  relation["{osm_query_key}"="{osm_query_value}"]{location_filter};'
-        )
-        overpass_query_parts.append(");")
-    elif lat is not None and lon is not None:
-        # Radius around point search
-        location_filter = f"(around:{radius_meters},{lat},{lon})"
-        overpass_query_parts.append("(")
-        overpass_query_parts.append(
-            f'  node["{osm_query_key}"="{osm_query_value}"]{location_filter};'
-        )
-        overpass_query_parts.append(
-            f'  way["{osm_query_key}"="{osm_query_value}"]{location_filter};'
-        )
-        overpass_query_parts.append(
-            f'  relation["{osm_query_key}"="{osm_query_value}"]{location_filter};'
-        )
-        overpass_query_parts.append(");")
-    else:
-        return Command(
-            update={
-                "messages": [
-                    *state["messages"],
-                    ToolMessage(
-                        name="geocode_using_overpass_to_geostate",
-                        content="Failed to establish a location filter (area, bbox, or radius) for Overpass query.",
-                        tool_call_id=tool_call_id,
-                    ),
-                ]
-            }
-        )
-
-    overpass_query_parts.append(f"out geom {max_results};")
-    overpass_query = "\n".join(overpass_query_parts)
-
-    # 4. Execute Overpass API query
-    overpass_api_url = "https://overpass-api.de/api/interpreter"
     try:
-        api_response = requests.post(
-            overpass_api_url,
-            data={"data": overpass_query},
-            headers={
-                **headers_nalamap,
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
-            timeout=timeout + 10,
-        )  # API timeout slightly longer
-        api_response.raise_for_status()
-        overpass_data = api_response.json()
-    except requests.exceptions.Timeout:
-        return Command(
-            update={
-                "messages": [
-                    *state["messages"],
-                    ToolMessage(
-                        name="geocode_using_overpass_to_geostate",
-                        content=f"Overpass API query for '{amenity_key_display}' {search_mode_description} timed out after {timeout} seconds.",
-                        tool_call_id=tool_call_id,
-                    ),
-                ]
-            }
+        overpass_query = query_builder.build_amenity_query(
+            osm_query_key,
+            osm_query_value,
+            location,
+            radius_meters=radius_meters,
+            prioritize_ways_relations=prioritize_ways,
         )
-    except requests.exceptions.HTTPError as e:
-        error_detail = e.response.text[:500] if e.response else str(e)
-        error_message_content = f"Overpass API error for '{amenity_key_display}' {search_mode_description}. Status: {e.response.status_code if e.response else 'N/A'}. Details: {error_detail}"
-        if (
-            "runtime error: Query timed out" in error_detail
-            or "runtime error: load_query" in error_detail
-        ):
-            error_message_content = f"Overpass API query for '{amenity_key_display}' {search_mode_description} was too complex or timed out. Try a smaller radius or more specific location/area. Details: {error_detail}"
+    except ValueError as e:
         return Command(
             update={
                 "messages": [
                     *state["messages"],
                     ToolMessage(
                         name="geocode_using_overpass_to_geostate",
-                        content=error_message_content,
-                        tool_call_id=tool_call_id,
-                    ),
-                ]
-            }
-        )
-    except requests.exceptions.RequestException as e:
-        return Command(
-            update={
-                "messages": [
-                    *state["messages"],
-                    ToolMessage(
-                        name="geocode_using_overpass_to_geostate",
-                        content=f"Error connecting to Overpass API: {str(e)}",
-                        tool_call_id=tool_call_id,
-                    ),
-                ]
-            }
-        )
-    except json.JSONDecodeError:
-        return Command(
-            update={
-                "messages": [
-                    *state["messages"],
-                    ToolMessage(
-                        name="geocode_using_overpass_to_geostate",
-                        content=f"Error parsing Overpass API response. Response was: {api_response.text[:200]}...",
+                        content=str(e),
                         tool_call_id=tool_call_id,
                     ),
                 ]
             }
         )
 
-    # 5. Process elements and group by geometry type
+    # Execute the query
+    client = OverpassClient()
+    overpass_data, error_msg = client.execute_query(overpass_query, timeout=timeout)
+
+    if error_msg:
+        return Command(
+            update={
+                "messages": [
+                    *state["messages"],
+                    ToolMessage(
+                        name="geocode_using_overpass_to_geostate",
+                        content=(
+                            f"Error querying Overpass for '{amenity_key_display}' "
+                            f"{search_mode_description}: {error_msg}"
+                        ),
+                        tool_call_id=tool_call_id,
+                    ),
+                ]
+            }
+        )
+
+    # 4. Process elements
     if "elements" not in overpass_data or not overpass_data["elements"]:
         return Command(
             update={
@@ -895,118 +783,80 @@ def geocode_using_overpass_to_geostate(
                     *state["messages"],
                     ToolMessage(
                         name="geocode_using_overpass_to_geostate",
-                        content=f"No '{amenity_key_display}' found {search_mode_description}.",
+                        content=(f"No '{amenity_key_display}' found {search_mode_description}."),
                         tool_call_id=tool_call_id,
                     ),
                 ]
             }
         )
 
-    point_features: List[Dict[str, Any]] = []
-    polygon_features: List[Dict[str, Any]] = []
-    linestring_features: List[Dict[str, Any]] = []
-
+    # Convert elements to GeoJSON features
+    converter = OverpassResultConverter()
+    all_features = []
     processed_osm_ids = set()
 
     for element in overpass_data["elements"]:
-        if "type" not in element or "id" not in element:
-            continue
-
-        osm_element_id = f"{element['type']}/{element['id']}"
-
-        element_tags = element.get("tags", {})
-        if not (element_tags.get(osm_query_key) == osm_query_value):
-            pass
-
+        osm_element_id = f"{element.get('type', '')}/{element.get('id', '')}"
         if osm_element_id in processed_osm_ids:
             continue
 
-        feature_dict = convert_osm_element_to_geojson_feature(element)
+        feature = converter.convert_element_to_geojson(
+            element, osm_tag_filter=(osm_query_key, osm_query_value)
+        )
 
-        if feature_dict and feature_dict["geometry"]:
-            element_tags = feature_dict.get("properties", {})
-            is_primary_tagged_feature = element_tags.get(osm_query_key) == osm_query_value
+        if feature and feature.get("geometry"):
+            # Only include features that have the query tag (except nodes which
+            # may be geometry nodes for ways)
+            element_tags = feature.get("properties", {})
+            is_tagged = element_tags.get(osm_query_key) == osm_query_value
 
-            if element["type"] != "node" and not is_primary_tagged_feature:
-                continue
+            if element["type"] == "node" or is_tagged:
+                processed_osm_ids.add(osm_element_id)
+                all_features.append(feature)
 
-            processed_osm_ids.add(osm_element_id)
-            geom_type = feature_dict["geometry"]["type"]
-            if geom_type == "Point":
-                point_features.append(feature_dict)
-            elif geom_type == "Polygon":
-                polygon_features.append(feature_dict)
-            elif geom_type == "LineString":
-                linestring_features.append(feature_dict)
+    # Deduplicate features
+    all_features = converter.deduplicate_features(all_features)
 
+    # Group by geometry type
+    point_features, polygon_features, linestring_features = converter.group_features_by_geometry(
+        all_features
+    )
+
+    # Filter out point noise for highway queries when lines/areas exist
+    if is_highway_query(osm_query_key):
+        point_features = converter.filter_point_noise(
+            point_features, polygon_features, linestring_features
+        )
+
+    # 5. Create GeoDataObject collections
     created_collections: List[GeoDataObject] = []
     actionable_layers_info = []
 
-    if point_features:
-        collection_obj = create_collection_geodata_object(
-            point_features,
-            "Points",
-            query,
-            amenity_key_display,
-            resolved_location_display_name,
-            osm_tag_kv,
-            location_name,
-        )
-        if collection_obj:
-            created_collections.append(collection_obj)
-            actionable_layers_info.append(
-                {
-                    "name": collection_obj.name,
-                    "type": "Points",
-                    "count": len(point_features),
-                    "id": collection_obj.id,
-                    "data_source_id": "geocodeOverpassCollection",
-                }
+    for features, collection_type in [
+        (point_features, "Points"),
+        (polygon_features, "Areas"),
+        (linestring_features, "Lines"),
+    ]:
+        if features:
+            collection_obj = create_feature_collection_geodata(
+                features,
+                collection_type,
+                amenity_key_display,
+                location.display_name,
+                osm_tag_kv,
+                location_name,
             )
-
-    if polygon_features:
-        collection_obj = create_collection_geodata_object(
-            polygon_features,
-            "Areas",
-            query,
-            amenity_key_display,
-            resolved_location_display_name,
-            osm_tag_kv,
-            location_name,
-        )
-        if collection_obj:
-            created_collections.append(collection_obj)
-            actionable_layers_info.append(
-                {
-                    "name": collection_obj.name,
-                    "type": "Areas",
-                    "count": len(polygon_features),
-                    "id": collection_obj.id,
-                    "data_source_id": "geocodeOverpassCollection",
-                }
-            )
-
-    if linestring_features:
-        collection_obj = create_collection_geodata_object(
-            linestring_features,
-            "Lines",
-            query,
-            amenity_key_display,
-            resolved_location_display_name,
-            osm_tag_kv,
-            location_name,
-        )
-        if collection_obj:
-            created_collections.append(collection_obj)
-            actionable_layers_info.append(
-                {
-                    "name": collection_obj.name,
-                    "type": "Lines",
-                    "count": len(linestring_features),
-                    "id": collection_obj.id,
-                    "data_source_id": "geocodeOverpassCollection",
-                }
-            )
+            if collection_obj:
+                created_collections.append(collection_obj)
+                actionable_layers_info.append(
+                    {
+                        "name": collection_obj.name,
+                        "type": collection_type,
+                        "count": len(features),
+                        "id": collection_obj.id,
+                        "data_source_id": "geocodeOverpassCollection",
+                    }
+                )
 
     if not created_collections:
         return Command(
@@ -1015,52 +865,33 @@ def geocode_using_overpass_to_geostate(
                     *state["messages"],
                     ToolMessage(
                         name="geocode_using_overpass_to_geostate",
-                        content=f"No '{amenity_key_display}' found with parsable geometry {search_mode_description}.",
+                        content=(
+                            f"No '{amenity_key_display}' found with parsable geometry "
+                            f"{search_mode_description}."
+                        ),
                         tool_call_id=tool_call_id,
                     ),
                 ]
             }
         )
 
+    # Update state
     current_geodata = state.get("geodata_results", [])
     if not isinstance(current_geodata, list):
         current_geodata = []
     current_geodata.extend(created_collections)
 
-    total_features_found = len(point_features) + len(polygon_features) + len(linestring_features)
+    total_features = len(point_features) + len(polygon_features) + len(linestring_features)
 
-    if not actionable_layers_info:
-        tool_message_content = f"Found {amenity_key_display} {search_mode_description}, but could not form any distinct geometry layers."
-    else:
-        tool_message_content = f"Found {total_features_found} '{amenity_key_display}' feature(s) {search_mode_description}. Created {len(created_collections)} collection layer(s). "
-
-        if total_features_found >= max_results:
-            limit_hit_info = (
-                f"The query returned the maximum allowed number of features ({max_results}). "
-                "If you need more results, you can ask me to increase this limit. "
-                "However, please be aware that a very large number of features can significantly degrade map performance."
-            )
-            tool_message_content += f"LIMIT_INFO: {limit_hit_info}. "
-
-        layer_details_for_agent = json.dumps(actionable_layers_info)
-
-        # Safely get an example name for the guidance
-        example_layer_name = (
-            actionable_layers_info[0].get("name", "Unknown Layer")
-            if actionable_layers_info
-            else "Unknown Layer"
-        )
-
-        user_response_guidance = (
-            "Call 'set_result_list' to make these layers available for the user to select. "
-            + f"In your textual response to the user, mention the type of amenities and location searched (e.g., '{amenity_key_display}' near '{resolved_location_display_name}'). "
-            + f"You can cite an example layer name like '{example_layer_name}'. "
-            + "State that the found layers are now listed (e.g., in a list or panel) and can be selected by the user to be added to the map. "
-            + "Ensure your response clearly indicates the user needs to take an action to add them to the map. "
-            + "Do NOT state or imply that the layers have already been added to the map. "
-            + "Do NOT include direct file paths, sandbox links, or any other internal storage paths in your textual response or as Markdown links."
-        )
-        tool_message_content += f"Actionable layer details: {layer_details_for_agent}. User response guidance: {user_response_guidance}"
+    # Build response message
+    tool_message_content = _build_overpass_response_message(
+        amenity_key_display,
+        search_mode_description,
+        total_features,
+        max_results,
+        actionable_layers_info,
+        location.display_name,
+    )
 
     return Command(
         update={
@@ -1072,10 +903,152 @@ def geocode_using_overpass_to_geostate(
                     tool_call_id=tool_call_id,
                 ),
             ],
-            # "global_geodata": current_geodata,
             "geodata_results": current_geodata,
         }
     )
+
+
+def _geocode_location_for_overpass(
+    location_name: str,
+) -> tuple[Optional[OverpassLocation], Optional[str]]:
+    """
+    Geocode a location name for use with Overpass queries.
+
+    Returns:
+        Tuple of (OverpassLocation, None) on success or (None, error_message) on failure.
+    """
+    nominatim_url = (
+        f"https://nominatim.openstreetmap.org/search"
+        f"?q={location_name}&format=json&limit=1&addressdetails=1&polygon_geojson=0"
+    )
+
+    try:
+        response = requests.get(nominatim_url, headers=headers_nalamap, timeout=20)
+        response.raise_for_status()
+        location_data_list = response.json()
+
+        if not location_data_list:
+            return None, f"Could not find location: {location_name}"
+
+        location_data = location_data_list[0]
+        display_name = location_data.get("display_name", location_name)
+
+        # Try to get OSM relation ID for area-based search
+        osm_relation_id = None
+        if location_data.get("osm_type") == "relation" and "osm_id" in location_data:
+            try:
+                osm_relation_id = int(location_data["osm_id"])
+            except ValueError:
+                pass
+
+        # Try to get bounding box
+        bbox = None
+        if "boundingbox" in location_data and len(location_data["boundingbox"]) == 4:
+            try:
+                raw_bbox = location_data["boundingbox"]
+                bbox = (
+                    float(raw_bbox[0]),  # south
+                    float(raw_bbox[2]),  # west
+                    float(raw_bbox[1]),  # north
+                    float(raw_bbox[3]),  # east
+                )
+            except ValueError:
+                pass
+
+        # Try to get center point
+        lat = None
+        lon = None
+        if "lat" in location_data and "lon" in location_data:
+            try:
+                lat = float(location_data["lat"])
+                lon = float(location_data["lon"])
+            except ValueError:
+                pass
+
+        if osm_relation_id is None and bbox is None and lat is None:
+            return None, (
+                f"Could not determine a usable geographic filter "
+                f"(area, bounding box, or center point) for: {location_name}"
+            )
+
+        return (
+            OverpassLocation(
+                display_name=display_name,
+                osm_relation_id=osm_relation_id,
+                lat=lat,
+                lon=lon,
+                bbox=bbox,
+            ),
+            None,
+        )
+
+    except requests.exceptions.RequestException as e:
+        return None, f"Error geocoding '{location_name}': {str(e)}"
+    except (KeyError, IndexError, ValueError) as e:
+        return None, f"Could not parse geocoding result for '{location_name}': {str(e)}"
+
+
+def _get_search_mode_description(location: OverpassLocation, radius_meters: int) -> str:
+    """Get a human-readable description of the search mode."""
+    if location.has_area:
+        return (
+            f"within the boundaries of '{location.display_name}' "
+            f"(OSM Relation ID: {location.osm_relation_id})"
+        )
+    elif location.has_bbox:
+        return f"within the bounding box of '{location.display_name}'"
+    elif location.has_point:
+        return f"within {radius_meters}m of the center of '{location.display_name}'"
+    return f"near '{location.display_name}'"
+
+
+def _build_overpass_response_message(
+    amenity_display: str,
+    search_mode: str,
+    total_features: int,
+    max_results: int,
+    layers_info: List[Dict[str, Any]],
+    location_display: str,
+) -> str:
+    """Build the response message for the LLM."""
+    if not layers_info:
+        return (
+            f"Found {amenity_display} {search_mode}, "
+            "but could not form any distinct geometry layers."
+        )
+
+    msg = (
+        f"Found {total_features} '{amenity_display}' feature(s) {search_mode}. "
+        f"Created {len(layers_info)} collection layer(s). "
+    )
+
+    if total_features >= max_results:
+        msg += (
+            f"LIMIT_INFO: The query returned the maximum allowed number of "
+            f"features ({max_results}). If you need more results, you can ask "
+            "me to increase this limit. However, please be aware that a very "
+            "large number of features can significantly degrade map performance. "
+        )
+
+    layer_details = json.dumps(layers_info)
+    example_name = layers_info[0].get("name", "Unknown Layer") if layers_info else ""
+
+    guidance = (
+        "Call 'set_result_list' to make these layers available for the user to select. "
+        f"In your textual response to the user, mention the type of amenities and "
+        f"location searched (e.g., '{amenity_display}' near '{location_display}'). "
+        f"You can cite an example layer name like '{example_name}'. "
+        "State that the found layers are now listed and can be selected by the user "
+        "to be added to the map. "
+        "Ensure your response clearly indicates the user needs to take an action "
+        "to add them to the map. "
+        "Do NOT state or imply that the layers have already been added to the map. "
+        "Do NOT include direct file paths, sandbox links, or any other internal "
+        "storage paths in your textual response or as Markdown links."
+    )
+
+    msg += f"Actionable layer details: {layer_details}. User response guidance: {guidance}"
+    return msg
 
 
 """
