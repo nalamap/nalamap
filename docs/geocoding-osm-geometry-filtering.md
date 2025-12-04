@@ -18,8 +18,9 @@ In OpenStreetMap, many tag keys can have both point features (nodes) and linear/
 
 When users query for "highways" or "roads", they expect actual road segments (ways), not point infrastructure. The geometry filtering system ensures this by:
 
-1. **Query-time filtering**: Excluding unwanted element types from Overpass queries
-2. **Result-time filtering**: Filtering out unwanted elements from query results
+1. **Query-time filtering**: Excluding unwanted element types from Overpass queries (e.g., exclude nodes for highway queries)
+2. **Result-time filtering**: Filtering out unwanted elements from query results (e.g., exclude nodes and excluded tag values)
+3. **GeoJSON geometry filtering**: Excluding unwanted GeoJSON geometry types (e.g., exclude Polygon geometries for highway queries, keeping only LineString)
 
 ## How It Works
 
@@ -60,19 +61,23 @@ This ensures backward compatibility with existing queries.
 
 ### Highway
 
-- **Excludes**: Nodes (bus stops, traffic signals, crossings, etc.)
-- **Includes**: Ways and relations (actual road segments)
+- **Excludes**: 
+  - OSM element types: Nodes (bus stops, traffic signals, crossings, etc.)
+  - GeoJSON geometry types: Polygons (roads should be linear features, not areas)
+- **Includes**: Ways and relations with LineString geometry (actual road segments)
 - **Excluded values**: `bus_stop`, `traffic_signals`, `crossing`, `stop`, `give_way`, `mini_roundabout`, `motorway_junction`
 
-**Example**: Querying `highway=*` returns only road segments, not bus stops.
+**Example**: Querying `highway=*` returns only linear road segments (LineString), not bus stops (Point) or polygon areas (Polygon).
 
 ### Railway
 
-- **Excludes**: Nodes (stations, signals, switches)
-- **Includes**: Ways and relations (railway tracks)
+- **Excludes**: 
+  - OSM element types: Nodes (stations, signals, switches)
+  - GeoJSON geometry types: Polygons (tracks should be linear features)
+- **Includes**: Ways and relations with LineString geometry (railway tracks)
 - **Excluded values**: `station`, `signal`, `switch`, `level_crossing`
 
-**Example**: Querying `railway=*` returns only tracks, not stations.
+**Example**: Querying `railway=*` returns only linear tracks (LineString), not stations (Point) or polygon areas (Polygon).
 
 ### Waterway
 
@@ -131,11 +136,12 @@ poetry run pytest tests/test_osm_geometry_filtering.py -v
 
 ### Helper Functions
 
-Three helper functions in `backend/services/tools/geocoding.py` handle the filtering:
+Four helper functions in `backend/services/tools/geocoding.py` handle the filtering:
 
 1. **`get_geometry_preferences(osm_key)`**: Returns preferences for a key, or defaults
 2. **`should_include_element_in_query(osm_key, osm_value, element_type)`**: Determines if an element type should be queried
 3. **`should_include_element_in_results(element, osm_key, osm_value)`**: Determines if an element should be included in results
+4. **`should_include_geojson_geometry(geojson_geometry_type, osm_key)`**: Determines if a GeoJSON geometry type (Point, LineString, Polygon) should be included
 
 ### Query Construction
 
@@ -151,14 +157,25 @@ if should_include_element_in_query(osm_query_key, osm_query_value, "way"):
 
 ### Result Processing
 
-The result processing loop (line 1001 in `geocoding.py`) uses `should_include_element_in_results()` to filter elements:
+The result processing loop (line 1001 in `geocoding.py`) uses multiple filtering layers:
 
+1. **Element-level filtering**: Uses `should_include_element_in_results()` to filter OSM elements:
 ```python
 for element in overpass_data["elements"]:
     if not should_include_element_in_results(element, osm_query_key, osm_query_value):
         continue
     # ... process element ...
 ```
+
+2. **GeoJSON geometry filtering**: Uses `should_include_geojson_geometry()` to filter GeoJSON geometry types:
+```python
+geom_type = feature_dict["geometry"]["type"]
+if not should_include_geojson_geometry(geom_type, osm_query_key):
+    continue
+# ... add to appropriate collection ...
+```
+
+This ensures that for highway queries, only LineString geometries are returned (excluding Polygon areas).
 
 ## Examples
 

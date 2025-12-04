@@ -11,6 +11,7 @@ from services.tools.geocoding import (
     get_geometry_preferences,
     should_include_element_in_query,
     should_include_element_in_results,
+    should_include_geojson_geometry,
 )
 
 
@@ -242,6 +243,53 @@ class TestQueryConstructionIntegration:
         assert should_include_element_in_query("amenity", "*", "node") is True
         assert should_include_element_in_query("amenity", "*", "way") is True
         assert should_include_element_in_query("amenity", "*", "relation") is True
+
+
+@pytest.mark.unit
+class TestShouldIncludeGeoJSONGeometry:
+    """Test should_include_geojson_geometry helper function."""
+
+    def test_highway_excludes_polygons(self):
+        """Test that highway queries exclude Polygon geometries."""
+        assert should_include_geojson_geometry("Polygon", "highway") is False
+        assert should_include_geojson_geometry("LineString", "highway") is True
+        assert should_include_geojson_geometry("Point", "highway") is True
+
+    def test_railway_excludes_polygons(self):
+        """Test that railway queries exclude Polygon geometries."""
+        assert should_include_geojson_geometry("Polygon", "railway") is False
+        assert should_include_geojson_geometry("LineString", "railway") is True
+        assert should_include_geojson_geometry("Point", "railway") is True
+
+    def test_waterway_excludes_polygons(self):
+        """Test that waterway queries exclude Polygon geometries."""
+        assert should_include_geojson_geometry("Polygon", "waterway") is False
+        assert should_include_geojson_geometry("LineString", "waterway") is True
+        assert should_include_geojson_geometry("Point", "waterway") is True
+
+    def test_aeroway_excludes_polygons(self):
+        """Test that aeroway queries exclude Polygon geometries."""
+        assert should_include_geojson_geometry("Polygon", "aeroway") is False
+        assert should_include_geojson_geometry("LineString", "aeroway") is True
+        assert should_include_geojson_geometry("Point", "aeroway") is True
+
+    def test_power_excludes_polygons(self):
+        """Test that power queries exclude Polygon geometries."""
+        assert should_include_geojson_geometry("Polygon", "power") is False
+        assert should_include_geojson_geometry("LineString", "power") is True
+        assert should_include_geojson_geometry("Point", "power") is True
+
+    def test_unconfigured_key_includes_all_geometries(self):
+        """Test that unconfigured keys include all geometry types."""
+        assert should_include_geojson_geometry("Polygon", "amenity") is True
+        assert should_include_geojson_geometry("LineString", "amenity") is True
+        assert should_include_geojson_geometry("Point", "amenity") is True
+
+    def test_building_includes_polygons(self):
+        """Test that building queries include Polygon geometries."""
+        assert should_include_geojson_geometry("Polygon", "building") is True
+        assert should_include_geojson_geometry("LineString", "building") is True
+        assert should_include_geojson_geometry("Point", "building") is True
 
 
 @pytest.mark.unit

@@ -73,6 +73,41 @@ def should_include_element_in_query(osm_key: str, osm_value: str, element_type: 
     return True
 
 
+def should_include_geojson_geometry(geojson_geometry_type: str, osm_key: str) -> bool:
+    """
+    Determine if a GeoJSON geometry type should be included in results.
+
+    Args:
+        geojson_geometry_type: GeoJSON geometry type ("Point", "LineString", "Polygon")
+        osm_key: OSM tag key (e.g., "highway")
+
+    Returns:
+        True if geometry type should be included, False otherwise
+    """
+    # For highway queries, exclude polygons (roads should be linear features)
+    if osm_key == "highway" and geojson_geometry_type == "Polygon":
+        return False
+
+    # For railway queries, exclude polygons (tracks should be linear features)
+    if osm_key == "railway" and geojson_geometry_type == "Polygon":
+        return False
+
+    # For waterway queries, exclude polygons (waterways are typically linear)
+    if osm_key == "waterway" and geojson_geometry_type == "Polygon":
+        return False
+
+    # For aeroway queries, exclude polygons (runways/taxiways are linear)
+    if osm_key == "aeroway" and geojson_geometry_type == "Polygon":
+        return False
+
+    # For power queries, exclude polygons (power lines are linear)
+    if osm_key == "power" and geojson_geometry_type == "Polygon":
+        return False
+
+    # Default: include all geometry types
+    return True
+
+
 def should_include_element_in_results(
     element: Dict[str, Any], osm_key: str, osm_value: str
 ) -> bool:
@@ -1028,6 +1063,11 @@ def geocode_using_overpass_to_geostate(
 
             processed_osm_ids.add(osm_element_id)
             geom_type = feature_dict["geometry"]["type"]
+
+            # Check if this GeoJSON geometry type should be included
+            if not should_include_geojson_geometry(geom_type, osm_query_key):
+                continue
+
             if geom_type == "Point":
                 point_features.append(feature_dict)
             elif geom_type == "Polygon":
