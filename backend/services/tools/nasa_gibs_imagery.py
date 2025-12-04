@@ -85,7 +85,6 @@ NASA_GIBS_LAYERS = {
         "category": "fire",
         "description": "Afternoon fire observations from MODIS Aqua",
     },
-
     # ==================== TRUE COLOR IMAGERY ====================
     "modis_terra_truecolor": {
         "name": "MODIS_Terra_CorrectedReflectance_TrueColor",
@@ -111,7 +110,6 @@ NASA_GIBS_LAYERS = {
         "category": "imagery",
         "description": "High-resolution true color from VIIRS NOAA-20",
     },
-
     # ==================== CLOUDS ====================
     "modis_terra_cloud_fraction": {
         "name": "MODIS_Terra_Cloud_Fraction_Day",
@@ -125,7 +123,6 @@ NASA_GIBS_LAYERS = {
         "category": "weather",
         "description": "Cloud cover fraction from MODIS Aqua satellite",
     },
-
     # ==================== TEMPERATURE ====================
     "modis_lst_day": {
         "name": "MODIS_Terra_Land_Surface_Temp_Day",
@@ -151,7 +148,6 @@ NASA_GIBS_LAYERS = {
         "category": "ocean",
         "description": "Ocean chlorophyll concentration indicating phytoplankton",
     },
-
     # ==================== SNOW & ICE ====================
     "modis_snow_cover": {
         "name": "MODIS_Terra_NDSI_Snow_Cover",
@@ -165,7 +161,6 @@ NASA_GIBS_LAYERS = {
         "category": "cryosphere",
         "description": "High-resolution snow cover from VIIRS",
     },
-
     # ==================== VEGETATION ====================
     "modis_ndvi": {
         "name": "MODIS_Terra_NDVI_8Day",
@@ -179,7 +174,6 @@ NASA_GIBS_LAYERS = {
         "category": "vegetation",
         "description": "8-day composite Enhanced Vegetation Index",
     },
-
     # ==================== ATMOSPHERE ====================
     "modis_aod": {
         "name": "MODIS_Terra_Aerosol_Optical_Depth",
@@ -193,7 +187,6 @@ NASA_GIBS_LAYERS = {
         "category": "atmosphere",
         "description": "UV Aerosol Index showing smoke, dust plumes",
     },
-
     # ==================== NIGHTTIME ====================
     "viirs_dnb": {
         "name": "VIIRS_SNPP_DayNightBand_ENCC",
@@ -201,7 +194,6 @@ NASA_GIBS_LAYERS = {
         "category": "night",
         "description": "Nighttime visible imagery showing city lights and fires",
     },
-
     # ==================== PRECIPITATION ====================
     "imerg_precipitation": {
         "name": "IMERG_Precipitation_Rate",
@@ -209,7 +201,6 @@ NASA_GIBS_LAYERS = {
         "category": "weather",
         "description": "Global precipitation rate estimate",
     },
-
     # ==================== GEOSTATIONARY ====================
     "goes_east_visible": {
         "name": "GOES-East_ABI_Band02_Red_Visible_1km",
@@ -309,8 +300,7 @@ def get_nasa_gibs_layer(
     """
     try:
         logger.info(
-            f"NASA GIBS request: location={location}, layer={layer_id}, "
-            f"category={category}"
+            f"NASA GIBS request: location={location}, layer={layer_id}, " f"category={category}"
         )
 
         # If user wants to list available layers
@@ -338,12 +328,14 @@ def get_nasa_gibs_layer(
                         response_lines.append(f"  • `{lid}`: {info['title']}")
                     response_lines.append("")
 
-            response_lines.extend([
-                "---",
-                "**Usage:** Call again with a specific `layer_id` to add it to the map.",
-                f"**Example:** get_nasa_gibs_layer(location='{location}', "
-                f"layer_id='viirs_snpp_fire_day')",
-            ])
+            response_lines.extend(
+                [
+                    "---",
+                    "**Usage:** Call again with a specific `layer_id` to add it to the map.",
+                    f"**Example:** get_nasa_gibs_layer(location='{location}', "
+                    f"layer_id='viirs_snpp_fire_day')",
+                ]
+            )
 
             return Command(
                 update={
@@ -406,10 +398,16 @@ def get_nasa_gibs_layer(
 
         # Get category emoji
         cat_emoji = {
-            "fire": "🔥", "imagery": "🛰️", "weather": "☁️",
-            "temperature": "🌡️", "ocean": "🌊", "cryosphere": "❄️",
-            "vegetation": "🌿", "atmosphere": "💨", "night": "🌙",
-            "geostationary": "📡"
+            "fire": "🔥",
+            "imagery": "🛰️",
+            "weather": "☁️",
+            "temperature": "🌡️",
+            "ocean": "🌊",
+            "cryosphere": "❄️",
+            "vegetation": "🌿",
+            "atmosphere": "💨",
+            "night": "🌙",
+            "geostationary": "📡",
         }.get(layer_info["category"], "🗺️")
 
         # Create GeoDataObject
@@ -450,10 +448,7 @@ def get_nasa_gibs_layer(
             "- Toggle layer visibility in the layer panel",
         ]
 
-        result_msg = ToolMessage(
-            content="\n".join(response_lines),
-            tool_call_id=tool_call_id
-        )
+        result_msg = ToolMessage(content="\n".join(response_lines), tool_call_id=tool_call_id)
         return Command(
             update={
                 "geodata_results": [geo_obj],
@@ -464,12 +459,9 @@ def get_nasa_gibs_layer(
     except Exception as e:
         logger.exception(f"Error in NASA GIBS layer tool: {e}")
         err_msg = ToolMessage(
-            content=f"Error adding GIBS layer: {str(e)}",
-            tool_call_id=tool_call_id
+            content=f"Error adding GIBS layer: {str(e)}", tool_call_id=tool_call_id
         )
-        return Command(
-            update={"messages": [err_msg]}
-        )
+        return Command(update={"messages": [err_msg]})
 
 
 @tool
@@ -509,8 +501,16 @@ def list_nasa_gibs_layers(
                 response_lines.append(f"  • {cat}: {desc}")
         else:
             category_order = [
-                "fire", "imagery", "weather", "temperature", "ocean",
-                "cryosphere", "vegetation", "atmosphere", "night", "geostationary"
+                "fire",
+                "imagery",
+                "weather",
+                "temperature",
+                "ocean",
+                "cryosphere",
+                "vegetation",
+                "atmosphere",
+                "night",
+                "geostationary",
             ]
             for cat in category_order:
                 if cat not in layers_by_category:
@@ -520,28 +520,20 @@ def list_nasa_gibs_layers(
                     response_lines.append(f"  • `{lid}`: {info['title']}")
                 response_lines.append("")
 
-        response_lines.extend([
-            "---",
-            "**To add a layer to the map:**",
-            "Use `get_nasa_gibs_layer(location='YOUR_LOCATION', layer_id='LAYER_ID')`",
-            "",
-            f"**Total layers available:** {len(NASA_GIBS_LAYERS)}",
-        ])
+        response_lines.extend(
+            [
+                "---",
+                "**To add a layer to the map:**",
+                "Use `get_nasa_gibs_layer(location='YOUR_LOCATION', layer_id='LAYER_ID')`",
+                "",
+                f"**Total layers available:** {len(NASA_GIBS_LAYERS)}",
+            ]
+        )
 
-        result_msg = ToolMessage(
-            content="\n".join(response_lines),
-            tool_call_id=tool_call_id
-        )
-        return Command(
-            update={"messages": [result_msg]}
-        )
+        result_msg = ToolMessage(content="\n".join(response_lines), tool_call_id=tool_call_id)
+        return Command(update={"messages": [result_msg]})
 
     except Exception as e:
         logger.exception(f"Error listing NASA GIBS layers: {e}")
-        err_msg = ToolMessage(
-            content=f"Error listing layers: {str(e)}",
-            tool_call_id=tool_call_id
-        )
-        return Command(
-            update={"messages": [err_msg]}
-        )
+        err_msg = ToolMessage(content=f"Error listing layers: {str(e)}", tool_call_id=tool_call_id)
+        return Command(update={"messages": [err_msg]})

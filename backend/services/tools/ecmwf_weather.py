@@ -455,9 +455,7 @@ def get_ecmwf_weather_data(
                 f"({coords['lat']}, {coords['lon']})"
             )
 
-            weather_data = get_forecast_data(
-                coords["lat"], coords["lon"], forecast_days, variables
-            )
+            weather_data = get_forecast_data(coords["lat"], coords["lon"], forecast_days, variables)
 
             data_type_label = "Forecast"
             date_range_str = f"{forecast_days} days ahead"
