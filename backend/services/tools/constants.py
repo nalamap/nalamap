@@ -428,3 +428,47 @@ AMENITY_MAPPING = {
     "aviation infrastructure": "aeroway=*",
     "air transport": "aeroway=*",
 }
+
+# Geometry preferences for OSM keys
+# Defines which geometry types (node, way, relation) should be included/excluded
+# for different OSM tag keys to match user expectations
+OSM_GEOMETRY_PREFERENCES = {
+    "highway": {
+        "preferred_geometries": ["way", "relation"],
+        "exclude_geometries": ["node"],
+        "exclude_values": {
+            "bus_stop",
+            "traffic_signals",
+            "crossing",
+            "stop",
+            "give_way",
+            "mini_roundabout",
+            "motorway_junction",
+        },
+        "description": "Roads are linear features (ways), not point infrastructure",
+    },
+    "railway": {
+        "preferred_geometries": ["way", "relation"],
+        "exclude_geometries": ["node"],
+        "exclude_values": {"station", "signal", "switch", "level_crossing"},
+        "description": "Railway tracks are linear features, stations are points",
+    },
+    "waterway": {
+        "preferred_geometries": ["way", "relation"],
+        "exclude_geometries": ["node"],
+        "exclude_values": {"weir", "lock", "dam", "waterfall"},
+        "description": "Waterways are linear features (rivers, streams), not point features",
+    },
+    "aeroway": {
+        "preferred_geometries": ["way", "relation"],
+        "exclude_geometries": ["node"],
+        "exclude_values": {"gate"},
+        "description": "Aeroways are linear features (runways, taxiways), gates are points",
+    },
+    "power": {
+        "preferred_geometries": ["way", "relation"],
+        "exclude_geometries": ["node"],
+        "exclude_values": {"tower", "pole", "substation", "generator"},
+        "description": "Power lines are linear features, infrastructure is points",
+    },
+}

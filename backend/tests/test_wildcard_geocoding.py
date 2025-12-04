@@ -6,7 +6,6 @@ including highways, military infrastructure, aeroway, natural features,
 waterways, buildings, and places.
 """
 
-import pytest
 from services.tools.constants import AMENITY_MAPPING
 
 
@@ -106,6 +105,7 @@ class TestWildcardQueryConstruction:
 
     def test_format_tag_filter_wildcard(self):
         """Test that wildcard tag filters are correctly formatted."""
+
         # Simulate the helper function from geocoding.py
         def format_tag_filter(key: str, value: str) -> str:
             """Format OSM tag filter, handling wildcard queries."""
@@ -121,6 +121,7 @@ class TestWildcardQueryConstruction:
 
     def test_format_tag_filter_specific(self):
         """Test that specific value tag filters are correctly formatted."""
+
         # Simulate the helper function from geocoding.py
         def format_tag_filter(key: str, value: str) -> str:
             """Format OSM tag filter, handling wildcard queries."""
@@ -160,4 +161,3 @@ class TestOSMTagMapping:
         assert AMENITY_MAPPING.get("restaurant") == "amenity=restaurant"
         assert AMENITY_MAPPING.get("hospital") == "amenity=hospital"
         assert AMENITY_MAPPING.get("school") == "amenity=school"
-

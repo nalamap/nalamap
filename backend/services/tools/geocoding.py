@@ -21,6 +21,89 @@ headers_nalamap = {
 }
 
 
+def get_geometry_preferences(osm_key: str) -> Dict[str, Any]:
+    """
+    Get geometry preferences for an OSM key.
+
+    Returns default preferences if key not configured.
+
+    Args:
+        osm_key: OSM tag key (e.g., "highway")
+
+    Returns:
+        Dictionary with geometry preferences
+    """
+    from services.tools.constants import OSM_GEOMETRY_PREFERENCES
+
+    default_prefs = {
+        "preferred_geometries": ["node", "way", "relation"],
+        "exclude_geometries": [],
+        "exclude_values": set(),
+        "description": "No specific geometry preferences",
+    }
+
+    return OSM_GEOMETRY_PREFERENCES.get(osm_key, default_prefs)
+
+
+def should_include_element_in_query(osm_key: str, osm_value: str, element_type: str) -> bool:
+    """
+    Determine if an element type should be included in the Overpass query.
+
+    Args:
+        osm_key: OSM tag key (e.g., "highway")
+        osm_value: OSM tag value (e.g., "*" or "motorway")
+        element_type: OSM element type ("node", "way", "relation")
+
+    Returns:
+        True if element type should be queried, False otherwise
+    """
+    from services.tools.constants import OSM_GEOMETRY_PREFERENCES
+
+    # If wildcard query and key has preferences, use them
+    if osm_value == "*" and osm_key in OSM_GEOMETRY_PREFERENCES:
+        prefs = get_geometry_preferences(osm_key)
+        return element_type in prefs["preferred_geometries"]
+
+    # For specific values, check if excluded
+    prefs = get_geometry_preferences(osm_key)
+    if osm_value in prefs.get("exclude_values", set()):
+        return False
+
+    # Default: include all
+    return True
+
+
+def should_include_element_in_results(
+    element: Dict[str, Any], osm_key: str, osm_value: str
+) -> bool:
+    """
+    Determine if an element should be included in results after query.
+    Provides a second layer of filtering.
+
+    Args:
+        element: OSM element from Overpass response
+        osm_key: OSM tag key
+        osm_value: OSM tag value
+
+    Returns:
+        True if element should be included, False otherwise
+    """
+    prefs = get_geometry_preferences(osm_key)
+    element_type = element.get("type")
+    element_tags = element.get("tags", {})
+
+    # Check if geometry type is excluded
+    if element_type in prefs.get("exclude_geometries", []):
+        return False
+
+    # Check if specific tag value is excluded
+    element_value = element_tags.get(osm_key)
+    if element_value in prefs.get("exclude_values", set()):
+        return False
+
+    return True
+
+
 @tool
 def geocode_using_geonames(location: str, maxRows: int = 3) -> str:
     """
@@ -768,26 +851,38 @@ def geocode_using_overpass_to_geostate(
             f"area({overpass_area_id})->.search_area;"
         )  # Correct way to define area from relation ID
         overpass_query_parts.append("(")
-        overpass_query_parts.append(f"  node{tag_filter}(area.search_area);")
-        overpass_query_parts.append(f"  way{tag_filter}(area.search_area);")
-        overpass_query_parts.append(f"  relation{tag_filter}(area.search_area);")
+        # Use geometry preferences to determine which element types to query
+        if should_include_element_in_query(osm_query_key, osm_query_value, "node"):
+            overpass_query_parts.append(f"  node{tag_filter}(area.search_area);")
+        if should_include_element_in_query(osm_query_key, osm_query_value, "way"):
+            overpass_query_parts.append(f"  way{tag_filter}(area.search_area);")
+        if should_include_element_in_query(osm_query_key, osm_query_value, "relation"):
+            overpass_query_parts.append(f"  relation{tag_filter}(area.search_area);")
         overpass_query_parts.append(");")
     elif bbox_coords:
         # Bounding box search
         s, w, n, e = bbox_coords
         location_filter = f"({s},{w},{n},{e})"
         overpass_query_parts.append("(")
-        overpass_query_parts.append(f"  node{tag_filter}{location_filter};")
-        overpass_query_parts.append(f"  way{tag_filter}{location_filter};")
-        overpass_query_parts.append(f"  relation{tag_filter}{location_filter};")
+        # Use geometry preferences to determine which element types to query
+        if should_include_element_in_query(osm_query_key, osm_query_value, "node"):
+            overpass_query_parts.append(f"  node{tag_filter}{location_filter};")
+        if should_include_element_in_query(osm_query_key, osm_query_value, "way"):
+            overpass_query_parts.append(f"  way{tag_filter}{location_filter};")
+        if should_include_element_in_query(osm_query_key, osm_query_value, "relation"):
+            overpass_query_parts.append(f"  relation{tag_filter}{location_filter};")
         overpass_query_parts.append(");")
     elif lat is not None and lon is not None:
         # Radius around point search
         location_filter = f"(around:{radius_meters},{lat},{lon})"
         overpass_query_parts.append("(")
-        overpass_query_parts.append(f"  node{tag_filter}{location_filter};")
-        overpass_query_parts.append(f"  way{tag_filter}{location_filter};")
-        overpass_query_parts.append(f"  relation{tag_filter}{location_filter};")
+        # Use geometry preferences to determine which element types to query
+        if should_include_element_in_query(osm_query_key, osm_query_value, "node"):
+            overpass_query_parts.append(f"  node{tag_filter}{location_filter};")
+        if should_include_element_in_query(osm_query_key, osm_query_value, "way"):
+            overpass_query_parts.append(f"  way{tag_filter}{location_filter};")
+        if should_include_element_in_query(osm_query_key, osm_query_value, "relation"):
+            overpass_query_parts.append(f"  relation{tag_filter}{location_filter};")
         overpass_query_parts.append(");")
     else:
         return Command(
@@ -905,11 +1000,15 @@ def geocode_using_overpass_to_geostate(
         if "type" not in element or "id" not in element:
             continue
 
+        # Apply geometry preferences filtering
+        if not should_include_element_in_results(element, osm_query_key, osm_query_value):
+            continue
+
         osm_element_id = f"{element['type']}/{element['id']}"
 
+        # Note: Tag matching is handled later in the processing loop
+        # This check is kept for potential future use but currently doesn't filter
         element_tags = element.get("tags", {})
-        if not (element_tags.get(osm_query_key) == osm_query_value):
-            pass
 
         if osm_element_id in processed_osm_ids:
             continue
@@ -918,7 +1017,11 @@ def geocode_using_overpass_to_geostate(
 
         if feature_dict and feature_dict["geometry"]:
             element_tags = feature_dict.get("properties", {})
-            is_primary_tagged_feature = element_tags.get(osm_query_key) == osm_query_value
+            # For wildcard queries, check if the key exists; for specific values, check exact match
+            if osm_query_value == "*":
+                is_primary_tagged_feature = osm_query_key in element_tags
+            else:
+                is_primary_tagged_feature = element_tags.get(osm_query_key) == osm_query_value
 
             if element["type"] != "node" and not is_primary_tagged_feature:
                 continue

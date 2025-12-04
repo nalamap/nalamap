@@ -5,7 +5,7 @@ NaLaMap is an open-source platform that helps users find and analyze geospatial 
 ## Features
 
 * Upload and display vector data on a map. 
-* Geocode Locations using OSM and GeoNames (e.g. hospitals, schools etc.).
+* Geocode Locations using OSM and GeoNames (e.g. hospitals, schools, roads, railways). Intelligent geometry filtering ensures queries return the correct feature types (e.g., road segments instead of bus stops). See [OSM Geometry Filtering Documentation](docs/geocoding-osm-geometry-filtering.md).
 * Find and integrate data from existing Open Data Portals or own databases.
 * Chat with AI-agent to retrieve information on data content and quality.
 * **Multi-Provider LLM Support**: Choose from OpenAI, Azure OpenAI, Google Gemini, Mistral AI, or DeepSeek.

@@ -257,6 +257,7 @@ Tools are functions that the AI agent can call to perform actions. All tools are
 - **Geocoding** (`geocoding.py`):
   - `geocode_using_nominatim_to_geostate`: Location search using OpenStreetMap Nominatim
   - `geocode_using_overpass_to_geostate`: POI search using Overpass API (restaurants, hospitals, etc.)
+  - **OSM Geometry Filtering**: Configuration-based system to filter OSM elements by geometry type (nodes, ways, relations) based on user intent. Ensures queries like "highways" return road segments (ways) instead of point infrastructure (bus stops). See [OSM Geometry Filtering Documentation](docs/geocoding-osm-geometry-filtering.md) for details.
 
 - **Geoprocessing** (`geoprocess_tools.py`):
   - `geoprocess_tool`: Unified tool for spatial operations (buffer, clip, union, intersect, centroid, etc.)
