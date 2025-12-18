@@ -1,7 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../context/AuthContext";
+import { getApiBase } from "../utils/apiBase";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -9,6 +10,22 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [providers, setProviders] = useState<Array<{ name: string; issuer: string }>>([]);
+  const apiBase = getApiBase();
+
+  useEffect(() => {
+    async function loadProviders() {
+      try {
+        const res = await fetch(`${apiBase}/auth/oidc/providers`);
+        if (!res.ok) return;
+        const data = await res.json();
+        setProviders(data);
+      } catch {
+        // ignore provider fetch errors to keep password login available
+      }
+    }
+    loadProviders();
+  }, [apiBase]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,6 +71,28 @@ export default function LoginPage() {
           Login
         </button>
       </form>
+      {providers.length > 0 && (
+        <div className="mt-6 space-y-2">
+          <div className="text-sm text-neutral-700">Or continue with</div>
+          <div className="space-y-2">
+            {providers.map((p) => (
+              <button
+                key={p.name}
+                onClick={() => {
+                  const redirect = `${window.location.origin}/map`;
+                  const url = `${apiBase}/auth/oidc/login?provider=${p.name}&redirect=${encodeURIComponent(
+                    redirect
+                  )}`;
+                  window.location.href = url;
+                }}
+                className="w-full border border-primary-300 p-2 rounded hover:bg-primary-50"
+              >
+                Continue with {p.name.charAt(0).toUpperCase() + p.name.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <p className="mt-4 text-sm">
         Don't have an account?{' '}
         <a href="/signup" className="text-second-primary-600 hover:text-second-primary-700">

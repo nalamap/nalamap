@@ -38,6 +38,7 @@ httpx-sse = "^0.4.3"
 passlib = {extras = ["bcrypt"], version = "^1.7"}
 python-jose = {extras = ["cryptography"], version = "^3.3"}
 bcrypt = "^5.0.0"
+authlib = "^1.4"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "*"

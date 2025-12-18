@@ -1,8 +1,9 @@
 """Security utilities for password hashing and JWT tokens."""
 
 from datetime import datetime, timedelta
+from uuid import uuid4
 
-from jose import jwt  # , JWTError
+from jose import jwt, JWTError  # , JWTError
 from passlib.context import CryptContext
 
 from core.config import SECRET_KEY, ACCESS_TOKEN_EXPIRE_MINUTES
@@ -41,4 +42,22 @@ def create_access_token(subject: str, expires_delta: timedelta | None = None) ->
 
 def decode_access_token(token: str) -> dict:
     """Decode a JWT token and return the payload."""
+    return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+
+
+def create_oauth_state(provider: str, redirect_url: str, expires_minutes: int = 10) -> str:
+    """Create a short-lived signed state token for OIDC flows."""
+    now = datetime.utcnow()
+    payload = {
+        "provider": provider,
+        "redirect": redirect_url,
+        "nonce": uuid4().hex,
+        "exp": now + timedelta(minutes=expires_minutes),
+        "iat": now,
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def decode_oauth_state(token: str) -> dict:
+    """Decode and validate an OAuth state token."""
     return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])

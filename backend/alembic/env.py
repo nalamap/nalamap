@@ -2,6 +2,8 @@
 
 import asyncio
 import os
+import sys
+from pathlib import Path
 from logging.config import fileConfig
 
 from sqlalchemy import pool
@@ -15,9 +17,17 @@ from alembic import context
 # access to the values within the .ini file in use.
 config = context.config
 
+# Ensure project root is on sys.path so db modules can be imported
+BASE_DIR = Path(__file__).resolve().parents[1]
+if str(BASE_DIR) not in sys.path:
+    sys.path.append(str(BASE_DIR))
+
 # Interpret the config file for Python logging.
-# configure Python logging from file
-fileConfig(config.config_file_name)
+# configure Python logging from file if logging sections exist; otherwise skip
+try:
+    fileConfig(config.config_file_name)
+except KeyError:
+    pass
 # override sqlalchemy URL from environment if provided
 try:
     from core.config import DATABASE_URL

@@ -30,6 +30,9 @@ BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
 RAW_ALLOWED_ORIGINS = os.getenv("ALLOWED_CORS_ORIGINS", "*")
 ALLOWED_CORS_ORIGINS = [o.strip() for o in RAW_ALLOWED_ORIGINS.split(",") if o.strip()]
 
+# Frontend base URL (used for auth redirects / post-login navigation)
+FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000")
+
 # Cookie Security Configuration
 # In Azure Container Apps, nginx handles HTTPS termination, so backend receives HTTP.
 # Set COOKIE_SECURE=false in such environments while still using HTTPS externally.
@@ -50,6 +53,45 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 # Authentication settings
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
+OIDC_PROVIDERS = [p.strip() for p in os.getenv("OIDC_PROVIDERS", "google").split(",") if p.strip()]
+
+
+def _parse_oidc_provider(name: str) -> dict | None:
+    """Load OIDC provider config from environment variables.
+
+    Expected variables:
+    - OIDC_<NAME>_ISSUER
+    - OIDC_<NAME>_CLIENT_ID
+    - OIDC_<NAME>_CLIENT_SECRET
+    - OIDC_<NAME>_SCOPES (optional, space-separated; default: \"openid email profile\")
+    """
+
+    env_key = name.upper()
+    issuer = os.getenv(f"OIDC_{env_key}_ISSUER")
+    client_id = os.getenv(f"OIDC_{env_key}_CLIENT_ID")
+    client_secret = os.getenv(f"OIDC_{env_key}_CLIENT_SECRET")
+    scopes = os.getenv(f"OIDC_{env_key}_SCOPES", "openid email profile")
+
+    if not issuer or not client_id or not client_secret:
+        return None
+
+    return {
+        "name": name,
+        "issuer": issuer.rstrip("/"),
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "scopes": scopes,
+    }
+
+
+def get_oidc_providers() -> list[dict]:
+    """Return configured OIDC providers with required fields."""
+    providers: list[dict] = []
+    for name in OIDC_PROVIDERS:
+        provider = _parse_oidc_provider(name)
+        if provider:
+            providers.append(provider)
+    return providers
 
 # ----------------------------------------------------------------------------
 # Mapping / Geospatial Service Flags

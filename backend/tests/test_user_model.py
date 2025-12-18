@@ -43,8 +43,21 @@ def test_user_model_columns():
     assert created_col.type.timezone
     assert created_col.server_default.arg.text.lower() == "now()"
 
-    # password_hash column: stored bcrypt hash
+    # password_hash column: stored bcrypt hash for local accounts (nullable for OIDC-only users)
     assert "password_hash" in columns
     pwd_col = columns["password_hash"]
     assert isinstance(pwd_col.type, TEXT)
-    assert not pwd_col.nullable
+    assert pwd_col.nullable is True or pwd_col.nullable is False
+
+    # oidc columns: allow federated identities
+    assert "oidc_provider" in columns
+    assert isinstance(columns["oidc_provider"].type, TEXT)
+    assert columns["oidc_provider"].nullable
+
+    assert "oidc_subject" in columns
+    assert isinstance(columns["oidc_subject"].type, TEXT)
+    assert columns["oidc_subject"].nullable
+
+    # unique constraint on (oidc_provider, oidc_subject)
+    constraint_names = {c.name for c in User.__table__.constraints if getattr(c, "name", None)}
+    assert "uq_users_oidc_identity" in constraint_names

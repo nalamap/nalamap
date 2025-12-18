@@ -2,6 +2,9 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Authentication flow', () => {
   test('Sign up flow redirects to map after successful signup', async ({ page }) => {
+    await page.route('**/api/auth/oidc/providers', route =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) })
+    );
     // Mock signup and me endpoints
     await page.route('**/api/auth/signup', route =>
       route.fulfill({
@@ -28,6 +31,9 @@ test.describe('Authentication flow', () => {
   });
 
   test('Login flow redirects to map after successful login', async ({ page }) => {
+    await page.route('**/api/auth/oidc/providers', route =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) })
+    );
     // Mock login and me endpoints
     await page.route('**/api/auth/login', route =>
       route.fulfill({
