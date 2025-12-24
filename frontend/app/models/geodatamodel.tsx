@@ -10,11 +10,14 @@ export interface ProcessingMetadata {
   operation: string; // e.g., "buffer", "area", "overlay"
   crs_used: string; // e.g., "EPSG:32633"
   crs_name: string; // e.g., "WGS 84 / UTM zone 33N"
-  projection_property: string; // e.g., "conformal", "equal-area", "equidistant"
   auto_selected: boolean; // true if auto-selected, false if user-specified
   selection_reason?: string; // e.g., "Local extent - UTM zone 33N"
-  expected_error?: number; // e.g., 0.1 for <0.1% error
   origin_layers?: string[]; // Names of input layers used to generate this result
+  // Optional fields for custom WKT projections
+  authority?: string; // "WKT" when a custom projection is used
+  wkt?: string; // Full WKT definition
+  wkt_hash?: string; // Short hash for identification
+  wkt_params?: Record<string, any>; // Parameter dictionary
 }
 
 export interface LayerStyle {

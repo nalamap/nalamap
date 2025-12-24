@@ -1,25 +1,65 @@
 """
-Intelligent CRS selection for geoprocessing operations.
+Intelligent planar CRS selection for geoprocessing operations.
 
-Implements deterministic, rule-based projection selection based on:
+Implements deterministic, rule-based projection selection to automatically
+choose optimal planar projections for geoprocessing operations. The system
+provides excellent accuracy (<1% error) for the vast majority of use cases.
+
+Selection factors:
 - Geographic extent (local/regional/global)
 - Operation type (area/distance/topology)
 - Latitude zone (equatorial/mid-latitude/polar)
+- Orientation (EW vs NS dominant)
+- UTM zone boundaries
+- Antimeridian crossing
 
-This module provides:
-- get_optimal_crs_for_bbox(bbox, operation_type)
-- prepare_gdf_for_operation(gdf, operation_type, ...)
-- validate_crs(epsg_code)
+Key functions:
+- get_optimal_crs_for_bbox(bbox, operation_type) - Main entry point
+- decide_projection(bbox, operation_type, ...) - Core decision algorithm
+- prepare_gdf_for_operation(gdf, operation_type, ...) - Apply optimal projection
+- validate_crs(epsg_code) - Verify CRS validity
+- compute_bbox_metrics(bbox) - Helper for extent analysis
+
+Accuracy expectations:
+- Local operations (<6° extent): <0.1% error
+- Regional operations (6-30° extent): 0.5-1% error
+- Polar regions (>80° latitude): 1-3% error (acceptable for most applications)
+- Trans-oceanic spans: 2-5% error (inherent limitation of planar projections)
 
 """
 
 import logging
-from typing import Tuple, Optional, Dict, Any
+import math
+from typing import Tuple, Optional, Dict, Any, List
 from enum import Enum
+import numpy as np
 
 from pyproj import CRS
+from services.tools.geoprocessing.wkt_factory import (
+    build_lcc_wkt,
+    build_albers_wkt,
+    build_laea_polar_wkt,
+    build_polar_stere_wkt,
+    hash_wkt,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _convert_to_python_types(obj):
+    """
+    Recursively convert numpy types to Python native types for JSON serialization.
+    """
+    if isinstance(obj, dict):
+        return {k: _convert_to_python_types(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return type(obj)(_convert_to_python_types(item) for item in obj)
+    elif isinstance(obj, (np.integer, np.floating)):
+        return obj.item()
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    else:
+        return obj
 
 
 class ProjectionProperty(Enum):
@@ -50,21 +90,10 @@ VALIDATED_CRS = {
     **{f"326{str(i).zfill(2)}": f"UTM Zone {i}N" for i in range(1, 61)},
     # UTM Zones South (EPSG:32701-32760)
     **{f"327{str(i).zfill(2)}": f"UTM Zone {i}S" for i in range(1, 61)},
-    # Regional Equal-Area / Albers-like (note: many are ESRI codes; mapped by string)
-    "102003": "USA Contiguous Albers Equal Area",
-    "102008": "North America Albers Equal Area",
-    "102011": "South America Albers Equal Area",
+    # Selected regional EPSG (kept for name mapping if ever referenced)
     "3035": "Europe LAEA (ETRS89)",
-    "102022": "Africa Albers Equal Area",
-    "102028": "Asia South Albers Equal Area",
     "3577": "Australia Albers",
-    # Regional Conformal
-    "102004": "USA Contiguous Lambert Conformal Conic",
-    "102009": "North America Lambert Conformal Conic",
-    "32040": "South America Lambert Conformal Conic",
     "3034": "Europe LCC (ETRS89)",
-    "102024": "Africa Lambert Conformal Conic",
-    "102027": "Asia North Lambert Conformal Conic",
     "3112": "Australia Lambert Conformal Conic",
     # Polar Projections
     "3995": "Arctic Polar Stereographic",
@@ -88,6 +117,321 @@ REGIONAL_BOUNDARIES = {
 }
 
 
+# ========== Helper Functions for Bbox Analysis ==========
+
+
+def km_per_degree_lon(lat: float) -> float:
+    """
+    Calculate km per degree of longitude at given latitude.
+
+    At equator: ~111 km/degree
+    At poles: ~0 km/degree
+    """
+    return 111.32 * math.cos(math.radians(lat))
+
+
+def km_per_degree_lat() -> float:
+    """
+    Calculate km per degree of latitude (constant).
+
+    Returns ~111 km/degree
+    """
+    return 111.32
+
+
+def compute_utm_zone(lon: float) -> int:
+    """Compute UTM zone number from longitude."""
+    zone = int((lon + 180) / 6) + 1
+    return min(max(zone, 1), 60)
+
+
+def compute_zone_span(min_lon: float, max_lon: float) -> int:
+    """
+    Calculate how many UTM zones are spanned by longitude extent.
+
+    Returns:
+        Number of distinct zones (1 means single zone, 2+ means crossing)
+    """
+    if min_lon > max_lon:  # Antimeridian crossing
+        # Approximate: treat as large span
+        return 10
+
+    min_zone = compute_utm_zone(min_lon)
+    max_zone = compute_utm_zone(max_lon)
+    return abs(max_zone - min_zone) + 1
+
+
+def is_antimeridian_crossing(min_lon: float, max_lon: float) -> bool:
+    """
+    Check if bounding box crosses the antimeridian (±180°).
+
+    Returns:
+        True if crossing detected
+    """
+    return min_lon > max_lon
+
+
+def compute_bbox_metrics(bbox: Tuple[float, float, float, float]) -> Dict[str, Any]:
+    """
+    Compute comprehensive metrics for bbox to guide CRS selection.
+
+    Args:
+        bbox: (min_lon, min_lat, max_lon, max_lat) in EPSG:4326
+
+    Returns:
+        Dict with:
+        - center_lon, center_lat
+        - lon_extent, lat_extent (degrees)
+        - lon_extent_km, lat_extent_km (approximate)
+        - area_km2 (approximate)
+        - orientation_ratio (EW/NS; >1 means EW-dominant)
+        - zone_span (number of UTM zones)
+        - centroid_zone (UTM zone at centroid)
+        - is_polar (|center_lat| >= 80)
+        - is_near_equator (|center_lat| <= 10)
+        - antimeridian_crossing (bool)
+    """
+    min_lon, min_lat, max_lon, max_lat = bbox
+
+    # Handle antimeridian crossing
+    antimeridian = is_antimeridian_crossing(min_lon, max_lon)
+
+    # Compute center
+    if antimeridian:
+        # Wrap-around logic
+        center_lon = ((min_lon + max_lon + 360) / 2) % 360
+        if center_lon > 180:
+            center_lon -= 360
+        lon_extent = (360 - min_lon) + max_lon
+    else:
+        center_lon = (min_lon + max_lon) / 2
+        lon_extent = max_lon - min_lon
+
+    center_lat = (min_lat + max_lat) / 2
+    lat_extent = max_lat - min_lat
+
+    # Compute extents in km (approximate)
+    lat_extent_km = lat_extent * km_per_degree_lat()
+    # Use average latitude for lon calculation
+    avg_lat = center_lat
+    lon_extent_km = lon_extent * km_per_degree_lon(avg_lat)
+
+    # Approximate area
+    area_km2 = lat_extent_km * lon_extent_km
+
+    # Orientation ratio (EW / NS)
+    orientation_ratio = lon_extent_km / max(lat_extent_km, 1.0)
+
+    # UTM zone analysis
+    zone_span = compute_zone_span(min_lon, max_lon)
+    centroid_zone = compute_utm_zone(center_lon)
+
+    # Latitude classification
+    is_polar = abs(center_lat) >= 80 or max_lat > 85 or min_lat < -85
+    is_near_equator = abs(center_lat) <= 10
+
+    return {
+        "center_lon": center_lon,
+        "center_lat": center_lat,
+        "lon_extent": lon_extent,
+        "lat_extent": lat_extent,
+        "lon_extent_km": lon_extent_km,
+        "lat_extent_km": lat_extent_km,
+        "area_km2": area_km2,
+        "orientation_ratio": orientation_ratio,
+        "zone_span": zone_span,
+        "centroid_zone": centroid_zone,
+        "is_polar": is_polar,
+        "is_near_equator": is_near_equator,
+        "antimeridian_crossing": antimeridian,
+    }
+
+
+# ========== Main Decision Algorithm ==========
+
+
+def decide_projection(
+    bbox: Tuple[float, float, float, float],
+    operation_type: OperationType,
+    projection_priority: Optional[ProjectionProperty] = None,
+    fallback_crs: str = "EPSG:3857",
+) -> Dict[str, Any]:
+    """
+    Multi-factor CRS decision algorithm with full transparency.
+
+    Implements hybrid heuristic considering:
+    - Latitude (polar, equatorial, mid-latitude)
+    - Longitude span (UTM zone boundaries)
+    - Orientation (EW vs NS dominant)
+    - Size/extent
+    - Operation type requirements
+
+    Args:
+        bbox: (min_lon, min_lat, max_lon, max_lat) in EPSG:4326
+        operation_type: Type of geoprocessing operation
+        projection_priority: Override projection property
+        fallback_crs: Fallback if no optimal CRS found
+
+    Returns:
+        Dict with:
+        - epsg_code
+        - crs_name
+        - selection_reason
+        - auto_selected
+        - decision_path (list of decision steps taken)
+        - decision_inputs (metrics used in decision)
+    """
+    decision_path = []
+    min_lon, min_lat, max_lon, max_lat = bbox
+
+    # Step 1: Validate bbox
+    if not (
+        -180 <= min_lon <= 180
+        and -90 <= min_lat <= 90
+        and -180 <= max_lon <= 180
+        and -90 <= max_lat <= 90
+    ):
+        decision_path.append("Invalid bbox coordinates")
+        return _create_response_with_metadata(
+            fallback_crs, "Invalid bounding box", decision_path, {}
+        )
+
+    # Compute comprehensive metrics
+    metrics = compute_bbox_metrics(bbox)
+    decision_path.append(
+        f"Computed bbox metrics: center=({metrics['center_lon']:.2f}, {metrics['center_lat']:.2f})"
+    )
+
+    # Determine required projection property
+    if projection_priority:
+        required_property = projection_priority
+        decision_path.append(f"User override: property={required_property.value}")
+    else:
+        required_property = _get_required_property(operation_type)
+        decision_path.append(
+            f"Operation {operation_type.value} requires property={required_property.value}"
+        )
+
+    # Store inputs for metadata
+    decision_inputs = {
+        "bbox": bbox,
+        "centroid": (metrics["center_lon"], metrics["center_lat"]),
+        "extents_deg": (metrics["lon_extent"], metrics["lat_extent"]),
+        "extents_km": (metrics["lon_extent_km"], metrics["lat_extent_km"]),
+        "area_km2": metrics["area_km2"],
+        "orientation_ratio": metrics["orientation_ratio"],
+        "zone_span": metrics["zone_span"],
+        "operation_type": operation_type.value,
+        "required_property": required_property.value,
+    }
+
+    # Step 2: Check for global/near-global extent
+    if metrics["lon_extent"] >= 180 or metrics["lat_extent"] >= 170:
+        decision_path.append(
+            f"Near-global extent: {metrics['lon_extent']:.1f}° × {metrics['lat_extent']:.1f}°"
+        )
+        return _create_response_with_metadata(
+            fallback_crs,
+            f"Extent too large ({metrics['lon_extent']:.1f}° × {metrics['lat_extent']:.1f}°)",
+            decision_path,
+            decision_inputs,
+        )
+
+    # Step 3: Check for polar regions
+    if metrics["is_polar"]:
+        decision_path.append(f"Polar region detected: center_lat={metrics['center_lat']:.1f}°")
+        result = _get_polar_custom(metrics["center_lat"], required_property)
+        result["decision_path"] = decision_path
+        result["decision_inputs"] = decision_inputs
+        return result
+
+    # Step 4: Local extent - consider UTM (with zone seam check)
+    if metrics["lon_extent"] <= 6 and metrics["lat_extent"] <= 6:
+        decision_path.append(
+            f"Local extent: {metrics['lon_extent']:.1f}° × {metrics['lat_extent']:.1f}°"
+        )
+
+        # Check if we're crossing UTM zone boundary
+        if metrics["zone_span"] >= 2 and metrics["lon_extent"] >= 3:
+            decision_path.append(
+                f"Crossing UTM zone seam: span={metrics['zone_span']} zones, skipping UTM"
+            )
+            # Fall through to regional selection
+        else:
+            decision_path.append(f"Using UTM zone {metrics['centroid_zone']}")
+            result = _get_utm_crs(metrics["center_lon"], metrics["center_lat"])
+            result["decision_path"] = decision_path
+            result["decision_inputs"] = decision_inputs
+            return result
+
+    # Step 5: Regional extent - check orientation and operation requirements
+    region = _identify_region(bbox)
+
+    if region:
+        decision_path.append(f"Region identified: {region}")
+
+        # Check for EW-dominant orientation
+        if metrics["orientation_ratio"] >= 1.5:
+            decision_path.append(
+                f"EW-dominant orientation: ratio={metrics['orientation_ratio']:.2f}, prefer LCC"
+            )
+            # Force conformal (LCC) for wide EW strips
+            result = _get_regional_crs(region, ProjectionProperty.CONFORMAL, bbox)
+            result["decision_path"] = decision_path
+            result["decision_inputs"] = decision_inputs
+            return result
+
+        # Check for large area requiring equal-area
+        if metrics["area_km2"] >= 2e6:
+            decision_path.append(f"Large area: {metrics['area_km2']:.0f} km², prefer equal-area")
+            result = _get_regional_crs(region, ProjectionProperty.EQUAL_AREA, bbox)
+            result["decision_path"] = decision_path
+            result["decision_inputs"] = decision_inputs
+            return result
+
+        # Use operation-appropriate projection
+        decision_path.append("Using operation-appropriate projection for region")
+        result = _get_regional_crs(region, required_property, bbox)
+        result["decision_path"] = decision_path
+        result["decision_inputs"] = decision_inputs
+        return result
+
+    # Step 6: Multi-zone or antimeridian crossing
+    if metrics["antimeridian_crossing"]:
+        decision_path.append("Antimeridian crossing detected")
+
+    if metrics["zone_span"] >= 3:
+        decision_path.append(f"Scattered across {metrics['zone_span']} UTM zones")
+
+    # Final fallback
+    decision_path.append("Using fallback projection")
+    return _create_response_with_metadata(
+        fallback_crs,
+        f"Cross-regional extent ({metrics['lon_extent']:.1f}° × {metrics['lat_extent']:.1f}°)",
+        decision_path,
+        decision_inputs,
+    )
+
+
+def _create_response_with_metadata(
+    epsg_code: str,
+    reason: str,
+    decision_path: List[str],
+    decision_inputs: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Create CRS response with full metadata."""
+    # Extract code number from EPSG: or ESRI: prefix
+    code_number = epsg_code.replace("EPSG:", "").replace("ESRI:", "")
+    return {
+        "epsg_code": epsg_code,
+        "crs_name": VALIDATED_CRS.get(code_number, "Custom CRS"),
+        "selection_reason": reason,
+        "auto_selected": True,
+        "decision_path": decision_path,
+        "decision_inputs": decision_inputs,
+    }
+
+
 def get_optimal_crs_for_bbox(
     bbox: Tuple[float, float, float, float],
     operation_type: OperationType,
@@ -98,6 +442,9 @@ def get_optimal_crs_for_bbox(
     """
     Select optimal CRS for given bounding box and operation.
 
+    This is the main entry point for CRS selection. Uses the enhanced
+    decide_projection algorithm when auto_optimize=True.
+
     Args:
         bbox: (min_lon, min_lat, max_lon, max_lat) in EPSG:4326
         operation_type: Type of geoprocessing operation
@@ -106,66 +453,24 @@ def get_optimal_crs_for_bbox(
         fallback_crs: CRS to use if selection fails
 
     Returns:
-        Dict with epsg_code, crs_name, projection_property, selection_reason, expected_error
+        Dict with epsg_code, crs_name, selection_reason, auto_selected,
+        decision_path, decision_inputs
     """
 
     if not auto_optimize:
+        # Extract code number from EPSG: or ESRI: prefix
+        code_number = fallback_crs.replace("EPSG:", "").replace("ESRI:", "")
         return {
             "epsg_code": fallback_crs,
-            "crs_name": VALIDATED_CRS.get(fallback_crs.replace("EPSG:", ""), "Custom CRS"),
-            "projection_property": "unknown",
+            "crs_name": VALIDATED_CRS.get(code_number, "Custom CRS"),
             "selection_reason": "Auto-optimization disabled",
-            "expected_error": None,
+            "auto_selected": False,
+            "decision_path": ["Auto-optimization disabled by user"],
+            "decision_inputs": {},
         }
 
-    # Validate bbox
-    min_lon, min_lat, max_lon, max_lat = bbox
-    if not (
-        -180 <= min_lon <= 180
-        and -90 <= min_lat <= 90
-        and -180 <= max_lon <= 180
-        and -90 <= max_lat <= 90
-    ):
-        logger.warning(f"Invalid bbox: {bbox}, using fallback")
-        return _create_fallback_response(fallback_crs, "Invalid bounding box")
-
-    # Calculate extent metrics
-    lon_extent = max_lon - min_lon
-    lat_extent = max_lat - min_lat
-    center_lon = (min_lon + max_lon) / 2
-    center_lat = (min_lat + max_lat) / 2
-
-    # Determine required projection property
-    if projection_priority:
-        required_property = projection_priority
-    else:
-        required_property = _get_required_property(operation_type)
-
-    # 1. If extent is extremely large (global or near-global) -> fallback
-    # This prevents misclassification as 'polar' when the bbox spans the globe.
-    if lon_extent >= 180 or lat_extent >= 170:
-        return _create_fallback_response(
-            fallback_crs,
-            f"Extent too large ({lon_extent:.1f}° × {lat_extent:.1f}°), using fallback",
-        )
-
-    # 2. Check for polar regions (>80° latitude)
-    if abs(center_lat) > 80 or max_lat > 85 or min_lat < -85:
-        return _get_polar_crs(center_lat, required_property)
-
-    # 2. Check for local extent (<6° in both dimensions) -> UTM
-    if abs(lon_extent) <= 6 and abs(lat_extent) <= 6:
-        return _get_utm_crs(center_lon, center_lat)
-
-    # 3. Check for regional extent -> Continental projections
-    region = _identify_region(bbox)
-    if region:
-        return _get_regional_crs(region, required_property)
-
-    # 4. Fallback for cross-regional or global extents
-    return _create_fallback_response(
-        fallback_crs, f"Extent too large ({lon_extent:.1f}° × {lat_extent:.1f}°), using fallback"
-    )
+    # Use the enhanced decision algorithm
+    return decide_projection(bbox, operation_type, projection_priority, fallback_crs)
 
 
 def _get_required_property(operation_type: OperationType) -> ProjectionProperty:
@@ -198,52 +503,30 @@ def _get_utm_crs(center_lon: float, center_lat: float) -> Dict[str, Any]:
     return {
         "epsg_code": epsg_code,
         "crs_name": f"WGS 84 / UTM zone {zone}{hemisphere}",
-        "projection_property": "conformal",
-        "selection_reason": (
-            f"Local extent - UTM zone {zone}{hemisphere}; " "<0.1% distance error"
-        ),
-        "expected_error": 0.1,
+        "selection_reason": f"Local extent - UTM zone {zone}{hemisphere}",
+        "auto_selected": True,
     }
 
 
-def _get_polar_crs(center_lat: float, required_property: ProjectionProperty) -> Dict[str, Any]:
-    """Get appropriate polar projection."""
+def _get_polar_custom(center_lat: float, required_property: ProjectionProperty) -> Dict[str, Any]:
+    """Get appropriate polar custom WKT projection."""
     is_arctic = center_lat > 0
-
     if required_property == ProjectionProperty.EQUAL_AREA:
-        if is_arctic:
-            return {
-                "epsg_code": "EPSG:3571",
-                "crs_name": "North Pole Lambert Azimuthal Equal Area",
-                "projection_property": "equal-area",
-                "selection_reason": "Arctic region - LAEA preserves areas",
-                "expected_error": 0.0,
-            }
-        else:
-            return {
-                "epsg_code": "EPSG:3572",
-                "crs_name": "Antarctica Lambert Azimuthal Equal Area",
-                "projection_property": "equal-area",
-                "selection_reason": "Antarctic region - LAEA preserves areas",
-                "expected_error": 0.0,
-            }
+        info = build_laea_polar_wkt(is_arctic=is_arctic)
+        reason = "Polar region - LAEA preserves areas"
     else:
-        if is_arctic:
-            return {
-                "epsg_code": "EPSG:3995",
-                "crs_name": "Arctic Polar Stereographic",
-                "projection_property": "conformal",
-                "selection_reason": "Arctic region - Stereographic preserves shapes",
-                "expected_error": 2.0,
-            }
-        else:
-            return {
-                "epsg_code": "EPSG:3031",
-                "crs_name": "Antarctic Polar Stereographic",
-                "projection_property": "conformal",
-                "selection_reason": "Antarctic region - Stereographic preserves shapes",
-                "expected_error": 2.0,
-            }
+        info = build_polar_stere_wkt(is_arctic=is_arctic)
+        reason = "Polar region - Stereographic preserves shapes"
+    digest = hash_wkt(info["wkt"])
+    return {
+        "authority": "WKT",
+        "wkt": info["wkt"],
+        "crs_name": info["name"],
+        "selection_reason": reason,
+        "wkt_hash": digest,
+        "wkt_params": info.get("params", {}),
+        "auto_selected": True,
+    }
 
 
 def _identify_region(bbox: Tuple[float, float, float, float]) -> Optional[str]:
@@ -262,73 +545,51 @@ def _identify_region(bbox: Tuple[float, float, float, float]) -> Optional[str]:
     return None
 
 
-def _get_regional_crs(region: str, required_property: ProjectionProperty) -> Dict[str, Any]:
-    """Get appropriate regional projection."""
-    regional_crs = {
-        "north_america": {
-            ProjectionProperty.EQUAL_AREA: ("EPSG:102008", "North America Albers Equal Area", 0.5),
-            ProjectionProperty.CONFORMAL: (
-                "EPSG:102009",
-                "North America Lambert Conformal Conic",
-                1.0,
-            ),
-        },
-        "south_america": {
-            ProjectionProperty.EQUAL_AREA: ("EPSG:102011", "South America Albers Equal Area", 0.5),
-            ProjectionProperty.CONFORMAL: (
-                "EPSG:32040",
-                "South America Lambert Conformal Conic",
-                1.0,
-            ),
-        },
-        "europe": {
-            ProjectionProperty.EQUAL_AREA: ("EPSG:3035", "Europe LAEA (ETRS89)", 0.5),
-            ProjectionProperty.CONFORMAL: ("EPSG:3034", "Europe LCC (ETRS89)", 1.0),
-        },
-        "africa": {
-            ProjectionProperty.EQUAL_AREA: ("EPSG:102022", "Africa Albers Equal Area", 0.5),
-            ProjectionProperty.CONFORMAL: ("EPSG:102024", "Africa Lambert Conformal Conic", 1.0),
-        },
-        "asia": {
-            ProjectionProperty.EQUAL_AREA: ("EPSG:102028", "Asia South Albers Equal Area", 0.5),
-            ProjectionProperty.CONFORMAL: (
-                "EPSG:102027",
-                "Asia North Lambert Conformal Conic",
-                1.0,
-            ),
-        },
-        "australia": {
-            ProjectionProperty.EQUAL_AREA: ("EPSG:3577", "Australia Albers", 0.5),
-            ProjectionProperty.CONFORMAL: ("EPSG:3112", "Australia Lambert Conformal Conic", 1.0),
-        },
-    }
-
-    region_projections = regional_crs.get(region, {})
-    if required_property in region_projections:
-        epsg_code, crs_name, error = region_projections[required_property]
+def _get_regional_crs(
+    region: str, required_property: ProjectionProperty, bbox: Tuple[float, float, float, float]
+) -> Dict[str, Any]:
+    """Get appropriate regional projection as WKT (consistency across regions)."""
+    if required_property == ProjectionProperty.EQUAL_AREA:
+        info = build_albers_wkt(bbox)
+        reason = f"Regional extent ({region}) - Custom Albers optimized for region"
     else:
-        epsg_code, crs_name, error = region_projections.get(
-            ProjectionProperty.EQUAL_AREA, ("EPSG:3857", "Web Mercator (fallback)", 10.0)
-        )
-
+        info = build_lcc_wkt(bbox)
+        reason = f"Regional extent ({region}) - Custom LCC optimized for region"
+    digest = hash_wkt(info["wkt"])
     return {
-        "epsg_code": epsg_code,
-        "crs_name": crs_name,
-        "projection_property": required_property.value,
-        "selection_reason": f"Regional extent ({region}) - {crs_name} optimized for region",
-        "expected_error": error,
-    }
-
-
-def _create_fallback_response(fallback_crs: str, reason: str) -> Dict[str, Any]:
-    """Create fallback CRS response."""
-    return {
-        "epsg_code": fallback_crs,
-        "crs_name": VALIDATED_CRS.get(fallback_crs.replace("EPSG:", ""), "Custom CRS"),
-        "projection_property": "compromise",
+        "authority": "WKT",
+        "wkt": info["wkt"],
+        "crs_name": info["name"],
         "selection_reason": reason,
-        "expected_error": 10.0 if "3857" in fallback_crs else None,
+        "wkt_hash": digest,
+        "wkt_params": info.get("params", {}),
+        "auto_selected": True,
     }
+
+
+def _create_fallback_response(
+    fallback_crs: str,
+    reason: str,
+    decision_path: Optional[List[str]] = None,
+    decision_inputs: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Create fallback CRS response (backwards compatible)."""
+    # Extract code number from EPSG: or ESRI: prefix
+    code_number = fallback_crs.replace("EPSG:", "").replace("ESRI:", "")
+    response = {
+        "epsg_code": fallback_crs,
+        "crs_name": VALIDATED_CRS.get(code_number, "Custom CRS"),
+        "selection_reason": reason,
+        "auto_selected": True,
+    }
+
+    # Add optional metadata fields if provided
+    if decision_path is not None:
+        response["decision_path"] = decision_path
+    if decision_inputs is not None:
+        response["decision_inputs"] = decision_inputs
+
+    return response
 
 
 def validate_crs(epsg_code: str) -> bool:
@@ -353,16 +614,20 @@ def prepare_gdf_for_operation(
 
     Returns tuple (transformed_gdf, crs_info)
     """
+    logger.info(
+        f"prepare_gdf_for_operation: Starting for {operation_type.value}, "
+        f"auto_optimize={auto_optimize_crs}, override={override_crs}"
+    )
     # geopandas is not required to be imported here; assume caller provides a GeoDataFrame
 
     # Manual override takes precedence
     if override_crs:
+        logger.info(f"prepare_gdf_for_operation: Using override CRS: {override_crs}")
         if validate_crs(override_crs):
             gdf_transformed = gdf.to_crs(override_crs)
             return gdf_transformed, {
                 "epsg_code": override_crs,
                 "crs_name": "User-specified CRS",
-                "projection_property": "unknown",
                 "selection_reason": "Manual override",
                 "auto_selected": False,
             }
@@ -380,34 +645,58 @@ def prepare_gdf_for_operation(
         gdf_wgs84 = gdf
 
     bounds = gdf_wgs84.total_bounds  # [minx, miny, maxx, maxy]
-    bbox = (bounds[0], bounds[1], bounds[2], bounds[3])
+    # Convert numpy types to Python floats for JSON serialization
+    bbox = (float(bounds[0]), float(bounds[1]), float(bounds[2]), float(bounds[3]))
+    logger.info(f"prepare_gdf_for_operation: Computed bbox: {bbox}")
 
     crs_info = get_optimal_crs_for_bbox(
         bbox, operation_type, auto_optimize=auto_optimize_crs, **kwargs
     )
+    logger.info(
+        f"prepare_gdf_for_operation: Selected CRS info: epsg={crs_info.get('epsg_code')}, "
+        f"name={crs_info.get('crs_name')}, has_wkt={('wkt' in crs_info)}"
+    )
 
-    # Validate selected CRS, fallback if invalid
-    selected_epsg_raw = crs_info.get("epsg_code")
-    # Normalize and validate selected CRS; fallback if missing or invalid
-    if not isinstance(selected_epsg_raw, str) or not selected_epsg_raw:
-        logger.warning(f"Selected CRS {selected_epsg_raw!r} invalid, falling back to EPSG:3857")
-        crs_info = _create_fallback_response("EPSG:3857", "Selected CRS invalid")
-        selected_epsg = crs_info["epsg_code"]
-    else:
-        selected_epsg = selected_epsg_raw
-        if not validate_crs(selected_epsg):
-            logger.warning(
-                f"Selected CRS {selected_epsg} failed validation, falling back to EPSG:3857"
-            )
+    # Determine target CRS
+    target_crs_obj = None
+    if "wkt" in crs_info and isinstance(crs_info.get("wkt"), str) and crs_info["wkt"]:
+        logger.info("prepare_gdf_for_operation: Using WKT projection")
+        try:
+            target_crs_obj = CRS.from_wkt(crs_info["wkt"])
+        except Exception as e:
+            logger.warning(f"Selected WKT CRS failed to parse: {e}; falling back to EPSG:3857")
             crs_info = _create_fallback_response("EPSG:3857", "Selected CRS invalid")
-            selected_epsg = crs_info["epsg_code"]
+    else:
+        # Validate selected CRS, fallback if invalid
+        selected_epsg_raw = crs_info.get("epsg_code")
+        if not isinstance(selected_epsg_raw, str) or not selected_epsg_raw:
+            logger.warning(f"Selected CRS {selected_epsg_raw!r} invalid, falling back to EPSG:3857")
+            crs_info = _create_fallback_response("EPSG:3857", "Selected CRS invalid")
+        else:
+            selected_epsg = selected_epsg_raw
+            if not validate_crs(selected_epsg):
+                logger.warning(
+                    f"Selected CRS {selected_epsg} failed validation, falling back to EPSG:3857"
+                )
+                crs_info = _create_fallback_response("EPSG:3857", "Selected CRS invalid")
 
     # Perform transformation
     try:
-        gdf_transformed = gdf.to_crs(selected_epsg)
+        if target_crs_obj is not None:
+            logger.info("prepare_gdf_for_operation: Transforming to WKT CRS object")
+            gdf_transformed = gdf.to_crs(target_crs_obj)
+        else:
+            logger.info(f"prepare_gdf_for_operation: Transforming to EPSG:{crs_info['epsg_code']}")
+            gdf_transformed = gdf.to_crs(crs_info["epsg_code"])
+        logger.info(
+            f"prepare_gdf_for_operation: Transformation successful, new CRS: {gdf_transformed.crs}"
+        )
     except Exception as e:
-        logger.warning(f"Failed to transform to {selected_epsg}: {e}; using original gdf")
+        logger.warning("Failed to transform to target CRS: %s; using original gdf", e)
         gdf_transformed = gdf
 
     crs_info["auto_selected"] = auto_optimize_crs
+    # Convert all numpy types to Python types for JSON serialization
+    crs_info = _convert_to_python_types(crs_info)
+    logger.info(f"prepare_gdf_for_operation: Complete, returning CRS info: {crs_info}")
     return gdf_transformed, crs_info

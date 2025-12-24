@@ -62,18 +62,14 @@ def test_processing_metadata_creation():
         operation="buffer",
         crs_used="EPSG:32633",
         crs_name="WGS 84 / UTM zone 33N",
-        projection_property="conformal",
         auto_selected=True,
         selection_reason="Local extent - UTM zone 33N",
-        expected_error=0.1,
     )
     assert metadata.operation == "buffer"
     assert metadata.crs_used == "EPSG:32633"
     assert metadata.crs_name == "WGS 84 / UTM zone 33N"
-    assert metadata.projection_property == "conformal"
     assert metadata.auto_selected is True
     assert metadata.selection_reason == "Local extent - UTM zone 33N"
-    assert metadata.expected_error == 0.1
 
 
 @pytest.mark.unit
@@ -83,12 +79,10 @@ def test_processing_metadata_optional_fields():
         operation="area",
         crs_used="EPSG:3857",
         crs_name="Web Mercator",
-        projection_property="compromise",
         auto_selected=False,
     )
     assert metadata.operation == "area"
     assert metadata.selection_reason is None
-    assert metadata.expected_error is None
 
 
 @pytest.mark.unit
@@ -98,10 +92,8 @@ def test_geodata_object_with_processing_metadata():
         operation="buffer",
         crs_used="EPSG:32633",
         crs_name="WGS 84 / UTM zone 33N",
-        projection_property="conformal",
         auto_selected=True,
         selection_reason="Local extent",
-        expected_error=0.1,
     )
 
     geodata = GeoDataObject(
@@ -144,9 +136,7 @@ def test_processing_metadata_serialization():
         operation="overlay",
         crs_used="EPSG:3031",
         crs_name="Antarctic Polar Stereographic",
-        projection_property="conformal",
         auto_selected=True,
-        expected_error=2.0,
     )
 
     data = metadata.model_dump()
@@ -192,7 +182,6 @@ def test_buffer_with_auto_optimize_includes_metadata():
     crs_meta = feature_collection["properties"]["_crs_metadata"]
     assert "epsg_code" in crs_meta
     assert "crs_name" in crs_meta
-    assert "projection_property" in crs_meta
     assert "auto_selected" in crs_meta
     assert crs_meta["auto_selected"] is True
 
@@ -204,10 +193,8 @@ def test_processing_metadata_with_origin_layers():
         operation="buffer",
         crs_used="EPSG:32633",
         crs_name="WGS 84 / UTM zone 33N",
-        projection_property="conformal",
         auto_selected=True,
         selection_reason="Local extent - UTM zone 33N",
-        expected_error=0.1,
         origin_layers=["rivers_africa", "lakes_africa"],
     )
 
@@ -224,7 +211,6 @@ def test_processing_metadata_serialization_with_origin_layers():
         operation="overlay",
         crs_used="EPSG:3857",
         crs_name="WGS 84 / Pseudo-Mercator",
-        projection_property="conformal",
         auto_selected=False,
         origin_layers=["layer1", "layer2", "layer3"],
     )
@@ -244,7 +230,6 @@ def test_processing_metadata_without_origin_layers():
         operation="area",
         crs_used="EPSG:4326",
         crs_name="WGS 84",
-        projection_property="equidistant",
         auto_selected=True,
     )
 

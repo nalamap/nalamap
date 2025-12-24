@@ -111,8 +111,9 @@ def test_polar_area_selection():
     fc_out = res_area[0]
     meta = fc_out.get("properties", {}).get("_crs_metadata")
     assert meta is not None
-    # Expect a polar LAEA code (3571/3572) or other polar EPSG present
-    assert any(code in meta.get("epsg_code", "") for code in ("EPSG:3571", "EPSG:3572"))
+    # Expect polar LAEA projections for high-latitude area calculations (WKT)
+    assert meta.get("authority", "WKT") == "WKT"
+    assert "wkt" in meta and isinstance(meta["wkt"], str)
 
 
 def test_cross_antimeridian_overlay():
@@ -157,6 +158,6 @@ def test_simplify_with_conformal_crs():
     assert isinstance(res, list) and len(res) == 1
     meta = res[0].get("properties", {}).get("_crs_metadata")
     assert meta is not None
-    # Should select a CRS (UTM or conformal regional)
-    assert "EPSG:" in meta.get("epsg_code", "")
+    # Should select a CRS (UTM EPSG or WKT regional)
+    assert ("EPSG:" in meta.get("epsg_code", "")) or ("wkt" in meta)
     assert meta.get("auto_selected") is True

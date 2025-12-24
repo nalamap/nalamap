@@ -24,23 +24,26 @@ def op_buffer(
 ):
     """
     Buffers features of a single input layer item individually or dissolved.
-    If multiple layers are provided, this function will raise a ValueError.
-    Input geometries are assumed in EPSG:4326. This function:
-      1) Expects `layers` to be a list containing a single layer item
-         (FeatureCollection or Feature).
-      2) Converts radius to meters based on radius_unit (default is "meters").
-      3) Extracts features from the single layer item.
-      4) Creates a GeoDataFrame from these features.
-      5) Reprojects the GeoDataFrame to buffer_crs (default EPSG:3857,
-         which uses meters).
-      6) Applies buffer to each feature geometry with the meter-based radius.
-      7) Optionally dissolves all buffered geometries into a single geometry
-         if dissolve=True.
-      8) Reprojects the GeoDataFrame (with buffered features) back to
-         EPSG:4326.
-      9) Returns a list containing one FeatureCollection with the individually
-         buffered features (or single dissolved feature if dissolve=True).
-    Supported radius_unit: "meters", "kilometers", "miles".
+
+    Uses smart planar CRS selection for accurate buffering across different
+    geographic extents. The system automatically selects the optimal projection
+    based on data location and extent.
+
+    Args:
+        layers: List containing a single GeoJSON layer (FeatureCollection or Feature)
+        radius: Buffer radius in specified units (default: 10000)
+        buffer_crs: Default CRS for buffering (default: EPSG:3857)
+        radius_unit: Unit of radius ("meters", "kilometers", "miles")
+        dissolve: If True, merge all buffered geometries into one
+        auto_optimize_crs: Enable smart CRS selection (recommended)
+        projection_metadata: Include CRS metadata in results
+        override_crs: Force specific CRS instead of auto-selection
+
+    Returns:
+        List containing one FeatureCollection with buffered features
+
+    Raises:
+        ValueError: If multiple layers are provided
     """
     if not layers:
         logger.warning("op_buffer called with no layers")
@@ -62,7 +65,7 @@ def op_buffer(
                         props = first_feat.get("properties", {})
                         if props:
                             name = props.get("name") or props.get("title")
-            layer_info.append("Layer {i+1}" + (": {name}" if name else ""))
+            layer_info.append(f"Layer {i+1}" + (f": {name}" if name else ""))
 
         layer_desc = ", ".join(layer_info)
         raise ValueError(
@@ -88,7 +91,7 @@ def op_buffer(
     if not current_features:
         # This case might occur if the single layer_item was an empty FeatureCollection or invalid
         print(
-            "Warning: The provided layer item is empty or not a recognizable Feature/FeatureCollection: {type(layer_item)}"
+            f"Warning: The provided layer item is empty or not a recognizable Feature/FeatureCollection: {type(layer_item)}"
         )
         return []
 
@@ -99,39 +102,70 @@ def op_buffer(
             feature["properties"] = {}
 
     try:
+        logger.info(f"op_buffer: Starting buffer operation with {len(current_features)} features")
+        logger.info(
+            f"op_buffer: Parameters - radius={radius}, unit={radius_unit}, dissolve={dissolve}, "
+            f"auto_optimize_crs={auto_optimize_crs}, override_crs={override_crs}"
+        )
+
         gdf = gpd.GeoDataFrame.from_features(current_features)
         gdf.set_crs("EPSG:4326", inplace=True)
+        logger.info(
+            f"op_buffer: Created GeoDataFrame with {len(gdf)} rows, bounds: {gdf.total_bounds}"
+        )
 
-        # Smart CRS selection / preparation
+        # Planar buffering with smart CRS selection
         if auto_optimize_crs:
+            logger.info("op_buffer: Using smart CRS selection")
+            # Use smart CRS selection for optimal projection
             gdf_reprojected, crs_info = prepare_gdf_for_operation(
                 gdf,
                 OperationType.BUFFER,
                 auto_optimize_crs=auto_optimize_crs,
                 override_crs=override_crs or (None if buffer_crs == "EPSG:3857" else buffer_crs),
             )
+            logger.info(
+                f"op_buffer: Selected CRS - {crs_info.get('epsg_code')} ({crs_info.get('crs_name')}), reason: {crs_info.get('selection_reason')}"
+            )
         elif override_crs:
             # User specified a CRS explicitly
+            logger.info(f"op_buffer: Using user-specified CRS: {override_crs}")
             gdf_reprojected = gdf.to_crs(override_crs)
             crs_info = {
                 "epsg_code": override_crs,
+                "crs_name": "User-specified CRS",
                 "selection_reason": "User-specified CRS",
                 "auto_selected": False,
             }
         else:
             # Use default buffer_crs
+            logger.info(f"op_buffer: Using default buffer CRS: {buffer_crs}")
             gdf_reprojected = gdf.to_crs(buffer_crs)
             crs_info = {
                 "epsg_code": buffer_crs,
+                "crs_name": "Default CRS",
                 "selection_reason": "Default CRS",
                 "auto_selected": False,
             }
 
+        # Apply planar buffer in the selected CRS
+        logger.info(
+            f"op_buffer: Applying buffer with radius {actual_radius_meters} meters in CRS {gdf_reprojected.crs}"
+        )
         gdf_reprojected["geometry"] = gdf_reprojected.geometry.buffer(actual_radius_meters)
+        logger.info(f"op_buffer: Buffer applied successfully, {len(gdf_reprojected)} geometries")
+
+        # Reproject back to EPSG:4326
+        logger.info("op_buffer: Reprojecting result back to EPSG:4326")
+        gdf_buffered_individual = gdf_reprojected.to_crs("EPSG:4326")
+        logger.info(
+            f"op_buffer: Reprojection complete, bounds: {gdf_buffered_individual.total_bounds}"
+        )
 
         # If dissolve is True, merge all buffered geometries into one
         if dissolve:
-            dissolved_geom = unary_union(gdf_reprojected.geometry)
+            logger.info("op_buffer: Dissolving buffered geometries")
+            dissolved_geom = unary_union(gdf_buffered_individual.geometry)
             # Create a new GeoDataFrame with the dissolved geometry
             # Keep properties from the first feature
             props = {}
@@ -140,25 +174,26 @@ def op_buffer(
                     if col != "geometry":
                         props[col] = gdf[col].iloc[0]
             gdf_buffered_individual = gpd.GeoDataFrame(
-                [props], geometry=[dissolved_geom], crs=gdf_reprojected.crs
+                [props], geometry=[dissolved_geom], crs=gdf_buffered_individual.crs
             )
-        else:
-            gdf_buffered_individual = gdf_reprojected
-
-        gdf_buffered_individual = gdf_buffered_individual.to_crs("EPSG:4326")
 
         if gdf_buffered_individual.empty:
+            logger.warning("op_buffer: Result is empty after buffering")
             return []  # Resulting GeoDataFrame is empty
 
+        logger.info("op_buffer: Converting result to GeoJSON")
         fc = json.loads(gdf_buffered_individual.to_json())
+        logger.info(f"op_buffer: GeoJSON created with {len(fc.get('features', []))} features")
 
         # Inject projection metadata if requested
         if projection_metadata and fc:
+            logger.info(f"op_buffer: Injecting CRS metadata: {crs_info}")
             # fc is a FeatureCollection dict
             if "properties" not in fc:
                 fc["properties"] = {}
             fc["properties"]["_crs_metadata"] = crs_info
 
+        logger.info("op_buffer: Buffer operation completed successfully")
         return [fc]  # Return a list containing the single FeatureCollection
     except Exception as e:
         logger.exception(f"Error in op_buffer: {e}")

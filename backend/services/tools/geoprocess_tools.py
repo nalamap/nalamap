@@ -415,7 +415,7 @@ def geoprocess_tool(
     for layer in selected:
         if layer.data_type not in (DataType.GEOJSON, DataType.UPLOADED):
             continue
-        
+
         # Store layer title for metadata
         layer_titles.append(layer.title or layer.name)
 
@@ -682,12 +682,14 @@ def geoprocess_tool(
 
                 processing_metadata = ProcessingMetadata(
                     operation=last_operation,
-                    crs_used=crs_meta.get("epsg_code", "EPSG:4326"),
+                    crs_used=crs_meta.get("epsg_code") or crs_meta.get("authority", "EPSG:4326"),
                     crs_name=crs_meta.get("crs_name", "Unknown"),
-                    projection_property=crs_meta.get("projection_property", "unknown"),
+                    authority=crs_meta.get("authority"),
+                    wkt=crs_meta.get("wkt"),
+                    wkt_hash=crs_meta.get("wkt_hash"),
+                    wkt_params=crs_meta.get("wkt_params"),
                     auto_selected=crs_meta.get("auto_selected", False),
                     selection_reason=crs_meta.get("selection_reason"),
-                    expected_error=crs_meta.get("expected_error"),
                     origin_layers=origin_layer_names,
                 )
                 # Remove the internal metadata from properties before storing
@@ -695,10 +697,23 @@ def geoprocess_tool(
 
         # Create a filename with the unique name and serialize to JSON
         filename = f"{unique_name}_{short_uuid}.geojson"
-        json_content = json.dumps(layer).encode("utf-8")
+        try:
+            logger.info(f"geoprocess_tool: Serializing layer to JSON: {filename}")
+            json_content = json.dumps(layer).encode("utf-8")
+            logger.info(
+                f"geoprocess_tool: JSON serialization successful, size: {len(json_content)} bytes"
+            )
+        except Exception as e:
+            logger.error(f"geoprocess_tool: JSON serialization failed for {filename}: {e}")
+            logger.error(
+                f"geoprocess_tool: Layer type: {type(layer)}, keys: {layer.keys() if isinstance(layer, dict) else 'N/A'}"
+            )
+            raise
 
         # Use centralized file management (supports both local and Azure Blob Storage)
+        logger.info(f"geoprocess_tool: Storing file: {filename}")
         url, stored_filename = store_file(filename, json_content)
+        logger.info(f"geoprocess_tool: File stored successfully: {url}")
         out_urls.append(url)
 
         # Format the operation details for the description
@@ -728,8 +743,9 @@ def geoprocess_tool(
         full_description += f"Input Layers: {input_layers_str}\n"
         full_description += f"Operations:\n{operation_steps}"
 
-        new_geodata.append(
-            GeoDataObject(
+        logger.info(f"geoprocess_tool: Creating GeoDataObject for {unique_name}")
+        try:
+            geodata_obj = GeoDataObject(
                 id=out_uuid,
                 data_source_id="geoprocess",
                 data_type=DataType.GEOJSON,
@@ -746,7 +762,16 @@ def geoprocess_tool(
                 properties=None,
                 processing_metadata=processing_metadata,
             )
-        )
+            logger.info("geoprocess_tool: GeoDataObject created successfully")
+            new_geodata.append(geodata_obj)
+        except Exception as e:
+            logger.error(f"geoprocess_tool: Failed to create GeoDataObject: {e}")
+            logger.error(f"geoprocess_tool: processing_metadata type: {type(processing_metadata)}")
+            if processing_metadata:
+                logger.error(
+                    f"geoprocess_tool: processing_metadata dict: {processing_metadata.model_dump() if hasattr(processing_metadata, 'model_dump') else processing_metadata}"
+                )
+            raise
 
     # Create reference data for tool message
     ref_data = [
@@ -758,14 +783,11 @@ def geoprocess_tool(
     for r in new_geodata:
         if r.processing_metadata:
             pm = r.processing_metadata
-            crs_msg = (
-                f"{r.title}: Used {pm.crs_used} ({pm.crs_name}) "
-                f"{'🎯 AUTO-SELECTED' if pm.auto_selected else 'USER-SPECIFIED'}"
-            )
+            auto_status = "🎯 AUTO-SELECTED" if pm.auto_selected else "USER-SPECIFIED"
+            crs_msg = f"{r.title}: Used {pm.crs_used} ({pm.crs_name}) {auto_status}"
             if pm.auto_selected and pm.selection_reason:
                 crs_msg += f" - {pm.selection_reason}"
-            if pm.expected_error is not None:
-                crs_msg += f" (Expected error: <{pm.expected_error}%)"
+            # Note: expected_error field was removed from ProcessingMetadata
             crs_info_messages.append(crs_msg)
 
     # Construct the tool message content
@@ -778,19 +800,32 @@ def geoprocess_tool(
         crs_details = "\n".join(f"- {msg}" for msg in crs_info_messages)
         tool_content += f"\n\nCRS Information:\n{crs_details}"
 
-    tool_content += f"\n\nReference data (use id and data_source_id): " f"{json.dumps(ref_data)}"
+    tool_content += f"\n\nReference data (use id and data_source_id): {json.dumps(ref_data)}"
 
     # Return the update command
-    return Command(
-        update={
-            "messages": [
-                ToolMessage(
-                    name="geoprocess_tool",
-                    content=tool_content,
-                    tool_call_id=tool_call_id,
-                )
-            ],
-            # "global_geodata": new_geodata,
-            "geodata_results": new_geodata,
-        }
+    logger.info(
+        f"geoprocess_tool: Preparing to return Command with {len(new_geodata)} geodata objects"
     )
+    logger.info(f"geoprocess_tool: Tool content length: {len(tool_content)} chars")
+
+    try:
+        command = Command(
+            update={
+                "messages": [
+                    ToolMessage(
+                        name="geoprocess_tool",
+                        content=tool_content,
+                        tool_call_id=tool_call_id,
+                    )
+                ],
+                # "global_geodata": new_geodata,
+                "geodata_results": new_geodata,
+            }
+        )
+        logger.info("geoprocess_tool: Command created successfully, returning to agent")
+        return command
+    except Exception as e:
+        logger.error(f"geoprocess_tool: Failed to create Command: {e}")
+        logger.error(f"geoprocess_tool: new_geodata length: {len(new_geodata)}")
+        logger.error(f"geoprocess_tool: new_geodata types: {[type(g) for g in new_geodata]}")
+        raise

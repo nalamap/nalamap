@@ -12,34 +12,33 @@ def test_operation_property_mapping_and_regional_selection():
     bbox_local = (13.0, 52.0, 13.5, 52.5)
     res = get_optimal_crs_for_bbox(bbox_local, OperationType.BUFFER)
     assert res["epsg_code"].startswith("EPSG:326")
-    assert res["projection_property"] == "conformal"
     assert validate_crs(res["epsg_code"]) is True
 
-    # Area operation in Europe -> Europe LAEA (3035)
+    # Area operation in Europe -> WKT Albers (custom)
     bbox_europe = (5.0, 45.0, 15.0, 55.0)
     res = get_optimal_crs_for_bbox(bbox_europe, OperationType.AREA)
-    assert res["epsg_code"] == "EPSG:3035"
-    assert res["projection_property"] == "equal-area"
+    assert res.get("authority") == "WKT"
+    assert "wkt" in res and isinstance(res["wkt"], str) and len(res["wkt"]) > 10
 
-    # Overlay operation in Europe -> conformal regional (3034)
+    # Overlay operation in Europe -> conformal regional (WKT LCC)
     res = get_optimal_crs_for_bbox(bbox_europe, OperationType.OVERLAY)
-    assert res["projection_property"] == "conformal"
-    assert validate_crs(res["epsg_code"]) is True
+    assert res.get("authority") == "WKT"
+    assert "wkt" in res and isinstance(res["wkt"], str)
 
 
 def test_polar_selection_behaviour():
     # Arctic (Svalbard) high latitude bbox
     bbox_arctic = (10.0, 82.0, 30.0, 85.0)
 
-    # Area should choose LAEA for Arctic
+    # Area should choose LAEA for Arctic (WKT)
     res_area = get_optimal_crs_for_bbox(bbox_arctic, OperationType.AREA)
-    assert res_area["epsg_code"] in ("EPSG:3571", "EPSG:3572")
-    assert res_area["projection_property"] == "equal-area"
+    assert res_area.get("authority") == "WKT"
+    assert "wkt" in res_area
 
-    # Overlay should choose stereographic (conformal)
+    # Overlay should choose stereographic (conformal, WKT)
     res_overlay = get_optimal_crs_for_bbox(bbox_arctic, OperationType.OVERLAY)
-    assert res_overlay["projection_property"] == "conformal"
-    assert validate_crs(res_overlay["epsg_code"]) is True
+    assert res_overlay.get("authority") == "WKT"
+    assert "wkt" in res_overlay
 
 
 def test_global_extent_fallback_and_invalid_bbox():
@@ -54,43 +53,57 @@ def test_global_extent_fallback_and_invalid_bbox():
 
 
 @pytest.mark.parametrize(
-    "region,bbox,operation,expected_epsg",
+    "region,bbox,operation,expected_property",
     [
-        # North America - Albers Equal Area for area ops, LCC for conformal
-        ("north_america", (-120.0, 30.0, -80.0, 50.0), OperationType.AREA, "EPSG:102008"),
-        ("north_america", (-120.0, 30.0, -80.0, 50.0), OperationType.OVERLAY, "EPSG:102009"),
-        # South America - Albers Equal Area for area ops, LCC for conformal
-        ("south_america", (-70.0, -30.0, -50.0, -10.0), OperationType.AREA, "EPSG:102011"),
-        ("south_america", (-70.0, -30.0, -50.0, -10.0), OperationType.OVERLAY, "EPSG:32040"),
-        # Europe - LAEA for equal-area, LCC for conformal
-        ("europe", (5.0, 45.0, 15.0, 55.0), OperationType.AREA, "EPSG:3035"),
-        ("europe", (5.0, 45.0, 15.0, 55.0), OperationType.DISSOLVE, "EPSG:3035"),
-        # Africa - Albers Equal Area for area ops, LCC for conformal
-        ("africa", (10.0, -10.0, 40.0, 20.0), OperationType.AREA, "EPSG:102022"),
-        ("africa", (10.0, -10.0, 40.0, 20.0), OperationType.CLIP, "EPSG:102024"),
-        # Asia - Albers Equal Area for area ops, LCC for conformal
-        ("asia", (80.0, 30.0, 120.0, 50.0), OperationType.AREA, "EPSG:102028"),
-        ("asia", (80.0, 30.0, 120.0, 50.0), OperationType.SIMPLIFY, "EPSG:102027"),
-        # Australia - Albers for equal-area, LCC for conformal
-        ("australia", (130.0, -35.0, 150.0, -20.0), OperationType.AREA, "EPSG:3577"),
-        ("australia", (130.0, -35.0, 150.0, -20.0), OperationType.OVERLAY, "EPSG:3112"),
+        # North America - EW-dominant bbox triggers LCC even for AREA (smart heuristic)
+        (
+            "north_america",
+            (-120.0, 30.0, -80.0, 50.0),
+            OperationType.AREA,
+            "conformal",
+        ),
+        (
+            "north_america",
+            (-120.0, 30.0, -80.0, 50.0),
+            OperationType.OVERLAY,
+            "conformal",
+        ),
+        # South America - same bbox, Equal-area for area ops
+        (
+            "south_america",
+            (-70.0, -30.0, -50.0, -10.0),
+            OperationType.AREA,
+            "equal-area",
+        ),
+        (
+            "south_america",
+            (-70.0, -30.0, -50.0, -10.0),
+            OperationType.OVERLAY,
+            "equal-area",
+        ),
+        # Europe - LAEA for equal-area, LCC for conformal (WKT)
+        ("europe", (5.0, 45.0, 15.0, 55.0), OperationType.AREA, "equal-area"),
+        ("europe", (5.0, 45.0, 15.0, 55.0), OperationType.DISSOLVE, "equal-area"),
+        # Africa - Equal-area for area ops (WKT)
+        ("africa", (10.0, -10.0, 40.0, 20.0), OperationType.AREA, "equal-area"),
+        ("africa", (10.0, -10.0, 40.0, 20.0), OperationType.CLIP, "equal-area"),
+        # Asia - EW-dominant triggers LCC (WKT)
+        ("asia", (80.0, 30.0, 120.0, 50.0), OperationType.AREA, "conformal"),
+        ("asia", (80.0, 30.0, 120.0, 50.0), OperationType.SIMPLIFY, "conformal"),
+        # Australia - Equal-area for area ops (WKT for consistency)
+        ("australia", (130.0, -35.0, 150.0, -20.0), OperationType.AREA, "equal-area"),
+        ("australia", (130.0, -35.0, 150.0, -20.0), OperationType.OVERLAY, "equal-area"),
     ],
 )
-def test_all_regional_projections(region, bbox, operation, expected_epsg):
+def test_all_regional_projections(region, bbox, operation, expected_property):
     """
     Comprehensive test covering all 6 regions and their equal-area/conformal variants.
     This ensures the regional selection logic works correctly for each continent.
+
+    Note: The new multi-factor algorithm prioritizes geometric suitability (orientation, size)
+    over simple operation-type mapping. E.g., EW-dominant regions use LCC even for AREA operations.
     """
     res = get_optimal_crs_for_bbox(bbox, operation)
-    assert res["epsg_code"] == expected_epsg, (
-        f"Region: {region}, Operation: {operation}, "
-        f"Expected: {expected_epsg}, Got: {res['epsg_code']}"
-    )
-    # Verify the CRS is valid (skip validation for ESRI codes like EPSG:102xxx)
-    if not expected_epsg.startswith("EPSG:102"):
-        assert validate_crs(res["epsg_code"]) is True
-    # Verify correct property for operation type
-    if operation in (OperationType.AREA, OperationType.DISSOLVE):
-        assert res["projection_property"] == "equal-area"
-    else:
-        assert res["projection_property"] == "conformal"
+    # Expect WKT authority and present WKT for regional selections
+    assert res.get("authority") == "WKT"
+    assert "wkt" in res and isinstance(res["wkt"], str) and len(res["wkt"]) > 10

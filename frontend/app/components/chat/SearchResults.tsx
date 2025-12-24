@@ -117,49 +117,65 @@ export default function SearchResults({
                     <div className="pt-3 mt-3 border-t border-neutral-200">
                       <h5 className="font-semibold text-neutral-700 mb-2 text-xs">Processing Information</h5>
                       
-                      {/* Source Layers - Prominently displayed */}
-                      {result.processing_metadata.origin_layers && 
-                       result.processing_metadata.origin_layers.length > 0 && (
-                        <div className="mb-2 p-2 bg-secondary-50 dark:bg-secondary-900 rounded border border-secondary-300 dark:border-secondary-600">
-                          <span className="font-semibold text-secondary-900 dark:text-secondary-100 text-xs uppercase tracking-wide block mb-1">Source Layers</span>
-                          <p className="text-xs text-neutral-900 dark:text-neutral-100">
-                            {result.processing_metadata.origin_layers.join(', ')}
-                          </p>
-                        </div>
-                      )}
-                      
-                      {/* Operation Summary */}
-                      <div className="mb-2 p-2 bg-info-50 dark:bg-info-900 rounded border border-info-200 dark:border-info-700">
-                        <p className="text-xs text-neutral-900 dark:text-neutral-100">
-                          <strong className="text-info-800 dark:text-info-200">
-                            {result.processing_metadata.operation.charAt(0).toUpperCase() + 
-                             result.processing_metadata.operation.slice(1)}
-                          </strong> operation
-                          {result.processing_metadata.operation === 'buffer' && 
-                           result.description?.match(/\d+\.?\d*\s*(m|km|meters|kilometers)/i) && 
-                           ` with ${result.description.match(/\d+\.?\d*\s*(m|km|meters|kilometers)/i)![0]}`}
-                          {' using '}
-                          <strong className="text-info-800 dark:text-info-200">{result.processing_metadata.crs_used}</strong>
-                          {result.processing_metadata.auto_selected && ' 🎯'}
-                        </p>
-                      </div>
-                      
-                      {/* CRS Details */}
                       <div className="space-y-1">
-                        <p className="text-xs">
-                          <strong>CRS Name:</strong> {result.processing_metadata.crs_name}
-                        </p>
-                        <p className="text-xs capitalize">
-                          <strong>Projection:</strong> {result.processing_metadata.projection_property}
-                        </p>
-                        {result.processing_metadata.auto_selected && result.processing_metadata.selection_reason && (
-                          <p className="text-xs">
-                            <strong>Selection Reason:</strong> {result.processing_metadata.selection_reason}
+                        {/* Source Layers */}
+                        {result.processing_metadata.origin_layers && 
+                         result.processing_metadata.origin_layers.length > 0 && (
+                          <p className="text-xs text-neutral-900 dark:text-neutral-100">
+                            <strong className="text-neutral-700 dark:text-neutral-200">Source Layers:</strong> {result.processing_metadata.origin_layers.join(', ')}
                           </p>
                         )}
+                        
+                        {/* Operation */}
+                        <p className="text-xs text-neutral-900 dark:text-neutral-100 capitalize">
+                          <strong className="text-neutral-700 dark:text-neutral-200">Operation:</strong> {result.processing_metadata.operation}
+                        </p>
+                        
+                        {/* CRS Used */}
+                        <p className="text-xs text-neutral-900 dark:text-neutral-100">
+                          <strong className="text-neutral-700 dark:text-neutral-200">CRS Used:</strong> {result.processing_metadata.crs_used}
+                          {result.processing_metadata.auto_selected && ' 🎯'}
+                          {result.processing_metadata.authority === 'WKT' && result.processing_metadata.wkt && (
+                            <>
+                              {' '}
+                              <button
+                                type="button"
+                                className="underline text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  alert(`Custom CRS definition (WKT):\n\n${result.processing_metadata!.wkt!}`);
+                                }}
+                                aria-label="Show custom CRS WKT details"
+                              >
+                                (details)
+                              </button>
+                            </>
+                          )}
+                        </p>
+                        
+                        {/* CRS Name */}
+                        <p className="text-xs text-neutral-900 dark:text-neutral-100">
+                          <strong className="text-neutral-700 dark:text-neutral-200">CRS Name:</strong> {result.processing_metadata.crs_name}
+                        </p>
+                        
+                        {/* Projection Property */}
+                        {result.processing_metadata.projection_property && (
+                          <p className="text-xs text-neutral-900 dark:text-neutral-100 capitalize">
+                            <strong className="text-neutral-700 dark:text-neutral-200">Projection:</strong> {result.processing_metadata.projection_property}
+                          </p>
+                        )}
+                        
+                        {/* Selection Reason */}
+                        {result.processing_metadata.selection_reason && (
+                          <p className="text-xs text-neutral-900 dark:text-neutral-100">
+                            <strong className="text-neutral-700 dark:text-neutral-200">Selection Reason:</strong> {result.processing_metadata.selection_reason}
+                          </p>
+                        )}
+                        
+                        {/* Expected Error */}
                         {result.processing_metadata.expected_error !== undefined && (
-                          <p className="text-xs">
-                            <strong>Expected Error:</strong> &lt;{result.processing_metadata.expected_error}%
+                          <p className="text-xs text-neutral-900 dark:text-neutral-100">
+                            <strong className="text-neutral-700 dark:text-neutral-200">Expected Error:</strong> &lt;{result.processing_metadata.expected_error}%
                           </p>
                         )}
                       </div>

@@ -10,12 +10,15 @@ import json
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from services.ai.llm_config import get_llm  # noqa: E402
 from langchain_core.messages import HumanMessage, SystemMessage  # noqa: E402
 
 
+@pytest.mark.asyncio
 async def test_llm_buffer_understanding():
     """Test if the LLM correctly understands buffer requests."""
 
