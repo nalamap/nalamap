@@ -15,8 +15,6 @@ Tests cover:
 import json
 import os
 import tempfile
-from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -24,7 +22,6 @@ from models.deployment_config import (
     ColorScale,
     ColorSettings,
     DeploymentConfig,
-    DeploymentConfigValidationResult,
     DeploymentGeoServerBackend,
     DeploymentModelSettings,
     DeploymentToolConfig,
@@ -32,7 +29,6 @@ from models.deployment_config import (
 from services.deployment_config_loader import (
     DEPLOYMENT_CONFIG_ENV_VAR,
     clear_config_cache,
-    get_cached_config,
     get_preload_backends,
     get_tool_overrides,
     load_and_validate_config,

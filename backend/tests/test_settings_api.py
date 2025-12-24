@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -161,3 +163,328 @@ def test_options_endpoint_returns_example_mcp_servers(api_client):
     assert isinstance(data["example_mcp_servers"], list)
     # Example list can be empty (users add their own custom servers)
     assert len(data["example_mcp_servers"]) >= 0
+
+
+# ============================================================================
+# Deployment Config Integration Tests
+# ============================================================================
+
+
+@pytest.fixture
+def api_client_with_deployment_config(tmp_path, monkeypatch):
+    """API client with a deployment config file."""
+    # Create a deployment config file with correct schema format
+    config_file = tmp_path / "deployment_config.json"
+    config_data = {
+        "config_name": "Test Deployment Config",
+        "tools": [
+            {"name": "geocode_nominatim", "enabled": True},
+            {"name": "geocode_overpass", "enabled": False},
+        ],
+        "geoserver_backends": [
+            {
+                "url": "https://test.geoserver.com/geoserver/",
+                "name": "Test GeoServer",
+                "description": "Test backend for API testing",
+                "preload_on_startup": False,
+            }
+        ],
+        "model_settings": {"model_provider": "openai", "model_name": "gpt-4o-mini"},
+    }
+    config_file.write_text(json.dumps(config_data))
+
+    # Set test environment
+    monkeypatch.setenv("COOKIE_SECURE", "false")
+    monkeypatch.setenv("COOKIE_HTTPONLY", "false")
+    monkeypatch.setenv("NALAMAP_GEOSERVER_VECTOR_DB", str(tmp_path / "vectors.db"))
+    monkeypatch.setenv("DEPLOYMENT_CONFIG_PATH", str(config_file))
+
+    # Clear config cache before test
+    from services.deployment_config_loader import clear_config_cache
+
+    clear_config_cache()
+
+    # Force reload of config to pick up test environment variables
+    import importlib
+
+    import core.config
+
+    importlib.reload(core.config)
+
+    # Now import the router
+    from api.settings import router as settings_router
+
+    app = FastAPI()
+    app.include_router(settings_router)
+    client = TestClient(app)
+
+    yield client
+
+    # Clean up: clear cache after test
+    clear_config_cache()
+
+
+@pytest.fixture
+def api_client_without_deployment_config(tmp_path, monkeypatch):
+    """API client without a deployment config file."""
+    # Set test environment without DEPLOYMENT_CONFIG_PATH
+    monkeypatch.setenv("COOKIE_SECURE", "false")
+    monkeypatch.setenv("COOKIE_HTTPONLY", "false")
+    monkeypatch.setenv("NALAMAP_GEOSERVER_VECTOR_DB", str(tmp_path / "vectors.db"))
+    monkeypatch.delenv("DEPLOYMENT_CONFIG_PATH", raising=False)
+
+    # Clear config cache before test
+    from services.deployment_config_loader import clear_config_cache
+
+    clear_config_cache()
+
+    # Force reload of config
+    import importlib
+
+    import core.config
+
+    importlib.reload(core.config)
+
+    from api.settings import router as settings_router
+
+    app = FastAPI()
+    app.include_router(settings_router)
+    client = TestClient(app)
+
+    yield client
+
+    # Clean up
+    clear_config_cache()
+
+
+def test_options_endpoint_without_deployment_config(api_client_without_deployment_config):
+    """Test that settings/options works correctly without deployment config."""
+    response = api_client_without_deployment_config.get("/settings/options")
+    assert response.status_code == 200
+    data = response.json()
+
+    # Should return tool_options dict from DEFAULT_AVAILABLE_TOOLS
+    assert "tool_options" in data
+    assert isinstance(data["tool_options"], dict)
+    assert len(data["tool_options"]) > 0
+
+    # All tools should have expected fields
+    for tool_name, tool_config in data["tool_options"].items():
+        assert "enabled" in tool_config
+        assert "default_prompt" in tool_config
+
+    # Should have empty preconfigured_geoserver_backends (no deployment config)
+    assert "preconfigured_geoserver_backends" in data
+    assert data["preconfigured_geoserver_backends"] == []
+
+    # Should have default color_settings
+    assert "color_settings" in data
+    assert "primary" in data["color_settings"]
+
+
+def test_options_endpoint_with_deployment_config(api_client_with_deployment_config):
+    """Test that settings/options integrates deployment config correctly."""
+    response = api_client_with_deployment_config.get("/settings/options")
+    assert response.status_code == 200
+    data = response.json()
+
+    # Check tools have been configured from deployment config
+    assert "tool_options" in data
+    tool_options = data["tool_options"]
+
+    # geocode_nominatim should be enabled (from deployment config)
+    if "geocode_nominatim" in tool_options:
+        assert tool_options["geocode_nominatim"]["enabled"] is True
+
+    # geocode_overpass should be disabled (from deployment config)
+    if "geocode_overpass" in tool_options:
+        assert tool_options["geocode_overpass"]["enabled"] is False
+
+    # Check preconfigured geoserver backends
+    assert "preconfigured_geoserver_backends" in data
+    backends = data["preconfigured_geoserver_backends"]
+    assert len(backends) == 1
+    assert backends[0]["name"] == "Test GeoServer"
+    assert backends[0]["url"] == "https://test.geoserver.com/geoserver/"
+
+    # Check deployment config name is returned
+    assert "deployment_config_name" in data
+    assert data["deployment_config_name"] == "Test Deployment Config"
+
+
+def test_options_endpoint_returns_model_options(api_client_with_deployment_config):
+    """Test that settings/options returns model options."""
+    response = api_client_with_deployment_config.get("/settings/options")
+    assert response.status_code == 200
+    data = response.json()
+
+    # Check that model_options is present and structured correctly
+    assert "model_options" in data
+    assert isinstance(data["model_options"], dict)
+    # Model options contain provider names as keys with lists of models
+    for provider_name, models in data["model_options"].items():
+        assert isinstance(models, list)
+
+
+def test_options_endpoint_returns_color_settings(api_client_with_deployment_config):
+    """Test that settings/options returns color settings."""
+    response = api_client_with_deployment_config.get("/settings/options")
+    assert response.status_code == 200
+    data = response.json()
+
+    # Check that color settings are included with full scale structure
+    assert "color_settings" in data
+    color_settings = data["color_settings"]
+
+    # Check that all required color scales are present
+    required_scales = [
+        "primary",
+        "second_primary",
+        "secondary",
+        "tertiary",
+        "danger",
+        "warning",
+        "info",
+        "neutral",
+        "corporate_1",
+        "corporate_2",
+        "corporate_3",
+    ]
+    for scale_name in required_scales:
+        assert scale_name in color_settings
+        # Each scale should have shade_50 through shade_950
+        assert "shade_50" in color_settings[scale_name]
+        assert "shade_950" in color_settings[scale_name]
+
+
+@pytest.fixture
+def api_client_with_invalid_deployment_config(tmp_path, monkeypatch):
+    """API client with an invalid deployment config file."""
+    # Create an invalid deployment config file
+    config_file = tmp_path / "invalid_config.json"
+    config_data = {
+        "tools": {
+            "nonexistent_tool": {"enabled": True},  # This tool doesn't exist
+        },
+        "model_settings": {
+            "default_provider": "invalid_provider",  # Invalid provider
+        },
+    }
+    config_file.write_text(json.dumps(config_data))
+
+    # Set test environment
+    monkeypatch.setenv("COOKIE_SECURE", "false")
+    monkeypatch.setenv("COOKIE_HTTPONLY", "false")
+    monkeypatch.setenv("NALAMAP_GEOSERVER_VECTOR_DB", str(tmp_path / "vectors.db"))
+    monkeypatch.setenv("DEPLOYMENT_CONFIG_PATH", str(config_file))
+
+    # Clear config cache
+    from services.deployment_config_loader import clear_config_cache
+
+    clear_config_cache()
+
+    import importlib
+
+    import core.config
+
+    importlib.reload(core.config)
+
+    from api.settings import router as settings_router
+
+    app = FastAPI()
+    app.include_router(settings_router)
+    client = TestClient(app)
+
+    yield client
+
+    clear_config_cache()
+
+
+def test_options_endpoint_graceful_degradation_with_invalid_config(
+    api_client_with_invalid_deployment_config,
+):
+    """Test that settings/options gracefully handles invalid deployment config."""
+    response = api_client_with_invalid_deployment_config.get("/settings/options")
+    # Should still return 200 - config validation warns but doesn't fail
+    assert response.status_code == 200
+    data = response.json()
+
+    # Should still return tool_options dict
+    assert "tool_options" in data
+    assert isinstance(data["tool_options"], dict)
+
+    # Tools should use defaults - nonexistent_tool should not appear
+    assert "nonexistent_tool" not in data["tool_options"]
+
+
+def test_options_endpoint_missing_config_file(tmp_path, monkeypatch):
+    """Test that settings/options handles missing config file gracefully."""
+    # Point to a non-existent file
+    monkeypatch.setenv("COOKIE_SECURE", "false")
+    monkeypatch.setenv("COOKIE_HTTPONLY", "false")
+    monkeypatch.setenv("NALAMAP_GEOSERVER_VECTOR_DB", str(tmp_path / "vectors.db"))
+    monkeypatch.setenv("DEPLOYMENT_CONFIG_PATH", "/nonexistent/path/config.json")
+
+    from services.deployment_config_loader import clear_config_cache
+
+    clear_config_cache()
+
+    import importlib
+
+    import core.config
+
+    importlib.reload(core.config)
+
+    from api.settings import router as settings_router
+
+    app = FastAPI()
+    app.include_router(settings_router)
+    client = TestClient(app)
+
+    response = client.get("/settings/options")
+    # Should still return 200 with defaults
+    assert response.status_code == 200
+    data = response.json()
+
+    assert "tool_options" in data
+    assert len(data["tool_options"]) > 0
+
+    clear_config_cache()
+
+
+def test_options_endpoint_malformed_json_config(tmp_path, monkeypatch):
+    """Test that settings/options handles malformed JSON config file."""
+    # Create a malformed JSON file
+    config_file = tmp_path / "malformed_config.json"
+    config_file.write_text("{ invalid json }")
+
+    monkeypatch.setenv("COOKIE_SECURE", "false")
+    monkeypatch.setenv("COOKIE_HTTPONLY", "false")
+    monkeypatch.setenv("NALAMAP_GEOSERVER_VECTOR_DB", str(tmp_path / "vectors.db"))
+    monkeypatch.setenv("DEPLOYMENT_CONFIG_PATH", str(config_file))
+
+    from services.deployment_config_loader import clear_config_cache
+
+    clear_config_cache()
+
+    import importlib
+
+    import core.config
+
+    importlib.reload(core.config)
+
+    from api.settings import router as settings_router
+
+    app = FastAPI()
+    app.include_router(settings_router)
+    client = TestClient(app)
+
+    response = client.get("/settings/options")
+    # Should still return 200 with defaults
+    assert response.status_code == 200
+    data = response.json()
+
+    assert "tool_options" in data
+    assert len(data["tool_options"]) > 0
+
+    clear_config_cache()
