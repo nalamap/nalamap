@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "config_name": "Example Deployment Configuration",
+  "config_description": "Example configuration file for customizing NaLaMap deployments. Copy and modify this file for your environment.",
+  "config_version": "1.0",
+
+  "_comment_geoserver": "Configure GeoServer backends that should be pre-added for users",
+  "geoserver_backends": [
+    {
+      "url": "https://your-geoserver.example.org/geoserver/",
+      "name": "Corporate GeoServer",
+      "description": "Internal GeoServer with organizational data layers",
+      "enabled": true,
+      "preload_on_startup": true,
+      "search_term": null,
+      "_comment": "Set preload_on_startup=true to embed layers at server start (faster searches). search_term can filter which layers to preload."
+    }
+  ],
+
+  "_comment_mcp": "Configure MCP (Model Context Protocol) servers for extended AI tools",
+  "mcp_servers": [],
+
+  "_comment_model": "Override default model settings. Any omitted fields use system defaults.",
+  "model_settings": {
+    "model_provider": "openai",
+    "model_name": "gpt-4o",
+    "max_tokens": 8000,
+    "enable_smart_crs": true,
+    "enable_dynamic_tools": false,
+    "tool_selection_strategy": "conservative",
+    "_comment": "provider options: openai, azure, google, mistral, anthropic. Check /api/settings/options for available models."
+  },
+
+  "_comment_tools": "Enable/disable specific tools. Tools not listed use their default state.",
+  "tools": [
+    {"name": "geoprocess", "enabled": true},
+    {"name": "geocode_nominatim", "enabled": true},
+    {"name": "geocode_overpass", "enabled": true},
+    {"name": "get_custom_geoserver_data", "enabled": true},
+    {"name": "style_layers", "enabled": true},
+    {"name": "autostyle_new_layers", "enabled": true},
+    {"name": "check_and_autostyle", "enabled": true},
+    {"name": "apply_color_scheme", "enabled": true},
+    {"name": "search_metadata", "enabled": true},
+    {"name": "attribute_tool", "enabled": false, "_comment": "Advanced attribute tool, disabled by default"},
+    {"name": "attribute_tool2", "enabled": true, "_comment": "Simplified attribute tool, recommended"}
+  ],
+
+  "_comment_prompt": "Custom system prompt. Remove this field to use the default prompt.",
+  "system_prompt": null,
+
+  "_comment_theme": "Default theme: 'light' or 'dark'",
+  "theme": "light",
+
+  "_comment_colors": "Custom color scheme. Remove this section to use default IUCN Green List colors.",
+  "color_settings": null
+}

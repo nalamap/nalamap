@@ -14,6 +14,10 @@ from services.default_agent_settings import (
     DEFAULT_SYSTEM_PROMPT,
     TOOL_METADATA,
 )
+from services.deployment_config_loader import (
+    load_and_validate_config,
+    merge_tool_metadata_with_config,
+)
 from services.tools.geoserver.custom_geoserver import preload_backend_layers_with_state
 from services.tools.geoserver.vector_store import set_processing_state
 
@@ -169,6 +173,10 @@ class SettingsOptions(BaseModel):
     model_options: Dict[str, List[ModelOption]]  # per-provider model list
     session_id: str
     color_settings: ColorSettings  # default color settings
+    # Custom deployment config fields
+    preconfigured_geoserver_backends: List[ExampleGeoServer] = []  # From deployment config
+    preconfigured_mcp_servers: List[ExampleMCPServer] = []  # From deployment config
+    deployment_config_name: Optional[str] = None  # Name of active deployment config
 
 
 class GeoServerPreloadRequest(BaseModel):
@@ -188,11 +196,22 @@ class GeoServerPreloadResponse(BaseModel):
 
 @router.get("/options", response_model=SettingsOptions)
 async def get_settings_options(request: Request, response: Response):
-    """Get available settings options including dynamically discovered LLM providers and models."""
-    # Get available tools with metadata
+    """Get available settings options including dynamically discovered LLM providers and models.
+
+    If a deployment configuration is provided (via DEPLOYMENT_CONFIG_PATH env var),
+    the settings will be merged with custom values from the config file.
+    """
+    # Load deployment config (cached after first load)
+    deployment_result = load_and_validate_config()
+    deployment_config = deployment_result.config if deployment_result.valid else None
+
+    # Get tool metadata, merging with deployment config overrides
+    merged_tool_metadata = merge_tool_metadata_with_config(TOOL_METADATA)
+
+    # Build tool options from available tools with merged metadata
     tool_options = {}
     for available_tool_name, available_tool in DEFAULT_AVAILABLE_TOOLS.items():
-        metadata = TOOL_METADATA.get(available_tool_name, {})
+        metadata = merged_tool_metadata.get(available_tool_name, {})
         tool_options[available_tool_name] = ToolOption(
             default_prompt=available_tool.description,
             settings={},
@@ -202,7 +221,7 @@ async def get_settings_options(request: Request, response: Response):
             category=metadata.get("category", "other"),
         )
 
-    # Example GeoServer backends
+    # Default example GeoServer backends (always available as suggestions)
     example_geoserver_backends = [
         ExampleGeoServer(
             url="https://geoserver.mapx.org/geoserver/",
@@ -239,9 +258,34 @@ async def get_settings_options(request: Request, response: Response):
         ),
     ]
 
-    # Example MCP servers - empty for now
-    # Users can add their own custom MCP servers through the UI
-    example_mcp_servers = []
+    # Pre-configured backends from deployment config (to be auto-added)
+    preconfigured_geoserver_backends: List[ExampleGeoServer] = []
+    if deployment_config and deployment_config.geoserver_backends:
+        for backend in deployment_config.geoserver_backends:
+            preconfigured_geoserver_backends.append(
+                ExampleGeoServer(
+                    url=backend.url,
+                    name=backend.name or "Configured Backend",
+                    description=backend.description or "Pre-configured GeoServer backend",
+                    username=backend.username,
+                    password=backend.password,
+                )
+            )
+
+    # Example MCP servers - empty by default
+    example_mcp_servers: List[ExampleMCPServer] = []
+
+    # Pre-configured MCP servers from deployment config
+    preconfigured_mcp_servers: List[ExampleMCPServer] = []
+    if deployment_config and deployment_config.mcp_servers:
+        for server in deployment_config.mcp_servers:
+            preconfigured_mcp_servers.append(
+                ExampleMCPServer(
+                    url=server.url,
+                    name=server.name or "Configured MCP Server",
+                    description=server.description or "Pre-configured MCP server",
+                )
+            )
 
     # Dynamically discover available LLM providers and models
     from services.ai.provider_interface import get_all_providers
@@ -464,14 +508,69 @@ async def get_settings_options(request: Request, response: Response):
             max_age=60 * 60 * 24 * 30,
         )
 
+    # Determine system prompt - use deployment config override if available
+    system_prompt = DEFAULT_SYSTEM_PROMPT
+    if deployment_config and deployment_config.system_prompt:
+        system_prompt = deployment_config.system_prompt
+        logger.info("Using custom system prompt from deployment config")
+
+    # Determine color settings - use deployment config override if available
+    final_color_settings = default_color_settings
+    if deployment_config and deployment_config.color_settings:
+        try:
+            # Convert deployment config color settings to API ColorSettings
+            final_color_settings = ColorSettings(
+                primary=_convert_color_scale(deployment_config.color_settings.primary),
+                second_primary=_convert_color_scale(
+                    deployment_config.color_settings.second_primary
+                ),
+                secondary=_convert_color_scale(deployment_config.color_settings.secondary),
+                tertiary=_convert_color_scale(deployment_config.color_settings.tertiary),
+                danger=_convert_color_scale(deployment_config.color_settings.danger),
+                warning=_convert_color_scale(deployment_config.color_settings.warning),
+                info=_convert_color_scale(deployment_config.color_settings.info),
+                neutral=_convert_color_scale(deployment_config.color_settings.neutral),
+                corporate_1=_convert_color_scale(deployment_config.color_settings.corporate_1),
+                corporate_2=_convert_color_scale(deployment_config.color_settings.corporate_2),
+                corporate_3=_convert_color_scale(deployment_config.color_settings.corporate_3),
+            )
+            logger.info("Using custom color settings from deployment config")
+        except Exception as e:
+            logger.warning(f"Failed to apply deployment color settings: {e}")
+
+    # Get deployment config name for UI display
+    deployment_config_name = None
+    if deployment_config:
+        deployment_config_name = deployment_config.config_name
+
     return SettingsOptions(
-        system_prompt=DEFAULT_SYSTEM_PROMPT,
+        system_prompt=system_prompt,
         tool_options=tool_options,
         example_geoserver_backends=example_geoserver_backends,
         example_mcp_servers=example_mcp_servers,
         model_options=model_options,
         session_id=session_id,
-        color_settings=default_color_settings,
+        color_settings=final_color_settings,
+        preconfigured_geoserver_backends=preconfigured_geoserver_backends,
+        preconfigured_mcp_servers=preconfigured_mcp_servers,
+        deployment_config_name=deployment_config_name,
+    )
+
+
+def _convert_color_scale(scale) -> ColorScale:
+    """Convert deployment config ColorScale to API ColorScale."""
+    return ColorScale(
+        shade_50=scale.shade_50,
+        shade_100=scale.shade_100,
+        shade_200=scale.shade_200,
+        shade_300=scale.shade_300,
+        shade_400=scale.shade_400,
+        shade_500=scale.shade_500,
+        shade_600=scale.shade_600,
+        shade_700=scale.shade_700,
+        shade_800=scale.shade_800,
+        shade_900=scale.shade_900,
+        shade_950=scale.shade_950,
     )
 
 

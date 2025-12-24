@@ -1,6 +1,7 @@
 import logging
 import mimetypes
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -21,6 +22,8 @@ from api import (
 
 # from sqlalchemy.ext.asyncio import AsyncSession
 from core.config import ALLOWED_CORS_ORIGINS, LOCAL_UPLOAD_DIR
+from services.deployment_config_loader import load_and_validate_config
+from services.startup_preloader import schedule_startup_preload
 
 # Configure logging with environment variable support
 # Set LOG_LEVEL=WARNING in production to reduce noise, DEBUG for verbose output
@@ -29,6 +32,8 @@ logging.basicConfig(
     level=getattr(logging, log_level, logging.INFO),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
+
+logger = logging.getLogger(__name__)
 
 
 tags_metadata = [
@@ -45,7 +50,32 @@ tags_metadata = [
     },
 ]
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """FastAPI lifespan context manager for startup/shutdown events."""
+    # Startup
+    logger.info("NaLaMap API starting up...")
+
+    # Load and validate deployment configuration
+    config_result = load_and_validate_config()
+    if config_result.valid and config_result.config:
+        config_name = config_result.config.config_name or "(unnamed)"
+        logger.info(f"Deployment configuration loaded: {config_name}")
+        if config_result.warnings:
+            for warning in config_result.warnings:
+                logger.warning(f"Config warning: {warning}")
+
+        # Schedule startup preload for GeoServer backends (runs in background)
+        # This preloads backends marked with preload_on_startup=True
+        schedule_startup_preload()
+    else:
+        logger.info("No deployment configuration found, using defaults")
+
+    yield
+
+    # Shutdown
+    logger.info("NaLaMap API shutting down...")
 
 
 app = FastAPI(
@@ -53,6 +83,7 @@ app = FastAPI(
     description="API for making geospatial data accessible",
     version="0.1.0",
     openapi_tags=tags_metadata,
+    lifespan=lifespan,
 )
 
 # CORS
