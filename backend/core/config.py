@@ -93,6 +93,7 @@ def get_oidc_providers() -> list[dict]:
             providers.append(provider)
     return providers
 
+
 # ----------------------------------------------------------------------------
 # Mapping / Geospatial Service Flags
 # ----------------------------------------------------------------------------

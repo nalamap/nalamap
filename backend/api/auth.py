@@ -262,9 +262,7 @@ async def oidc_callback(
         raise HTTPException(status_code=400, detail="OIDC userinfo missing sub")
 
     # Resolve or create user
-    result = await db.execute(
-        select(User).filter_by(oidc_provider=provider_name, oidc_subject=sub)
-    )
+    result = await db.execute(select(User).filter_by(oidc_provider=provider_name, oidc_subject=sub))
     user = result.scalars().first()
 
     if not user and email:
