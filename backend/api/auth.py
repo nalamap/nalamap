@@ -235,7 +235,11 @@ async def oidc_callback(
         provider_cfg["client_id"],
         provider_cfg["client_secret"],
         scope=provider_cfg["scopes"].split(),
-        redirect_uri=str(request.url.replace(path="/api/auth/oidc/callback", query="")),
+        # OLD (Causes mismatch): 
+        # redirect_uri=str(request.url.replace(path="/api/auth/oidc/callback", query="")),
+        
+        # NEW (Fixes mismatch):
+        redirect_uri=f"{BASE_URL.rstrip('/')}/api/auth/oidc/callback",
     )
     metadata = await _fetch_oidc_metadata(client, provider_cfg["issuer"])
 
