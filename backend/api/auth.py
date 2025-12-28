@@ -235,9 +235,8 @@ async def oidc_callback(
         provider_cfg["client_id"],
         provider_cfg["client_secret"],
         scope=provider_cfg["scopes"].split(),
-        # OLD (Causes mismatch): 
+        # OLD (Causes mismatch):
         # redirect_uri=str(request.url.replace(path="/api/auth/oidc/callback", query="")),
-        
         # NEW (Fixes mismatch):
         redirect_uri=f"{BASE_URL.rstrip('/')}/api/auth/oidc/callback",
     )
