@@ -23,11 +23,12 @@ def get_nalamap_headers() -> Dict[str, str]:
 
     The User-Agent includes the deployment identifier to help API providers
     identify the source of requests for rate limiting and analytics.
+    The format is: NaLaMap/<deployment_id>, github.com/nalamap, <description>
     """
     deployment_id = get_deployment_identifier()
     return {
         "User-Agent": (
-            f"{deployment_id}, github.com/nalamap, "
+            f"NaLaMap/{deployment_id}, github.com/nalamap, "
             "next generation geospatial analysis using agents"
         )
     }
@@ -661,7 +662,9 @@ def geocode_using_overpass_to_geostate(
     search_mode_description: str = ""
 
     try:
-        nominatim_response_req = requests.get(nominatim_url, headers=get_nalamap_headers(), timeout=20)
+        nominatim_response_req = requests.get(
+            nominatim_url, headers=get_nalamap_headers(), timeout=20
+        )
         nominatim_response_req.raise_for_status()
         location_data_list = nominatim_response_req.json()
 

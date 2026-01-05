@@ -63,23 +63,17 @@ def validate_url(url: str) -> None:
     # Block localhost/private network access to prevent SSRF
     host = parsed.hostname or ""
     if host.lower() in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
-        raise HTTPException(
-            status_code=400, detail="Proxying to localhost is not allowed"
-        )
+        raise HTTPException(status_code=400, detail="Proxying to localhost is not allowed")
 
     # Block private IP ranges (basic check)
     if host.startswith("10.") or host.startswith("192.168."):
-        raise HTTPException(
-            status_code=400, detail="Proxying to private networks is not allowed"
-        )
+        raise HTTPException(status_code=400, detail="Proxying to private networks is not allowed")
 
 
 @router.get("/geojson")
 async def proxy_geojson(
     url: str = Query(..., description="The URL to fetch GeoJSON/WFS data from"),
-    srsName: Optional[str] = Query(
-        None, description="Optional SRS name to add to WFS requests"
-    ),
+    srsName: Optional[str] = Query(None, description="Optional SRS name to add to WFS requests"),
 ) -> JSONResponse:
     """Proxy endpoint for fetching GeoJSON/WFS data from external sources.
 
@@ -140,14 +134,14 @@ async def proxy_geojson(
 
         # Parse as JSON
         try:
-            json_data = response.json() if not content else __import__("json").loads(
-                content.decode("utf-8")
+            json_data = (
+                response.json()
+                if not content
+                else __import__("json").loads(content.decode("utf-8"))
             )
         except Exception as e:
             logger.error(f"Failed to parse response as JSON: {e}")
-            raise HTTPException(
-                status_code=502, detail="External server returned invalid JSON"
-            )
+            raise HTTPException(status_code=502, detail="External server returned invalid JSON")
 
         # Return the JSON response with CORS headers handled by FastAPI middleware
         return JSONResponse(
@@ -160,14 +154,10 @@ async def proxy_geojson(
 
     except requests.exceptions.Timeout:
         logger.error(f"Timeout fetching from: {request_url}")
-        raise HTTPException(
-            status_code=504, detail="Request to external server timed out"
-        )
+        raise HTTPException(status_code=504, detail="Request to external server timed out")
     except requests.exceptions.ConnectionError as e:
         logger.error(f"Connection error fetching from {request_url}: {e}")
-        raise HTTPException(
-            status_code=502, detail="Could not connect to external server"
-        )
+        raise HTTPException(status_code=502, detail="Could not connect to external server")
     except requests.exceptions.HTTPError as e:
         status_code = e.response.status_code if e.response else 502
         logger.error(f"HTTP error fetching from {request_url}: {e}")
@@ -179,9 +169,7 @@ async def proxy_geojson(
         raise
     except Exception as e:
         logger.error(f"Unexpected error proxying request to {request_url}: {e}")
-        raise HTTPException(
-            status_code=500, detail="Internal error while proxying request"
-        )
+        raise HTTPException(status_code=500, detail="Internal error while proxying request")
 
 
 # Maximum image size (10MB - for legends and tiles)
@@ -239,10 +227,7 @@ async def proxy_image(
         if content_length and int(content_length) > MAX_IMAGE_SIZE:
             raise HTTPException(
                 status_code=413,
-                detail=(
-                    f"Image too large: {content_length} bytes "
-                    f"(max: {MAX_IMAGE_SIZE})"
-                ),
+                detail=(f"Image too large: {content_length} bytes " f"(max: {MAX_IMAGE_SIZE})"),
             )
 
         # Read the response content with size limit
@@ -267,14 +252,10 @@ async def proxy_image(
 
     except requests.exceptions.Timeout:
         logger.error(f"Timeout fetching image from: {url}")
-        raise HTTPException(
-            status_code=504, detail="Request to external server timed out"
-        )
+        raise HTTPException(status_code=504, detail="Request to external server timed out")
     except requests.exceptions.ConnectionError as e:
         logger.error(f"Connection error fetching image from {url}: {e}")
-        raise HTTPException(
-            status_code=502, detail="Could not connect to external server"
-        )
+        raise HTTPException(status_code=502, detail="Could not connect to external server")
     except requests.exceptions.HTTPError as e:
         status_code = e.response.status_code if e.response else 502
         logger.error(f"HTTP error fetching image from {url}: {e}")
@@ -286,6 +267,4 @@ async def proxy_image(
         raise
     except Exception as e:
         logger.error(f"Unexpected error proxying image from {url}: {e}")
-        raise HTTPException(
-            status_code=500, detail="Internal error while proxying image"
-        )
+        raise HTTPException(status_code=500, detail="Internal error while proxying image")
