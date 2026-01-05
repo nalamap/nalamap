@@ -4,6 +4,9 @@
   "config_description": "Example configuration file for customizing NaLaMap deployments. Copy and modify this file for your environment.",
   "config_version": "1.0",
 
+  "_comment_deployment": "Unique identifier for this deployment, used in User-Agent headers for API rate limiting",
+  "deployment_name": "my-organization-nalamap",
+
   "_comment_geoserver": "Configure GeoServer backends that should be pre-added for users",
   "geoserver_backends": [
     {

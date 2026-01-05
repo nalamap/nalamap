@@ -186,6 +186,16 @@ class DeploymentConfig(BaseModel):
     # Theme preference
     theme: Optional[str] = Field(None, description="Theme preference: 'light' or 'dark'")
 
+    # Deployment identification
+    deployment_name: Optional[str] = Field(
+        None,
+        description=(
+            "Human-readable name for this deployment instance. "
+            "Used in User-Agent headers for API rate limiting identification. "
+            "Falls back to BASE_URL if not provided."
+        ),
+    )
+
     # Additional metadata
     config_version: Optional[str] = Field(
         None, description="Version of the config schema (for future migrations)"

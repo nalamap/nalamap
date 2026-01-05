@@ -12,13 +12,25 @@ from typing_extensions import Annotated
 
 from models.geodata import DataOrigin, DataType, GeoDataObject
 from models.states import GeoDataAgentState
+from services.deployment_config_loader import get_deployment_identifier
 from services.storage.file_management import store_file
 
 from .constants import AMENITY_MAPPING
 
-headers_nalamap = {
-    "User-Agent": "NaLaMap, github.com/nalamap, next generation geospatial analysis using agents"
-}
+
+def get_nalamap_headers() -> Dict[str, str]:
+    """Get headers with dynamic User-Agent for API requests.
+
+    The User-Agent includes the deployment identifier to help API providers
+    identify the source of requests for rate limiting and analytics.
+    """
+    deployment_id = get_deployment_identifier()
+    return {
+        "User-Agent": (
+            f"{deployment_id}, github.com/nalamap, "
+            "next generation geospatial analysis using agents"
+        )
+    }
 
 
 @tool
@@ -79,7 +91,7 @@ def geocode_using_nominatim(query: str, geojson: bool = False, maxRows: int = 3)
         f"?q={query}&format=json&polygon_kml={1 if geojson else 0}"
         f"&addressdetails=1&limit={maxRows}"
     )
-    response = requests.get(url, headers=headers_nalamap)
+    response = requests.get(url, headers=get_nalamap_headers())
     if response.status_code == 200:
         data = response.json()
         if len(data):
@@ -229,7 +241,7 @@ def geocode_using_nominatim_to_geostate(
         f"?q={query}&format=json&polygon_geojson={1 if geojson else 0}"
         f"&addressdetails=0&limit={maxRows}"
     )
-    response = requests.get(url, headers=headers_nalamap)
+    response = requests.get(url, headers=get_nalamap_headers())
     if response.status_code == 200:
         data = response.json()
         if len(data):
@@ -649,7 +661,7 @@ def geocode_using_overpass_to_geostate(
     search_mode_description: str = ""
 
     try:
-        nominatim_response_req = requests.get(nominatim_url, headers=headers_nalamap, timeout=20)
+        nominatim_response_req = requests.get(nominatim_url, headers=get_nalamap_headers(), timeout=20)
         nominatim_response_req.raise_for_status()
         location_data_list = nominatim_response_req.json()
 
@@ -820,7 +832,7 @@ def geocode_using_overpass_to_geostate(
             overpass_api_url,
             data={"data": overpass_query},
             headers={
-                **headers_nalamap,
+                **get_nalamap_headers(),
                 "Content-Type": "application/x-www-form-urlencoded",
             },
             timeout=timeout + 10,

@@ -34,7 +34,6 @@ from models.deployment_config import (
     DeploymentModelSettings,
     DeploymentToolConfig,
 )
-from services.default_agent_settings import DEFAULT_AVAILABLE_TOOLS
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +90,9 @@ def validate_tools(
     Returns:
         Tuple of (valid tool configs, warning messages)
     """
+    # Import here to avoid circular import with geocoding.py
+    from services.default_agent_settings import DEFAULT_AVAILABLE_TOOLS
+
     warnings: List[str] = []
     valid_configs: List[DeploymentToolConfig] = []
     known_tools: Set[str] = set(DEFAULT_AVAILABLE_TOOLS.keys())
@@ -438,6 +440,37 @@ def merge_tool_metadata_with_config(
     # Actually, we keep default state - only override what's explicitly configured
 
     return merged
+
+
+def get_deployment_identifier() -> str:
+    """Get a deployment identifier for use in User-Agent headers and API identification.
+
+    Priority order:
+    1. DEPLOYMENT_NAME environment variable
+    2. deployment_name from deployment config JSON
+    3. BASE_URL environment variable
+    4. Default "NaLaMap" identifier
+
+    Returns:
+        A string identifier for this deployment
+    """
+    # Priority 1: DEPLOYMENT_NAME environment variable (highest priority)
+    env_deployment_name = os.environ.get("DEPLOYMENT_NAME")
+    if env_deployment_name:
+        return env_deployment_name
+
+    # Priority 2: deployment_name from config
+    config = get_cached_config()
+    if config and config.deployment_name:
+        return config.deployment_name
+
+    # Priority 3: BASE_URL environment variable
+    base_url = os.environ.get("BASE_URL")
+    if base_url:
+        return base_url
+
+    # Priority 4: Default identifier
+    return "NaLaMap"
 
 
 def clear_config_cache():

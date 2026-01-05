@@ -17,6 +17,7 @@ from api import (
     file_streaming,
     mcp,
     nalamap,
+    proxy,
     settings,
 )
 
@@ -126,6 +127,7 @@ app.include_router(auto_styling.router, prefix="/api")  # Automatic styling
 app.include_router(settings.router, prefix="/api")
 app.include_router(file_streaming.router, prefix="/api")  # Streaming files
 app.include_router(mcp.router, prefix="/api")  # MCP server endpoint
+app.include_router(proxy.router, prefix="/api/proxy")  # CORS proxy for external data
 
 
 @app.get("/")
