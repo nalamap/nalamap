@@ -1,15 +1,18 @@
 """
 CORS Proxy API
 
-Provides a proxy endpoint for fetching external GeoJSON/WFS data to bypass
-CORS restrictions. This is necessary when external GeoServers don't have
-proper CORS headers configured.
+Provides proxy endpoints for fetching external resources to bypass CORS restrictions.
+This is necessary when external GeoServers don't have proper CORS headers configured.
+
+Supported endpoints:
+- /geojson: Proxy for GeoJSON/WFS data
+- /image: Proxy for images (legends, tiles)
 
 Security Considerations:
-- Only JSON/GeoJSON responses are proxied
 - Response size is limited
 - Only GET requests are supported
 - URL scheme must be http or https
+- Private network access is blocked (SSRF prevention)
 """
 
 import logging
@@ -18,14 +21,14 @@ from urllib.parse import urlparse
 
 import requests
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Maximum response size (10MB)
-MAX_PROXY_RESPONSE_SIZE = 10 * 1024 * 1024
+# Maximum response size (100MB - GeoJSON can be large)
+MAX_PROXY_RESPONSE_SIZE = 100 * 1024 * 1024
 
 # Allowed schemes
 ALLOWED_SCHEMES = {"http", "https"}
@@ -178,4 +181,111 @@ async def proxy_geojson(
         logger.error(f"Unexpected error proxying request to {request_url}: {e}")
         raise HTTPException(
             status_code=500, detail="Internal error while proxying request"
+        )
+
+
+# Maximum image size (10MB - for legends and tiles)
+MAX_IMAGE_SIZE = 10 * 1024 * 1024
+
+# Allowed image content types
+ALLOWED_IMAGE_TYPES = {
+    "image/png",
+    "image/jpeg",
+    "image/gif",
+    "image/webp",
+    "image/svg+xml",
+}
+
+
+@router.get("/image")
+async def proxy_image(
+    url: str = Query(..., description="The URL to fetch the image from"),
+) -> Response:
+    """Proxy endpoint for fetching images from external sources.
+
+    This endpoint fetches images (like WMS GetLegendGraphic, WMTS tiles)
+    from external servers to bypass CORS restrictions.
+
+    Args:
+        url: The URL to fetch the image from (required)
+
+    Returns:
+        Response with the image data and appropriate content type
+    """
+    # Validate the URL
+    validate_url(url)
+
+    logger.info(f"Proxying image request to: {url}")
+
+    try:
+        response = requests.get(
+            url,
+            headers={
+                "Accept": "image/png, image/jpeg, image/gif, image/webp, image/svg+xml, */*",
+                "User-Agent": "NaLaMap-Proxy/1.0 (github.com/nalamap)",
+            },
+            timeout=REQUEST_TIMEOUT,
+            stream=True,
+        )
+        response.raise_for_status()
+
+        # Check content type
+        content_type = response.headers.get("content-type", "").split(";")[0].strip()
+        if not content_type:
+            content_type = "image/png"  # Default to PNG for unspecified types
+
+        # Check content length if available
+        content_length = response.headers.get("content-length")
+        if content_length and int(content_length) > MAX_IMAGE_SIZE:
+            raise HTTPException(
+                status_code=413,
+                detail=(
+                    f"Image too large: {content_length} bytes "
+                    f"(max: {MAX_IMAGE_SIZE})"
+                ),
+            )
+
+        # Read the response content with size limit
+        content = b""
+        for chunk in response.iter_content(chunk_size=8192):
+            content += chunk
+            if len(content) > MAX_IMAGE_SIZE:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"Image exceeded maximum size of {MAX_IMAGE_SIZE} bytes",
+                )
+
+        # Return the image with appropriate headers
+        return Response(
+            content=content,
+            media_type=content_type,
+            headers={
+                "X-Proxied-From": url,
+                "Cache-Control": "public, max-age=3600",  # Cache for 1 hour
+            },
+        )
+
+    except requests.exceptions.Timeout:
+        logger.error(f"Timeout fetching image from: {url}")
+        raise HTTPException(
+            status_code=504, detail="Request to external server timed out"
+        )
+    except requests.exceptions.ConnectionError as e:
+        logger.error(f"Connection error fetching image from {url}: {e}")
+        raise HTTPException(
+            status_code=502, detail="Could not connect to external server"
+        )
+    except requests.exceptions.HTTPError as e:
+        status_code = e.response.status_code if e.response else 502
+        logger.error(f"HTTP error fetching image from {url}: {e}")
+        raise HTTPException(
+            status_code=status_code,
+            detail=f"External server returned error: {status_code}",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error proxying image from {url}: {e}")
+        raise HTTPException(
+            status_code=500, detail="Internal error while proxying image"
         )

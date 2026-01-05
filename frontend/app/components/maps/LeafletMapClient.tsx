@@ -161,6 +161,16 @@ function getProxiedUrl(originalUrl: string, srsName?: string): string {
 }
 
 /**
+ * Build a proxied URL for fetching external images through our backend.
+ * Used for legend images from external GeoServers with CORS restrictions.
+ */
+function getProxiedImageUrl(originalUrl: string): string {
+  const apiBase = getApiBase();
+  const params = new URLSearchParams({ url: originalUrl });
+  return `${apiBase}/proxy/image?${params.toString()}`;
+}
+
+/**
  * Fetch GeoJSON/WFS data, using proxy for external URLs that fail due to CORS.
  */
 async function fetchWithCorsProxy(
@@ -1276,9 +1286,12 @@ const Legend = memo(function Legend({
   const [hasError, setHasError] = useState<boolean>(false);
   const [hasFallbackAttempted, setHasFallbackAttempted] =
     useState<boolean>(false);
+  const [hasProxyAttempted, setHasProxyAttempted] = useState<boolean>(false);
   const [lastUniqueId, setLastUniqueId] = useState<string>("");
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
   const [isImageMaximized, setIsImageMaximized] = useState<boolean>(false);
+  // Keep track of the original (non-proxied) URL for fallback logic
+  const [originalLegendUrl, setOriginalLegendUrl] = useState<string>("");
 
   useEffect(() => {
     // Only reset states if this is actually a different layer
@@ -1286,18 +1299,22 @@ const Legend = memo(function Legend({
       setIsLoading(true);
       setHasError(false);
       setHasFallbackAttempted(false);
+      setHasProxyAttempted(false);
       setLastUniqueId(uniqueId);
 
       if (wmsLayer) {
         // Original WMS legend URL
         const wmsLegendUrl = `${wmsLayer.baseUrl}?service=WMS&request=GetLegendGraphic&layer=${wmsLayer.layers}&format=image/png`;
+        setOriginalLegendUrl(wmsLegendUrl);
         setLegendUrl(wmsLegendUrl);
       } else if (wmtsLayer) {
         // For WMTS, start with WMTS GetLegendGraphic (for non-standard providers like FAO)
         if (wmtsLayer.wmtsLegendUrl) {
+          setOriginalLegendUrl(wmtsLayer.wmtsLegendUrl);
           setLegendUrl(wmtsLayer.wmtsLegendUrl);
         } else if (wmtsLayer.wmsLegendUrl) {
           // Direct WMS fallback if no WMTS URL available
+          setOriginalLegendUrl(wmtsLayer.wmsLegendUrl);
           setLegendUrl(wmtsLayer.wmsLegendUrl);
           setHasFallbackAttempted(true); // Mark as already using fallback
         } else {
@@ -1396,8 +1413,15 @@ const Legend = memo(function Legend({
                 ) {
                   Logger.log("Trying WMS fallback for WMTS legend");
                   setHasFallbackAttempted(true);
+                  setOriginalLegendUrl(wmtsLayer.wmsLegendUrl);
                   setLegendUrl(wmtsLayer.wmsLegendUrl);
                   setIsLoading(true); // Reset loading state for fallback attempt
+                } else if (!hasProxyAttempted && originalLegendUrl && isExternalUrl(originalLegendUrl)) {
+                  // Try using the image proxy for external URLs that may have CORS issues
+                  Logger.log("Trying image proxy for legend:", originalLegendUrl);
+                  setHasProxyAttempted(true);
+                  setLegendUrl(getProxiedImageUrl(originalLegendUrl));
+                  setIsLoading(true); // Reset loading state for proxy attempt
                 } else {
                   // Final failure - hide the legend
                   Logger.log("Legend loading failed permanently");
