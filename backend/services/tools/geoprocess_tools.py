@@ -134,6 +134,7 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
     query = state.get("query", "")
     layers: List[Dict[str, Any]] = state.get("input_layers", [])
     available_ops: List[str] = state.get("available_operations_and_params", [])
+    model_settings = state.get("model_settings")  # Get user's model configuration
 
     # 0) Summarize layers to metadata to reduce context size
     layer_meta = []
@@ -154,8 +155,20 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
             }
         )
 
-        # 1) Invoke LLM planner with metadata only
-    llm = get_llm()
+    # 1) Invoke LLM planner with metadata only
+    # Use user-configured model if available, otherwise fall back to environment default
+    if model_settings is not None:
+        from services.ai.llm_config import get_llm_for_provider
+
+        llm, _ = get_llm_for_provider(
+            provider_name=model_settings.model_provider,
+            max_tokens=model_settings.max_tokens,
+            model_name=model_settings.model_name,
+        )
+    else:
+        # Fall back to environment-configured provider
+        llm = get_llm()
+
     system_msg = (
         "You are a geospatial task execution assistant. Your role is to "
         "translate the user's most recent request into a single geoprocessing "
@@ -271,11 +284,51 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
     result = layers
     executed_ops = []
     executed_steps = []
+
+    # Get enable_smart_crs setting from state (defaults to True for better accuracy)
+    enable_smart_crs = state.get("enable_smart_crs", True)
+
     for step in steps:
         op_name = step.get("operation")
         params = step.get("params", {})
         func = TOOL_REGISTRY.get(op_name)
         if func:
+            # Check if user specified a CRS parameter
+            user_specified_crs = params.get("crs") or params.get("buffer_crs")
+
+            # Inject auto_optimize_crs for operations that support it
+            # Only inject if CRS not already specified by user
+            if (
+                not user_specified_crs
+                and "auto_optimize_crs" not in params
+                and op_name
+                in [
+                    "buffer",
+                    "area",
+                    "overlay",
+                    "clip",
+                    "dissolve",
+                    "sjoin_nearest",
+                    "sjoin",
+                    "simplify",
+                ]
+            ):
+                params["auto_optimize_crs"] = enable_smart_crs
+                # Also request projection metadata when auto-optimizing
+                params["projection_metadata"] = True
+            elif user_specified_crs:
+                # User specified CRS - pass it as override_crs for operations that support it
+                if op_name in ["buffer", "area", "overlay", "clip", "dissolve"]:
+                    # Remove the generic 'crs' parameter if present
+                    if "crs" in params:
+                        del params["crs"]
+                    # Set override_crs to disable auto-selection
+                    params["override_crs"] = user_specified_crs
+                    # Still request metadata to show what was used
+                    params["projection_metadata"] = True
+                    # Disable auto-optimization when user specifies CRS
+                    params["auto_optimize_crs"] = False
+
             result = func(result, **params)
             executed_ops.append(op_name)
             executed_steps.append({"operation": op_name, "params": params})
@@ -284,7 +337,7 @@ def geoprocess_executor(state: Dict[str, Any]) -> Dict[str, Any]:
     operation_details = {
         "query": query,
         "steps": executed_steps,
-        "input_layers": [layer.get("name", "") for layer in layer_meta],
+        "input_layers": state.get("layer_titles", []),  # Use actual layer titles
     }
 
     return {
@@ -358,9 +411,13 @@ def geoprocess_tool(
 
     # Load GeoJSONs from either local disk or remote URL
     input_layers: List[Dict[str, Any]] = []
+    layer_titles: List[str] = []  # Track layer titles for origin_layers metadata
     for layer in selected:
         if layer.data_type not in (DataType.GEOJSON, DataType.UPLOADED):
             continue
+
+        # Store layer title for metadata
+        layer_titles.append(layer.title or layer.name)
 
         url = layer.data_link
         gj: Optional[Dict[str, Any]] = None
@@ -480,32 +537,50 @@ def geoprocess_tool(
     if operation:
         query = f"{operation} {query}"
 
+    # Get enable_smart_crs from model settings (default to True for better accuracy)
+    options = state.get("options")
+    enable_smart_crs = True  # Default to enabled
+    model_settings = None  # Will be passed to executor
+
+    if options and hasattr(options, "model_settings"):
+        enable_smart_crs = getattr(options.model_settings, "enable_smart_crs", True)
+        model_settings = options.model_settings  # Pass model settings to executor
+
     # Build the state for the geoprocess executor
     processing_state = {
         "query": query,
         "input_layers": input_layers,
+        "layer_titles": layer_titles,  # Pass layer titles for origin_layers metadata
+        "enable_smart_crs": enable_smart_crs,
+        "model_settings": model_settings,  # Pass user's model configuration
         "available_operations_and_params": [
             (
+                "CRS PARAMETER: Most operations support an optional 'crs' parameter "
+                "(e.g., EPSG:4326, EPSG:3857, EPSG:32633) to override automatic CRS "
+                "selection. If not specified, the system will auto-select an optimal "
+                "CRS. Example: 'crs=EPSG:32633' to force UTM zone 33N projection."
+            ),
+            (
                 "operation: area params: unit=<square_meters|square_kilometers|"
-                "hectares|square_miles|acres>, crs=<string>, "
+                "hectares|square_miles|acres>, crs=<EPSG_code_optional>, "
                 "area_column=<string>"
             ),
             (
                 "operation: buffer params: radius=<number>, "
-                "radius_unit=<meters|kilometers|miles>, buffer_crs=<string>, "
+                "radius_unit=<meters|kilometers|miles>, crs=<EPSG_code_optional>, "
                 "dissolve=<bool>"
             ),
             "operation: centroid params:",
-            "operation: clip params: crs=<string>",
+            "operation: clip params: crs=<EPSG_code_optional>",
             (
                 "operation: dissolve params: by=<string>|null, "
-                "aggfunc=<first|last|sum|mean|min|max>, crs=<string>"
+                "aggfunc=<first|last|sum|mean|min|max>, crs=<EPSG_code_optional>"
             ),
             ("operation: merge params: on=<list_of_strings>|null, " "how=<inner|left|right|outer>"),
             (
                 "operation: overlay params: "
                 "how=<intersection|union|difference|symmetric_difference|identity>, "
-                "crs=<string>"
+                "crs=<EPSG_code_optional>"
             ),
             ("operation: simplify params: tolerance=<number>, " "preserve_topology=<bool>"),
             ("operation: sjoin params: how=<inner|left|right>, " "predicate=<string>"),
@@ -582,12 +657,63 @@ def geoprocess_tool(
         unique_name = ensure_unique_name(slug_name, existing_layer_names, short_uuid)
         existing_layer_names.append(unique_name)  # Add to list to avoid duplicates
 
+        # Extract CRS metadata if present in the layer
+        processing_metadata = None
+        if isinstance(layer, dict) and "properties" in layer:
+            layer_props = layer.get("properties", {})
+            if "_crs_metadata" in layer_props:
+                crs_meta = layer_props["_crs_metadata"]
+                # Get the operation name from the last executed step
+                last_operation = (
+                    operation_details.get("steps", [{}])[-1].get("operation", "unknown")
+                    if operation_details.get("steps")
+                    else "unknown"
+                )
+
+                # Import ProcessingMetadata here to avoid circular imports
+                from models.geodata import ProcessingMetadata
+
+                # Filter out None values from origin_layers
+                origin_layer_names = [
+                    name
+                    for name in operation_details.get("input_layers", [])
+                    if name is not None and name != ""
+                ]
+
+                processing_metadata = ProcessingMetadata(
+                    operation=last_operation,
+                    crs_used=crs_meta.get("epsg_code") or crs_meta.get("authority", "EPSG:4326"),
+                    crs_name=crs_meta.get("crs_name", "Unknown"),
+                    authority=crs_meta.get("authority"),
+                    wkt=crs_meta.get("wkt"),
+                    wkt_hash=crs_meta.get("wkt_hash"),
+                    wkt_params=crs_meta.get("wkt_params"),
+                    auto_selected=crs_meta.get("auto_selected", False),
+                    selection_reason=crs_meta.get("selection_reason"),
+                    origin_layers=origin_layer_names,
+                )
+                # Remove the internal metadata from properties before storing
+                del layer_props["_crs_metadata"]
+
         # Create a filename with the unique name and serialize to JSON
         filename = f"{unique_name}_{short_uuid}.geojson"
-        json_content = json.dumps(layer).encode("utf-8")
+        try:
+            logger.info(f"geoprocess_tool: Serializing layer to JSON: {filename}")
+            json_content = json.dumps(layer).encode("utf-8")
+            logger.info(
+                f"geoprocess_tool: JSON serialization successful, size: {len(json_content)} bytes"
+            )
+        except Exception as e:
+            logger.error(f"geoprocess_tool: JSON serialization failed for {filename}: {e}")
+            logger.error(
+                f"geoprocess_tool: Layer type: {type(layer)}, keys: {layer.keys() if isinstance(layer, dict) else 'N/A'}"
+            )
+            raise
 
         # Use centralized file management (supports both local and Azure Blob Storage)
+        logger.info(f"geoprocess_tool: Storing file: {filename}")
         url, stored_filename = store_file(filename, json_content)
+        logger.info(f"geoprocess_tool: File stored successfully: {url}")
         out_urls.append(url)
 
         # Format the operation details for the description
@@ -617,8 +743,9 @@ def geoprocess_tool(
         full_description += f"Input Layers: {input_layers_str}\n"
         full_description += f"Operations:\n{operation_steps}"
 
-        new_geodata.append(
-            GeoDataObject(
+        logger.info(f"geoprocess_tool: Creating GeoDataObject for {unique_name}")
+        try:
+            geodata_obj = GeoDataObject(
                 id=out_uuid,
                 data_source_id="geoprocess",
                 data_type=DataType.GEOJSON,
@@ -633,22 +760,72 @@ def geoprocess_tool(
                 bounding_box=None,
                 layer_type="GeoJSON",
                 properties=None,
+                processing_metadata=processing_metadata,
             )
-        )
+            logger.info("geoprocess_tool: GeoDataObject created successfully")
+            new_geodata.append(geodata_obj)
+        except Exception as e:
+            logger.error(f"geoprocess_tool: Failed to create GeoDataObject: {e}")
+            logger.error(f"geoprocess_tool: processing_metadata type: {type(processing_metadata)}")
+            if processing_metadata:
+                logger.error(
+                    f"geoprocess_tool: processing_metadata dict: {processing_metadata.model_dump() if hasattr(processing_metadata, 'model_dump') else processing_metadata}"
+                )
+            raise
+
+    # Create reference data for tool message
+    ref_data = [
+        {"id": r.id, "data_source_id": r.data_source_id, "title": r.title} for r in new_geodata
+    ]
+
+    # Build CRS information message for the agent
+    crs_info_messages = []
+    for r in new_geodata:
+        if r.processing_metadata:
+            pm = r.processing_metadata
+            auto_status = "🎯 AUTO-SELECTED" if pm.auto_selected else "USER-SPECIFIED"
+            crs_msg = f"{r.title}: Used {pm.crs_used} ({pm.crs_name}) {auto_status}"
+            if pm.auto_selected and pm.selection_reason:
+                crs_msg += f" - {pm.selection_reason}"
+            # Note: expected_error field was removed from ProcessingMetadata
+            crs_info_messages.append(crs_msg)
+
+    # Construct the tool message content
+    tool_content = (
+        f"Successfully processed {len(new_geodata)} layer(s). "
+        f"Operations: {', '.join(tools_used)}. "
+    )
+
+    if crs_info_messages:
+        crs_details = "\n".join(f"- {msg}" for msg in crs_info_messages)
+        tool_content += f"\n\nCRS Information:\n{crs_details}"
+
+    tool_content += f"\n\nReference data (use id and data_source_id): {json.dumps(ref_data)}"
 
     # Return the update command
-    return Command(
-        update={
-            "messages": [
-                ToolMessage(
-                    name="geoprocess_tool",
-                    content="Tools used: "
-                    + ", ".join(tools_used)
-                    + f". Added GeoDataObjects into the global_state, use id and data_source_id for reference: {json.dumps([{'id': result.id, 'data_source_id': result.data_source_id, 'title': result.title} for result in new_geodata])}",
-                    tool_call_id=tool_call_id,
-                )
-            ],
-            # "global_geodata": new_geodata,
-            "geodata_results": new_geodata,
-        }
+    logger.info(
+        f"geoprocess_tool: Preparing to return Command with {len(new_geodata)} geodata objects"
     )
+    logger.info(f"geoprocess_tool: Tool content length: {len(tool_content)} chars")
+
+    try:
+        command = Command(
+            update={
+                "messages": [
+                    ToolMessage(
+                        name="geoprocess_tool",
+                        content=tool_content,
+                        tool_call_id=tool_call_id,
+                    )
+                ],
+                # "global_geodata": new_geodata,
+                "geodata_results": new_geodata,
+            }
+        )
+        logger.info("geoprocess_tool: Command created successfully, returning to agent")
+        return command
+    except Exception as e:
+        logger.error(f"geoprocess_tool: Failed to create Command: {e}")
+        logger.error(f"geoprocess_tool: new_geodata length: {len(new_geodata)}")
+        logger.error(f"geoprocess_tool: new_geodata types: {[type(g) for g in new_geodata]}")
+        raise

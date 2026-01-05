@@ -213,29 +213,51 @@ def detect_geometry_type(data_link: str) -> str:
     Detect the geometry type from GeoJSON data by examining the first feature.
     Returns the geometry type or 'Mixed' if multiple types are found.
     """
+    # Default to Polygon for uploaded files as a fallback
+    default_type = "Polygon"
+
     try:
         import requests
+        import json
 
-        response = requests.get(data_link, timeout=10)
+        # Add a cache buster to avoid any potential caching issues
+        cache_buster = f"?cb={hash(data_link) % 10000}"
+        if "?" not in data_link:
+            request_url = f"{data_link}{cache_buster}"
+        else:
+            request_url = f"{data_link}&cb={hash(data_link) % 10000}"
+
+        logger.info(f"Fetching geometry type from: {request_url}")
+        response = requests.get(request_url, timeout=10)
+
         if response.status_code == 200:
-            geojson_data = response.json()
+            try:
+                geojson_data = response.json()
 
-            if "features" in geojson_data and geojson_data["features"]:
-                # Check the first few features to determine the geometry type
-                geometry_types = set()
-                for feature in geojson_data["features"][:5]:  # Check first 5 features
-                    if "geometry" in feature and "type" in feature["geometry"]:
-                        geometry_types.add(feature["geometry"]["type"])
+                if "features" in geojson_data and geojson_data["features"]:
+                    # Check the first few features to determine the geometry type
+                    geometry_types = set()
+                    for feature in geojson_data["features"][:5]:  # Check first 5 features
+                        if "geometry" in feature and "type" in feature["geometry"]:
+                            geometry_types.add(feature["geometry"]["type"])
 
-                if len(geometry_types) == 1:
-                    return list(geometry_types)[0]
-                elif len(geometry_types) > 1:
-                    return "Mixed"
+                    if len(geometry_types) == 1:
+                        detected_type = list(geometry_types)[0]
+                        logger.info(f"Detected geometry type: {detected_type}")
+                        return detected_type
+                    elif len(geometry_types) > 1:
+                        logger.info(f"Detected mixed geometry types: {geometry_types}")
+                        return "Mixed"
+            except json.JSONDecodeError as je:
+                logger.error(f"JSON decode error for {data_link}: {str(je)}")
 
-        return "Unknown"
-    except Exception:
-        logger.error(f"Error detecting geometry type from {data_link}")
-        return "Unknown"
+        logger.warning(
+            f"Could not detect geometry type from {data_link}, defaulting to {default_type}"
+        )
+        return default_type
+    except Exception as e:
+        logger.error(f"Error detecting geometry type from {data_link}: {str(e)}")
+        return default_type
 
 
 @router.post("/ai-style", response_model=AIChatResponse)

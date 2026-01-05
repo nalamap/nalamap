@@ -196,5 +196,82 @@ test.describe("Settings page", () => {
       timeout: 15000,
     });
   });
-});
 
+  test("preconfigured geoserver backends are auto-added and shown in dropdown", async ({
+    page,
+  }) => {
+    // Mock settings with preconfigured GeoServers (from deployment config)
+    const settingsWithPreconfigured = {
+      ...mockSettings,
+      preconfigured_geoserver_backends: [
+        {
+          url: "https://preconfigured.geoserver.org/geoserver/",
+          name: "Preconfigured GeoServer",
+          description: "Auto-added from deployment config",
+        },
+      ],
+      deployment_config_name: "Test Deployment",
+    };
+
+    await page.route("**/settings/options", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(settingsWithPreconfigured),
+      });
+    });
+
+    // Mock the preload endpoint
+    await page.route("**/settings/geoserver/preload", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          session_id: "test-session-123",
+          backend_url: "https://preconfigured.geoserver.org/geoserver/",
+          backend_name: "Preconfigured GeoServer",
+          total_layers: 5,
+          service_status: {},
+          service_counts: {},
+        }),
+      });
+    });
+
+    // Mock embedding status
+    await page.route("**/settings/geoserver/embedding-status*", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          session_id: "test-session-123",
+          backends: {},
+        }),
+      });
+    });
+
+    await page.goto("/settings");
+    await page.waitForLoadState("networkidle");
+
+    // Expand GeoServer Backends component
+    const geoserverButton = page.locator("button:has-text('GeoServer Backends')");
+    await geoserverButton.scrollIntoViewIfNeeded();
+    await expect(geoserverButton).toBeVisible();
+    await geoserverButton.click();
+    await page.waitForTimeout(500);
+
+    // The preconfigured backend should be auto-added to the list
+    const autoAddedBackend = page.locator("li:has-text('Preconfigured GeoServer')");
+    await expect(autoAddedBackend).toBeVisible({ timeout: 5000 });
+
+    // The preconfigured backend should also appear in the example dropdown
+    const dropdown = page.locator("select").filter({ hasText: /Select an example GeoServer/ });
+    await expect(dropdown).toBeVisible();
+    
+    // Check dropdown contains the preconfigured backend
+    const options = await dropdown.locator("option").allTextContents();
+    expect(options.some(opt => opt.includes("Preconfigured GeoServer"))).toBeTruthy();
+    
+    // Also verify the regular example is still there
+    expect(options.some(opt => opt.includes("MapX"))).toBeTruthy();
+  });
+});

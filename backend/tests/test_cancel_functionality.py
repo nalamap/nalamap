@@ -37,7 +37,7 @@ def sample_chat_payload():
             ],
             "model_settings": {
                 "model_provider": "openai",
-                "model_name": "gpt-4",
+                "model_name": "gpt-4o-mini",
                 "max_tokens": 1000,
                 "system_prompt": "You are a helpful assistant.",
             },
@@ -67,7 +67,7 @@ def complete_chat_payload():
             ],
             "model_settings": {
                 "model_provider": "openai",
-                "model_name": "gpt-4",
+                "model_name": "gpt-4o-mini",
                 "max_tokens": 1000,
                 "temperature": 0.7,
                 "system_prompt": "You are a helpful assistant.",
@@ -463,7 +463,7 @@ async def test_session_id_extraction_from_options():
         ],
         "model_settings": {
             "model_provider": "openai",
-            "model_name": "gpt-4",
+            "model_name": "gpt-4o-mini",
             "max_tokens": 1000,
             "system_prompt": "Test prompt",
         },

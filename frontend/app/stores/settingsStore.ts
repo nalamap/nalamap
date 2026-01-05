@@ -86,6 +86,8 @@ export interface ModelSettings {
   max_tools_per_query?: number | null; // Optional: Maximum tools to load per query (default: null = unlimited)
   // Conversation Summarization (Week 3)
   use_summarization?: boolean; // Optional: Enable automatic conversation summarization (default: false)
+  // Intelligent CRS Selection (Projection Improvements)
+  enable_smart_crs?: boolean; // Optional: Enable intelligent CRS selection for geoprocessing (default: true)
 }
 
 export interface ColorScale {
@@ -138,9 +140,12 @@ export interface SettingsState extends SettingsSnapshot {
     tool_options: Record<string, ToolOption>;
     example_geoserver_backends: ExampleGeoServer[];
     example_mcp_servers: ExampleMCPServer[];
+    preconfigured_geoserver_backends?: ExampleGeoServer[];
+    preconfigured_mcp_servers?: ExampleMCPServer[];
     model_options: Record<string, ModelOption[]>;
     color_settings: ColorSettings;
     session_id: string;
+    deployment_config_name?: string | null;
   }) => void;
 
   // Portal & Backend actions (kept for backward compatibility, but deprecated)
@@ -176,6 +181,8 @@ export interface SettingsState extends SettingsSnapshot {
   setMaxToolsPerQuery: (max: number | null) => void;
   // Conversation Summarization (Week 3)
   setUseSummarization: (enabled: boolean) => void;
+  // Intelligent CRS Selection (Projection Improvements)
+  setEnableSmartCrs: (enabled: boolean) => void;
 
   // Tool config actions
   addToolConfig: (name: string) => void;
@@ -306,11 +313,58 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
 
     if (available_example_geoservers.length === 0) {
-      setAvailableExampleGeoServers(opts.example_geoserver_backends);
+      // Combine example and preconfigured geoservers for the dropdown
+      const allExamples = [
+        ...(opts.preconfigured_geoserver_backends || []),
+        ...opts.example_geoserver_backends,
+      ];
+      setAvailableExampleGeoServers(allExamples);
     }
 
     if (available_example_mcp_servers.length === 0) {
-      setAvailableExampleMCPServers(opts.example_mcp_servers);
+      // Combine example and preconfigured MCP servers for the dropdown
+      const allMcpExamples = [
+        ...(opts.preconfigured_mcp_servers || []),
+        ...opts.example_mcp_servers,
+      ];
+      setAvailableExampleMCPServers(allMcpExamples);
+    }
+
+    // Auto-add preconfigured geoserver backends (from deployment config)
+    const { geoserver_backends, addBackend, mcp_servers, addMCPServer } = get();
+    if (opts.preconfigured_geoserver_backends && opts.preconfigured_geoserver_backends.length > 0) {
+      for (const backend of opts.preconfigured_geoserver_backends) {
+        // Only add if not already present
+        const exists = geoserver_backends.some((b) => b.url === backend.url);
+        if (!exists) {
+          addBackend({
+            url: backend.url,
+            name: backend.name,
+            description: backend.description,
+            username: backend.username,
+            password: backend.password,
+            enabled: true, // Auto-enable preconfigured backends
+          });
+          Logger.log(`Auto-added preconfigured GeoServer backend: ${backend.name}`);
+        }
+      }
+    }
+
+    // Auto-add preconfigured MCP servers (from deployment config)
+    if (opts.preconfigured_mcp_servers && opts.preconfigured_mcp_servers.length > 0) {
+      for (const server of opts.preconfigured_mcp_servers) {
+        // Only add if not already present
+        const exists = (mcp_servers || []).some((s) => s.url === server.url);
+        if (!exists) {
+          addMCPServer({
+            url: server.url,
+            name: server.name,
+            description: server.description,
+            enabled: true, // Auto-enable preconfigured servers
+          });
+          Logger.log(`Auto-added preconfigured MCP server: ${server.name}`);
+        }
+      }
     }
 
     if (Object.keys(model_options).length === 0) {
@@ -343,6 +397,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     tool_selection_strategy: "conservative", // Default strategy
     tool_similarity_threshold: 0.3, // Default threshold
     max_tools_per_query: null, // null = unlimited
+    // Conversation Summarization (Week 3)
+    use_summarization: false, // Default: disabled
+    // Intelligent CRS Selection (Projection Improvements)
+    enable_smart_crs: true, // Default: enabled for better geometric accuracy
   },
   tools: [],
 
@@ -509,6 +567,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setUseSummarization: (enabled: boolean) =>
     set((state) => ({
       model_settings: { ...state.model_settings, use_summarization: enabled },
+    })),
+
+  // Intelligent CRS Selection (Projection Improvements)
+  setEnableSmartCrs: (enabled: boolean) =>
+    set((state) => ({
+      model_settings: { ...state.model_settings, enable_smart_crs: enabled },
     })),
 
   // tools

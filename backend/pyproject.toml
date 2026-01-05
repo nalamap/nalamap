@@ -33,6 +33,7 @@ geopandas = "*"
 webcolors = "*"
 matplotlib = "*"
 httpx-sse = "^0.4.3"
+pyproj = "^3.7.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "*"
