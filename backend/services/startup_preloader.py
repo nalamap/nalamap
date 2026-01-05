@@ -15,12 +15,12 @@ from models.deployment_config import DeploymentGeoServerBackend
 from models.settings_model import GeoServerBackend
 from services.deployment_config_loader import get_preload_backends, load_and_validate_config
 from services.tools.geoserver.custom_geoserver import preload_backend_layers_with_state
-from services.tools.geoserver.vector_store import set_processing_state
+from services.tools.geoserver.vector_store import (
+    GLOBAL_PRELOAD_SESSION_ID,
+    set_processing_state,
+)
 
 logger = logging.getLogger(__name__)
-
-# Special session ID for globally preloaded embeddings
-GLOBAL_PRELOAD_SESSION_ID = "__global_preload__"
 
 # Track preload status
 _preload_started = False

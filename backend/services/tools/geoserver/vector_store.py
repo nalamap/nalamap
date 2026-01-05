@@ -40,6 +40,9 @@ from models.geodata import GeoDataObject
 
 _VECTOR_TABLE = "geoserver_layer_embeddings"
 
+# Special session ID for globally preloaded embeddings (shared across all users)
+GLOBAL_PRELOAD_SESSION_ID = "__global_preload__"
+
 
 logger = logging.getLogger(__name__)
 
@@ -812,14 +815,19 @@ def similarity_search(
     query: str,
     limit: int,
 ) -> List[Tuple[GeoDataObject, float]]:
-    """Return layers ordered by vector similarity for the provided query."""
+    """Return layers ordered by vector similarity for the provided query.
+
+    Searches both user-specific layers AND globally preloaded layers.
+    """
+    # Sessions to search: user's session + global preload session
+    sessions_to_search = {session_id, GLOBAL_PRELOAD_SESSION_ID}
 
     if _use_fallback_store:
         embedding = _get_embedding_model().embed_query(query)
         normalized = {url.rstrip("/") for url in backend_urls if url}
         scored: List[Tuple[GeoDataObject, float]] = []
         for doc in _fallback_documents:
-            if doc["session_id"] != session_id:
+            if doc["session_id"] not in sessions_to_search:
                 continue
             if normalized and doc["backend_url"] not in normalized:
                 continue
@@ -845,7 +853,8 @@ def similarity_search(
     results: List[Tuple[GeoDataObject, float]] = []
     for doc, distance in documents:
         metadata = doc.metadata or {}
-        if metadata.get("session_id") != session_id:
+        # Check if document belongs to user's session OR global preload session
+        if metadata.get("session_id") not in sessions_to_search:
             continue
         backend_url = metadata.get("backend_url")
         if normalized and backend_url not in normalized:
@@ -862,10 +871,17 @@ def similarity_search(
 
 
 def has_layers(session_id: str, backend_urls: Sequence[str]) -> bool:
+    """Check if layers exist for the given session and backend URLs.
+
+    Also checks globally preloaded layers.
+    """
+    # Sessions to check: user's session + global preload session
+    sessions_to_check = [session_id, GLOBAL_PRELOAD_SESSION_ID]
+
     if _use_fallback_store:
         normalized = {url.rstrip("/") for url in backend_urls if url}
         for doc in _fallback_documents:
-            if doc["session_id"] != session_id:
+            if doc["session_id"] not in sessions_to_check:
                 continue
             if normalized and doc["backend_url"] not in normalized:
                 continue
@@ -877,7 +893,10 @@ def has_layers(session_id: str, backend_urls: Sequence[str]) -> bool:
         return False
     conn = store._connection  # type: ignore[attr-defined]
     normalized = [url.rstrip("/") for url in backend_urls]
-    params: List[object] = [session_id]
+
+    # Check both user session and global preload session
+    session_placeholders = ",".join(["?"] * len(sessions_to_check))
+    params: List[object] = list(sessions_to_check)
     filters = ""
     if normalized:
         placeholders = ",".join(["?"] * len(normalized))
@@ -886,7 +905,7 @@ def has_layers(session_id: str, backend_urls: Sequence[str]) -> bool:
     cursor = conn.execute(
         f"""
         SELECT 1 FROM {_VECTOR_TABLE}
-        WHERE json_extract(metadata, '$.session_id') = ?{filters}
+        WHERE json_extract(metadata, '$.session_id') IN ({session_placeholders}){filters}
         LIMIT 1
         """,
         params,
@@ -944,6 +963,8 @@ def set_processing_state(
 def get_embedding_status(session_id: str, backend_urls: Sequence[str]) -> dict[str, dict[str, int]]:
     """Get embedding progress status for given session and backend URLs.
 
+    Checks both user-specific session AND globally preloaded embeddings.
+
     Returns a dictionary with backend URLs as keys and status info as values.
     Status info includes: total layers, encoded layers, completion percentage, state, error,
     error_type, and error_details.
@@ -951,32 +972,43 @@ def get_embedding_status(session_id: str, backend_urls: Sequence[str]) -> dict[s
     normalized = [url.rstrip("/") for url in backend_urls if url]
     status = {}
 
+    # Sessions to check: user's session + global preload session
+    sessions_to_check = [session_id, GLOBAL_PRELOAD_SESSION_ID]
+
     with _progress_lock:
         for backend_url in normalized:
-            progress_key = (session_id, backend_url)
-            if progress_key in _embedding_progress:
-                info = _embedding_progress[progress_key]
-                total = info["total"]
-                encoded = info["encoded"]
-                percentage = int((encoded / total * 100) if total > 0 else 0)
+            found = False
+            # Check user's session first, then global preload
+            for check_session in sessions_to_check:
+                progress_key = (check_session, backend_url)
+                if progress_key in _embedding_progress:
+                    info = _embedding_progress[progress_key]
+                    total = info["total"]
+                    encoded = info["encoded"]
+                    percentage = int((encoded / total * 100) if total > 0 else 0)
 
-                # Determine state with fallback
-                state = info.get("state")
-                if not state:
-                    state = "processing" if info["in_progress"] else "completed"
+                    # Determine state with fallback
+                    state = info.get("state")
+                    if not state:
+                        state = "processing" if info["in_progress"] else "completed"
 
-                status[backend_url] = {
-                    "total": total,
-                    "encoded": encoded,
-                    "percentage": percentage,
-                    "state": state,
-                    "in_progress": info["in_progress"],
-                    "complete": encoded >= total and not info["in_progress"],
-                    "error": info.get("error"),
-                    "error_type": info.get("error_type"),
-                    "error_details": info.get("error_details"),
-                }
-            else:
+                    status[backend_url] = {
+                        "total": total,
+                        "encoded": encoded,
+                        "percentage": percentage,
+                        "state": state,
+                        "in_progress": info["in_progress"],
+                        "complete": encoded >= total and not info["in_progress"],
+                        "error": info.get("error"),
+                        "error_type": info.get("error_type"),
+                        "error_details": info.get("error_details"),
+                        # Indicate if this is from global preload
+                        "is_global_preload": check_session == GLOBAL_PRELOAD_SESSION_ID,
+                    }
+                    found = True
+                    break  # Found status, no need to check other sessions
+
+            if not found:
                 # No progress data means not started or already cleaned up
                 status[backend_url] = {
                     "total": 0,
@@ -988,6 +1020,7 @@ def get_embedding_status(session_id: str, backend_urls: Sequence[str]) -> dict[s
                     "error": None,
                     "error_type": None,
                     "error_details": None,
+                    "is_global_preload": False,
                 }
 
     return status

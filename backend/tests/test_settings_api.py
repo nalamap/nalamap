@@ -12,12 +12,8 @@ def api_client(tmp_path, monkeypatch):
     monkeypatch.setenv("COOKIE_HTTPONLY", "false")
     monkeypatch.setenv("NALAMAP_GEOSERVER_VECTOR_DB", str(tmp_path / "vectors.db"))
 
-    # Force reload of config to pick up test environment variables
-    import importlib
-
-    import core.config
-
-    importlib.reload(core.config)
+    # NOTE: Do NOT reload core.config because it will re-run load_dotenv()
+    # which will override environment variables with .env.local values
 
     # Now import the router
     from api.settings import router as settings_router
@@ -173,6 +169,11 @@ def test_options_endpoint_returns_example_mcp_servers(api_client):
 @pytest.fixture
 def api_client_with_deployment_config(tmp_path, monkeypatch):
     """API client with a deployment config file."""
+    # Clear config cache FIRST before setting env vars
+    from services.deployment_config_loader import clear_config_cache
+
+    clear_config_cache()
+
     # Create a deployment config file with correct schema format
     config_file = tmp_path / "deployment_config.json"
     config_data = {
@@ -199,17 +200,12 @@ def api_client_with_deployment_config(tmp_path, monkeypatch):
     monkeypatch.setenv("NALAMAP_GEOSERVER_VECTOR_DB", str(tmp_path / "vectors.db"))
     monkeypatch.setenv("DEPLOYMENT_CONFIG_PATH", str(config_file))
 
-    # Clear config cache before test
-    from services.deployment_config_loader import clear_config_cache
+    # NOTE: Do NOT reload core.config here because it will re-run load_dotenv()
+    # which will re-set DEPLOYMENT_CONFIG_PATH from .env.local with override=True
+    # The monkeypatch.setenv() already set it in os.environ, so we're good.
 
+    # Clear again after env var is set to ensure clean state
     clear_config_cache()
-
-    # Force reload of config to pick up test environment variables
-    import importlib
-
-    import core.config
-
-    importlib.reload(core.config)
 
     # Now import the router
     from api.settings import router as settings_router
@@ -227,23 +223,23 @@ def api_client_with_deployment_config(tmp_path, monkeypatch):
 @pytest.fixture
 def api_client_without_deployment_config(tmp_path, monkeypatch):
     """API client without a deployment config file."""
+    # Clear config cache FIRST before setting env vars
+    from services.deployment_config_loader import clear_config_cache
+
+    clear_config_cache()
+
     # Set test environment without DEPLOYMENT_CONFIG_PATH
     monkeypatch.setenv("COOKIE_SECURE", "false")
     monkeypatch.setenv("COOKIE_HTTPONLY", "false")
     monkeypatch.setenv("NALAMAP_GEOSERVER_VECTOR_DB", str(tmp_path / "vectors.db"))
     monkeypatch.delenv("DEPLOYMENT_CONFIG_PATH", raising=False)
 
-    # Clear config cache before test
-    from services.deployment_config_loader import clear_config_cache
+    # NOTE: Do NOT reload core.config here because it will re-run load_dotenv()
+    # which will re-set DEPLOYMENT_CONFIG_PATH from .env.local with override=True
+    # The monkeypatch.delenv() already removed it from os.environ, so we're good.
 
+    # Clear again after env var is removed to ensure clean state
     clear_config_cache()
-
-    # Force reload of config
-    import importlib
-
-    import core.config
-
-    importlib.reload(core.config)
 
     from api.settings import router as settings_router
 
@@ -360,6 +356,11 @@ def test_options_endpoint_returns_color_settings(api_client_with_deployment_conf
 @pytest.fixture
 def api_client_with_invalid_deployment_config(tmp_path, monkeypatch):
     """API client with an invalid deployment config file."""
+    # Clear config cache FIRST before setting env vars
+    from services.deployment_config_loader import clear_config_cache
+
+    clear_config_cache()
+
     # Create an invalid deployment config file
     config_file = tmp_path / "invalid_config.json"
     config_data = {
@@ -378,16 +379,11 @@ def api_client_with_invalid_deployment_config(tmp_path, monkeypatch):
     monkeypatch.setenv("NALAMAP_GEOSERVER_VECTOR_DB", str(tmp_path / "vectors.db"))
     monkeypatch.setenv("DEPLOYMENT_CONFIG_PATH", str(config_file))
 
-    # Clear config cache
-    from services.deployment_config_loader import clear_config_cache
+    # NOTE: Do NOT reload core.config because it will re-run load_dotenv()
+    # which will override environment variables with .env.local values
 
+    # Clear again after env var is set to ensure clean state
     clear_config_cache()
-
-    import importlib
-
-    import core.config
-
-    importlib.reload(core.config)
 
     from api.settings import router as settings_router
 
@@ -419,21 +415,22 @@ def test_options_endpoint_graceful_degradation_with_invalid_config(
 
 def test_options_endpoint_missing_config_file(tmp_path, monkeypatch):
     """Test that settings/options handles missing config file gracefully."""
+    # Clear config cache FIRST before setting env vars
+    from services.deployment_config_loader import clear_config_cache
+
+    clear_config_cache()
+
     # Point to a non-existent file
     monkeypatch.setenv("COOKIE_SECURE", "false")
     monkeypatch.setenv("COOKIE_HTTPONLY", "false")
     monkeypatch.setenv("NALAMAP_GEOSERVER_VECTOR_DB", str(tmp_path / "vectors.db"))
     monkeypatch.setenv("DEPLOYMENT_CONFIG_PATH", "/nonexistent/path/config.json")
 
-    from services.deployment_config_loader import clear_config_cache
+    # NOTE: Do NOT reload core.config because it will re-run load_dotenv()
+    # which will override environment variables with .env.local values
 
+    # Clear again after env var is set to ensure clean state
     clear_config_cache()
-
-    import importlib
-
-    import core.config
-
-    importlib.reload(core.config)
 
     from api.settings import router as settings_router
 
@@ -454,6 +451,11 @@ def test_options_endpoint_missing_config_file(tmp_path, monkeypatch):
 
 def test_options_endpoint_malformed_json_config(tmp_path, monkeypatch):
     """Test that settings/options handles malformed JSON config file."""
+    # Clear config cache FIRST before setting env vars
+    from services.deployment_config_loader import clear_config_cache
+
+    clear_config_cache()
+
     # Create a malformed JSON file
     config_file = tmp_path / "malformed_config.json"
     config_file.write_text("{ invalid json }")
@@ -463,15 +465,11 @@ def test_options_endpoint_malformed_json_config(tmp_path, monkeypatch):
     monkeypatch.setenv("NALAMAP_GEOSERVER_VECTOR_DB", str(tmp_path / "vectors.db"))
     monkeypatch.setenv("DEPLOYMENT_CONFIG_PATH", str(config_file))
 
-    from services.deployment_config_loader import clear_config_cache
+    # NOTE: Do NOT reload core.config because it will re-run load_dotenv()
+    # which will override environment variables with .env.local values
 
+    # Clear again after env var is set to ensure clean state
     clear_config_cache()
-
-    import importlib
-
-    import core.config
-
-    importlib.reload(core.config)
 
     from api.settings import router as settings_router
 
