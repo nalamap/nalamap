@@ -17,6 +17,8 @@ langchain-core = ">=0.3.76"
 langchain_community = "^0.3.30"
 openai = ">=1.108.1"
 psycopg = {extras = ["binary","pool"], version = ">=3.2.10"}
+sqlalchemy = "^2.0"
+geoalchemy2 = "^0.13"
 langgraph = ">=0.6.7"
 langchain_openai = ">=0.3.33"
 owslib = "*"
@@ -33,6 +35,10 @@ geopandas = "*"
 webcolors = "*"
 matplotlib = "*"
 httpx-sse = "^0.4.3"
+passlib = {extras = ["bcrypt"], version = "^1.7"}
+python-jose = {extras = ["cryptography"], version = "^3.3"}
+bcrypt = "^5.0.0"
+authlib = "^1.4"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "*"
@@ -41,6 +47,7 @@ flake8 = "*"
 flake8-pyproject = "*"
 black = "*"
 isort = "*"
+alembic = "^1.11"
 
 [tool.flake8]
 max-line-length = 100
