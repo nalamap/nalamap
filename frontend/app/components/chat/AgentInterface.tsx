@@ -42,7 +42,6 @@ export default function AgentInterface() {
   const streamingMessage = useChatInterfaceStore((s) => s.streamingMessage);
   const isStreaming = useChatInterfaceStore((s) => s.isStreaming);
   
-  const addLayer = useLayerStore((s) => s.addLayer);
   const showToolMessages = false; // TODO: Move to settings
 
   // Smart scrolling: Lock view on Agent Activity when streaming starts
