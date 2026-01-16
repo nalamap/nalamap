@@ -6,6 +6,7 @@ import ColorInjector from "./components/ColorInjector";
 import SettingsInitializer from "./components/SettingsInitializer";
 import { AuthProvider } from "./context/AuthContext";
 import AuthGuard from "./components/AuthGuard";
+import UserDataInitializer from "./components/UserDataInitializer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -44,6 +45,7 @@ export default function RootLayout({
         <ColorInjector />
         {/* Authentication context + guard */}
         <AuthProvider>
+          <UserDataInitializer />
           <AuthGuard>
             {children}
           </AuthGuard>

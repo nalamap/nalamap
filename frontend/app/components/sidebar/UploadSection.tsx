@@ -269,6 +269,7 @@ export default function UploadSection({
           data_source_id: "manual",
           data_origin: "uploaded",
           data_source: "user",
+          layer_type: "UPLOADED",
         };
 
         // Add to store

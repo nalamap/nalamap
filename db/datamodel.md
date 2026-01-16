@@ -206,3 +206,4 @@ erDiagram
 
   Users ||--o{ User_Stac_Collections : ""
   Stac_Collection ||--o{ User_Stac_Collections : "searchable for"
+```
