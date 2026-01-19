@@ -306,7 +306,7 @@ async def create_geo_agent(
     debug_enabled = logger.isEnabledFor(logging.DEBUG)
 
     # Determine if parallel tool calling should be enabled
-    # Currently disabled by default due to potential state mutation conflicts
+    # State reducers now handle concurrent updates safely
     parallel_tool_calls = False
     if enable_parallel_tools:
         # Check if model supports parallel tool calls
@@ -314,9 +314,9 @@ async def create_geo_agent(
             parallel_tool_calls = model_capabilities.supports_parallel_tool_calls
 
             if parallel_tool_calls:
-                logger.warning(
-                    "Parallel tool execution ENABLED (experimental). "
-                    "Monitor for potential state corruption issues."
+                logger.info(
+                    "Parallel tool execution ENABLED. "
+                    "State reducers will handle concurrent updates."
                 )
         else:
             logger.warning(

@@ -67,10 +67,10 @@ async def test_create_agent_parallel_enabled_supported_model(mock_get_llm, mock_
         )
 
         assert agent is not None
-        # Should log warning about experimental feature
-        mock_logger.warning.assert_called()
-        warning_msg = mock_logger.warning.call_args[0][0]
-        assert "experimental" in warning_msg.lower()
+        # Should log info about parallel execution being enabled
+        mock_logger.info.assert_called()
+        info_msg = mock_logger.info.call_args[0][0]
+        assert "parallel" in info_msg.lower()
 
 
 @pytest.mark.unit
@@ -112,6 +112,7 @@ class TestStateUpdateSafety:
         """Test that concurrent appends to geodata_layers don't corrupt state.
 
         This test simulates multiple tools trying to add layers simultaneously.
+        The new reduce_geodata_layers reducer intelligently merges results.
         """
         # Create multiple GeoDataObjects
         layer1 = GeoDataObject(
@@ -138,25 +139,24 @@ class TestStateUpdateSafety:
             style=LayerStyle(),
         )
 
-        # Simulate state updates (LangGraph's reducer pattern)
-        # The update_geodata_layers reducer replaces the entire list
+        # Test the new reducer behavior - it should merge layers intelligently
+        from models.states import reduce_geodata_layers
+
         initial_layers = []
         update1 = [layer1]
         update2 = [layer2]
 
-        # Test reducer behavior
-        from models.states import update_geodata_layers
-
-        result1 = update_geodata_layers(initial_layers, update1)
+        # First update adds layer1
+        result1 = reduce_geodata_layers(initial_layers, update1)
         assert len(result1) == 1
         assert result1[0].id == "layer-1"
 
-        result2 = update_geodata_layers(result1, update2)
-        assert len(result2) == 1
-        assert result2[0].id == "layer-2"
-
-        # NOTE: This shows that the current reducer REPLACES rather than APPENDS
-        # This means parallel tool execution could lose updates!
+        # Second update adds layer2, but now the reducer merges them
+        result2 = reduce_geodata_layers(result1, update2)
+        assert len(result2) == 2  # Both layers should be present
+        layer_ids = {layer.id for layer in result2}
+        assert "layer-1" in layer_ids
+        assert "layer-2" in layer_ids
 
     def test_geodata_results_concurrent_append(self, sample_state):
         """Test that concurrent appends to geodata_results maintain data integrity.
@@ -215,15 +215,16 @@ class TestStateUpdateSafety:
         )
 
         # Simulate duplicate updates
-        from models.states import update_geodata_layers
+        from models.states import reduce_geodata_layers
 
         initial = []
-        result1 = update_geodata_layers(initial, [layer])
-        result2 = update_geodata_layers(result1, [layer])
+        result1 = reduce_geodata_layers(initial, [layer])
+        result2 = reduce_geodata_layers(result1, [layer])
 
-        # Check for duplicates (current behavior allows duplicates)
-        # This could be problematic in parallel execution
+        # The new reducer deduplicates by (id, data_source_id)
+        # So applying the same layer twice should not create duplicates
         assert len(result2) == 1
+        assert result2[0].id == "layer-unique"
 
 
 @pytest.mark.integration

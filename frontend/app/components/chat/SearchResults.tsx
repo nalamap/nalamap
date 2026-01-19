@@ -1,12 +1,45 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { X } from "lucide-react";
 import { GeoDataObject } from "../../models/geodatamodel";
+import WorldBankChart, {
+  ChartDataItem,
+  ChartByCategory,
+} from "../charts/WorldBankChart";
 
 interface SearchResultsProps {
   results: GeoDataObject[];
   loading: boolean;
   onSelectLayer: (result: GeoDataObject) => void;
+}
+
+// Check if a result is from World Bank and has chart data
+function isWorldBankResult(result: GeoDataObject): boolean {
+  return (
+    result.data_source_id === "worldBankIndicators" ||
+    result.data_source === "World Bank"
+  );
+}
+
+// Extract chart data from properties
+function getChartData(result: GeoDataObject): {
+  chartData: ChartDataItem[];
+  chartByCategory: ChartByCategory;
+  country: string;
+  dataPeriod: string;
+} | null {
+  const props = result.properties as Record<string, unknown> | undefined;
+  if (!props || !props.chart_data || !Array.isArray(props.chart_data)) {
+    return null;
+  }
+
+  return {
+    chartData: props.chart_data as ChartDataItem[],
+    chartByCategory: (props.chart_by_category || {}) as ChartByCategory,
+    country: (props.country as string) || "Unknown",
+    dataPeriod: (props.data_period as string) || "",
+  };
 }
 
 export default function SearchResults({
@@ -16,6 +49,24 @@ export default function SearchResults({
 }: SearchResultsProps) {
   const [showAllResults, setShowAllResults] = useState(false);
   const [activeDetailsId, setActiveDetailsId] = useState<string | null>(null);
+  const [chartModalId, setChartModalId] = useState<string | null>(null);
+  // Track which results have been auto-opened to avoid re-triggering
+  const autoOpenedRef = useRef<Set<string>>(new Set());
+
+  // Auto-open chart modal for World Bank results
+  useEffect(() => {
+    if (results.length > 0) {
+      // Find the first World Bank result that hasn't been auto-opened yet
+      const worldBankResult = results.find(
+        (r) => isWorldBankResult(r) && getChartData(r) && !autoOpenedRef.current.has(r.id)
+      );
+
+      if (worldBankResult) {
+        autoOpenedRef.current.add(worldBankResult.id);
+        setChartModalId(worldBankResult.id);
+      }
+    }
+  }, [results]);
 
   if (results.length === 0 || loading) {
     return null;
@@ -26,7 +77,11 @@ export default function SearchResults({
   return (
     <div className="mt-6 mb-2 px-2 bg-neutral-50 rounded border">
       <div className="font-semibold p-1">Search Results:</div>
-      {resultsToShow.map((result) => (
+      {resultsToShow.map((result) => {
+        const isWorldBank = isWorldBankResult(result);
+        const chartDataResult = isWorldBank ? getChartData(result) : null;
+
+        return (
         <div
           key={result.id}
           className="p-2 border-b last:border-none hover:bg-neutral-100"
@@ -80,6 +135,23 @@ export default function SearchResults({
                 Add to Map
               </button>
 
+              {/* Chart Button - Only for World Bank results */}
+              {isWorldBank && chartDataResult && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setChartModalId(chartModalId === result.id ? null : result.id);
+                  }}
+                  className={`px-2 py-1 rounded text-xs flex-shrink-0 ${
+                    chartModalId === result.id
+                      ? "bg-blue-600 text-white"
+                      : "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                  }`}
+                >
+                  View Chart 📊
+                </button>
+              )}
+
               {/* Details Pop-up */}
               {activeDetailsId === result.id && (
                 <div
@@ -131,7 +203,54 @@ export default function SearchResults({
             </div>
           </div>
         </div>
-      ))}
+        );
+      })}
+
+      {/* World Bank Chart Modal */}
+      {chartModalId && (() => {
+        const result = results.find(r => r.id === chartModalId);
+        if (!result) return null;
+
+        const chartDataResult = getChartData(result);
+        if (!chartDataResult) return null;
+
+        return (
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200]"
+            onClick={() => setChartModalId(null)}
+          >
+            <div
+              className="bg-white rounded-lg shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between z-10">
+                <h2 className="text-lg font-bold text-gray-900">
+                  📊 {result.title || result.name}
+                </h2>
+                <button
+                  onClick={() => setChartModalId(null)}
+                  className="text-neutral-400 hover:text-neutral-600 p-1 hover:bg-neutral-100 rounded"
+                  aria-label="Close chart"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Chart Content */}
+              <div className="p-4">
+                <WorldBankChart
+                  country={chartDataResult.country}
+                  chartData={chartDataResult.chartData}
+                  chartByCategory={chartDataResult.chartByCategory}
+                  dataPeriod={chartDataResult.dataPeriod}
+                />
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       {results.length > 5 && (
         <button
           onClick={() => setShowAllResults((s) => !s)}
