@@ -25,9 +25,7 @@ async def _get_map_for_user(
     db: AsyncSession,
     current_user: User,
 ) -> Map:
-    result = await db.execute(
-        select(Map).where(Map.id == map_id, Map.owner_id == current_user.id)
-    )
+    result = await db.execute(select(Map).where(Map.id == map_id, Map.owner_id == current_user.id))
     map_obj = result.scalars().first()
     if not map_obj:
         raise HTTPException(status_code=404, detail="Map not found")
