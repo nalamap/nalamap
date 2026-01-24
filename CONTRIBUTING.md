@@ -57,6 +57,14 @@ cd backend
 poetry run pytest tests/
 ```
 
+Also run the frontend Playwright tests, since these are part of the CI workflow:
+
+```bash
+cd frontend
+npx playwright install --with-deps
+npx playwright test
+```
+
 Pull requests will also run tests automatically in CI. Running tests locally first
 helps catch issues early and keeps the review process smooth.
 

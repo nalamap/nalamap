@@ -17,7 +17,9 @@ from api import (
     data_management,
     debug,
     file_streaming,
+    layers,
     mcp,
+    maps,
     nalamap,
     settings,
 )
@@ -114,6 +116,8 @@ app.include_router(auto_styling.router, prefix="/api")  # Automatic styling
 app.include_router(settings.router, prefix="/api")
 app.include_router(file_streaming.router, prefix="/api")  # Streaming files
 app.include_router(mcp.router, prefix="/api")  # MCP server endpoint
+app.include_router(maps.router, prefix="/api")
+app.include_router(layers.router, prefix="/api")
 
 
 @app.get("/")

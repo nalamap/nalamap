@@ -18,6 +18,7 @@ export default function BasemapSelector({
         className="w-full p-2 border rounded"
         onChange={handleBasemapChange}
         defaultValue="carto-positron"
+        data-testid="basemap-select"
       >
         <option value="osm">OpenStreetMap</option>
         <option value="carto-positron">Carto Positron</option>

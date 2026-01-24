@@ -13,7 +13,7 @@ interface AuthContextValue {
   user: User | null | undefined;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, displayName: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -65,9 +65,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(data.user);
   }
 
-  function logout() {
+  async function logout() {
     // clear cookie on server
-    fetch(`${apiBase}/auth/logout`, { method: "POST", credentials: "include" });
+    try {
+      await fetch(`${apiBase}/auth/logout`, { method: "POST", credentials: "include" });
+    } catch (err) {
+      // best-effort; still clear local auth state
+    }
     setUser(null);
   }
 
