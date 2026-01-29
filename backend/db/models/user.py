@@ -1,0 +1,32 @@
+"""ORM model for the users table."""
+
+from sqlalchemy import Column, UniqueConstraint, text
+from sqlalchemy.dialects.postgresql import UUID, TEXT, TIMESTAMP
+
+from db.base import Base
+
+
+class User(Base):
+    """User Account information."""
+
+    __tablename__ = "users"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+    email = Column(TEXT, nullable=False, unique=True)
+    display_name = Column(TEXT, nullable=True)
+    password_hash = Column(TEXT, nullable=True)
+    created_at = Column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+    )
+    oidc_provider = Column(TEXT, nullable=True)
+    oidc_subject = Column(TEXT, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("oidc_provider", "oidc_subject", name="uq_users_oidc_identity"),
+    )

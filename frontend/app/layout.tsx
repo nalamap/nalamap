@@ -4,6 +4,9 @@ import "./globals.css";
 import Script from "next/script";
 import ColorInjector from "./components/ColorInjector";
 import SettingsInitializer from "./components/SettingsInitializer";
+import { AuthProvider } from "./context/AuthContext";
+import AuthGuard from "./components/AuthGuard";
+import UserDataInitializer from "./components/UserDataInitializer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -40,7 +43,13 @@ export default function RootLayout({
         <SettingsInitializer />
         {/* Dynamic CSS color injection */}
         <ColorInjector />
-        {children}
+        {/* Authentication context + guard */}
+        <AuthProvider>
+          <UserDataInitializer />
+          <AuthGuard>
+            {children}
+          </AuthGuard>
+        </AuthProvider>
       </body>
     </html>
   );

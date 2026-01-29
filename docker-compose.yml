@@ -19,7 +19,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     environment:
-      - DATABASE_AZURE_URL=${DATABASE_AZURE_URL}
+      - DATABASE_URL=${DATABASE_URL}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
       - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
@@ -30,6 +30,15 @@ services:
       - AZURE_CONN_STRING=${AZURE_CONN_STRING:-}
       - AZURE_CONTAINER=${AZURE_CONTAINER:-data}
       - AZURE_SAS_EXPIRY_HOURS=${AZURE_SAS_EXPIRY_HOURS:-24}
+      - FRONTEND_BASE_URL=${FRONTEND_BASE_URL}
+      - BASE_URL=${BASE_URL}
+      - OIDC_PROVIDERS=${OIDC_PROVIDERS}
+      - OIDC_GOOGLE_ISSUER=${OIDC_GOOGLE_ISSUER}
+      - OIDC_GOOGLE_CLIENT_ID=${OIDC_GOOGLE_CLIENT_ID}
+      - OIDC_GOOGLE_CLIENT_SECRET=${OIDC_GOOGLE_CLIENT_SECRET}
+      - OIDC_NEPHELE_ISSUER=${OIDC_NEPHELE_ISSUER}
+      - OIDC_NEPHELE_CLIENT_ID=${OIDC_NEPHELE_CLIENT_ID}
+      - OIDC_NEPHELE_CLIENT_SECRET=${OIDC_NEPHELE_CLIENT_SECRET}
     ports:
       - "8000:8000"
   
@@ -43,3 +52,16 @@ services:
       - RUNTIME_ENV_PATH=/app/runtime-env/runtime-env.js
     ports:
       - "3000:3000"
+
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: app
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports: ["5432:5432"]
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+volumes:
+    postgres-data:
+

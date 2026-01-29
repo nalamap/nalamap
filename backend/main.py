@@ -9,13 +9,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from contextlib import asynccontextmanager
+
 from api import (
     ai_style,
+    auth,
     auto_styling,
     data_management,
     debug,
     file_streaming,
+    layers,
     mcp,
+    maps,
     nalamap,
     proxy,
     settings,
@@ -55,8 +60,13 @@ tags_metadata = [
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """FastAPI lifespan context manager for startup/shutdown events."""
+    from db.session import init_db, engine
+
     # Startup
     logger.info("NaLaMap API starting up...")
+
+    # Initialize database
+    await init_db()
 
     # Load and validate deployment configuration
     config_result = load_and_validate_config()
@@ -77,6 +87,7 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("NaLaMap API shutting down...")
+    await engine.dispose()
 
 
 app = FastAPI(
@@ -116,10 +127,15 @@ os.makedirs(LOCAL_UPLOAD_DIR, exist_ok=True)
 # NOTE: This may have issues with large files in Azure Container Apps
 # Prefer using /api/stream/ for new code (uses async generator)
 # We keep this for backward compatibility, but redirect internally where possible
+# Legacy /uploads/ endpoint using StaticFiles
+# NOTE: This may have issues with large files in Azure Container Apps
+# Prefer using /api/stream/ for new code (uses async generator)
+# We keep this for backward compatibility, but redirect internally where possible
 app.mount("/uploads", StaticFiles(directory=LOCAL_UPLOAD_DIR), name="uploads")
 
 # Include API routers
 app.include_router(debug.router, prefix="/api")
+app.include_router(auth.router, prefix="/api")
 app.include_router(nalamap.router, prefix="/api")  # Main chat functionality
 app.include_router(data_management.router, prefix="/api")
 app.include_router(ai_style.router, prefix="/api")  # AI Style button functionality
@@ -128,6 +144,8 @@ app.include_router(settings.router, prefix="/api")
 app.include_router(file_streaming.router, prefix="/api")  # Streaming files
 app.include_router(mcp.router, prefix="/api")  # MCP server endpoint
 app.include_router(proxy.router, prefix="/api/proxy")  # CORS proxy for external data
+app.include_router(maps.router, prefix="/api")
+app.include_router(layers.router, prefix="/api")
 
 
 @app.get("/")

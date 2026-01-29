@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import Head from "next/head";
-import { User, Maximize, RefreshCcw, Settings, Home, Layers } from "lucide-react";
+import { LogOut, Maximize, RefreshCcw, Settings, Home, Layers } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "../../context/AuthContext";
 import { useChatInterfaceStore } from "../../stores/chatInterfaceStore";
 import { useLayerStore } from "../../stores/layerStore";
 import { useSettingsStore } from "../../stores/settingsStore";
@@ -73,6 +74,14 @@ const handleReset = () => {
 };
 
 export default function Sidebar({ onLayerToggle }: { onLayerToggle?: () => void }) {
+  const router = useRouter();
+  const { user, logout } = useAuth();
+
+  const handleSignOut = async () => {
+    await logout();
+    router.push("/login");
+  };
+
   return (
     <>
       <Head>
@@ -102,14 +111,17 @@ export default function Sidebar({ onLayerToggle }: { onLayerToggle?: () => void 
             <span className="md:hidden text-base">Layer Management</span>
           </button>
         )}
-        {/* Account Icon */}
-        <button
-          className="hover:bg-secondary-800 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
-          title="Account"
-        >
-          <User className="w-6 h-6 md:mr-0 mr-3" />
-          <span className="md:hidden text-base">Account</span>
-        </button>
+        {/* Sign out */}
+        {user && (
+          <button
+            onClick={handleSignOut}
+            className="hover:bg-secondary-800 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
+            title={`Sign out ${user.email}`}
+          >
+            <LogOut className="w-6 h-6 md:mr-0 mr-3" />
+            <span className="md:hidden text-base">Sign out</span>
+          </button>
+        )}
 
         {/* Fullscreen Icon */}
         <button

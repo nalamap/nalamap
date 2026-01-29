@@ -58,6 +58,7 @@ export interface LayerStyle {
 
 export interface GeoDataObject {
   id: string;
+  db_id?: string;
   data_source_id: string;
   data_type: string;
   data_origin: string;

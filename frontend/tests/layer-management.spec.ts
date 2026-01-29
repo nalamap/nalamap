@@ -54,7 +54,7 @@ test.describe("LayerManagement Component", () => {
 
   test("should display basemap selector with options", async ({ page }) => {
     // Find the basemap select element
-    const basemapSelect = await page.locator("select");
+    const basemapSelect = await page.getByTestId("basemap-select");
     await expect(basemapSelect).toBeVisible();
     
     // Check that basemap options exist (they don't need to be visible)
@@ -66,7 +66,7 @@ test.describe("LayerManagement Component", () => {
   });
 
   test("should change basemap when option is selected", async ({ page }) => {
-    const basemapSelect = await page.locator("select");
+    const basemapSelect = await page.getByTestId("basemap-select");
     
     // Change to OSM basemap
     await basemapSelect.selectOption("osm");
