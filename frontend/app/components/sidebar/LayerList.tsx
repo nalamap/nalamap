@@ -11,9 +11,11 @@ import {
   Download,
   Info,
   X,
+  BarChart3,
 } from "lucide-react";
 import { getApiBase } from "../../utils/apiBase";
 import Logger from "../../utils/logger";
+import WorldBankChart, { ChartDataItem, ChartByCategory } from "../charts/WorldBankChart";
 
 // Dynamic drag handle component - simple fixed size with responsive spacing
 // Uses 5 dot rows for visual clarity, spacing adjusts when style panel is open
@@ -157,6 +159,34 @@ interface LayerListProps {
   setZoomTo: (layerId: string) => void;
 }
 
+// Check if a layer is from World Bank and has chart data
+function isWorldBankLayer(layer: any): boolean {
+  return (
+    layer.data_source_id === "worldBankIndicators" ||
+    layer.data_source === "World Bank"
+  );
+}
+
+// Extract chart data from layer properties
+function getWorldBankChartData(layer: any): {
+  chartData: ChartDataItem[];
+  chartByCategory: ChartByCategory;
+  country: string;
+  dataPeriod: string;
+} | null {
+  const props = layer.properties;
+  if (!props || !props.chart_data || !Array.isArray(props.chart_data)) {
+    return null;
+  }
+
+  return {
+    chartData: props.chart_data as ChartDataItem[],
+    chartByCategory: (props.chart_by_category || {}) as ChartByCategory,
+    country: (props.country as string) || "Unknown",
+    dataPeriod: (props.data_period as string) || "",
+  };
+}
+
 export default function LayerList({
   layers,
   toggleLayerVisibility,
@@ -172,7 +202,9 @@ export default function LayerList({
   const [stylePanelOpen, setStylePanelOpen] = useState<string | null>(null);
   const [activeMetadataId, setActiveMetadataId] = useState<string | null>(null);
   const [popupPosition, setPopupPosition] = useState<{ top: number; left: number } | null>(null);
+  const [activeChartId, setActiveChartId] = useState<string | null>(null);
   const infoButtonRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
+  const chartButtonRefs = useRef<{ [key: string]: HTMLButtonElement | null }>({});
 
   // Download layer as GeoJSON
   const downloadLayer = async (layer: any) => {
@@ -458,6 +490,20 @@ export default function LayerList({
                           >
                             <Palette size={16} />
                           </button>
+                          {/* World Bank Chart Button - only shown for World Bank layers */}
+                          {isWorldBankLayer(layer) && getWorldBankChartData(layer) && (
+                            <button
+                              ref={(el) => { chartButtonRefs.current[layer.id] = el; }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveChartId(activeChartId === layer.id ? null : layer.id);
+                              }}
+                              title="View World Bank Indicators Chart"
+                              className={`p-1 rounded transition-colors cursor-pointer ${activeChartId === layer.id ? "text-blue-600 bg-blue-100" : "text-neutral-600 hover:text-blue-600 hover:bg-neutral-100"}`}
+                            >
+                              <BarChart3 size={16} />
+                            </button>
+                          )}
                           <button
                             onClick={() => downloadLayer(layer)}
                             draggable="true"
@@ -952,6 +998,51 @@ export default function LayerList({
                   </p>
                 </div>
               )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* World Bank Chart Modal */}
+      {activeChartId && (() => {
+        const layer = layers.find(l => l.id === activeChartId);
+        if (!layer) return null;
+
+        const chartData = getWorldBankChartData(layer);
+        if (!chartData) return null;
+
+        return (
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200]"
+            onClick={() => setActiveChartId(null)}
+          >
+            <div
+              className="bg-white rounded-lg shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between z-10">
+                <h2 className="text-lg font-bold text-gray-900">
+                  📊 {layer.title || layer.name}
+                </h2>
+                <button
+                  onClick={() => setActiveChartId(null)}
+                  className="text-neutral-400 hover:text-neutral-600 p-1 hover:bg-neutral-100 rounded"
+                  aria-label="Close chart"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Chart Content */}
+              <div className="p-4">
+                <WorldBankChart
+                  country={chartData.country}
+                  chartData={chartData.chartData}
+                  chartByCategory={chartData.chartByCategory}
+                  dataPeriod={chartData.dataPeriod}
+                />
+              </div>
             </div>
           </div>
         );

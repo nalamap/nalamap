@@ -1016,16 +1016,83 @@ const LeafletGeoJSONLayer = memo(function LeafletGeoJSONLayer({
   }, [map, url]);
 
   const pointToLayer = useCallback((feature: any, latlng: L.LatLng) => {
-    // Use custom radius if provided in style, default to 4 (half of previous 8)
-    const radius = layerStyle?.radius || 4;
+    // Check for marker-color and marker-symbol from feature properties (e.g., from AIS/OpenSky data)
+    const featureMarkerColor = feature?.properties?.["marker-color"];
+    const featureMarkerSymbol = feature?.properties?.["marker-symbol"];
+    
+    // Debug logging for marker properties
+    if (featureMarkerColor || featureMarkerSymbol) {
+      Logger.log(`[pointToLayer] Feature with marker props:`, {
+        color: featureMarkerColor,
+        symbol: featureMarkerSymbol,
+        name: feature?.properties?.name || feature?.properties?.callsign,
+        heading: feature?.properties?.heading,
+      });
+    }
+    
+    // Use feature marker-color if available, otherwise fall back to layer style
+    const markerColor = featureMarkerColor || layerStyle?.stroke_color || "#3388ff";
+    const fillColor = featureMarkerColor || layerStyle?.fill_color || "#3388ff";
+    
+    // Use custom radius if provided in style, default to 4
+    // Adjust radius based on symbol type for better visibility
+    let radius = layerStyle?.radius || 4;
+    if (featureMarkerSymbol === "airport" || featureMarkerSymbol === "ferry") {
+      radius = 6; // Larger for aircraft/vessels
+    } else if (featureMarkerSymbol === "triangle" || featureMarkerSymbol === "triangle-down") {
+      radius = 5; // Medium for ascending/descending aircraft
+    }
+    
+    // For symbols like triangle, triangle-down, create SVG-based DivIcon markers
+    if (featureMarkerSymbol === "triangle" || featureMarkerSymbol === "triangle-down") {
+      const heading = feature?.properties?.heading || 0;
+      const svgIcon = L.divIcon({
+        className: 'custom-marker-icon',
+        html: `<svg width="20" height="20" viewBox="0 0 20 20" style="transform: rotate(${heading}deg);">
+          <polygon points="10,2 18,18 10,14 2,18" fill="${markerColor}" stroke="#fff" stroke-width="1" opacity="0.9"/>
+        </svg>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10],
+      });
+      return L.marker(latlng, { icon: svgIcon });
+    }
+    
+    // For airport/ferry symbols, use plane/ship SVG icons
+    if (featureMarkerSymbol === "airport") {
+      const heading = feature?.properties?.heading || 0;
+      const svgIcon = L.divIcon({
+        className: 'custom-marker-icon',
+        html: `<svg width="24" height="24" viewBox="0 0 24 24" style="transform: rotate(${heading}deg);">
+          <path d="M21,16v-2l-8-5V3.5C13,2.67,12.33,2,11.5,2S10,2.67,10,3.5V9l-8,5v2l8-2.5V19l-2,1.5V22l3.5-1l3.5,1v-1.5L13,19v-5.5L21,16z" fill="${markerColor}" stroke="#fff" stroke-width="0.5"/>
+        </svg>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+      });
+      return L.marker(latlng, { icon: svgIcon });
+    }
+    
+    if (featureMarkerSymbol === "ferry") {
+      const heading = feature?.properties?.heading || feature?.properties?.course || 0;
+      const svgIcon = L.divIcon({
+        className: 'custom-marker-icon',
+        html: `<svg width="20" height="20" viewBox="0 0 24 24" style="transform: rotate(${heading}deg);">
+          <path d="M12,2L4,12l8,10l8-10L12,2z" fill="${markerColor}" stroke="#fff" stroke-width="1"/>
+        </svg>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10],
+      });
+      return L.marker(latlng, { icon: svgIcon });
+    }
+    
+    // Default: circle marker with feature color support
     return L.circleMarker(latlng, {
       radius: radius,
       // Apply style properties for circle markers
-      color: layerStyle?.stroke_color || "#3388ff",
+      color: markerColor,
       weight: layerStyle?.stroke_weight || 2,
-      opacity: layerStyle?.stroke_opacity || 0.85, // Changed from 1.0 to 0.85 (85% opacity)
-      fillColor: layerStyle?.fill_color || "#3388ff",
-      fillOpacity: layerStyle?.fill_opacity || 0.15, // Changed from 0.3 to 0.15 for less transparency
+      opacity: layerStyle?.stroke_opacity || 0.85,
+      fillColor: fillColor,
+      fillOpacity: featureMarkerColor ? 0.7 : (layerStyle?.fill_opacity || 0.15), // Higher opacity for colored markers
       dashArray: layerStyle?.stroke_dash_array || undefined,
       dashOffset: layerStyle?.stroke_dash_offset?.toString() || undefined,
       // Apply advanced line properties
@@ -1036,12 +1103,15 @@ const LeafletGeoJSONLayer = memo(function LeafletGeoJSONLayer({
 
   // Create enhanced style function that uses layer style properties
   const getFeatureStyle = useCallback((feature?: any) => {
+    // Check for marker-color from feature properties (e.g., from AIS/OpenSky data)
+    const featureMarkerColor = feature?.properties?.["marker-color"];
+    
     const baseStyle = {
-      color: layerStyle?.stroke_color || "#3388ff",
+      color: featureMarkerColor || layerStyle?.stroke_color || "#3388ff",
       weight: layerStyle?.stroke_weight || 2,
-      opacity: layerStyle?.stroke_opacity || 0.85, // Changed from 1.0 to 0.85
-      fillColor: layerStyle?.fill_color || "#3388ff",
-      fillOpacity: layerStyle?.fill_opacity || 0.15, // Changed from 0.3 to 0.15
+      opacity: layerStyle?.stroke_opacity || 0.85,
+      fillColor: featureMarkerColor || layerStyle?.fill_color || "#3388ff",
+      fillOpacity: featureMarkerColor ? 0.5 : (layerStyle?.fill_opacity || 0.15), // Higher opacity for colored features
       dashArray: layerStyle?.stroke_dash_array || undefined,
       dashOffset: layerStyle?.stroke_dash_offset?.toString() || undefined,
       // Apply advanced line properties
