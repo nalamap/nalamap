@@ -63,7 +63,7 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("NaLaMap API starting up...")
 
-    # Initialize database
+    # Initialize database (if configured)
     await init_db()
 
     # Load and validate deployment configuration
@@ -85,7 +85,8 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("NaLaMap API shutting down...")
-    await engine.dispose()
+    if engine is not None:
+        await engine.dispose()
 
 
 app = FastAPI(
