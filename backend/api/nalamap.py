@@ -516,7 +516,7 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
 
             # Get stream_id for cancellation tracking (separate from session_id)
             # stream_id is request-specific, session_id is user-specific
-            stream_id = getattr(options_orig, "stream_id", None) or session_id
+            stream_id = options_orig.get("stream_id") or session_id
 
             # Get message window size
             message_window_size = getattr(options.model_settings, "message_window_size", None)

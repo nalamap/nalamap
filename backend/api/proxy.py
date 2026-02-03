@@ -62,11 +62,17 @@ def validate_url(url: str) -> None:
 
     # Block localhost/private network access to prevent SSRF
     host = parsed.hostname or ""
-    if host.lower() in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
+    if host.lower() in ("localhost", "127.0.0.1", "::1", "0.0.0.0", "[::]"):
         raise HTTPException(status_code=400, detail="Proxying to localhost is not allowed")
 
-    # Block private IP ranges (basic check)
-    if host.startswith("10.") or host.startswith("192.168."):
+    # Block all RFC1918 private IP ranges and link-local addresses
+    # 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16
+    if (
+        host.startswith("10.")
+        or host.startswith("192.168.")
+        or host.startswith("169.254.")
+        or any(host.startswith(f"172.{i}.") for i in range(16, 32))
+    ):
         raise HTTPException(status_code=400, detail="Proxying to private networks is not allowed")
 
 

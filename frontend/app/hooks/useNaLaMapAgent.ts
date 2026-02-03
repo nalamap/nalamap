@@ -287,9 +287,8 @@ export function useNaLaMapAgent(apiUrl: string) {
     // 1. User session_id (persistent): from settings, used for GeoServer layers, conversation history
     // 2. Request stream_id (ephemeral): unique per request, used for cancellation tracking
     
-    // Get persistent user session_id from settings (set by backend via cookie)
-    // This MUST be preserved - it's used to find preloaded GeoServer layers
-    const userSessionId = (settingsObj as any).session_id;
+    // session_id is preserved in settingsObj (set by backend via cookie)
+    // It's used to find preloaded GeoServer layers
     
     // Generate unique stream_id for this specific request (for cancellation)
     const randomSuffix = window.crypto.getRandomValues(new Uint32Array(1))[0].toString(36).substr(2, 9);
@@ -310,7 +309,7 @@ export function useNaLaMapAgent(apiUrl: string) {
         query: chatInterfaceStore.input,
         geodata_last_results: chatInterfaceStore.geoDataList,
         geodata_layers: layerStore.layers,
-        options: settingsObj, // Contains userSessionId for GeoServer layer lookup
+        options: settingsObj, // Contains session_id for GeoServer layer lookup
       };
       
       // Add stream_id for request cancellation (separate from user session_id)
