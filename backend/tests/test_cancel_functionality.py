@@ -352,10 +352,7 @@ def test_cancel_during_active_streaming(client, complete_chat_payload):
 @pytest.mark.integration
 @pytest.mark.slow
 @pytest.mark.skip(
-    reason=(
-        "Flaky test - times out intermittently due to LLM API latency "
-        "and threading issues"
-    )
+    reason="Flaky test - times out intermittently due to LLM API latency and threading issues"
 )
 def test_cancel_with_real_agent_execution(client, complete_chat_payload):
     """
