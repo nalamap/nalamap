@@ -355,7 +355,7 @@ def test_cancel_with_real_agent_execution(client, complete_chat_payload):
     """
     Test cancellation with a real agent execution to ensure cancellation
     happens during actual tool execution, not just event emission.
-    
+
     Note: This test can be flaky due to timing issues with threading,
     LLM API latency, and event stream buffering. It requires actual LLM
     API calls to work properly. If it fails once, try running it again.
