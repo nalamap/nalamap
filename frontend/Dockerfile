@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ### 1) deps stage: install and cache all dependencies ###
-FROM node:24-slim AS deps
+FROM node:25-slim AS deps
 
 WORKDIR /app
 
@@ -18,7 +18,7 @@ RUN \
 
 
 ### 2) builder stage: bring down the build deps & build the app ###
-FROM node:24-slim AS builder
+FROM node:25-slim AS builder
 
 WORKDIR /app
 
@@ -46,7 +46,7 @@ RUN \
 
 
 ### 3) runner stage: production image ###
-FROM node:24-slim AS runner
+FROM node:25-slim AS runner
 
 WORKDIR /app
 ENV NODE_ENV=production \

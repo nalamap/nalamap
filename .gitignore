@@ -1,6 +1,9 @@
 # Created by https://www.toptal.com/developers/gitignore/api/python,react,reactnative,visualstudiocode,git
 # Edit at https://www.toptal.com/developers/gitignore?templates=python,react,reactnative,visualstudiocode,git
 
+### Session documentation (generated during development) ###
+docs/sessions/
+
 ### Git ###
 # Created by git for backups. To disable backups in Git:
 # $ git config --global mergetool.keepBackup false

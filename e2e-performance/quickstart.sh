@@ -8,7 +8,7 @@ echo ""
 
 # Check if we're in the right directory
 if [ ! -f "README.md" ]; then
-    echo "Error: Please run this script from the e2e-tests directory"
+    echo "Error: Please run this script from the e2e-performance directory"
     exit 1
 fi
 

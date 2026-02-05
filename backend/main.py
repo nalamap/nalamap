@@ -1,14 +1,13 @@
 import logging
 import mimetypes
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-
-from contextlib import asynccontextmanager
 
 from api import (
     ai_style,
@@ -21,11 +20,14 @@ from api import (
     mcp,
     maps,
     nalamap,
+    proxy,
     settings,
 )
 
 # from sqlalchemy.ext.asyncio import AsyncSession
 from core.config import ALLOWED_CORS_ORIGINS, LOCAL_UPLOAD_DIR
+from services.deployment_config_loader import load_and_validate_config
+from services.startup_preloader import schedule_startup_preload
 
 # Configure logging with environment variable support
 # Set LOG_LEVEL=WARNING in production to reduce noise, DEBUG for verbose output
@@ -34,6 +36,8 @@ logging.basicConfig(
     level=getattr(logging, log_level, logging.INFO),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
+
+logger = logging.getLogger(__name__)
 
 
 tags_metadata = [
@@ -53,14 +57,36 @@ tags_metadata = [
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize and dispose database engine via ORM on app startup/shutdown."""
-    from db.session import init_db
+    """FastAPI lifespan context manager for startup/shutdown events."""
+    from db.session import init_db, engine
 
+    # Startup
+    logger.info("NaLaMap API starting up...")
+
+    # Initialize database (if configured)
     await init_db()
-    yield
-    from db.session import engine
 
-    await engine.dispose()
+    # Load and validate deployment configuration
+    config_result = load_and_validate_config()
+    if config_result.valid and config_result.config:
+        config_name = config_result.config.config_name or "(unnamed)"
+        logger.info(f"Deployment configuration loaded: {config_name}")
+        if config_result.warnings:
+            for warning in config_result.warnings:
+                logger.warning(f"Config warning: {warning}")
+
+        # Schedule startup preload for GeoServer backends (runs in background)
+        # This preloads backends marked with preload_on_startup=True
+        schedule_startup_preload()
+    else:
+        logger.info("No deployment configuration found, using defaults")
+
+    yield
+
+    # Shutdown
+    logger.info("NaLaMap API shutting down...")
+    if engine is not None:
+        await engine.dispose()
 
 
 app = FastAPI(
@@ -116,6 +142,7 @@ app.include_router(auto_styling.router, prefix="/api")  # Automatic styling
 app.include_router(settings.router, prefix="/api")
 app.include_router(file_streaming.router, prefix="/api")  # Streaming files
 app.include_router(mcp.router, prefix="/api")  # MCP server endpoint
+app.include_router(proxy.router, prefix="/api/proxy")  # CORS proxy for external data
 app.include_router(maps.router, prefix="/api")
 app.include_router(layers.router, prefix="/api")
 

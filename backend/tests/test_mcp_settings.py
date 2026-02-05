@@ -44,7 +44,7 @@ def test_settings_snapshot_with_mcp_servers():
         ],
         model_settings={
             "model_provider": "openai",
-            "model_name": "gpt-4",
+            "model_name": "gpt-4o-mini",
             "max_tokens": 4000,
             "system_prompt": "",
         },
@@ -62,7 +62,7 @@ def test_settings_snapshot_with_empty_mcp_servers():
         geoserver_backends=[],
         model_settings={
             "model_provider": "openai",
-            "model_name": "gpt-4",
+            "model_name": "gpt-4o-mini",
             "max_tokens": 4000,
             "system_prompt": "",
         },

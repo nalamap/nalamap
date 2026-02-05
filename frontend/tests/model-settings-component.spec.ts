@@ -15,7 +15,7 @@ const mockSettings = {
   model_options: {
     openai: [
       {
-        name: "gpt-4",
+        name: "gpt-4o-mini",
         max_tokens: 4000,
         supports_parallel_tool_calls: true,
       },
@@ -40,7 +40,7 @@ const mockSettings = {
   },
   model_settings: {
     model_provider: "openai",
-    model_name: "gpt-4",
+    model_name: "gpt-4o-mini",
     max_tokens: 4000,
     system_prompt: "You are a helpful AI assistant.",
     message_window_size: null,
@@ -105,7 +105,7 @@ test.describe("Model Settings Component", () => {
     await expect(modelSelect).toBeVisible();
 
     // Should show openai models initially
-    await expect(modelSelect).toContainText("gpt-4");
+    await expect(modelSelect).toContainText("gpt-4o-mini");
     await expect(modelSelect).toContainText("gpt-3.5-turbo");
   });
 
@@ -116,7 +116,7 @@ test.describe("Model Settings Component", () => {
     const modelSelect = page.locator("select").nth(1);
 
     // Initially showing openai models
-    await expect(modelSelect).toContainText("gpt-4");
+    await expect(modelSelect).toContainText("gpt-4o-mini");
 
     // Switch to anthropic
     await providerSelect.selectOption("anthropic");
@@ -395,7 +395,7 @@ test.describe("Model Settings Component", () => {
     await expect(page.locator("text=/✗ Not Supported/")).toBeVisible();
     
     // Switch back to gpt-4
-    await modelSelect.selectOption("gpt-4");
+    await modelSelect.selectOption("gpt-4o-mini");
     await page.waitForTimeout(300);
     
     await expect(page.locator("text=/⚡ Supported/")).toBeVisible();

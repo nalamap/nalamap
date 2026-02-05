@@ -16,7 +16,7 @@ langchain = ">=0.3.27"
 langchain-core = ">=0.3.76"
 langchain_community = "^0.3.30"
 openai = ">=1.108.1"
-psycopg = {extras = ["binary","pool"], version = ">=3.2.10"}
+psycopg = {extras = ["binary","pool"], version = ">=3.2.12"}
 sqlalchemy = "^2.0"
 geoalchemy2 = "^0.13"
 langgraph = ">=0.6.7"
@@ -33,16 +33,19 @@ shapely = "*"
 kml2geojson = "*"
 geopandas = "*"
 webcolors = "*"
-matplotlib = "*"
+matplotlib = ">=3.10.7"
 httpx-sse = "^0.4.3"
+pyproj = "^3.7.2"
 passlib = {extras = ["bcrypt"], version = "^1.7"}
 python-jose = {extras = ["cryptography"], version = "^3.3"}
 bcrypt = "^5.0.0"
 authlib = "^1.4"
+pydantic-settings = ">=2.11.0"
+huggingface-hub = ">=0.36.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "*"
-pytest-asyncio = "*"
+pytest-asyncio = ">=1.2.0"
 flake8 = "*"
 flake8-pyproject = "*"
 black = "*"

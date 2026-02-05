@@ -24,7 +24,7 @@ const mockSettings = {
   tool_options: {},
   example_geoserver_backends: [],
   model_options: {
-    openai: [{ name: "gpt-4", max_tokens: 4000 }],
+    openai: [{ name: "gpt-4o-mini", max_tokens: 4000 }],
   },
   color_settings: {
     primary: {

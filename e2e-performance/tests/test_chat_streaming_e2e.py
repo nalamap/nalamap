@@ -16,6 +16,7 @@ from typing import List, Dict, Any
 import asyncio
 
 import pytest
+import pytest_asyncio
 from playwright.async_api import async_playwright, Page, expect
 
 # Add utils to path
@@ -78,7 +79,7 @@ class StreamingMetrics:
         }
 
 
-@pytest.fixture(scope="module")
+@pytest_asyncio.fixture(scope="module")
 async def browser():
     """Create browser instance."""
     async with async_playwright() as p:
@@ -87,7 +88,7 @@ async def browser():
         await browser.close()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def page(browser):
     """Create a new page for each test."""
     context = await browser.new_context()

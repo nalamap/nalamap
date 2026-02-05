@@ -7,13 +7,16 @@ services:
       dockerfile: Dockerfile
     environment:
       - ENVIRONMENT=development
-      - DATABASE_URL=sqlite:///./nalamap.db
+      # Do not set DATABASE_URL - skips async database initialization
+      # This avoids needing PostgreSQL for e2e file transfer tests
       - SECRET_KEY=e2e-test-secret-key-change-in-production
       - USE_AZURE_STORAGE=false
       - CORS_ORIGINS=http://localhost,http://localhost:3000,http://localhost
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
-      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
+      # Do not set OpenAI API keys - forces fallback to mock/hashing embeddings
+      # This avoids API costs and makes tests faster/more reliable
+      # - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
+      # - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
     volumes:
       - ../backend:/app
       - e2e-uploads:/app/uploads

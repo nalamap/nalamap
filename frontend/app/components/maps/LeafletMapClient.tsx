@@ -18,6 +18,7 @@ import { useLayerStore } from "../../stores/layerStore";
 import { useUIStore } from "../../stores/uiStore";
 import { ZoomToSelected } from "./ZoomToLayer";
 import Logger from "../../utils/logger";
+import { getApiBase } from "../../utils/apiBase";
 
 import { GeoDataObject, LayerStyle } from "../../models/geodatamodel";
 
@@ -118,6 +119,99 @@ const geoJSONCache = new GeoJSONCache();
 if (typeof window !== "undefined") {
   (window as any).geoJSONCache = geoJSONCache;
   Logger.log("[GeoJSONCache] Cache exposed to window.geoJSONCache for debugging");
+}
+
+// ============================================
+// CORS PROXY HELPER
+// ============================================
+
+/**
+ * Check if a URL is external (not on the same origin as the current page or API).
+ * External URLs may need to be fetched through the CORS proxy.
+ */
+function isExternalUrl(url: string): boolean {
+  try {
+    const targetUrl = new URL(url);
+    const currentOrigin =
+      typeof window !== "undefined" ? window.location.origin : "";
+    const apiBase = getApiBase();
+    const apiOrigin = apiBase.startsWith("http") ? new URL(apiBase).origin : "";
+
+    // Check if URL is on the same origin as the page or API
+    return (
+      targetUrl.origin !== currentOrigin &&
+      targetUrl.origin !== apiOrigin &&
+      !url.startsWith("/")
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Build a proxied URL for fetching external GeoJSON/WFS data through our backend.
+ */
+function getProxiedUrl(originalUrl: string, srsName?: string): string {
+  const apiBase = getApiBase();
+  const params = new URLSearchParams({ url: originalUrl });
+  if (srsName) {
+    params.set("srsName", srsName);
+  }
+  return `${apiBase}/proxy/geojson?${params.toString()}`;
+}
+
+/**
+ * Build a proxied URL for fetching external images through our backend.
+ * Used for legend images from external GeoServers with CORS restrictions.
+ */
+function getProxiedImageUrl(originalUrl: string): string {
+  const apiBase = getApiBase();
+  const params = new URLSearchParams({ url: originalUrl });
+  return `${apiBase}/proxy/image?${params.toString()}`;
+}
+
+/**
+ * Fetch GeoJSON/WFS data, using proxy for external URLs that fail due to CORS.
+ */
+async function fetchWithCorsProxy(
+  url: string,
+  options?: RequestInit,
+): Promise<Response> {
+  const isExternal = isExternalUrl(url);
+
+  // First, try direct fetch
+  try {
+    const res = await fetch(url, options);
+    if (res.ok) return res;
+    // If not OK but no CORS error, return the response anyway
+    return res;
+  } catch (err) {
+    // Check if this is likely a CORS error (TypeError on fetch indicates network failure)
+    if (isExternal && err instanceof TypeError) {
+      Logger.log(
+        `[CORS Proxy] Direct fetch failed for external URL, trying proxy: ${url}`,
+      );
+
+      // Extract srsName if this is a WFS request
+      let srsName: string | undefined;
+      try {
+        const testU = new URL(url);
+        srsName = testU.searchParams.get("srsName") || undefined;
+      } catch {
+        /* ignore */
+      }
+
+      // Retry through proxy
+      const proxiedUrl = getProxiedUrl(url, srsName);
+      return fetch(proxiedUrl, {
+        headers: {
+          Accept: "application/json, application/geo+json, */*;q=0.1",
+        },
+      });
+    }
+    // Not a CORS error or not external, re-throw
+    throw err;
+  }
 }
 
 
@@ -670,14 +764,15 @@ const LeafletGeoJSONLayer = memo(function LeafletGeoJSONLayer({
           /* ignore */
         }
 
-        let res = await fetch(requestUrl, {
+        // Use fetchWithCorsProxy to handle external URLs that may have CORS issues
+        let res = await fetchWithCorsProxy(requestUrl, {
           headers: {
             Accept: "application/json, application/geo+json, */*;q=0.1",
           },
         });
         if (!res.ok && requestUrl !== url) {
           // fallback to original URL if srsName caused failure
-          res = await fetch(url, {
+          res = await fetchWithCorsProxy(url, {
             headers: {
               Accept: "application/json, application/geo+json, */*;q=0.1",
             },
@@ -980,13 +1075,15 @@ const LeafletGeoJSONLayer = memo(function LeafletGeoJSONLayer({
     });
 
     // Highlight on hover, only for non-marker layers
+    // Only change the border (stroke) properties to keep the feature transparent
     layer.on({
       mouseover: (e) => {
         if ("setStyle" in e.target) {
           e.target.setStyle({
-            weight: 3,
-            color: "#666",
-            fillOpacity: 0.7,
+            weight: 4,           // Increase border width
+            color: "#FF6B35",    // Use a vibrant highlight color
+            opacity: 1.0,        // Full opacity for the border
+            // fillOpacity unchanged - keeps the fill transparent so user can see through
           });
         }
       },
@@ -1259,9 +1356,12 @@ const Legend = memo(function Legend({
   const [hasError, setHasError] = useState<boolean>(false);
   const [hasFallbackAttempted, setHasFallbackAttempted] =
     useState<boolean>(false);
+  const [hasProxyAttempted, setHasProxyAttempted] = useState<boolean>(false);
   const [lastUniqueId, setLastUniqueId] = useState<string>("");
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
   const [isImageMaximized, setIsImageMaximized] = useState<boolean>(false);
+  // Keep track of the original (non-proxied) URL for fallback logic
+  const [originalLegendUrl, setOriginalLegendUrl] = useState<string>("");
 
   useEffect(() => {
     // Only reset states if this is actually a different layer
@@ -1269,18 +1369,22 @@ const Legend = memo(function Legend({
       setIsLoading(true);
       setHasError(false);
       setHasFallbackAttempted(false);
+      setHasProxyAttempted(false);
       setLastUniqueId(uniqueId);
 
       if (wmsLayer) {
         // Original WMS legend URL
         const wmsLegendUrl = `${wmsLayer.baseUrl}?service=WMS&request=GetLegendGraphic&layer=${wmsLayer.layers}&format=image/png`;
+        setOriginalLegendUrl(wmsLegendUrl);
         setLegendUrl(wmsLegendUrl);
       } else if (wmtsLayer) {
         // For WMTS, start with WMTS GetLegendGraphic (for non-standard providers like FAO)
         if (wmtsLayer.wmtsLegendUrl) {
+          setOriginalLegendUrl(wmtsLayer.wmtsLegendUrl);
           setLegendUrl(wmtsLayer.wmtsLegendUrl);
         } else if (wmtsLayer.wmsLegendUrl) {
           // Direct WMS fallback if no WMTS URL available
+          setOriginalLegendUrl(wmtsLayer.wmsLegendUrl);
           setLegendUrl(wmtsLayer.wmsLegendUrl);
           setHasFallbackAttempted(true); // Mark as already using fallback
         } else {
@@ -1379,8 +1483,15 @@ const Legend = memo(function Legend({
                 ) {
                   Logger.log("Trying WMS fallback for WMTS legend");
                   setHasFallbackAttempted(true);
+                  setOriginalLegendUrl(wmtsLayer.wmsLegendUrl);
                   setLegendUrl(wmtsLayer.wmsLegendUrl);
                   setIsLoading(true); // Reset loading state for fallback attempt
+                } else if (!hasProxyAttempted && originalLegendUrl && isExternalUrl(originalLegendUrl)) {
+                  // Try using the image proxy for external URLs that may have CORS issues
+                  Logger.log("Trying image proxy for legend:", originalLegendUrl);
+                  setHasProxyAttempted(true);
+                  setLegendUrl(getProxiedImageUrl(originalLegendUrl));
+                  setIsLoading(true); // Reset loading state for proxy attempt
                 } else {
                   // Final failure - hide the legend
                   Logger.log("Legend loading failed permanently");
