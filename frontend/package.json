@@ -18,7 +18,7 @@
     "@types/geojson": "^7946.0.16",
     "@types/leaflet": "^1.9.21",
     "@xmldom/xmldom": "^0.9.8",
-    "ai": "^5.0.80",
+    "ai": "^6.0.73",
     "leaflet": "^1.9.4",
     "leaflet-defaulticon-compatibility": "^0.1.2",
     "leaflet-geosearch": "^4.2.0",
