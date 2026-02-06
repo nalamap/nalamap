@@ -1,14 +1,35 @@
 # ──────────────────────────────────────────────────────────────
-# Stage 1 – BUILD: install Poetry + all Python deps in a venv
+# Stage 1 – EXPORT: use Poetry to export a requirements.txt
 # ──────────────────────────────────────────────────────────────
-FROM python:3.14-slim AS build
+# Poetry 2.x can segfault under Podman / QEMU on ARM64 during
+# `poetry install`.  We side-step this by only using Poetry to
+# *export* a pinned requirements.txt, then let pip do the heavy
+# lifting in the build stage.
+# ──────────────────────────────────────────────────────────────
+FROM python:3.13-slim AS export
 
-ENV POETRY_VERSION=1.8.0 \
+ENV POETRY_VERSION=2.1.3 \
     POETRY_HOME=/opt/poetry \
-    POETRY_VIRTUALENVS_IN_PROJECT=true \
     POETRY_NO_INTERACTION=1
 
 ENV PATH=$POETRY_HOME/bin:$PATH
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends curl \
+ && curl -sSL https://install.python-poetry.org | python3 - --version $POETRY_VERSION \
+ && poetry self add poetry-plugin-export \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY pyproject.toml poetry.lock ./
+
+RUN poetry export --only main --without-hashes -f requirements.txt -o requirements.txt
+
+
+# ──────────────────────────────────────────────────────────────
+# Stage 2 – BUILD: pip install into a venv using requirements.txt
+# ──────────────────────────────────────────────────────────────
+FROM python:3.13-slim AS build
 
 # Install every system library needed to *compile* native wheels:
 #   build-essential  → gcc / g++ / make (contourpy, etc.)
@@ -18,28 +39,27 @@ ENV PATH=$POETRY_HOME/bin:$PATH
 #   libgdal-dev      → pyogrio / GDAL (transitive via geopandas)
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      curl \
       build-essential \
       libffi-dev \
       python3-dev \
       libpq-dev \
       libgdal-dev \
- && curl -sSL https://install.python-poetry.org | python3 - --version $POETRY_VERSION \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy lock files first → layer is cached until deps change
-COPY pyproject.toml poetry.lock ./
+# Create a virtualenv and install deps via pip (no Poetry at runtime)
+RUN python -m venv .venv
+ENV PATH="/app/.venv/bin:$PATH"
 
-# Install production deps into .venv inside /app
-RUN poetry install --only main --no-root
+COPY --from=export /app/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
 
 # ──────────────────────────────────────────────────────────────
-# Stage 2 – RUNTIME: slim image with only runtime libraries
+# Stage 3 – RUNTIME: slim image with only runtime libraries
 # ──────────────────────────────────────────────────────────────
-FROM python:3.14-slim
+FROM python:3.13-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -47,10 +67,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # Runtime system libraries only (no compilers):
 #   libpq5           → psycopg runtime
-#   libgdal36t64     → pyogrio / GDAL runtime (Debian trixie package name)
 #   libgeos-dev      → shapely runtime
-# Note: The exact libgdal package name may vary by Debian version.
-# We use a glob install to handle version differences.
+#   libgdal*         → pyogrio / GDAL runtime
+# Note: The exact libgdal package name varies by Debian version.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       libpq5 \
