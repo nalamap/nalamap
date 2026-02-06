@@ -1,4 +1,5 @@
-# syntax=docker/dockerfile:1
+# Note: Syntax directive commented out to avoid Docker Hub dependency
+# # syntax=docker/dockerfile:1
 
 ### 1) deps stage: install and cache all dependencies ###
 FROM node:25-slim AS deps
