@@ -1,5 +1,5 @@
 # 1. Build stage: use Poetry to export requirements.txt
-FROM python:3.13-slim AS build
+FROM python:3.14-slim AS build
 
 # 1a. Define Poetry version and install location
 ENV POETRY_VERSION=1.8.0
@@ -31,7 +31,7 @@ RUN poetry export \
 
 
 # 2. Final stage: install only production dependencies
-FROM python:3.13-slim
+FROM python:3.14-slim
 
 # Environment settings for Python optimization
 ENV PYTHONDONTWRITEBYTECODE=1 \
