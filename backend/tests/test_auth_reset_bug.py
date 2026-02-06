@@ -17,44 +17,48 @@ from datetime import datetime, timedelta
 
 from main import app
 from core.config import SECRET_KEY
-from db.session import AsyncSessionLocal
+from db.session import AsyncSessionLocal, get_session
 
 
 # Check if database is configured
 DATABASE_CONFIGURED = AsyncSessionLocal is not None
 
 
+# Stub session dependency so token validation tests never touch the DB.
+async def _stub_session():
+    """Yield a no-op session; token checks must reject before DB access."""
+    yield None
+
+
 class TestAuthMeEndpointNoDB:
     """Tests for /auth/me endpoint that don't require database.
 
     These tests verify token validation BEFORE the database is touched.
+    We override the DB session dependency so a missing database can never
+    mask a token-level failure as 500.
     """
 
     @pytest.fixture
     def client(self):
-        """Create a test client."""
-        return TestClient(app, raise_server_exceptions=False)
+        """Create a test client with the DB dependency overridden."""
+        app.dependency_overrides[get_session] = _stub_session
+        yield TestClient(app, raise_server_exceptions=False)
+        app.dependency_overrides.pop(get_session, None)
 
     @pytest.mark.unit
     def test_auth_me_without_cookie_returns_401(self, client):
         """Test that /auth/me returns 401 when no cookie is present."""
-        # This should return 401 before touching database
         response = client.get("/api/auth/me")
-        # Without DB config, might get 500 from dependency injection
-        # The fix should make this return 401 even without DB
-        assert response.status_code in [401, 500]
-        if response.status_code == 401:
-            assert response.json()["detail"] == "Not authenticated"
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Not authenticated"
 
     @pytest.mark.unit
     def test_auth_me_with_invalid_jwt_returns_401(self, client):
         """Test that /auth/me returns 401 for invalid JWT tokens."""
         client.cookies.set("access_token", "invalid.jwt.token")
         response = client.get("/api/auth/me")
-        # Should return 401, but might get 500 if DB dependency fails first
-        assert response.status_code in [401, 500]
-        if response.status_code == 401:
-            assert response.json()["detail"] == "Invalid token"
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Invalid token"
 
     @pytest.mark.unit
     def test_auth_me_with_expired_token_returns_401(self, client):
@@ -67,9 +71,8 @@ class TestAuthMeEndpointNoDB:
 
         client.cookies.set("access_token", expired_token)
         response = client.get("/api/auth/me")
-        assert response.status_code in [401, 500]
-        if response.status_code == 401:
-            assert response.json()["detail"] == "Invalid token"
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Invalid token"
 
 
 @pytest.mark.skipif(not DATABASE_CONFIGURED, reason="Database not configured")

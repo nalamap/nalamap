@@ -190,7 +190,7 @@ async def _prepare_chat_context(
         metrics: Performance metrics tracker
 
     Returns:
-        Tuple of (state, single_agent, options, perf_callback, session_id)
+        Tuple of (state, single_agent, options, perf_callback, session_id, stream_id)
     """
     from services.single_agent import create_geo_agent, prepare_messages
     from utility.performance_metrics import PerformanceCallbackHandler

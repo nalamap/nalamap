@@ -247,7 +247,6 @@ def get_conversation_manager(session_id: str, message_window_size: int) -> Conve
 async def create_geo_agent(
     model_settings: Optional[ModelSettings] = None,
     selected_tools: Optional[List[ToolConfig]] = None,
-    message_window_size: int = 20,
     enable_parallel_tools: bool = False,
     query: Optional[str] = None,
     session_id: Optional[str] = None,
@@ -258,8 +257,6 @@ async def create_geo_agent(
     Args:
         model_settings: Model configuration (provider, name, max_tokens, system_prompt)
         selected_tools: Tool configurations to enable/disable
-        message_window_size: Maximum number of recent messages to keep in context
-            (default: 20)
         enable_parallel_tools: Whether to enable parallel tool execution
             (default: False, experimental)
         query: Current user query for dynamic tool selection (optional)
@@ -419,11 +416,13 @@ async def create_geo_agent(
 
 
 if __name__ == "__main__":
+    import asyncio
+
     # Initialize geodata state (e.g. Berlin) with both public and private data
 
     debug_tool: bool = False
     initial_geo_state: GeoDataAgentState = get_minimal_debug_state(debug_tool)
-    single_agent, _llm = create_geo_agent()
+    single_agent, _llm = asyncio.run(create_geo_agent())
 
     if not debug_tool:
         # Ask the agent; private fields are kept internally but not sent to the LLM

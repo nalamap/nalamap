@@ -1,73 +1,82 @@
-# 1. Build stage: use Poetry to export requirements.txt
+# ──────────────────────────────────────────────────────────────
+# Stage 1 – BUILD: install Poetry + all Python deps in a venv
+# ──────────────────────────────────────────────────────────────
 FROM python:3.14-slim AS build
 
-# 1a. Define Poetry version and install location
-ENV POETRY_VERSION=1.8.0
-ENV POETRY_HOME=/opt/poetry
+ENV POETRY_VERSION=1.8.0 \
+    POETRY_HOME=/opt/poetry \
+    POETRY_VIRTUALENVS_IN_PROJECT=true \
+    POETRY_NO_INTERACTION=1
 
-# 1b. Add Poetry to PATH
 ENV PATH=$POETRY_HOME/bin:$PATH
-# Install system deps for Poetry & Python builds, then install Poetry
+
+# Install every system library needed to *compile* native wheels:
+#   build-essential  → gcc / g++ / make (contourpy, etc.)
+#   libffi-dev       → cffi
+#   python3-dev      → CPython headers
+#   libpq-dev        → psycopg
+#   libgdal-dev      → pyogrio / GDAL (transitive via geopandas)
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       curl \
       build-essential \
       libffi-dev \
       python3-dev \
+      libpq-dev \
+      libgdal-dev \
  && curl -sSL https://install.python-poetry.org | python3 - --version $POETRY_VERSION \
- && pip install --upgrade pip \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy only lock files to leverage cache
+# Copy lock files first → layer is cached until deps change
 COPY pyproject.toml poetry.lock ./
 
-# Export locked deps to a flat requirements.txt
-RUN poetry export \
-      --format=requirements.txt \
-      --without-hashes \
-      --output=requirements.txt
+# Install production deps into .venv inside /app
+RUN poetry install --only main --no-root
 
 
-# 2. Final stage: install only production dependencies
+# ──────────────────────────────────────────────────────────────
+# Stage 2 – RUNTIME: slim image with only runtime libraries
+# ──────────────────────────────────────────────────────────────
 FROM python:3.14-slim
 
-# Environment settings for Python optimization
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONOPTIMIZE=1
 
-# Install OS‐level deps (e.g. for psycopg3, contourpy)
+# Runtime system libraries only (no compilers):
+#   libpq5           → psycopg runtime
+#   libgdal36t64     → pyogrio / GDAL runtime (Debian trixie package name)
+#   libgeos-dev      → shapely runtime
+# Note: The exact libgdal package name may vary by Debian version.
+# We use a glob install to handle version differences.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      gcc \
-      g++ \
-      libpq-dev \
+      libpq5 \
+      libgeos-dev \
+ && apt-get install -y --no-install-recommends libgdal36t64 \
+    || apt-get install -y --no-install-recommends $(apt-cache search --names-only '^libgdal[0-9]' | head -1 | cut -d' ' -f1) \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy in the exported requirements from build stage
-COPY --from=build /app/requirements.txt .
+# Copy the pre-built virtualenv from the build stage
+COPY --from=build /app/.venv .venv
 
-# Install Python dependencies
-RUN pip install --upgrade pip \
- && pip install --no-cache-dir -r requirements.txt
+# Put the venv's Python on PATH
+ENV PATH="/app/.venv/bin:$PATH"
 
-# Copy the rest of the app code
+# Copy application code
 COPY . .
 
 # Precompile Python bytecode for faster imports at runtime
-# This creates .pyc files which skip compilation on first import
 RUN python -m compileall -q .
 
-# Configure thread pool defaults based on CPU cores
-# These can be overridden via environment variables at runtime
+# Thread pool defaults (overridable at runtime)
 ENV NALAMAP_HIGH_PRIORITY_THREADS="" \
     NALAMAP_LOW_PRIORITY_THREADS="" \
     NALAMAP_MAX_CONCURRENT_PRELOADS="3"
 
-# Expose the port and set the default command
 EXPOSE 8000
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

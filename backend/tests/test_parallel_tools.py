@@ -297,27 +297,8 @@ def test_parallel_geoprocessing_safety():
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_message_window_parameter():
-    """Test that message_window_size parameter is accepted."""
-    agent, llm = await create_geo_agent(message_window_size=10)
+async def test_agent_creation_basic():
+    """Test that create_geo_agent returns a valid agent and llm."""
+    agent, llm = await create_geo_agent()
     assert agent is not None
-
-    agent, llm = await create_geo_agent(message_window_size=50)
-    assert agent is not None
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_message_window_boundary_cases():
-    """Test message window with edge cases."""
-    # Very small window
-    agent, llm = await create_geo_agent(message_window_size=1)
-    assert agent is not None
-
-    # Zero window (should still work, but maybe not useful)
-    agent, llm = await create_geo_agent(message_window_size=0)
-    assert agent is not None
-
-    # Very large window
-    agent, llm = await create_geo_agent(message_window_size=1000)
-    assert agent is not None
+    assert llm is not None

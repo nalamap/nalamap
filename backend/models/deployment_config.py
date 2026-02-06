@@ -115,8 +115,10 @@ class DeploymentModelSettings(BaseModel):
     use_summarization: Optional[bool] = Field(
         None,
         description=(
-            "DEPRECATED: Use message_management_mode or MESSAGE_MANAGEMENT_MODE env var instead. "
-            "Set message_management_mode='summarize' (default) or 'prune'."
+            "DEPRECATED boolean flag retained for backwards compatibility. "
+            "Use the message_management_mode field or MESSAGE_MANAGEMENT_MODE "
+            "env var instead, which accepts string values "
+            "'summarize' (default) or 'prune'."
         ),
     )
     enable_smart_crs: Optional[bool] = Field(None, description="Enable intelligent CRS selection")

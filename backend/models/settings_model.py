@@ -120,11 +120,10 @@ class ModelSettings(BaseModel):
     use_summarization: bool = Field(
         False,
         description=(
-            "DEPRECATED: Use message_management_mode or MESSAGE_MANAGEMENT_MODE "
-            "environment variable instead. "
-            "Set message_management_mode='summarize' (default) for LLM-based "
-            "conversation summarization, or 'prune' for simple window truncation. "
-            "This field is kept for backward compatibility but is no longer used."
+            "DEPRECATED boolean flag retained for backwards compatibility. "
+            "Use the message_management_mode field or MESSAGE_MANAGEMENT_MODE "
+            "env var instead, which accepts string values "
+            "'summarize' (default) or 'prune'."
         ),
     )
     enable_smart_crs: bool = Field(
