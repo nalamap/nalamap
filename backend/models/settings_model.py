@@ -110,10 +110,10 @@ class ModelSettings(BaseModel):
     use_summarization: bool = Field(
         False,
         description=(
-            "Enable automatic conversation summarization for long conversations. "
-            "When enabled, older messages are automatically summarized to reduce "
-            "token usage while maintaining context. Requires session_id to track "
-            "conversation state across requests."
+            "DEPRECATED: Use the MESSAGE_MANAGEMENT_MODE environment variable instead. "
+            "Set MESSAGE_MANAGEMENT_MODE='summarize' (default) for LLM-based "
+            "conversation summarization, or 'prune' for simple window truncation. "
+            "This field is kept for backward compatibility but is no longer used."
         ),
     )
     enable_smart_crs: bool = Field(
