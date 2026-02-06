@@ -98,4 +98,4 @@ ENV NALAMAP_HIGH_PRIORITY_THREADS="" \
     NALAMAP_MAX_CONCURRENT_PRELOADS="3"
 
 EXPOSE 8000
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/app/.venv/bin/uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
