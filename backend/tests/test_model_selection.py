@@ -304,3 +304,45 @@ class TestConversationSummarization:
         assert manager.max_messages == message_window_size * 2  # 30
         assert manager.summarize_threshold == message_window_size + 5  # 20
         assert manager.summary_window == message_window_size  # 15
+
+    @pytest.mark.asyncio
+    @patch("services.single_agent.create_react_agent")
+    async def test_prepare_messages_with_settings_mode(self, mock_create_react):
+        """Test that prepare_messages respects settings_mode parameter over env var."""
+        from services.single_agent import prepare_messages
+        from langchain_core.messages import HumanMessage
+
+        messages = [HumanMessage(content=f"msg-{i}") for i in range(30)]
+
+        # Environment says 'summarize', but settings say 'prune' - settings should win
+        with patch.dict(os.environ, {"MESSAGE_MANAGEMENT_MODE": "summarize"}):
+            result = await prepare_messages(
+                messages=messages,
+                message_window_size=10,
+                session_id="test-session",
+                settings_mode="prune",  # Override with settings
+            )
+
+        # Should use pruning from settings
+        assert len(result) == 10
+
+    @pytest.mark.asyncio
+    @patch("services.single_agent.create_react_agent")
+    async def test_prepare_messages_settings_mode_fallback_to_env(self, mock_create_react):
+        """Test that prepare_messages falls back to env var when settings_mode is None."""
+        from services.single_agent import prepare_messages
+        from langchain_core.messages import HumanMessage
+
+        messages = [HumanMessage(content=f"msg-{i}") for i in range(30)]
+
+        # No settings_mode, should use env var
+        with patch.dict(os.environ, {"MESSAGE_MANAGEMENT_MODE": "prune"}):
+            result = await prepare_messages(
+                messages=messages,
+                message_window_size=10,
+                session_id="test-session",
+                settings_mode=None,  # No override, use env
+            )
+
+        # Should use pruning from env var
+        assert len(result) == 10

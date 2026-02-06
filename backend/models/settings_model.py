@@ -107,11 +107,22 @@ class ModelSettings(BaseModel):
             "None = unlimited. Useful for strict context control."
         ),
     )
+    message_management_mode: Optional[str] = Field(
+        None,
+        description=(
+            "Message management strategy for long conversations. "
+            "Options: 'summarize' (LLM-based intelligent summarization, default), "
+            "'prune' (simple window truncation). "
+            "If None, uses MESSAGE_MANAGEMENT_MODE environment variable (default: 'summarize'). "
+            "Set this to allow per-user/organization control of conversation memory."
+        ),
+    )
     use_summarization: bool = Field(
         False,
         description=(
-            "DEPRECATED: Use the MESSAGE_MANAGEMENT_MODE environment variable instead. "
-            "Set MESSAGE_MANAGEMENT_MODE='summarize' (default) for LLM-based "
+            "DEPRECATED: Use message_management_mode or MESSAGE_MANAGEMENT_MODE "
+            "environment variable instead. "
+            "Set message_management_mode='summarize' (default) for LLM-based "
             "conversation summarization, or 'prune' for simple window truncation. "
             "This field is kept for backward compatibility but is no longer used."
         ),

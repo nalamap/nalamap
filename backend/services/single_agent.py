@@ -101,8 +101,8 @@ def prune_messages(
     return result
 
 
-def _get_message_management_mode() -> str:
-    """Get the message management mode from environment.
+def _get_message_management_mode(settings_mode: Optional[str] = None) -> str:
+    """Get the message management mode from settings or environment.
 
     Returns the configured message management strategy:
     - 'summarize' (default): Use LLM-based conversation summarization.
@@ -111,13 +111,30 @@ def _get_message_management_mode() -> str:
     - 'prune': Use simple window-based truncation.
       Only the most recent messages are kept; older messages are discarded.
 
-    Controlled by the MESSAGE_MANAGEMENT_MODE environment variable.
+    Priority order:
+    1. User/organization settings (settings_mode parameter)
+    2. MESSAGE_MANAGEMENT_MODE environment variable
+    3. Default: 'summarize'
+
+    Args:
+        settings_mode: Optional mode from user/organization settings
 
     Returns:
         One of 'summarize' or 'prune'
     """
     import os
 
+    # Check user/organization settings first
+    if settings_mode:
+        mode = settings_mode.lower().strip()
+        if mode in ("summarize", "prune"):
+            return mode
+        logger.warning(
+            f"Invalid message_management_mode='{mode}' in settings, "
+            f"checking environment variable. Valid values: 'summarize', 'prune'"
+        )
+
+    # Fallback to environment variable
     mode = os.getenv("MESSAGE_MANAGEMENT_MODE", "summarize").lower().strip()
     if mode not in ("summarize", "prune"):
         logger.warning(
@@ -133,22 +150,26 @@ async def prepare_messages(
     message_window_size: int,
     session_id: Optional[str] = None,
     llm: Optional[Any] = None,
+    settings_mode: Optional[str] = None,
 ) -> List[BaseMessage]:
     """Prepare messages using the configured message management strategy.
 
-    Applies either LLM-based summarization or simple window pruning based on the
-    MESSAGE_MANAGEMENT_MODE environment variable (default: 'summarize').
+    Applies either LLM-based summarization or simple window pruning based on:
+    1. User/organization settings (settings_mode parameter)
+    2. MESSAGE_MANAGEMENT_MODE environment variable
+    3. Default: 'summarize'
 
     Args:
         messages: Full message history to process
         message_window_size: Window size for recent messages
         session_id: Session ID for conversation tracking (required for summarization)
         llm: Language model instance for summarization (optional, falls back to pruning)
+        settings_mode: Optional mode from user/organization settings
 
     Returns:
         Processed message list, either summarized or pruned
     """
-    mode = _get_message_management_mode()
+    mode = _get_message_management_mode(settings_mode)
 
     if mode == "summarize" and session_id:
         manager = get_conversation_manager(session_id, message_window_size)

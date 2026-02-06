@@ -239,12 +239,16 @@ async def _prepare_chat_context(
         mcp_servers=mcp_servers if mcp_servers else None,
     )
 
-    # Prepare messages (summarization or pruning based on MESSAGE_MANAGEMENT_MODE)
+    # Get message management mode from settings (or fall back to env var)
+    message_management_mode = getattr(options.model_settings, "message_management_mode", None)
+
+    # Prepare messages (summarization or pruning based on settings/env)
     messages = await prepare_messages(
         messages=messages,
         message_window_size=message_window_size,
         session_id=options.session_id,
         llm=llm,
+        settings_mode=message_management_mode,
     )
 
     # Track message count after processing
