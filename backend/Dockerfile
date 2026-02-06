@@ -38,10 +38,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONOPTIMIZE=1
 
-# Install OS‐level deps (e.g. for psycopg3)
+# Install OS‐level deps (e.g. for psycopg3, contourpy)
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       gcc \
+      g++ \
       libpq-dev \
  && rm -rf /var/lib/apt/lists/*
 
