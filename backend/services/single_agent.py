@@ -251,6 +251,7 @@ async def create_geo_agent(
     query: Optional[str] = None,
     session_id: Optional[str] = None,
     mcp_servers: Optional[List] = None,  # List of MCPServer objects
+    system_prompt_addendum: Optional[str] = None,
 ) -> Tuple[CompiledStateGraph, Any]:
     """Create a geo agent with specified model and tools.
 
@@ -264,6 +265,8 @@ async def create_geo_agent(
             (used for conversation summarization)
         mcp_servers: List of MCPServer objects to load external tools from
             (optional, supports authentication via api_key and headers fields)
+        system_prompt_addendum: Optional text to append to the system prompt
+            (used by the planner to inject execution plan instructions)
 
     Returns:
         Tuple of (CompiledStateGraph, llm) - the agent graph and the LLM instance.
@@ -401,6 +404,11 @@ async def create_geo_agent(
                 "enable_parallel_tools=True but no model_settings provided, "
                 "falling back to sequential execution"
             )
+
+    # Append planning addendum to system prompt if provided
+    if system_prompt_addendum:
+        system_prompt = system_prompt + system_prompt_addendum
+        logger.info("Appended execution plan to system prompt")
 
     agent = create_react_agent(
         name="GeoAgent",

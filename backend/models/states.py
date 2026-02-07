@@ -3,12 +3,46 @@ from typing import Any, Dict, List, Optional, Union
 
 from langchain_core.messages import HumanMessage
 from langgraph.graph import MessagesState
-from pydantic import Field
-from typing_extensions import Annotated
+from pydantic import BaseModel, Field
+from typing_extensions import Annotated, NotRequired
 
 from models.settings_model import SettingsSnapshot
 
 from .geodata import GeoDataObject, mock_geodata_objects
+
+
+# =============================================================================
+# EXECUTION PLAN MODEL
+# =============================================================================
+
+
+class PlanStep(BaseModel):
+    """A single step in the agent's execution plan."""
+
+    step_number: int = Field(description="1-based step number")
+    title: str = Field(description="Short title for the step (3-7 words)")
+    description: str = Field(description="What this step will accomplish")
+    tool_hint: Optional[str] = Field(
+        default=None, description="Suggested tool to use (informational only)"
+    )
+    status: str = Field(
+        default="pending",
+        description="Step status: pending, in-progress, complete, skipped, error",
+    )
+    result_summary: Optional[str] = Field(
+        default=None, description="Brief summary of step result after completion"
+    )
+
+
+class ExecutionPlan(BaseModel):
+    """A multi-step execution plan created by the agent for complex tasks."""
+
+    goal: str = Field(description="The overall goal the plan achieves")
+    steps: List[PlanStep] = Field(default_factory=list, description="Ordered list of plan steps")
+    is_complex: bool = Field(
+        default=False,
+        description="Whether the query requires multi-step planning",
+    )
 
 
 # =============================================================================
@@ -102,6 +136,35 @@ def reduce_results_title(current: Optional[str], new: Optional[str]) -> str:
     return ""
 
 
+def reduce_execution_plan(
+    current: Optional[ExecutionPlan], new: Optional[ExecutionPlan]
+) -> Optional[ExecutionPlan]:
+    """Reducer for execution_plan - updates step statuses when merging.
+
+    If the new plan has steps with updated statuses, merge those updates
+    into the current plan while preserving unchanged steps.
+    """
+    if new is None:
+        return current
+    if current is None:
+        return new
+
+    # If new plan has steps, merge step statuses
+    if new.steps and current.steps:
+        current_steps_by_num = {s.step_number: s for s in current.steps}
+        for new_step in new.steps:
+            if new_step.step_number in current_steps_by_num:
+                existing = current_steps_by_num[new_step.step_number]
+                # Update status and result_summary if changed
+                if new_step.status != "pending":
+                    existing.status = new_step.status
+                if new_step.result_summary:
+                    existing.result_summary = new_step.result_summary
+        return current
+
+    return new
+
+
 @dataclass
 class DataState(MessagesState):
     geodata: List[GeoDataObject] = field(default_factory=list)
@@ -132,6 +195,11 @@ class GeoDataAgentState(MessagesState):
         default_factory=dict, exclude=True, validate_default=False
     )
 
+    # Execution plan for multi-step tasks (excluded from LLM prompt)
+    # Note: Uses NotRequired so existing state dicts without this field
+    # still pass TypedDict validation (backward compatible).
+    execution_plan: NotRequired[Optional[ExecutionPlan]]
+
     # Required by create_react_agent
     remaining_steps: Optional[int] = Field(
         default=10, description="Number of remaining steps for the agent"
@@ -152,6 +220,7 @@ def get_minimal_debug_state(tool_call: bool = False) -> GeoDataAgentState:
     initial_geo_state["geodata_layers"] = []
     initial_geo_state["results_title"] = ""
     initial_geo_state["options"] = {}
+    initial_geo_state["execution_plan"] = None
     if tool_call:
         initial_geo_state["is_last_step"] = False
         initial_geo_state["remaining_steps"] = 5
@@ -167,6 +236,7 @@ def get_medium_debug_state(tool_call: bool = False) -> GeoDataAgentState:
     initial_geo_state["geodata_layers"] = []
     initial_geo_state["results_title"] = ""
     initial_geo_state["options"] = {}
+    initial_geo_state["execution_plan"] = None
     if tool_call:
         initial_geo_state["is_last_step"] = False
         initial_geo_state["remaining_steps"] = 5

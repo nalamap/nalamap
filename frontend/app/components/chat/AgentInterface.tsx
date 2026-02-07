@@ -11,6 +11,7 @@ import ChatMessages from "./ChatMessages";
 import SearchResults from "./SearchResults";
 import ChatInput from "./ChatInput";
 import ToolProgressIndicator from "../ToolProgressIndicator";
+import PlanDisplay from "../PlanDisplay";
 
 export default function AgentInterface() {
   const API_BASE_URL = getApiBase();
@@ -41,13 +42,14 @@ export default function AgentInterface() {
   const toolUpdates = useChatInterfaceStore((s) => s.toolUpdates);
   const streamingMessage = useChatInterfaceStore((s) => s.streamingMessage);
   const isStreaming = useChatInterfaceStore((s) => s.isStreaming);
+  const executionPlan = useChatInterfaceStore((s) => s.executionPlan);
   
   const showToolMessages = false; // TODO: Move to settings
 
   // Smart scrolling: Lock view on Agent Activity when streaming starts
   useEffect(() => {
-    if (isStreaming && toolUpdates.length > 0 && agentActivityRef.current) {
-      // Lock scroll on Agent Activity
+    if (isStreaming && (toolUpdates.length > 0 || executionPlan) && agentActivityRef.current) {
+      // Lock scroll on Agent Activity / Plan
       setScrollLocked(true);
       agentActivityRef.current.scrollIntoView({ 
         behavior: "smooth", 
@@ -60,7 +62,7 @@ export default function AgentInterface() {
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [isStreaming, toolUpdates.length, scrollLocked]);
+  }, [isStreaming, toolUpdates.length, executionPlan, scrollLocked]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,10 +110,17 @@ export default function AgentInterface() {
           disableAutoScroll={scrollLocked}
         />
 
+        {/* Execution Plan - shows the agent's multi-step plan */}
+        {isStreaming && executionPlan && (
+          <div ref={agentActivityRef} className="scroll-mt-4">
+            <PlanDisplay plan={executionPlan} />
+          </div>
+        )}
+
         {/* Tool Progress Indicator - shows during streaming, BELOW user message */}
         {/* This is the "Agent Activity" section that we lock the view on */}
         {isStreaming && toolUpdates.length > 0 && (
-          <div ref={agentActivityRef} className="scroll-mt-4">
+          <div ref={!executionPlan ? agentActivityRef : undefined} className="scroll-mt-4">
             <ToolProgressIndicator toolUpdates={toolUpdates} />
           </div>
         )}

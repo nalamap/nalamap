@@ -12,6 +12,22 @@ export type ToolUpdate = {
   output_preview?: string; // Preview string (truncated)
   is_state_update?: boolean; // True if output is agent state update
   output_type?: string; // Type of output (for display purposes)
+  plan_step?: number | null; // Associated plan step number
+};
+
+export type PlanStep = {
+  step_number: number;
+  title: string;
+  description: string;
+  tool_hint?: string | null;
+  status: "pending" | "in-progress" | "complete" | "skipped" | "error";
+  result_summary?: string | null;
+};
+
+export type ExecutionPlan = {
+  goal: string;
+  steps: PlanStep[];
+  is_complex: boolean;
 };
 
 export type ChatInterfaceState = {
@@ -27,6 +43,9 @@ export type ChatInterfaceState = {
   streamingMessage: string;
   isStreaming: boolean;
 
+  // execution plan state
+  executionPlan: ExecutionPlan | null;
+
   // getters
   getInput: () => string;
   getMessages: () => ChatMessage[];
@@ -36,6 +55,7 @@ export type ChatInterfaceState = {
   getToolUpdates: () => ToolUpdate[];
   getStreamingMessage: () => string;
   getIsStreaming: () => boolean;
+  getExecutionPlan: () => ExecutionPlan | null;
 
   // setters / mutators
   setInput: (input: string) => void;
@@ -64,6 +84,15 @@ export type ChatInterfaceState = {
   clearStreamingMessage: () => void;
   clearToolUpdates: () => void;
   setIsStreaming: (flag: boolean) => void;
+
+  // plan actions
+  setExecutionPlan: (plan: ExecutionPlan) => void;
+  updatePlanStepStatus: (
+    stepNumber: number,
+    status: PlanStep["status"],
+    resultSummary?: string | null,
+  ) => void;
+  clearExecutionPlan: () => void;
 };
 
 export const useChatInterfaceStore = create<ChatInterfaceState>((set, get) => ({
@@ -79,6 +108,9 @@ export const useChatInterfaceStore = create<ChatInterfaceState>((set, get) => ({
   streamingMessage: "",
   isStreaming: false,
 
+  // plan state
+  executionPlan: null,
+
   // getters
   getInput: () => get().input,
   getMessages: () => get().messages,
@@ -88,6 +120,7 @@ export const useChatInterfaceStore = create<ChatInterfaceState>((set, get) => ({
   getToolUpdates: () => get().toolUpdates,
   getStreamingMessage: () => get().streamingMessage,
   getIsStreaming: () => get().isStreaming,
+  getExecutionPlan: () => get().executionPlan,
 
   // mutators
   setInput: (input) => set({ input }),
@@ -144,6 +177,26 @@ export const useChatInterfaceStore = create<ChatInterfaceState>((set, get) => ({
   clearToolUpdates: () => set({ toolUpdates: [] }),
 
   setIsStreaming: (flag) => set({ isStreaming: flag }),
+
+  // plan actions
+  setExecutionPlan: (plan) => set({ executionPlan: plan }),
+
+  updatePlanStepStatus: (stepNumber, status, resultSummary) =>
+    set((state) => {
+      if (!state.executionPlan) return {};
+      return {
+        executionPlan: {
+          ...state.executionPlan,
+          steps: state.executionPlan.steps.map((step) =>
+            step.step_number === stepNumber
+              ? { ...step, status, result_summary: resultSummary ?? step.result_summary }
+              : step,
+          ),
+        },
+      };
+    }),
+
+  clearExecutionPlan: () => set({ executionPlan: null }),
 }));
 
 // Expose store for testing in development/test environments
