@@ -144,7 +144,6 @@ def normalize_messages(raw: Optional[List[BaseMessage]]) -> List[BaseMessage]:
             normalized.append(SystemMessage(content=content, **extra))
 
         elif t == "tool":
-            continue  # TODO: Fix required tool call missing
             # Your existing ToolMessage logic
             kwargs = {"content": content}
             if getattr(m, "name", None):
@@ -156,7 +155,6 @@ def normalize_messages(raw: Optional[List[BaseMessage]]) -> List[BaseMessage]:
             normalized.append(ToolMessage(**kwargs))
 
         elif t == "function":
-            continue
             normalized.append(
                 FunctionMessage(
                     name=getattr(m, "name", "unknown_function"),

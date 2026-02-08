@@ -155,10 +155,9 @@ def reduce_execution_plan(
         for new_step in new.steps:
             if new_step.step_number in current_steps_by_num:
                 existing = current_steps_by_num[new_step.step_number]
-                # Update status and result_summary if changed
-                if new_step.status != "pending":
-                    existing.status = new_step.status
-                if new_step.result_summary:
+                # Update status and result_summary unconditionally
+                existing.status = new_step.status
+                if new_step.result_summary is not None:
                     existing.result_summary = new_step.result_summary
         return current
 

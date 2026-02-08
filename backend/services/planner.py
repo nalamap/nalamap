@@ -14,6 +14,7 @@ Design:
 
 import json
 import logging
+import re
 from typing import Any, Dict, List, Optional
 
 from langchain_core.messages import BaseMessage, HumanMessage
@@ -132,11 +133,12 @@ async def create_execution_plan(
 
         # Parse the JSON response
         content = response.content.strip()
-        # Handle markdown code blocks
-        if content.startswith("```"):
-            content = content.split("\n", 1)[1] if "\n" in content else content[3:]
-            if content.endswith("```"):
-                content = content[:-3]
+        # Handle markdown code blocks with robust regex
+        match = re.search(r"```(?:json)?\s*(.*?)\s*```", content, re.DOTALL)
+        if match:
+            content = match.group(1).strip()
+        else:
+            # Assume plain JSON if no code blocks found
             content = content.strip()
 
         plan_data = json.loads(content)
