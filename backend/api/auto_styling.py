@@ -102,7 +102,7 @@ async def auto_style_layers(request: AutoStyleRequest):
         )
 
         # create single agent
-        single_agent = create_geo_agent()
+        single_agent, _llm = await create_geo_agent()
 
         # Invoke the single agent to apply automatic styling
         result = single_agent.invoke(state, debug=False)

@@ -1,4 +1,5 @@
-# syntax=docker.io/docker/dockerfile:1
+# Note: Syntax directive commented out to avoid Docker Hub dependency
+# # syntax=docker.io/docker/dockerfile:1
 
 #
 # 1. Install dependencies layer

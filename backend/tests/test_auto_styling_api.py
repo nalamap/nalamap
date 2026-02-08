@@ -72,7 +72,11 @@ def test_auto_style_layers_invokes_agent_and_returns_updated_layers(
             return {"geodata_layers": state["geodata_layers"]}
 
     dummy_agent = DummyAgent()
-    monkeypatch.setattr(auto_styling, "create_geo_agent", lambda: dummy_agent)
+
+    async def _fake_create():
+        return dummy_agent, None
+
+    monkeypatch.setattr(auto_styling, "create_geo_agent", _fake_create)
 
     payload = {"layers": [make_layer_payload()]}
     response = auto_styling_client.post("/auto-style", json=payload)
@@ -93,7 +97,10 @@ def test_auto_style_layers_returns_original_for_pre_styled_layer(auto_styling_cl
         def invoke(self, state, debug=False):
             raise AssertionError("Agent should not be invoked for pre-styled layers")
 
-    monkeypatch.setattr(auto_styling, "create_geo_agent", lambda: DummyAgent())
+    async def _fake_create():
+        return DummyAgent(), None
+
+    monkeypatch.setattr(auto_styling, "create_geo_agent", _fake_create)
 
     custom_style = {
         "stroke_color": "#000000",

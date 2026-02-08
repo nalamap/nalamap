@@ -104,7 +104,23 @@ class DeploymentModelSettings(BaseModel):
         None, ge=0.0, le=1.0, description="Similarity threshold for tool selection"
     )
     max_tools_per_query: Optional[int] = Field(None, ge=1, description="Max tools per query")
-    use_summarization: Optional[bool] = Field(None, description="Enable conversation summarization")
+    message_management_mode: Optional[str] = Field(
+        None,
+        description=(
+            "Message management strategy: 'summarize' (LLM-based, default) or "
+            "'prune' (simple truncation). "
+            "If None, uses MESSAGE_MANAGEMENT_MODE env var."
+        ),
+    )
+    use_summarization: Optional[bool] = Field(
+        None,
+        description=(
+            "DEPRECATED boolean flag retained for backwards compatibility. "
+            "Use the message_management_mode field or MESSAGE_MANAGEMENT_MODE "
+            "env var instead, which accepts string values "
+            "'summarize' (default) or 'prune'."
+        ),
+    )
     enable_smart_crs: Optional[bool] = Field(None, description="Enable intelligent CRS selection")
 
 

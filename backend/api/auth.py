@@ -1,6 +1,7 @@
 """Authentication endpoints for user registration, login, and OIDC sign-in."""
 
 from urllib.parse import urlparse
+from uuid import UUID as UUIDType
 
 from authlib.integrations.httpx_client import AsyncOAuth2Client
 import httpx
@@ -31,7 +32,6 @@ from db.models.user import User
 from db.session import get_session
 
 from pydantic import BaseModel
-
 
 router = APIRouter()
 
@@ -167,6 +167,16 @@ async def me(request: Request, db: AsyncSession = Depends(get_session)):
         payload = decode_access_token(token)
         user_id = payload.get("sub")
     except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # Validate user_id is present and not empty (fixes 500 error on reset)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # Validate user_id is a valid UUID format before database query
+    try:
+        UUIDType(user_id)
+    except (ValueError, TypeError):
         raise HTTPException(status_code=401, detail="Invalid token")
 
     result = await db.execute(select(User).filter_by(id=user_id))

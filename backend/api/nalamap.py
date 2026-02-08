@@ -144,7 +144,6 @@ def normalize_messages(raw: Optional[List[BaseMessage]]) -> List[BaseMessage]:
             normalized.append(SystemMessage(content=content, **extra))
 
         elif t == "tool":
-            continue  # TODO: Fix required tool call missing
             # Your existing ToolMessage logic
             kwargs = {"content": content}
             if getattr(m, "name", None):
@@ -156,7 +155,6 @@ def normalize_messages(raw: Optional[List[BaseMessage]]) -> List[BaseMessage]:
             normalized.append(ToolMessage(**kwargs))
 
         elif t == "function":
-            continue
             normalized.append(
                 FunctionMessage(
                     name=getattr(m, "name", "unknown_function"),
@@ -172,6 +170,161 @@ def normalize_messages(raw: Optional[List[BaseMessage]]) -> List[BaseMessage]:
 
 
 router = APIRouter()
+
+
+async def _prepare_chat_context(
+    request: NaLaMapRequest,
+    raw_request: Request,
+    metrics,
+) -> tuple:
+    """Prepare shared context for both chat and streaming endpoints.
+
+    Normalizes messages, resolves session_id, manages message history
+    (via pruning or summarization), creates an execution plan for complex
+    queries, and creates the agent + initial state.
+
+    Args:
+        request: The NaLaMap chat request
+        raw_request: The raw FastAPI request (for cookies)
+        metrics: Performance metrics tracker
+
+    Returns:
+        Tuple of (state, single_agent, options, perf_callback, session_id, stream_id, plan)
+    """
+    from services.single_agent import create_geo_agent, prepare_messages
+    from services.planner import create_execution_plan, build_plan_system_addendum
+    from utility.performance_metrics import PerformanceCallbackHandler
+
+    # Normalize incoming messages and append user query
+    messages: List[BaseMessage] = normalize_messages(request.messages)
+    messages.append(HumanMessage(request.query))
+
+    # Track message count before processing
+    metrics.record("message_count_before", len(messages))
+
+    # Parse options
+    options_orig: dict = request.options
+    options: SettingsSnapshot = SettingsSnapshot.model_validate(options_orig, strict=False)
+
+    # Resolve session_id: options > cookie
+    if not options.session_id:
+        cookie_session_id = raw_request.cookies.get("session_id")
+        if cookie_session_id:
+            logger.info(f"Using session_id from cookie: {cookie_session_id}")
+            options.session_id = cookie_session_id
+        else:
+            logger.warning("No session_id provided in options or cookies")
+
+    session_id = getattr(options, "session_id", None) or "unknown"
+
+    # Get message window size from model settings or environment
+    message_window_size = getattr(options.model_settings, "message_window_size", None)
+    if message_window_size is None:
+        import os
+
+        message_window_size = int(os.getenv("MESSAGE_WINDOW_SIZE", "20"))
+
+    # Create agent (returns agent + llm for summarization)
+    enable_parallel_tools = getattr(options.model_settings, "enable_parallel_tools", False)
+
+    # Get enabled MCP servers from options (pass full objects for auth)
+    mcp_servers = [server for server in getattr(options, "mcp_servers", []) if server.enabled]
+
+    single_agent, llm = await create_geo_agent(
+        model_settings=options.model_settings,
+        selected_tools=options.tools,
+        enable_parallel_tools=enable_parallel_tools,
+        query=request.query,
+        session_id=options.session_id,
+        mcp_servers=mcp_servers if mcp_servers else None,
+    )
+
+    # Get message management mode from settings (or fall back to env var)
+    message_management_mode = getattr(options.model_settings, "message_management_mode", None)
+
+    # Prepare messages (summarization or pruning based on settings/env)
+    messages = await prepare_messages(
+        messages=messages,
+        message_window_size=message_window_size,
+        session_id=options.session_id,
+        llm=llm,
+        settings_mode=message_management_mode,
+    )
+
+    # Track message count after processing
+    metrics.record("message_count_after", len(messages))
+    metrics.record("message_reduction", metrics.metrics["message_count_before"] - len(messages))
+
+    # --- Multi-step Planning ---
+    # Analyze the query to determine if it requires a multi-step plan.
+    # If so, the plan is injected into the agent's prompt so it follows
+    # the structured steps, and streamed to the frontend for visibility.
+    enable_planning = getattr(options.model_settings, "enable_planning", True)
+    execution_plan = None
+
+    if enable_planning:
+        try:
+            # Build layer context for the planner
+            existing_layers = None
+            if request.geodata_layers:
+                existing_layers = [
+                    {
+                        "title": getattr(layer, "title", None) or getattr(layer, "name", ""),
+                        "name": getattr(layer, "name", ""),
+                    }
+                    for layer in request.geodata_layers
+                ]
+
+            metrics.start_timer("planning")
+            execution_plan = await create_execution_plan(
+                query=request.query,
+                llm=llm,
+                messages=messages,
+                existing_layers=existing_layers,
+            )
+            metrics.end_timer("planning")
+
+            if execution_plan:
+                logger.info(
+                    f"Execution plan created with {len(execution_plan.steps)} steps "
+                    f"for query: {request.query[:80]}"
+                )
+                metrics.record("plan_steps", len(execution_plan.steps))
+
+                # Inject plan into agent by rebuilding with augmented prompt
+                plan_addendum = build_plan_system_addendum(execution_plan)
+                single_agent, llm = await create_geo_agent(
+                    model_settings=options.model_settings,
+                    selected_tools=options.tools,
+                    enable_parallel_tools=enable_parallel_tools,
+                    query=request.query,
+                    session_id=options.session_id,
+                    mcp_servers=mcp_servers if mcp_servers else None,
+                    system_prompt_addendum=plan_addendum,
+                )
+        except Exception as e:
+            logger.warning(f"Planning failed, proceeding without plan: {e}")
+            execution_plan = None
+
+    # Create initial state
+    state: GeoDataAgentState = GeoDataAgentState(
+        messages=messages,
+        geodata_last_results=request.geodata_last_results,
+        geodata_layers=request.geodata_layers,
+        results_title="",
+        geodata_results=[],
+        options=options,
+        remaining_steps=10,
+        execution_plan=execution_plan,
+    )
+
+    # Create performance callback handler
+    perf_callback = PerformanceCallbackHandler()
+
+    # Also extract stream_id for cancellation tracking (streaming only)
+    stream_id = options_orig.get("stream_id") or session_id
+
+    return state, single_agent, options, perf_callback, session_id, stream_id, execution_plan
 
 
 @router.post("/chatmock", tags=["nalamap"], response_model=NaLaMapResponse)
@@ -232,10 +385,8 @@ async def ask_nalamap_agent(request: NaLaMapRequest, raw_request: Request):
     """Ask a question to the NaLaMap Single Agent, which uses tools to respond
     and analyse geospatial information."""
     # Lazy import: only load heavy modules when chat endpoint is actually called
-    from services.single_agent import create_geo_agent, prune_messages
     from utility.performance_metrics import (
         PerformanceMetrics,
-        PerformanceCallbackHandler,
         extract_token_usage_from_messages,
     )
     from utility.metrics_storage import get_metrics_storage
@@ -244,80 +395,12 @@ async def ask_nalamap_agent(request: NaLaMapRequest, raw_request: Request):
     # Initialize performance tracking
     metrics = PerformanceMetrics()
 
-    # print("befor normalize:", request.messages)
-    # Normalize incoming messages and append user query
-    messages: List[BaseMessage] = normalize_messages(request.messages)
-    messages.append(
-        HumanMessage(request.query)
-    )  # TODO: maybe remove query once message is correctly added in frontend
-
-    # Track message count before pruning
-    metrics.record("message_count_before", len(messages))
-
-    # Append as a single human message
-    options_orig: dict = request.options
-
-    options: SettingsSnapshot = SettingsSnapshot.model_validate(options_orig, strict=False)
-
-    # CRITICAL FIX: Ensure session_id consistency between preload and chat
-    # Priority: options.session_id > cookie session_id
-    # This ensures the chat endpoint can find layers preloaded with the same session_id
-    if not options.session_id:
-        cookie_session_id = raw_request.cookies.get("session_id")
-        if cookie_session_id:
-            logger.info(f"Using session_id from cookie: {cookie_session_id}")
-            options.session_id = cookie_session_id
-        else:
-            logger.warning("No session_id provided in options or cookies")
-
-    # Get message window size from model settings or use environment default
-    message_window_size = getattr(options.model_settings, "message_window_size", None)
-    if message_window_size is None:
-        import os
-
-        message_window_size = int(os.getenv("MESSAGE_WINDOW_SIZE", "20"))
-
-    # Prune message history to prevent unbounded growth
-    messages = prune_messages(messages, window_size=message_window_size)
-
-    # Track message count after pruning
-    metrics.record("message_count_after", len(messages))
-    metrics.record("message_reduction", metrics.metrics["message_count_before"] - len(messages))
-
-    state: GeoDataAgentState = GeoDataAgentState(
-        messages=messages,
-        geodata_last_results=request.geodata_last_results,
-        geodata_layers=request.geodata_layers,
-        results_title="",
-        geodata_results=[],
-        options=options,
-        remaining_steps=10,  # Explicitly set remaining_steps
+    # Prepare shared context (messages, agent, state)
+    state, single_agent, options, perf_callback, session_id, _, _plan = await _prepare_chat_context(
+        request, raw_request, metrics
     )
-    # state.global_geodata=request.global_geodata,
 
     try:
-        # Get enable_parallel_tools from model settings
-        enable_parallel_tools = getattr(options.model_settings, "enable_parallel_tools", False)
-
-        # Get use_summarization from model settings (default: False)
-        use_summarization = getattr(options.model_settings, "use_summarization", False)
-
-        # Get enabled MCP servers from options (pass full objects for auth)
-        mcp_servers = [server for server in getattr(options, "mcp_servers", []) if server.enabled]
-
-        single_agent = await create_geo_agent(
-            model_settings=options.model_settings,
-            selected_tools=options.tools,
-            enable_parallel_tools=enable_parallel_tools,
-            query=request.query,  # Pass query for dynamic tool selection
-            use_summarization=use_summarization,
-            session_id=options.session_id,
-            mcp_servers=mcp_servers if mcp_servers else None,
-        )
-
-        # Create performance callback handler
-        perf_callback = PerformanceCallbackHandler()
-
         # Enable langgraph debug logging when global log level is DEBUG
         debug_enabled = logger.isEnabledFor(logging.DEBUG)
 
@@ -335,7 +418,6 @@ async def ask_nalamap_agent(request: NaLaMapRequest, raw_request: Request):
         results_title: Optional[str] = executor_result.get("results_title", "")
         geodata_results: List[GeoDataObject] = executor_result.get("geodata_results", [])
         geodata_layers: List[GeoDataObject] = executor_result.get("geodata_layers", [])
-        # global_geodata: List[GeoDataObject] = executor_result.get('global_geodata', [])
 
         result_options: Dict[str, Any] = executor_result.get("options", {})
 
@@ -395,7 +477,7 @@ async def ask_nalamap_agent(request: NaLaMapRequest, raw_request: Request):
             "If the problem persists, simplifying your query might help."
         )
         result_messages = [
-            *messages,
+            *state.get("messages", []),
             AIMessage(content=error_message),
         ]  # Include history
         results_title = "Model Error"
@@ -410,7 +492,7 @@ async def ask_nalamap_agent(request: NaLaMapRequest, raw_request: Request):
             "I encountered an API error while trying to process your request. "
             "Please check your query or try again later."
         )
-        result_messages = [*messages, AIMessage(content=error_message)]
+        result_messages = [*state.get("messages", []), AIMessage(content=error_message)]
         results_title = "API Error"
         geodata_results = []
         geodata_layers = state.get("geodata_layers", [])
@@ -422,7 +504,7 @@ async def ask_nalamap_agent(request: NaLaMapRequest, raw_request: Request):
         error_message = (
             "An unexpected error occurred while processing your request. " "Please try again."
         )
-        result_messages = [*messages, AIMessage(content=error_message)]
+        result_messages = [*state.get("messages", []), AIMessage(content=error_message)]
         results_title = "Unexpected Error"
         geodata_results = []
         geodata_layers = state.get("geodata_layers", [])
@@ -472,13 +554,12 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
     - done: Stream complete
     """
     from fastapi.responses import StreamingResponse
-    from services.single_agent import create_geo_agent, prune_messages
     from utility.performance_metrics import (
         PerformanceMetrics,
-        PerformanceCallbackHandler,
         extract_token_usage_from_messages,
     )
     from utility.metrics_storage import get_metrics_storage
+    from services.planner import match_tool_to_plan_step, update_plan_step_status
     import json
     import openai
 
@@ -489,85 +570,22 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
             # Initialize performance tracking
             metrics = PerformanceMetrics()
 
-            # Normalize incoming messages and append user query
-            messages: List[BaseMessage] = normalize_messages(request.messages)
-            messages.append(HumanMessage(request.query))
+            # Prepare shared context (messages, agent, state)
+            (
+                state,
+                single_agent,
+                options,
+                perf_callback,
+                session_id,
+                stream_id,
+                execution_plan,
+            ) = await _prepare_chat_context(request, raw_request, metrics)
 
-            # Track message count before pruning
-            metrics.record("message_count_before", len(messages))
-
-            # Parse options
-            options_orig: dict = request.options
-            options: SettingsSnapshot = SettingsSnapshot.model_validate(options_orig, strict=False)
-
-            # CRITICAL FIX: Ensure session_id consistency between preload and chat
-            # Priority: options.session_id > cookie session_id
-            # This ensures streaming chat can find layers preloaded with the same session_id
-            if not options.session_id:
-                cookie_session_id = raw_request.cookies.get("session_id")
-                if cookie_session_id:
-                    logger.info(f"Streaming: Using session_id from cookie: {cookie_session_id}")
-                    options.session_id = cookie_session_id
-                else:
-                    logger.warning("Streaming: No session_id provided in options or cookies")
-
-            # Get session_id for GeoServer layer lookup and conversation tracking
-            session_id = getattr(options, "session_id", None) or "unknown"
-
-            # Get stream_id for cancellation tracking (separate from session_id)
-            # stream_id is request-specific, session_id is user-specific
-            stream_id = options_orig.get("stream_id") or session_id
-
-            # Get message window size
-            message_window_size = getattr(options.model_settings, "message_window_size", None)
-            if message_window_size is None:
-                import os
-
-                message_window_size = int(os.getenv("MESSAGE_WINDOW_SIZE", "20"))
-
-            # Prune messages
-            messages = prune_messages(messages, window_size=message_window_size)
-
-            # Track message counts
-            metrics.record("message_count_after", len(messages))
-            metrics.record(
-                "message_reduction", metrics.metrics["message_count_before"] - len(messages)
-            )
-
-            # Create initial state
-            state: GeoDataAgentState = GeoDataAgentState(
-                messages=messages,
-                geodata_last_results=request.geodata_last_results,
-                geodata_layers=request.geodata_layers,
-                results_title="",
-                geodata_results=[],
-                options=options,
-                remaining_steps=10,
-            )
-
-            # Create agent
-            enable_parallel_tools = getattr(options.model_settings, "enable_parallel_tools", False)
-
-            # Get use_summarization from model settings (default: False)
-            use_summarization = getattr(options.model_settings, "use_summarization", False)
-
-            # Get enabled MCP servers from options (pass full objects for auth)
-            mcp_servers = [
-                server for server in getattr(options, "mcp_servers", []) if server.enabled
-            ]
-
-            single_agent = await create_geo_agent(
-                model_settings=options.model_settings,
-                selected_tools=options.tools,
-                enable_parallel_tools=enable_parallel_tools,
-                query=request.query,  # Pass query for dynamic tool selection
-                use_summarization=use_summarization,
-                session_id=options.session_id,
-                mcp_servers=mcp_servers if mcp_servers else None,
-            )
-
-            # Create performance callback handler
-            perf_callback = PerformanceCallbackHandler()
+            # If we have an execution plan, stream it to the frontend
+            if execution_plan:
+                plan_data = execution_plan.model_dump()
+                yield "event: plan\n"
+                yield f"data: {json.dumps(plan_data)}\n\n"
 
             # Start timing
             metrics.start_timer("agent_execution")
@@ -608,8 +626,30 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                     tool_input = event_data.get("input", {})
                     # Make tool_input JSON serializable (may contain LangChain messages)
                     serializable_input = make_json_serializable(tool_input)
+
+                    # Track plan step progress
+                    matched_step = None
+                    if execution_plan:
+                        matched_step = match_tool_to_plan_step(tool_name, execution_plan)
+                        if matched_step:
+                            update_plan_step_status(execution_plan, matched_step, "in-progress")
+                            # Emit plan step update
+                            yield "event: plan_step_update\n"
+                            step_update = {
+                                "step_number": matched_step,
+                                "status": "in-progress",
+                                "tool": tool_name,
+                            }
+                            yield f"data: {json.dumps(step_update)}\n\n"
+
                     yield "event: tool_start\n"
-                    data = json.dumps({"tool": tool_name, "input": serializable_input})
+                    data = json.dumps(
+                        {
+                            "tool": tool_name,
+                            "input": serializable_input,
+                            "plan_step": matched_step,
+                        }
+                    )
                     yield f"data: {data}\n\n"
 
                 elif event_type == "on_tool_end":
@@ -626,6 +666,36 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                         or "geodata_layers" in serializable_output
                     )
 
+                    # Track plan step completion
+                    matched_step = None
+                    if execution_plan:
+                        matched_step = match_tool_to_plan_step(tool_name, execution_plan)
+                        if matched_step:
+                            # Build a short result summary
+                            result_summary = None
+                            if is_state_update:
+                                msg_count = len(serializable_output.get("messages", []))
+                                result_summary = f"Completed with {msg_count} messages"
+                            else:
+                                output_str = str(serializable_output)
+                                result_summary = output_str[:100]
+
+                            update_plan_step_status(
+                                execution_plan,
+                                matched_step,
+                                "complete",
+                                result_summary,
+                            )
+                            # Emit plan step update
+                            yield "event: plan_step_update\n"
+                            step_update = {
+                                "step_number": matched_step,
+                                "status": "complete",
+                                "tool": tool_name,
+                                "result_summary": result_summary,
+                            }
+                            yield f"data: {json.dumps(step_update)}\n\n"
+
                     # For state updates, only send summary
                     # For actual results, send full output
                     if is_state_update:
@@ -636,6 +706,7 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                             "output_preview": output_preview,
                             "is_state_update": True,
                             "output_type": "state",
+                            "plan_step": matched_step,
                         }
                     else:
                         # Send full result but also include a preview
@@ -647,6 +718,7 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                             "output_preview": output_str[:200] + ellipsis,
                             "is_state_update": False,
                             "output_type": type(serializable_output).__name__,
+                            "plan_step": matched_step,
                         }
 
                     yield "event: tool_end\n"
