@@ -16,7 +16,7 @@ def is_available() -> bool:
 def get_available_models() -> list[ModelInfo]:
     """Get list of available DeepSeek models with pricing information.
 
-    Pricing as of October 2025 (per 1M tokens in USD):
+    Pricing as of February 2026 (per 1M tokens in USD):
     Source: DeepSeek pricing page
 
     Phase 1 Enhancements:
@@ -26,6 +26,20 @@ def get_available_models() -> list[ModelInfo]:
     - reasoning_capability: Based on model specialization
     """
     return [
+        ModelInfo(
+            name="deepseek-v3",
+            max_tokens=8192,
+            input_cost_per_million=0.14,
+            output_cost_per_million=0.28,
+            cache_cost_per_million=0.014,
+            description="DeepSeek-V3 - Latest generation frontier model",
+            supports_tools=True,
+            supports_vision=False,
+            context_window=128000,
+            supports_parallel_tool_calls=True,
+            tool_calling_quality="excellent",
+            reasoning_capability="expert",
+        ),
         ModelInfo(
             name="deepseek-chat",
             max_tokens=4096,

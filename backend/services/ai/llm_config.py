@@ -19,6 +19,8 @@ elif llm_provider == "mistral":
     from .mistralai import get_llm
 elif llm_provider == "deepseek":
     from .deepseek import get_llm  # noqa: F401
+elif llm_provider == "anthropic":
+    from .anthropic import get_llm
 else:
     raise ValueError(f"Unsupported LLM provider: {llm_provider}")
 
@@ -80,10 +82,15 @@ def get_llm_for_provider(
 
         llm = deepseek_get_llm(max_tokens=validated_max_tokens, model_name=model_name)
         return llm, capabilities
+    elif provider_name == "anthropic":
+        from .anthropic import get_llm as anthropic_get_llm
+
+        llm = anthropic_get_llm(max_tokens=validated_max_tokens, model_name=model_name)
+        return llm, capabilities
     else:
         raise ValueError(
             f"Unsupported LLM provider: {provider_name}. "
-            "Supported providers: openai, azure, google, mistral, deepseek"
+            "Supported providers: openai, azure, google, mistral, deepseek, anthropic"
         )
 
 
@@ -115,6 +122,8 @@ def _validate_max_tokens_and_get_capabilities(
             from .mistralai import get_available_models
         elif provider_name == "deepseek":
             from .deepseek import get_available_models
+        elif provider_name == "anthropic":
+            from .anthropic import get_available_models
         else:
             # Unknown provider, return defaults
             return max_tokens, capabilities

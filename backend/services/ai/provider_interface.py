@@ -139,6 +139,30 @@ def get_all_providers() -> Dict[str, ProviderInfo]:
             error_message=str(e),
         )
 
+    # Anthropic
+    try:
+        from services.ai import anthropic
+
+        is_available = anthropic.is_available()
+        models = anthropic.get_available_models() if is_available else []
+
+        providers_unordered["anthropic"] = ProviderInfo(
+            name="anthropic",
+            display_name="Anthropic",
+            available=is_available,
+            models=models,
+            error_message=None if is_available else "API key not configured",
+        )
+    except Exception as e:
+        logger.warning(f"Failed to load Anthropic provider: {e}")
+        providers_unordered["anthropic"] = ProviderInfo(
+            name="anthropic",
+            display_name="Anthropic",
+            available=False,
+            models=[],
+            error_message=str(e),
+        )
+
     # Order providers based on DEFAULT_LLM_PROVIDER or LLM_PROVIDER env var
     # The first provider in the ordered dict will be selected by default in the UI
     preferred_provider = (
