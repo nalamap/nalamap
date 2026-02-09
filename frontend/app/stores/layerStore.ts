@@ -407,7 +407,11 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
               selected: existingLayer.selected,
             };
           }
-          return backendLayer;
+          // New layer: ensure visible defaults to true
+          return {
+            ...backendLayer,
+            visible: backendLayer.visible ?? true,
+          };
         });
 
         persistIds = layers

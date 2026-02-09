@@ -42,7 +42,9 @@ def sample_state():
 @pytest.mark.asyncio
 async def test_create_agent_default_parallel_disabled(mock_model_settings):
     """Test that parallel tools are disabled by default."""
-    agent = await create_geo_agent(model_settings=mock_model_settings, enable_parallel_tools=False)
+    agent, llm = await create_geo_agent(
+        model_settings=mock_model_settings, enable_parallel_tools=False
+    )
 
     assert agent is not None
     # Agent should be created successfully with parallel tools disabled
@@ -62,7 +64,7 @@ async def test_create_agent_parallel_enabled_supported_model(mock_get_llm, mock_
     mock_get_llm.return_value = (mock_llm, mock_capabilities)
 
     with patch("services.single_agent.logger") as mock_logger:
-        agent = await create_geo_agent(
+        agent, llm = await create_geo_agent(
             model_settings=mock_model_settings, enable_parallel_tools=True
         )
 
@@ -86,7 +88,9 @@ async def test_create_agent_parallel_enabled_unsupported_model(mock_get_llm, moc
     mock_capabilities = ModelCapabilities(supports_parallel_tool_calls=False)
     mock_get_llm.return_value = (mock_llm, mock_capabilities)
 
-    agent = await create_geo_agent(model_settings=mock_model_settings, enable_parallel_tools=True)
+    agent, llm = await create_geo_agent(
+        model_settings=mock_model_settings, enable_parallel_tools=True
+    )
 
     assert agent is not None
     # Agent should still be created, but parallel execution should be disabled
@@ -97,7 +101,7 @@ async def test_create_agent_parallel_enabled_unsupported_model(mock_get_llm, moc
 async def test_create_agent_parallel_without_model_settings():
     """Test that parallel tools can't be enabled without model settings."""
     with patch("services.single_agent.logger") as mock_logger:
-        agent = await create_geo_agent(enable_parallel_tools=True)
+        agent, llm = await create_geo_agent(enable_parallel_tools=True)
 
         assert agent is not None
         # Should log warning about missing model settings
@@ -292,26 +296,9 @@ def test_parallel_geoprocessing_safety():
 
 
 @pytest.mark.unit
-def test_message_window_parameter():
-    """Test that message_window_size parameter is accepted."""
-    agent = create_geo_agent(message_window_size=10)
+@pytest.mark.asyncio
+async def test_agent_creation_basic():
+    """Test that create_geo_agent returns a valid agent and llm."""
+    agent, llm = await create_geo_agent()
     assert agent is not None
-
-    agent = create_geo_agent(message_window_size=50)
-    assert agent is not None
-
-
-@pytest.mark.unit
-def test_message_window_boundary_cases():
-    """Test message window with edge cases."""
-    # Very small window
-    agent = create_geo_agent(message_window_size=1)
-    assert agent is not None
-
-    # Zero window (should still work, but maybe not useful)
-    agent = create_geo_agent(message_window_size=0)
-    assert agent is not None
-
-    # Very large window
-    agent = create_geo_agent(message_window_size=1000)
-    assert agent is not None
+    assert llm is not None

@@ -114,7 +114,7 @@ async def test_create_geo_agent_with_mcp_servers(monkeypatch):
         ),
     ]
 
-    agent = await create_geo_agent(
+    agent, llm = await create_geo_agent(
         selected_tools=[],
         session_id="test-session",
         mcp_servers=mcp_servers,

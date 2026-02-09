@@ -121,7 +121,7 @@ class GeoDataObject(BaseModel):
     bounding_box: Optional[str] = None
     layer_type: Optional[str] = None
     properties: Optional[Dict[str, Any]] = {}
-    visible: Optional[bool] = False
+    visible: Optional[bool] = True
     selected: Optional[bool] = False
     style: Optional[LayerStyle] = None
     # Optional integrity metadata for locally stored files

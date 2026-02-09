@@ -1,5 +1,7 @@
 """Shared API dependencies."""
 
+from uuid import UUID as UUIDType
+
 from fastapi import Depends, HTTPException, Request, status
 from jose import JWTError
 from sqlalchemy import select
@@ -26,6 +28,12 @@ async def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
     if not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    # Validate user_id is a valid UUID format before database query
+    try:
+        UUIDType(user_id)
+    except (ValueError, TypeError):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
     result = await db.execute(select(User).where(User.id == user_id))

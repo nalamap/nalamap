@@ -107,13 +107,23 @@ class ModelSettings(BaseModel):
             "None = unlimited. Useful for strict context control."
         ),
     )
+    message_management_mode: Optional[str] = Field(
+        None,
+        description=(
+            "Message management strategy for long conversations. "
+            "Options: 'summarize' (LLM-based intelligent summarization, default), "
+            "'prune' (simple window truncation). "
+            "If None, uses MESSAGE_MANAGEMENT_MODE environment variable (default: 'summarize'). "
+            "Set this to allow per-user/organization control of conversation memory."
+        ),
+    )
     use_summarization: bool = Field(
         False,
         description=(
-            "Enable automatic conversation summarization for long conversations. "
-            "When enabled, older messages are automatically summarized to reduce "
-            "token usage while maintaining context. Requires session_id to track "
-            "conversation state across requests."
+            "DEPRECATED boolean flag retained for backwards compatibility. "
+            "Use the message_management_mode field or MESSAGE_MANAGEMENT_MODE "
+            "env var instead, which accepts string values "
+            "'summarize' (default) or 'prune'."
         ),
     )
     enable_smart_crs: bool = Field(

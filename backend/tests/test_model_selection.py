@@ -39,7 +39,7 @@ class TestAgentModelSelection:
         )
 
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-key"}):
-            agent = await create_geo_agent(model_settings=model_settings)
+            agent, llm = await create_geo_agent(model_settings=model_settings)
 
         assert agent is not None
         # Verify that create_react_agent was called
@@ -68,7 +68,7 @@ class TestAgentModelSelection:
         )
 
         with patch.dict(os.environ, {"GOOGLE_API_KEY": "test-key"}):
-            agent = await create_geo_agent(model_settings=model_settings)
+            agent, llm = await create_geo_agent(model_settings=model_settings)
 
         assert agent is not None
         assert mock_create_react.called
@@ -88,7 +88,7 @@ class TestAgentModelSelection:
         )
 
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-key"}):
-            agent = await create_geo_agent(model_settings=model_settings)
+            agent, llm = await create_geo_agent(model_settings=model_settings)
 
         assert agent is not None
         call_kwargs = mock_create_react.call_args[1]
@@ -106,7 +106,7 @@ class TestAgentModelSelection:
             os.environ,
             {"LLM_PROVIDER": "openai", "OPENAI_API_KEY": "sk-test-key"},
         ):
-            agent = await create_geo_agent(model_settings=None)
+            agent, llm = await create_geo_agent(model_settings=None)
 
         assert agent is not None
         assert mock_create_react.called
@@ -171,8 +171,8 @@ class TestConversationSummarization:
 
     @pytest.mark.asyncio
     @patch("services.single_agent.create_react_agent")
-    async def test_create_agent_with_summarization_enabled(self, mock_create_react):
-        """Test creating agent with conversation summarization enabled."""
+    async def test_create_agent_with_session_id(self, mock_create_react):
+        """Test creating agent with session_id creates conversation manager."""
         from unittest.mock import MagicMock
 
         mock_agent = MagicMock()
@@ -182,22 +182,16 @@ class TestConversationSummarization:
             model_provider="openai",
             model_name="gpt-4o-mini",
             max_tokens=4000,
-            use_summarization=True,  # Set during initialization
         )
 
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-key"}):
-            agent = await create_geo_agent(
+            agent, llm = await create_geo_agent(
                 model_settings=model_settings,
-                use_summarization=True,
                 session_id="test-session-123",
             )
 
         assert agent is not None
-        # Verify conversation manager was created for this session
-        from services.single_agent import conversation_managers
-
-        assert "test-session-123" in conversation_managers
-        assert conversation_managers["test-session-123"]["manager"] is not None
+        assert llm is not None
 
     @pytest.mark.asyncio
     @patch("services.single_agent.create_react_agent")
@@ -214,52 +208,56 @@ class TestConversationSummarization:
         if session_id in conversation_managers:
             del conversation_managers[session_id]
 
-        model_settings = ModelSettings(
-            model_provider="openai", model_name="gpt-4o-mini", max_tokens=4000
-        )
+        with patch.dict(
+            os.environ,
+            {"OPENAI_API_KEY": "sk-test-key", "MESSAGE_MANAGEMENT_MODE": "summarize"},
+        ):
+            from services.single_agent import get_conversation_manager
 
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-key"}):
-            # First call
-            await create_geo_agent(
-                model_settings=model_settings,
-                use_summarization=True,
-                session_id=session_id,
-            )
-
-            # Get reference to first manager
-            first_manager = conversation_managers[session_id]["manager"]
-
-            # Second call with same session_id
-            await create_geo_agent(
-                model_settings=model_settings,
-                use_summarization=True,
-                session_id=session_id,
-            )
+            # Create managers for same session
+            first_manager = get_conversation_manager(session_id, 20)
+            second_manager = get_conversation_manager(session_id, 20)
 
             # Should be same manager instance
-            second_manager = conversation_managers[session_id]["manager"]
             assert first_manager is second_manager
 
     @pytest.mark.asyncio
     @patch("services.single_agent.create_react_agent")
-    async def test_no_summarization_without_session_id(self, mock_create_react):
-        """Test that summarization is disabled if no session_id provided."""
-        mock_agent = MagicMock()
-        mock_create_react.return_value = mock_agent
+    async def test_prepare_messages_prune_mode(self, mock_create_react):
+        """Test that prepare_messages uses pruning in 'prune' mode."""
+        from services.single_agent import prepare_messages
+        from langchain_core.messages import HumanMessage
 
-        model_settings = ModelSettings(
-            model_provider="openai", model_name="gpt-4o-mini", max_tokens=4000
-        )
+        messages = [HumanMessage(content=f"msg-{i}") for i in range(30)]
 
-        with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-key"}):
-            agent = await create_geo_agent(
-                model_settings=model_settings,
-                use_summarization=True,
+        with patch.dict(os.environ, {"MESSAGE_MANAGEMENT_MODE": "prune"}):
+            result = await prepare_messages(
+                messages=messages,
+                message_window_size=10,
+                session_id="test-session",
+            )
+
+        # Should be pruned to window size
+        assert len(result) == 10
+
+    @pytest.mark.asyncio
+    @patch("services.single_agent.create_react_agent")
+    async def test_prepare_messages_summarize_mode_without_session(self, mock_create_react):
+        """Test that summarization falls back to pruning without session_id."""
+        from services.single_agent import prepare_messages
+        from langchain_core.messages import HumanMessage
+
+        messages = [HumanMessage(content=f"msg-{i}") for i in range(30)]
+
+        with patch.dict(os.environ, {"MESSAGE_MANAGEMENT_MODE": "summarize"}):
+            result = await prepare_messages(
+                messages=messages,
+                message_window_size=10,
                 session_id=None,  # No session ID
             )
 
-        assert agent is not None
-        # Should still create agent, just without summarization
+        # Should fall back to pruning
+        assert len(result) == 10
 
     @pytest.mark.asyncio
     @patch("services.single_agent.create_react_agent")
@@ -277,29 +275,18 @@ class TestConversationSummarization:
         if session_id in conversation_managers:
             del conversation_managers[session_id]
 
-        model_settings = ModelSettings(
-            model_provider="openai", model_name="gpt-4o-mini", max_tokens=4000
-        )
-
         with patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-key"}):
-            # Create session
-            await create_geo_agent(
-                model_settings=model_settings,
-                use_summarization=True,
-                session_id=session_id,
-            )
+            from services.single_agent import get_conversation_manager
 
+            # Create session via get_conversation_manager
+            get_conversation_manager(session_id, 20)
             assert session_id in conversation_managers
 
             # Manually set last_access to expired time
             conversation_managers[session_id]["last_access"] = time.time() - SESSION_TTL - 1
 
             # Create another session, which should trigger cleanup
-            await create_geo_agent(
-                model_settings=model_settings,
-                use_summarization=True,
-                session_id="test-session-new",
-            )
+            get_conversation_manager("test-session-new", 20)
 
             # Old session should be cleaned up
             assert session_id not in conversation_managers
@@ -317,3 +304,45 @@ class TestConversationSummarization:
         assert manager.max_messages == message_window_size * 2  # 30
         assert manager.summarize_threshold == message_window_size + 5  # 20
         assert manager.summary_window == message_window_size  # 15
+
+    @pytest.mark.asyncio
+    @patch("services.single_agent.create_react_agent")
+    async def test_prepare_messages_with_settings_mode(self, mock_create_react):
+        """Test that prepare_messages respects settings_mode parameter over env var."""
+        from services.single_agent import prepare_messages
+        from langchain_core.messages import HumanMessage
+
+        messages = [HumanMessage(content=f"msg-{i}") for i in range(30)]
+
+        # Environment says 'summarize', but settings say 'prune' - settings should win
+        with patch.dict(os.environ, {"MESSAGE_MANAGEMENT_MODE": "summarize"}):
+            result = await prepare_messages(
+                messages=messages,
+                message_window_size=10,
+                session_id="test-session",
+                settings_mode="prune",  # Override with settings
+            )
+
+        # Should use pruning from settings
+        assert len(result) == 10
+
+    @pytest.mark.asyncio
+    @patch("services.single_agent.create_react_agent")
+    async def test_prepare_messages_settings_mode_fallback_to_env(self, mock_create_react):
+        """Test that prepare_messages falls back to env var when settings_mode is None."""
+        from services.single_agent import prepare_messages
+        from langchain_core.messages import HumanMessage
+
+        messages = [HumanMessage(content=f"msg-{i}") for i in range(30)]
+
+        # No settings_mode, should use env var
+        with patch.dict(os.environ, {"MESSAGE_MANAGEMENT_MODE": "prune"}):
+            result = await prepare_messages(
+                messages=messages,
+                message_window_size=10,
+                session_id="test-session",
+                settings_mode=None,  # No override, use env
+            )
+
+        # Should use pruning from env var
+        assert len(result) == 10

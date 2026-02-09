@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_core.tools import BaseTool
@@ -101,6 +101,96 @@ def prune_messages(
     return result
 
 
+def _get_message_management_mode(settings_mode: Optional[str] = None) -> str:
+    """Get the message management mode from settings or environment.
+
+    Returns the configured message management strategy:
+    - 'summarize' (default): Use LLM-based conversation summarization.
+      Older messages are intelligently summarized to preserve context
+      while reducing token usage.
+    - 'prune': Use simple window-based truncation.
+      Only the most recent messages are kept; older messages are discarded.
+
+    Priority order:
+    1. User/organization settings (settings_mode parameter)
+    2. MESSAGE_MANAGEMENT_MODE environment variable
+    3. Default: 'summarize'
+
+    Args:
+        settings_mode: Optional mode from user/organization settings
+
+    Returns:
+        One of 'summarize' or 'prune'
+    """
+    import os
+
+    # Check user/organization settings first
+    if settings_mode:
+        mode = settings_mode.lower().strip()
+        if mode in ("summarize", "prune"):
+            return mode
+        logger.warning(
+            f"Invalid message_management_mode='{mode}' in settings, "
+            f"checking environment variable. Valid values: 'summarize', 'prune'"
+        )
+
+    # Fallback to environment variable
+    mode = os.getenv("MESSAGE_MANAGEMENT_MODE", "summarize").lower().strip()
+    if mode not in ("summarize", "prune"):
+        logger.warning(
+            f"Unknown MESSAGE_MANAGEMENT_MODE='{mode}', falling back to 'summarize'. "
+            f"Valid values: 'summarize', 'prune'"
+        )
+        return "summarize"
+    return mode
+
+
+async def prepare_messages(
+    messages: List[BaseMessage],
+    message_window_size: int,
+    session_id: Optional[str] = None,
+    llm: Optional[Any] = None,
+    settings_mode: Optional[str] = None,
+) -> List[BaseMessage]:
+    """Prepare messages using the configured message management strategy.
+
+    Applies either LLM-based summarization or simple window pruning based on:
+    1. User/organization settings (settings_mode parameter)
+    2. MESSAGE_MANAGEMENT_MODE environment variable
+    3. Default: 'summarize'
+
+    Args:
+        messages: Full message history to process
+        message_window_size: Window size for recent messages
+        session_id: Session ID for conversation tracking (required for summarization)
+        llm: Language model instance for summarization (optional, falls back to pruning)
+        settings_mode: Optional mode from user/organization settings
+
+    Returns:
+        Processed message list, either summarized or pruned
+    """
+    mode = _get_message_management_mode(settings_mode)
+
+    if mode == "summarize" and session_id:
+        manager = get_conversation_manager(session_id, message_window_size)
+        try:
+            result = await manager.process_messages(messages, llm=llm)
+            logger.info(
+                f"Message summarization: {len(messages)} -> {len(result)} messages "
+                f"(session: {session_id})"
+            )
+            return result
+        except Exception as e:
+            logger.error(f"Summarization failed, falling back to pruning: {e}")
+            return prune_messages(messages, window_size=message_window_size)
+    elif mode == "summarize" and not session_id:
+        logger.warning("Summarization mode requires session_id, falling back to pruning")
+        return prune_messages(messages, window_size=message_window_size)
+    else:
+        # mode == "prune"
+        return prune_messages(messages, window_size=message_window_size)
+
+
 def _cleanup_expired_sessions():
     """Clean up expired conversation manager sessions.
 
@@ -157,32 +247,28 @@ def get_conversation_manager(session_id: str, message_window_size: int) -> Conve
 async def create_geo_agent(
     model_settings: Optional[ModelSettings] = None,
     selected_tools: Optional[List[ToolConfig]] = None,
-    message_window_size: int = 20,
     enable_parallel_tools: bool = False,
     query: Optional[str] = None,
-    use_summarization: bool = False,
     session_id: Optional[str] = None,
     mcp_servers: Optional[List] = None,  # List of MCPServer objects
-) -> CompiledStateGraph:
+) -> Tuple[CompiledStateGraph, Any]:
     """Create a geo agent with specified model and tools.
 
     Args:
         model_settings: Model configuration (provider, name, max_tokens, system_prompt)
         selected_tools: Tool configurations to enable/disable
-        message_window_size: Maximum number of recent messages to keep in context
-            (default: 20)
         enable_parallel_tools: Whether to enable parallel tool execution
             (default: False, experimental)
         query: Current user query for dynamic tool selection (optional)
-        use_summarization: Whether to enable conversation summarization
-            (default: False)
         session_id: Unique session identifier for conversation tracking
-            (required if use_summarization=True)
+            (used for conversation summarization)
         mcp_servers: List of MCPServer objects to load external tools from
             (optional, supports authentication via api_key and headers fields)
 
     Returns:
-        CompiledStateGraph configured with the specified model and tools
+        Tuple of (CompiledStateGraph, llm) - the agent graph and the LLM instance.
+        The LLM is returned so callers can pass it to prepare_messages() for
+        conversation summarization.
 
     Note:
         Parallel tool execution is currently EXPERIMENTAL. While it can speed up multi-tool queries,
@@ -192,20 +278,12 @@ async def create_geo_agent(
         Dynamic tool selection uses semantic similarity to select relevant tools based on
         the query, supporting all languages. This reduces context size and improves performance.
 
-        Conversation summarization automatically condenses older messages when conversations
-        exceed the threshold, maintaining context while reducing token usage. Requires
-        session_id to track conversation state across requests.
+        Message management is controlled by the MESSAGE_MANAGEMENT_MODE environment variable.
+        Use prepare_messages() before invoking the agent to handle message history.
 
         MCP server integration allows loading external tools from Model Context Protocol
         servers, enabling NaLaMap to use third-party tools seamlessly.
     """
-    # Get or create conversation manager if summarization is enabled
-    # Note: Manager is stored in module-level dict for reuse across requests
-    if use_summarization and session_id:
-        get_conversation_manager(session_id, message_window_size)  # noqa: F841
-        logger.info(f"Conversation summarization enabled for session: {session_id}")
-    elif use_summarization and not session_id:
-        logger.warning("Conversation summarization requested but no session_id provided, disabled")
 
     # Use model_settings if provided, otherwise use env defaults
     if model_settings is not None:
@@ -324,7 +402,7 @@ async def create_geo_agent(
                 "falling back to sequential execution"
             )
 
-    return create_react_agent(
+    agent = create_react_agent(
         name="GeoAgent",
         state_schema=GeoDataAgentState,
         tools=tools,
@@ -334,14 +412,17 @@ async def create_geo_agent(
         # config_schema=GeoData,
         # response_format=GeoData
     )
+    return agent, llm
 
 
 if __name__ == "__main__":
+    import asyncio
+
     # Initialize geodata state (e.g. Berlin) with both public and private data
 
     debug_tool: bool = False
     initial_geo_state: GeoDataAgentState = get_minimal_debug_state(debug_tool)
-    single_agent: CompiledStateGraph = create_geo_agent()
+    single_agent, _llm = asyncio.run(create_geo_agent())
 
     if not debug_tool:
         # Ask the agent; private fields are kept internally but not sent to the LLM
