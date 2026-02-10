@@ -102,23 +102,33 @@ jobs:
 
       - name: Export image metadata (tags + digest)
         if: always()
+        env:
+          META_TAGS: ${{ steps.meta.outputs.tags }}
+          IMAGE_NAME: ${{ matrix.name }}
+          IMAGE_FULL: ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}
+          BUILD_DIGEST: ${{ steps.build.outputs.digest }}
+          BUILD_REF: ${{ github.ref }}
+          BUILD_SHA: ${{ github.sha }}
+          BUILD_EVENT: ${{ github.event_name }}
+          BUILD_OUTCOME: ${{ steps.build.outcome }}
         run: |
           set -eu
           mkdir -p image-metadata
-          # Save tags (newline-separated) for the image
-          echo "${{ steps.meta.outputs.tags }}" > "image-metadata/${{ matrix.name }}-tags.txt"
 
-          # Save metadata JSON (without tags array to avoid complex shell escaping); will merge later
-          cat > "image-metadata/${{ matrix.name }}.json" <<EOF
-          {
-            "name": "${{ matrix.name }}",
-            "image": "${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ matrix.image }}",
-            "digest": "${{ steps.build.outputs.digest }}",
-            "ref": "${{ github.ref }}",
-            "sha": "${{ github.sha }}",
-            "event": "${{ github.event_name }}"
-          }
-          EOF
+          # Save tags (newline-separated) for the image
+          printf '%s\n' "$META_TAGS" > "image-metadata/${IMAGE_NAME}-tags.txt"
+
+          # Build metadata JSON safely via jq to handle special characters
+          jq -n \
+            --arg name    "$IMAGE_NAME" \
+            --arg image   "$IMAGE_FULL" \
+            --arg digest  "${BUILD_DIGEST:-}" \
+            --arg ref     "$BUILD_REF" \
+            --arg sha     "$BUILD_SHA" \
+            --arg event   "$BUILD_EVENT" \
+            --arg outcome "$BUILD_OUTCOME" \
+            '{name: $name, image: $image, digest: $digest, ref: $ref, sha: $sha, event: $event, build_outcome: $outcome}' \
+            > "image-metadata/${IMAGE_NAME}.json"
 
       - name: Upload image metadata artifact
         if: always()
@@ -127,14 +137,19 @@ jobs:
           name: image-metadata-${{ matrix.name }}
           path: image-metadata/*
           if-no-files-found: error
+          retention-days: 7
 
   dispatch-deploy:
     name: Dispatch deploy to infra repo
     runs-on: ubuntu-latest
     needs: build-and-push
-    # Trigger on pushes to default branch and tags, and also on PRs (for testing)
+    # Run even if some matrix builds failed — the infra repo decides whether
+    # a partial set of images is deployable (e.g. only nginx changed).
+    # Skip only when the entire workflow was cancelled.
     if: >-
-      ${{ github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/')) || github.event_name == 'pull_request' }}
+      !cancelled()
+      && (github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/'))
+         || github.event_name == 'pull_request')
     steps:
       - name: Download image metadata
         uses: actions/download-artifact@v4
@@ -150,12 +165,42 @@ jobs:
           CLOUD_INFRA_REPO_TOKEN: ${{ secrets.CLOUD_INFRA_REPO_TOKEN }}
         with:
           github-token: ${{ github.token }}
+          retry-on-exit-code: 1
           script: |
             const fs = require('fs').promises;
             const path = require('path');
 
+            // ── Helpers ──────────────────────────────────────────────
+
+            /**
+             * Sanitise & truncate a commit message so it is safe to embed
+             * in a JSON payload dispatched to another repo.
+             *
+             * • strips control characters (except \n, \t)
+             * • replaces lone surrogates / non-BMP oddities
+             * • caps length at `maxLen` characters (default 500)
+             */
+            function sanitizeCommitMessage(raw, maxLen = 500) {
+              if (!raw) return '';
+              let msg = String(raw);
+              // Remove control chars except newline (\n) and tab (\t)
+              msg = msg.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+              // Truncate to avoid exceeding client_payload 10 KB limit
+              if (msg.length > maxLen) {
+                msg = msg.slice(0, maxLen) + '…[truncated]';
+              }
+              return msg;
+            }
+
             async function collectImages(rootDir) {
               const images = [];
+              let entries;
+              try {
+                entries = await fs.readdir(rootDir, { withFileTypes: true });
+              } catch (err) {
+                core.warning(`Could not read image-metadata directory: ${err.message}`);
+                return images;
+              }
               async function walk(current) {
                 const entries = await fs.readdir(current, { withFileTypes: true });
                 for (const entry of entries) {
@@ -165,7 +210,13 @@ jobs:
                   } else if (entry.isFile() && entry.name.endsWith('.json')) {
                     const base = entry.name.replace(/\.json$/, '');
                     const tagsPath = path.join(current, `${base}-tags.txt`);
-                    const meta = JSON.parse(await fs.readFile(p, 'utf8'));
+                    let meta;
+                    try {
+                      meta = JSON.parse(await fs.readFile(p, 'utf8'));
+                    } catch (err) {
+                      core.warning(`Skipping malformed metadata file ${p}: ${err.message}`);
+                      continue;
+                    }
                     let tags = [];
                     try {
                       const rawTags = await fs.readFile(tagsPath, 'utf8');
@@ -180,15 +231,48 @@ jobs:
               return images;
             }
 
+            /**
+             * POST with retry (exponential back-off) to handle transient
+             * GitHub API / CDN errors (502, 503, 504, etc.).
+             */
+            async function fetchWithRetry(url, options, { retries = 3, baseDelay = 2000 } = {}) {
+              for (let attempt = 1; attempt <= retries; attempt++) {
+                const res = await fetch(url, options);
+                if (res.ok) return res;
+                const body = await res.text();
+                if (attempt < retries && res.status >= 500) {
+                  const delay = baseDelay * Math.pow(2, attempt - 1);
+                  core.warning(`Dispatch attempt ${attempt}/${retries} failed (${res.status}). Retrying in ${delay}ms…`);
+                  await new Promise(r => setTimeout(r, delay));
+                  continue;
+                }
+                throw new Error(`Dispatch failed (attempt ${attempt}/${retries}): ${res.status} ${res.statusText}: ${body}`);
+              }
+            }
+
+            // ── Main ─────────────────────────────────────────────────
+
             (async () => {
               const isPR = context.eventName === 'pull_request';
               const eventType = isPR ? 'deploy-preview' : 'deploy';
               const images = await collectImages('image-metadata');
-              
-              // Get commit message from context
+
+              if (images.length === 0) {
+                core.warning('No image metadata found. Skipping dispatch.');
+                return;
+              }
+
+              // Summarise build outcomes
+              const succeeded = images.filter(i => i.build_outcome === 'success');
+              const failed    = images.filter(i => i.build_outcome !== 'success');
+              core.info(`Images collected: ${images.length} total, ${succeeded.length} succeeded, ${failed.length} failed`);
+              for (const img of failed) {
+                core.warning(`Image "${img.name}" build outcome: ${img.build_outcome || 'unknown'}`);
+              }
+
+              // ── Commit message (safely) ──────────────────────────
               let commitMessage = '';
               if (isPR && context.payload.pull_request) {
-                // For PRs, fetch the latest commit message from the head SHA
                 try {
                   const commitRes = await github.rest.repos.getCommit({
                     owner: context.repo.owner,
@@ -198,22 +282,32 @@ jobs:
                   commitMessage = commitRes.data.commit.message;
                 } catch (error) {
                   core.warning(`Failed to fetch commit message: ${error.message}`);
-                  commitMessage = context.payload.pull_request.title; // Fallback to PR title
+                  commitMessage = context.payload.pull_request.title || '';
                 }
               } else {
                 commitMessage = context.payload.head_commit?.message || '';
               }
-              
+              commitMessage = sanitizeCommitMessage(commitMessage);
+
               const payload = {
                 source_repository: `${context.repo.owner}/${context.repo.repo}`,
                 ref: context.ref || process.env.GITHUB_REF,
                 sha: context.sha || process.env.GITHUB_SHA,
                 run_id: process.env.GITHUB_RUN_ID,
                 run_attempt: process.env.GITHUB_RUN_ATTEMPT,
-                pull_request: isPR ? (context.payload.pull_request && context.payload.pull_request.number) : null,
+                pull_request: isPR ? (context.payload.pull_request?.number ?? null) : null,
                 commit_message: commitMessage,
                 images,
               };
+
+              // Guard-rail: GitHub's client_payload limit is ~10 KB.
+              const payloadJson = JSON.stringify(payload);
+              const payloadSizeKB = (new TextEncoder().encode(payloadJson).length / 1024).toFixed(1);
+              core.info(`Payload size: ${payloadSizeKB} KB`);
+              if (payloadJson.length > 9500) {
+                core.warning(`Payload is close to or exceeds the 10 KB client_payload limit (${payloadSizeKB} KB). Truncating commit_message further.`);
+                payload.commit_message = sanitizeCommitMessage(commitMessage, 100);
+              }
 
               const token = process.env.CLOUD_INFRA_REPO_TOKEN;
               if (!token) {
@@ -222,8 +316,8 @@ jobs:
                 return;
               }
 
-              core.info(`Dispatching ${eventType} with ${images.length} images...`);
-              const res = await fetch('https://api.github.com/repos/nalamap/cloud-infrastructure/dispatches', {
+              core.info(`Dispatching '${eventType}' with ${images.length} images…`);
+              await fetchWithRetry('https://api.github.com/repos/nalamap/cloud-infrastructure/dispatches', {
                 method: 'POST',
                 headers: {
                   'Accept': 'application/vnd.github+json',
@@ -234,9 +328,6 @@ jobs:
                   client_payload: payload,
                 }),
               });
-              if (!res.ok) {
-                const text = await res.text();
-                throw new Error(`Dispatch failed: ${res.status} ${res.statusText}: ${text}`);
-              }
+              core.info('Dispatch successful.');
             })().catch(err => { core.setFailed(err.message); });
 
