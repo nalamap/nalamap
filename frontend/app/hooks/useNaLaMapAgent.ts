@@ -3,7 +3,6 @@
 
 import {
   ChatMessage,
-  GeoDataObject,
   NaLaMapRequest,
   NaLaMapResponse,
 } from "../models/geodatamodel";
@@ -139,7 +138,7 @@ export function useNaLaMapAgent(apiUrl: string) {
 
     try {
       let response = null;
-      let fullQuery = chatInterfaceStore.input;
+      const fullQuery = chatInterfaceStore.input;
       if (
         endpoint === "geoprocess" ||
         endpoint === "chat" ||

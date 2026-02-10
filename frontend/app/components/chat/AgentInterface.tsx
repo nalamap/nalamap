@@ -1,11 +1,10 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import wellknown from "wellknown";
 import { useNaLaMapAgent } from "../../hooks/useNaLaMapAgent";
 import { useLayerStore } from "../../stores/layerStore";
 import { useChatInterfaceStore } from "../../stores/chatInterfaceStore";
-import { GeoDataObject } from "../../models/geodatamodel";
+import type { GeoDataObject } from "../../models/geodatamodel";
 import { getApiBase } from "../../utils/apiBase";
 import ChatMessages from "./ChatMessages";
 import SearchResults from "./SearchResults";
