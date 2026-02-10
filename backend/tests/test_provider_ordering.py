@@ -88,8 +88,14 @@ class TestProviderOrdering:
 
             # All providers should be present
             expected_providers = {
-                "openai", "azure", "google", "mistral", "deepseek",
-                "anthropic", "moonshot", "xai"
+                "openai",
+                "azure",
+                "google",
+                "mistral",
+                "deepseek",
+                "anthropic",
+                "moonshot",
+                "xai",
             }
             assert set(provider_names) == expected_providers
 
