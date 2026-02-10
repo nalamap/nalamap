@@ -38,6 +38,19 @@ NaLaMap supports multiple AI providers for map generation and data analysis.
   - `deepseek-v3` (Latest generation)
   - `deepseek-reasoner`
 
+### 6. Moonshot AI (Kimi)
+- **Key Environment Variable:** `MOONSHOT_API_KEY`
+- **Featured Models:**
+  - `kimi-k2.5` (Latest multimodal)
+  - `kimi-k2-turbo` (High speed)
+  - `moonshot-v1-128k` (Large context)
+
+### 7. xAI (Grok)
+- **Key Environment Variable:** `XAI_API_KEY`
+- **Featured Models:**
+  - `grok-2-latest` (Multimodal)
+  - `grok-4-1-fast-reasoning` (Agentic optimized)
+
 ## Configuration
 
 To change the default provider, set the `LLM_PROVIDER` environment variable:
@@ -46,5 +59,7 @@ To change the default provider, set the `LLM_PROVIDER` environment variable:
 - `LLM_PROVIDER=google`
 - `LLM_PROVIDER=mistral`
 - `LLM_PROVIDER=deepseek`
+- `LLM_PROVIDER=moonshot`
+- `LLM_PROVIDER=xai`
 
 You can also specify a default model via `OPENAI_MODEL`, `ANTHROPIC_MODEL`, etc.

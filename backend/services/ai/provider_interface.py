@@ -163,6 +163,54 @@ def get_all_providers() -> Dict[str, ProviderInfo]:
             error_message=str(e),
         )
 
+    # Moonshot AI (Kimi)
+    try:
+        from services.ai import moonshot
+
+        is_available = moonshot.is_available()
+        models = moonshot.get_available_models() if is_available else []
+
+        providers_unordered["moonshot"] = ProviderInfo(
+            name="moonshot",
+            display_name="Moonshot AI (Kimi)",
+            available=is_available,
+            models=models,
+            error_message=None if is_available else "API key not configured",
+        )
+    except Exception as e:
+        logger.warning(f"Failed to load Moonshot AI provider: {e}")
+        providers_unordered["moonshot"] = ProviderInfo(
+            name="moonshot",
+            display_name="Moonshot AI (Kimi)",
+            available=False,
+            models=[],
+            error_message=str(e),
+        )
+
+    # xAI (Grok)
+    try:
+        from services.ai import xai
+
+        is_available = xai.is_available()
+        models = xai.get_available_models() if is_available else []
+
+        providers_unordered["xai"] = ProviderInfo(
+            name="xai",
+            display_name="xAI (Grok)",
+            available=is_available,
+            models=models,
+            error_message=None if is_available else "API key not configured",
+        )
+    except Exception as e:
+        logger.warning(f"Failed to load xAI provider: {e}")
+        providers_unordered["xai"] = ProviderInfo(
+            name="xai",
+            display_name="xAI (Grok)",
+            available=False,
+            models=[],
+            error_message=str(e),
+        )
+
     # Order providers based on DEFAULT_LLM_PROVIDER or LLM_PROVIDER env var
     # The first provider in the ordered dict will be selected by default in the UI
     preferred_provider = (
