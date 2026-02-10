@@ -104,7 +104,8 @@ def get_llm_for_provider(
     else:
         raise ValueError(
             f"Unsupported LLM provider: {provider_name}. "
-            "Supported providers: openai, azure, google, mistral, deepseek, anthropic, moonshot, xai"
+            "Supported providers: openai, azure, google, mistral, deepseek, "
+            "anthropic, moonshot, xai"
         )
 
 

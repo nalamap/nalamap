@@ -87,7 +87,7 @@ class TestProviderOrdering:
             provider_names = list(providers.keys())
 
             # All providers should be present
-            expected_providers = {"openai", "azure", "google", "mistral", "deepseek"}
+            expected_providers = {"openai", "azure", "google", "mistral", "deepseek", "anthropic", "moonshot", "xai"}
             assert set(provider_names) == expected_providers
 
             # Mistral should be first

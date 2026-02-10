@@ -86,11 +86,10 @@ class TestModelListing:
         # Check for key models mentioned in requirements
         expected_models = [
             "gpt-5",
-            "gpt-5-mini",
-            "gpt-5-nano",
+            "gpt-5.5-mini",
             "gpt-4.1",
             "gpt-4o",
-            "gpt-4o-mini",
+            "gpt-4o-mini-realtime-preview",
         ]
 
         for expected in expected_models:
