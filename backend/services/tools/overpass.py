@@ -124,6 +124,24 @@ class OverpassQueryBuilder:
         self.timeout = timeout
         self.max_results = max_results
 
+    @staticmethod
+    def format_tag_filter(key: str, value: str) -> str:
+        """Format OSM tag filter, handling wildcard queries.
+
+        Args:
+            key: OSM tag key (e.g., "highway")
+            value: OSM tag value (e.g., "motorway" or "*" for wildcard)
+
+        Returns:
+            Overpass QL tag filter string
+        """
+        if value == "*":
+            # Wildcard query - match any value for the key
+            return f'["{key}"]'
+        else:
+            # Specific value query
+            return f'["{key}"="{value}"]'
+
     def build_amenity_query(
         self,
         osm_tag_key: str,
@@ -135,9 +153,12 @@ class OverpassQueryBuilder:
         """
         Build an Overpass QL query for searching amenities.
 
+        Supports wildcard queries (value="*") which match any value for the key.
+        Uses geometry preferences to determine which element types to query.
+
         Args:
             osm_tag_key: OSM tag key (e.g., "amenity")
-            osm_tag_value: OSM tag value (e.g., "restaurant")
+            osm_tag_value: OSM tag value (e.g., "restaurant" or "*" for wildcard)
             location: OverpassLocation object with geocoded data
             radius_meters: Search radius for point-based queries
             prioritize_ways_relations: If True, query ways/relations first for highway queries
@@ -145,7 +166,10 @@ class OverpassQueryBuilder:
         Returns:
             Overpass QL query string
         """
+        from services.tools.geocoding import should_include_element_in_query
+
         parts = [f"[out:json][timeout:{self.timeout}];"]
+        tag_filter = self.format_tag_filter(osm_tag_key, osm_tag_value)
 
         if location.has_area:
             # Area-based search using relation ID
@@ -162,20 +186,25 @@ class OverpassQueryBuilder:
         else:
             raise ValueError("Location must have area, bbox, or point coordinates")
 
-        # Build the query based on whether we should prioritize ways/relations
+        # Build the query using geometry preferences
         if prioritize_ways_relations:
-            # For highway queries, get ways and relations first
+            # For highway/linear queries, get ways and relations first
             parts.append("(")
-            parts.append(f'  way["{osm_tag_key}"="{osm_tag_value}"]{location_filter};')
-            parts.append(f'  relation["{osm_tag_key}"="{osm_tag_value}"]{location_filter};')
+            if should_include_element_in_query(osm_tag_key, osm_tag_value, "way"):
+                parts.append(f"  way{tag_filter}{location_filter};")
+            if should_include_element_in_query(osm_tag_key, osm_tag_value, "relation"):
+                parts.append(f"  relation{tag_filter}{location_filter};")
             parts.append(");")
             parts.append(f"out geom {self.max_results};")
         else:
-            # Standard query: nodes, ways, and relations
+            # Standard query: use geometry preferences to determine element types
             parts.append("(")
-            parts.append(f'  node["{osm_tag_key}"="{osm_tag_value}"]{location_filter};')
-            parts.append(f'  way["{osm_tag_key}"="{osm_tag_value}"]{location_filter};')
-            parts.append(f'  relation["{osm_tag_key}"="{osm_tag_value}"]{location_filter};')
+            if should_include_element_in_query(osm_tag_key, osm_tag_value, "node"):
+                parts.append(f"  node{tag_filter}{location_filter};")
+            if should_include_element_in_query(osm_tag_key, osm_tag_value, "way"):
+                parts.append(f"  way{tag_filter}{location_filter};")
+            if should_include_element_in_query(osm_tag_key, osm_tag_value, "relation"):
+                parts.append(f"  relation{tag_filter}{location_filter};")
             parts.append(");")
             parts.append(f"out geom {self.max_results};")
 
@@ -243,9 +272,11 @@ class OverpassQueryBuilder:
         """
         Build an Overpass QL query centered on explicit lat/lon coordinates.
 
+        Supports wildcard queries (value="*") which match any value for the key.
+
         Args:
             osm_tag_key: OSM tag key (e.g., "amenity")
-            osm_tag_value: OSM tag value (e.g., "restaurant")
+            osm_tag_value: OSM tag value (e.g., "restaurant" or "*" for wildcard)
             lat: Latitude of the center point
             lon: Longitude of the center point
             radius_meters: Search radius in meters
@@ -253,13 +284,19 @@ class OverpassQueryBuilder:
         Returns:
             Overpass QL query string
         """
+        from services.tools.geocoding import should_include_element_in_query
+
         parts = [f"[out:json][timeout:{self.timeout}];"]
+        tag_filter = self.format_tag_filter(osm_tag_key, osm_tag_value)
         location_filter = f"(around:{radius_meters},{lat},{lon})"
 
         parts.append("(")
-        parts.append(f'  node["{osm_tag_key}"="{osm_tag_value}"]{location_filter};')
-        parts.append(f'  way["{osm_tag_key}"="{osm_tag_value}"]{location_filter};')
-        parts.append(f'  relation["{osm_tag_key}"="{osm_tag_value}"]{location_filter};')
+        if should_include_element_in_query(osm_tag_key, osm_tag_value, "node"):
+            parts.append(f"  node{tag_filter}{location_filter};")
+        if should_include_element_in_query(osm_tag_key, osm_tag_value, "way"):
+            parts.append(f"  way{tag_filter}{location_filter};")
+        if should_include_element_in_query(osm_tag_key, osm_tag_value, "relation"):
+            parts.append(f"  relation{tag_filter}{location_filter};")
         parts.append(");")
         parts.append(f"out geom {self.max_results};")
 
@@ -294,12 +331,20 @@ class OverpassResultConverter:
         # Apply tag filter if provided
         if osm_tag_filter:
             key, value = osm_tag_filter
-            if properties.get(key) != value:
-                # Allow through if it's just a geometry node for a tagged way/relation
-                if osm_type == "node":
-                    pass  # Let it through, might be part of a way
-                else:
-                    return None
+            if value == "*":
+                # Wildcard: check if the key exists in properties
+                if key not in properties:
+                    if osm_type == "node":
+                        pass  # Let it through, might be part of a way
+                    else:
+                        return None
+            else:
+                # Specific value: check exact match
+                if properties.get(key) != value:
+                    if osm_type == "node":
+                        pass  # Let it through, might be part of a way
+                    else:
+                        return None
 
         feature_id = f"{osm_type}/{osm_id}"
         geometry = OverpassResultConverter._extract_geometry(element, osm_type)
@@ -590,3 +635,8 @@ def _calculate_bbox_string(features: List[Dict[str, Any]]) -> Optional[str]:
 def is_highway_query(osm_tag_key: str) -> bool:
     """Check if the query is for highway features."""
     return osm_tag_key == "highway"
+
+
+def is_linear_feature_query(osm_tag_key: str) -> bool:
+    """Check if the query is for linear feature types (highway, railway, waterway, etc.)."""
+    return osm_tag_key in ("highway", "railway", "waterway", "aeroway", "power")

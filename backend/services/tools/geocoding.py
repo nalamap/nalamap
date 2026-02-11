@@ -15,14 +15,14 @@ from models.geodata import DataOrigin, DataType, GeoDataObject
 from models.states import GeoDataAgentState
 from services.storage.file_management import store_file
 
-from .constants import AMENITY_MAPPING
+from .constants import AMENITY_MAPPING, OSM_GEOMETRY_PREFERENCES
 from .overpass import (
     OverpassClient,
     OverpassLocation,
     OverpassQueryBuilder,
     OverpassResultConverter,
     create_feature_collection_geodata,
-    is_highway_query,
+    is_linear_feature_query,
 )
 
 logger = logging.getLogger(__name__)
@@ -30,6 +30,106 @@ logger = logging.getLogger(__name__)
 headers_nalamap = {
     "User-Agent": "NaLaMap, github.com/nalamap, next generation geospatial analysis using agents"
 }
+
+
+def get_geometry_preferences(osm_key: str) -> Dict[str, Any]:
+    """
+    Get geometry preferences for an OSM key.
+
+    Returns default preferences if key not configured.
+
+    Args:
+        osm_key: OSM tag key (e.g., "highway")
+
+    Returns:
+        Dictionary with geometry preferences
+    """
+    default_prefs = {
+        "preferred_geometries": ["node", "way", "relation"],
+        "exclude_geometries": [],
+        "exclude_values": set(),
+        "description": "No specific geometry preferences",
+    }
+
+    return OSM_GEOMETRY_PREFERENCES.get(osm_key, default_prefs)
+
+
+def should_include_element_in_query(osm_key: str, osm_value: str, element_type: str) -> bool:
+    """
+    Determine if an element type should be included in the Overpass query.
+
+    Args:
+        osm_key: OSM tag key (e.g., "highway")
+        osm_value: OSM tag value (e.g., "*" or "motorway")
+        element_type: OSM element type ("node", "way", "relation")
+
+    Returns:
+        True if element type should be queried, False otherwise
+    """
+    # If wildcard query and key has preferences, use them
+    if osm_value == "*" and osm_key in OSM_GEOMETRY_PREFERENCES:
+        prefs = get_geometry_preferences(osm_key)
+        return element_type in prefs["preferred_geometries"]
+
+    # For specific values, check if excluded
+    prefs = get_geometry_preferences(osm_key)
+    if osm_value in prefs.get("exclude_values", set()):
+        return False
+
+    # Default: include all
+    return True
+
+
+def should_include_geojson_geometry(geojson_geometry_type: str, osm_key: str) -> bool:
+    """
+    Determine if a GeoJSON geometry type should be included in results.
+
+    For linear feature queries (highway, railway, waterway, aeroway, power),
+    exclude Polygon geometries since these represent areas rather than the
+    expected linear features.
+
+    Args:
+        geojson_geometry_type: GeoJSON geometry type ("Point", "LineString", "Polygon")
+        osm_key: OSM tag key (e.g., "highway")
+
+    Returns:
+        True if geometry type should be included, False otherwise
+    """
+    linear_keys = {"highway", "railway", "waterway", "aeroway", "power"}
+    if osm_key in linear_keys and geojson_geometry_type == "Polygon":
+        return False
+    return True
+
+
+def should_include_element_in_results(
+    element: Dict[str, Any], osm_key: str, osm_value: str
+) -> bool:
+    """
+    Determine if an element should be included in results after query.
+    Provides a second layer of filtering based on geometry preferences.
+
+    Args:
+        element: OSM element from Overpass response
+        osm_key: OSM tag key
+        osm_value: OSM tag value
+
+    Returns:
+        True if element should be included, False otherwise
+    """
+    prefs = get_geometry_preferences(osm_key)
+    element_type = element.get("type")
+    element_tags = element.get("tags", {})
+
+    # Check if geometry type is excluded
+    if element_type in prefs.get("exclude_geometries", []):
+        return False
+
+    # Check if specific tag value is excluded
+    element_value = element_tags.get(osm_key)
+    if element_value in prefs.get("exclude_values", set()):
+        return False
+
+    return True
 
 
 @tool
@@ -659,7 +759,13 @@ def geocode_using_overpass_to_geostate(
         state: The current agent state containing geodata and messages.
         tool_call_id: The tool call ID for the response.
         query: The user-friendly query/description for the search.
-        amenity_key: The amenity type (e.g. "restaurant", "park", "hospital").
+        amenity_key: The OSM feature type to search for. Supports amenities
+            (e.g. "restaurant", "hospital"), infrastructure (e.g. "road",
+            "bridge", "highway"), military facilities (e.g. "military",
+            "barracks"), aviation (e.g. "airport", "aeroway"), natural features
+            (e.g. "waterway", "natural"), buildings, and places. Use generic
+            terms like "road" or "military" to search for all features of
+            that type.
         location_name: The location to search (e.g. "Paris", "London", "Germany").
         radius_meters: Search radius in meters (default: 10000).
         max_results: Maximum number of results to return (default: 2500).
@@ -727,10 +833,10 @@ def geocode_using_overpass_to_geostate(
     # 3. Build and execute Overpass query
     query_builder = OverpassQueryBuilder(timeout=timeout, max_results=max_results)
 
-    # Prioritize ways/relations for highway queries to reduce point noise
-    prioritize_ways = is_highway_query(osm_query_key)
+    # Prioritize ways/relations for linear feature queries to reduce point noise
+    prioritize_ways = is_linear_feature_query(osm_query_key)
     if prioritize_ways:
-        logger.info("Highway query detected, prioritizing ways/relations")
+        logger.info(f"{osm_query_key} query detected, prioritizing ways/relations")
 
     try:
         overpass_query = query_builder.build_amenity_query(
@@ -800,17 +906,28 @@ def geocode_using_overpass_to_geostate(
         if osm_element_id in processed_osm_ids:
             continue
 
+        # Apply geometry preferences filtering on raw elements
+        if not should_include_element_in_results(element, osm_query_key, osm_query_value):
+            continue
+
         feature = converter.convert_element_to_geojson(
             element, osm_tag_filter=(osm_query_key, osm_query_value)
         )
 
         if feature and feature.get("geometry"):
-            # Only include features that have the query tag (except nodes which
-            # may be geometry nodes for ways)
+            # Check tag matching: for wildcards check key exists, for specific check exact match
             element_tags = feature.get("properties", {})
-            is_tagged = element_tags.get(osm_query_key) == osm_query_value
+            if osm_query_value == "*":
+                is_tagged = osm_query_key in element_tags
+            else:
+                is_tagged = element_tags.get(osm_query_key) == osm_query_value
 
             if element["type"] == "node" or is_tagged:
+                # Check if this GeoJSON geometry type should be included
+                geom_type = feature["geometry"]["type"]
+                if not should_include_geojson_geometry(geom_type, osm_query_key):
+                    continue
+
                 processed_osm_ids.add(osm_element_id)
                 all_features.append(feature)
 
@@ -822,8 +939,8 @@ def geocode_using_overpass_to_geostate(
         all_features
     )
 
-    # Filter out point noise for highway queries when lines/areas exist
-    if is_highway_query(osm_query_key):
+    # Filter out point noise for linear feature queries when lines/areas exist
+    if is_linear_feature_query(osm_query_key):
         point_features = converter.filter_point_noise(
             point_features, polygon_features, linestring_features
         )
