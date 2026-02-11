@@ -210,6 +210,8 @@ def test_something(sample_river_layer):
     assert result is not None
 ```
 
+> 📖 **For detailed backend testing guide**, see [backend/tests/README.md](backend/tests/README.md)
+
 ### Frontend Tests (Playwright)
 
 **Location**: `frontend/tests/`

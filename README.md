@@ -17,7 +17,7 @@ NaLaMap is an open-source platform that helps users find and analyze geospatial 
 
 ## Roadmap
 
-We use GitHub [Milestones](https://github.com/nalamap/nalamap/milestones) and a [Kanban board](https://github.com/orgs/nalamap/projects/1/) to collaborate on our Minimal Viable Product (MVP). We hope to realize this first major release (V.1.0.0) in February 2026. 
+We use GitHub [Milestones](https://github.com/nalamap/nalamap/milestones) and a [Kanban board](https://github.com/orgs/nalamap/projects/1/) to collaborate on our Minimal Viable Product (MVP). 
 
 Our next Milestone is V 0.3.0 is scheduled for the 10th of Junuary 2026. We will add the noew roadmap here as soon as it is available. 
 
@@ -285,8 +285,6 @@ npx playwright test --ui
 - Clear npm cache: `npm cache clean --force`
 - Delete node_modules and reinstall: `rm -rf node_modules && npm i`
 
-> **Note**: Additional README files are available in the `/frontend` directory with more specific instructions for each component.
-
 ## Security
 
 🔒 **Important Security Notes:**
@@ -326,7 +324,9 @@ NaLaMap has comprehensive documentation to help you get started and contribute:
 
 ### Additional Documentation
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** - How to contribute to the project
-- **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)** - Community guidelines
+- **[CHANGELOG.md](CHANGELOG.md)** - Version history
+- **[backend/tests/README.md](backend/tests/README.md)** - Backend testing guide
+- **[backend/services/tools/README.md](backend/services/tools/README.md)** - AI tools documentation
 - **[frontend/tests/README.md](frontend/tests/README.md)** - Frontend testing guide
 - **[docs/](docs/)** - Feature-specific documentation
   - Color customization

@@ -84,8 +84,30 @@ helps catch issues early and keeps the review process smooth.
 ## Community Guidelines
 
 - Be respectful and inclusive in all interactions
-- Focus on constructive feedback
-- Help others when you can
-If you have any questions or need assistance, please open an issue or reach out to the project maintainers.
+    - Focus on constructive feedback
+    - Help others when you can
+    If you have any questions or need assistance, please open an issue or reach out to the project maintainers.
 
-We appreciate all contributions, whether it's code, documentation, bug reports, or feature suggestions! 
+## Documentation Strategy
+
+We maintain a comprehensive documentation structure to help both human developers and AI agents understand and contribute to the project.
+
+### High-Level Overview
+- **[README.md](README.md)**: The main entry point for users and potential developers. Provides an overview, features, and quick start guide.
+- **[AGENTS.md](AGENTS.md)**: Dedicated onboarding guide for AI coding agents (and humans). Covers development workflow, testing, and environment setup in detail.
+- **[CONTRIBUTING.md](CONTRIBUTING.md)**: (This file) Guidelines for contributing, including issue reporting, PR process, and code standards.
+- **[ARCHITECTURE.md](ARCHITECTURE.md)**: Detailed system architecture, component design, and data flow.
+- **[CHANGELOG.md](CHANGELOG.md)**: History of changes and versions.
+
+### Component-Specific Documentation
+- **[backend/tests/README.md](backend/tests/README.md)**: Guide for running and writing backend tests.
+- **[backend/services/tools/README.md](backend/services/tools/README.md)**: Documentation for the AI tools available in the system.
+- **[frontend/tests/README.md](frontend/tests/README.md)**: Guide for frontend E2E testing with Playwright.
+- **[e2e-tests/README.md](e2e-tests/README.md)**: Guide for full-stack end-to-end testing.
+
+### Feature Documentation
+Specific feature guides (e.g., Color Customization, Azure Deployment) are located in the `docs/` directory.
+
+**When contributing, please ensure you update the relevant documentation.**
+
+    We appreciate all contributions, whether it's code, documentation, bug reports, or feature suggestions!
