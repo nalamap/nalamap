@@ -16,16 +16,44 @@ def is_available() -> bool:
 def get_available_models() -> list[ModelInfo]:
     """Get list of available Google Gemini models with pricing information.
 
-    Pricing as of October 2025 (per 1M tokens in USD):
+    Pricing as of February 2026 (per 1M tokens in USD):
     Source: Google AI pricing page
 
     Phase 1 Enhancements:
-    - context_window: Gemini models have very large context windows (up to 1M tokens)
+    - context_window: Gemini models have very large context windows (up to 2M+ tokens)
     - supports_parallel_tool_calls: True for Gemini 1.5+ models
     - tool_calling_quality: Based on observed performance
     - reasoning_capability: Based on model generation and capabilities
     """
     return [
+        ModelInfo(
+            name="gemini-2.0-pro-latest",
+            max_tokens=8192,
+            input_cost_per_million=1.25,
+            output_cost_per_million=5.00,
+            cache_cost_per_million=0.3125,
+            description="Gemini 2.0 Pro - Most capable multimodal model with advanced reasoning",
+            supports_tools=True,
+            supports_vision=True,
+            context_window=2000000,
+            supports_parallel_tool_calls=True,
+            tool_calling_quality="excellent",
+            reasoning_capability="expert",
+        ),
+        ModelInfo(
+            name="gemini-2.0-flash",
+            max_tokens=8192,
+            input_cost_per_million=0.10,
+            output_cost_per_million=0.40,
+            cache_cost_per_million=0.025,
+            description="Gemini 2.0 Flash - Fast and efficient with next-gen capabilities",
+            supports_tools=True,
+            supports_vision=True,
+            context_window=1000000,
+            supports_parallel_tool_calls=True,
+            tool_calling_quality="excellent",
+            reasoning_capability="advanced",
+        ),
         ModelInfo(
             name="gemini-1.5-pro-latest",
             max_tokens=8192,

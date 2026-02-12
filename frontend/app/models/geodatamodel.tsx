@@ -13,6 +13,8 @@ export interface ProcessingMetadata {
   auto_selected: boolean; // true if auto-selected, false if user-specified
   selection_reason?: string; // e.g., "Local extent - UTM zone 33N"
   origin_layers?: string[]; // Names of input layers used to generate this result
+  projection_property?: string; // e.g., "conformal", "equal-area"
+  expected_error?: number; // Expected error percentage for the projection
   // Optional fields for custom WKT projections
   authority?: string; // "WKT" when a custom projection is used
   wkt?: string; // Full WKT definition

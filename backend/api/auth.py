@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
+    AUTH_ENABLED,
     BASE_URL,
     COOKIE_HTTPONLY,
     COOKIE_SAMESITE,
@@ -156,9 +157,26 @@ async def logout(response: Response):
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.get("/auth/status")
+async def auth_status():
+    """Return whether authentication is enabled."""
+    return {"auth_enabled": AUTH_ENABLED}
+
+
 @router.get("/auth/me")
 async def me(request: Request, db: AsyncSession = Depends(get_session)):
-    """Return the current user based on session cookie."""
+    """Return the current user based on session cookie.
+
+    When authentication is disabled, returns a synthetic anonymous user
+    so the frontend can proceed without login.
+    """
+    if not AUTH_ENABLED:
+        return {
+            "id": "00000000-0000-0000-0000-000000000000",
+            "email": "anonymous@localhost",
+            "display_name": "Anonymous",
+        }
+
     token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")

@@ -11,6 +11,8 @@ interface User {
 interface AuthContextValue {
   // undefined = loading, null = not authenticated, User = authenticated
   user: User | null | undefined;
+  /** True when the backend reports AUTH_ENABLED=false */
+  authDisabled: boolean;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string, displayName: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -21,11 +23,25 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   // undefined = loading, null = not authenticated, User = authenticated
   const [user, setUser] = useState<User | null | undefined>(undefined);
+  const [authDisabled, setAuthDisabled] = useState(false);
   const apiBase = getApiBase();
 
   // try to fetch current user on mount
   useEffect(() => {
     async function fetchMe() {
+      try {
+        // Check if auth is disabled on the backend
+        const statusRes = await fetch(`${apiBase}/auth/status`);
+        if (statusRes.ok) {
+          const statusData = await statusRes.json();
+          if (statusData.auth_enabled === false) {
+            setAuthDisabled(true);
+          }
+        }
+      } catch {
+        // ignore – fall through to normal auth check
+      }
+
       try {
         const res = await fetch(`${apiBase}/auth/me`, { credentials: "include" });
         if (res.ok) {
@@ -33,13 +49,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(data);
           return;
         }
-      } catch (err) {
+      } catch {
         // ignored - treat as not authenticated
       }
       setUser(null);
     }
     fetchMe();
-  }, []);
+  }, [apiBase]);
 
   async function login(email: string, password: string) {
     const res = await fetch(`${apiBase}/auth/login`, {
@@ -76,7 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, authDisabled, login, signup, logout }}>
       {children}
     </AuthContext.Provider>
   );

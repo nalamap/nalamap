@@ -144,7 +144,6 @@ def normalize_messages(raw: Optional[List[BaseMessage]]) -> List[BaseMessage]:
             normalized.append(SystemMessage(content=content, **extra))
 
         elif t == "tool":
-            continue  # TODO: Fix required tool call missing
             # Your existing ToolMessage logic
             kwargs = {"content": content}
             if getattr(m, "name", None):
@@ -156,7 +155,6 @@ def normalize_messages(raw: Optional[List[BaseMessage]]) -> List[BaseMessage]:
             normalized.append(ToolMessage(**kwargs))
 
         elif t == "function":
-            continue
             normalized.append(
                 FunctionMessage(
                     name=getattr(m, "name", "unknown_function"),
@@ -182,7 +180,8 @@ async def _prepare_chat_context(
     """Prepare shared context for both chat and streaming endpoints.
 
     Normalizes messages, resolves session_id, manages message history
-    (via pruning or summarization), and creates the agent + initial state.
+    (via pruning or summarization), creates an execution plan for complex
+    queries, and creates the agent + initial state.
 
     Args:
         request: The NaLaMap chat request
@@ -190,9 +189,10 @@ async def _prepare_chat_context(
         metrics: Performance metrics tracker
 
     Returns:
-        Tuple of (state, single_agent, options, perf_callback, session_id, stream_id)
+        Tuple of (state, single_agent, options, perf_callback, session_id, stream_id, plan)
     """
     from services.single_agent import create_geo_agent, prepare_messages
+    from services.planner import create_execution_plan, build_plan_system_addendum
     from utility.performance_metrics import PerformanceCallbackHandler
 
     # Normalize incoming messages and append user query
@@ -255,6 +255,57 @@ async def _prepare_chat_context(
     metrics.record("message_count_after", len(messages))
     metrics.record("message_reduction", metrics.metrics["message_count_before"] - len(messages))
 
+    # --- Multi-step Planning ---
+    # Analyze the query to determine if it requires a multi-step plan.
+    # If so, the plan is injected into the agent's prompt so it follows
+    # the structured steps, and streamed to the frontend for visibility.
+    enable_planning = getattr(options.model_settings, "enable_planning", True)
+    execution_plan = None
+
+    if enable_planning:
+        try:
+            # Build layer context for the planner
+            existing_layers = None
+            if request.geodata_layers:
+                existing_layers = [
+                    {
+                        "title": getattr(layer, "title", None) or getattr(layer, "name", ""),
+                        "name": getattr(layer, "name", ""),
+                    }
+                    for layer in request.geodata_layers
+                ]
+
+            metrics.start_timer("planning")
+            execution_plan = await create_execution_plan(
+                query=request.query,
+                llm=llm,
+                messages=messages,
+                existing_layers=existing_layers,
+            )
+            metrics.end_timer("planning")
+
+            if execution_plan:
+                logger.info(
+                    f"Execution plan created with {len(execution_plan.steps)} steps "
+                    f"for query: {request.query[:80]}"
+                )
+                metrics.record("plan_steps", len(execution_plan.steps))
+
+                # Inject plan into agent by rebuilding with augmented prompt
+                plan_addendum = build_plan_system_addendum(execution_plan)
+                single_agent, llm = await create_geo_agent(
+                    model_settings=options.model_settings,
+                    selected_tools=options.tools,
+                    enable_parallel_tools=enable_parallel_tools,
+                    query=request.query,
+                    session_id=options.session_id,
+                    mcp_servers=mcp_servers if mcp_servers else None,
+                    system_prompt_addendum=plan_addendum,
+                )
+        except Exception as e:
+            logger.warning(f"Planning failed, proceeding without plan: {e}")
+            execution_plan = None
+
     # Create initial state
     state: GeoDataAgentState = GeoDataAgentState(
         messages=messages,
@@ -264,6 +315,7 @@ async def _prepare_chat_context(
         geodata_results=[],
         options=options,
         remaining_steps=10,
+        execution_plan=execution_plan,
     )
 
     # Create performance callback handler
@@ -272,7 +324,7 @@ async def _prepare_chat_context(
     # Also extract stream_id for cancellation tracking (streaming only)
     stream_id = options_orig.get("stream_id") or session_id
 
-    return state, single_agent, options, perf_callback, session_id, stream_id
+    return state, single_agent, options, perf_callback, session_id, stream_id, execution_plan
 
 
 @router.post("/chatmock", tags=["nalamap"], response_model=NaLaMapResponse)
@@ -344,7 +396,7 @@ async def ask_nalamap_agent(request: NaLaMapRequest, raw_request: Request):
     metrics = PerformanceMetrics()
 
     # Prepare shared context (messages, agent, state)
-    state, single_agent, options, perf_callback, session_id, _ = await _prepare_chat_context(
+    state, single_agent, options, perf_callback, session_id, _, _plan = await _prepare_chat_context(
         request, raw_request, metrics
     )
 
@@ -507,6 +559,7 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
         extract_token_usage_from_messages,
     )
     from utility.metrics_storage import get_metrics_storage
+    from services.planner import match_tool_to_plan_step, update_plan_step_status
     import json
     import openai
 
@@ -525,7 +578,14 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                 perf_callback,
                 session_id,
                 stream_id,
+                execution_plan,
             ) = await _prepare_chat_context(request, raw_request, metrics)
+
+            # If we have an execution plan, stream it to the frontend
+            if execution_plan:
+                plan_data = execution_plan.model_dump()
+                yield "event: plan\n"
+                yield f"data: {json.dumps(plan_data)}\n\n"
 
             # Start timing
             metrics.start_timer("agent_execution")
@@ -566,8 +626,30 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                     tool_input = event_data.get("input", {})
                     # Make tool_input JSON serializable (may contain LangChain messages)
                     serializable_input = make_json_serializable(tool_input)
+
+                    # Track plan step progress
+                    matched_step = None
+                    if execution_plan:
+                        matched_step = match_tool_to_plan_step(tool_name, execution_plan)
+                        if matched_step:
+                            update_plan_step_status(execution_plan, matched_step, "in-progress")
+                            # Emit plan step update
+                            yield "event: plan_step_update\n"
+                            step_update = {
+                                "step_number": matched_step,
+                                "status": "in-progress",
+                                "tool": tool_name,
+                            }
+                            yield f"data: {json.dumps(step_update)}\n\n"
+
                     yield "event: tool_start\n"
-                    data = json.dumps({"tool": tool_name, "input": serializable_input})
+                    data = json.dumps(
+                        {
+                            "tool": tool_name,
+                            "input": serializable_input,
+                            "plan_step": matched_step,
+                        }
+                    )
                     yield f"data: {data}\n\n"
 
                 elif event_type == "on_tool_end":
@@ -584,6 +666,36 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                         or "geodata_layers" in serializable_output
                     )
 
+                    # Track plan step completion
+                    matched_step = None
+                    if execution_plan:
+                        matched_step = match_tool_to_plan_step(tool_name, execution_plan)
+                        if matched_step:
+                            # Build a short result summary
+                            result_summary = None
+                            if is_state_update:
+                                msg_count = len(serializable_output.get("messages", []))
+                                result_summary = f"Completed with {msg_count} messages"
+                            else:
+                                output_str = str(serializable_output)
+                                result_summary = output_str[:100]
+
+                            update_plan_step_status(
+                                execution_plan,
+                                matched_step,
+                                "complete",
+                                result_summary,
+                            )
+                            # Emit plan step update
+                            yield "event: plan_step_update\n"
+                            step_update = {
+                                "step_number": matched_step,
+                                "status": "complete",
+                                "tool": tool_name,
+                                "result_summary": result_summary,
+                            }
+                            yield f"data: {json.dumps(step_update)}\n\n"
+
                     # For state updates, only send summary
                     # For actual results, send full output
                     if is_state_update:
@@ -594,6 +706,7 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                             "output_preview": output_preview,
                             "is_state_update": True,
                             "output_type": "state",
+                            "plan_step": matched_step,
                         }
                     else:
                         # Send full result but also include a preview
@@ -605,6 +718,7 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                             "output_preview": output_str[:200] + ellipsis,
                             "is_state_update": False,
                             "output_type": type(serializable_output).__name__,
+                            "plan_step": matched_step,
                         }
 
                     yield "event: tool_end\n"

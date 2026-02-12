@@ -85,9 +85,9 @@ class TestGetLLMWithValidation:
 
     def test_get_llm_for_provider_clamps_excessive_tokens(self):
         """Test that get_llm_for_provider clamps excessive max_tokens"""
-        # gpt-4o-mini has max_tokens=16384
+        # gpt-4o-mini-realtime-preview has max_tokens=16384
         llm, capabilities = get_llm_for_provider(
-            "openai", max_tokens=50000, model_name="gpt-4o-mini"
+            "openai", max_tokens=50000, model_name="gpt-4o-mini-realtime-preview"
         )
         assert llm.max_tokens == 16384
 

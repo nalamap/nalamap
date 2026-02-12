@@ -374,14 +374,24 @@
             pendingRequests = [];
         }
 
+        // Get base path from current location (supports subpath deployments)
+        function getBasePath() {
+            const path = window.location.pathname;
+            // If we're at /subpath/loading.html, base should be /subpath
+            // If we're at /loading.html, base should be empty string
+            const match = path.match(/^(.*)?\/loading\.html$/);
+            return match && match[1] ? match[1] : '';
+        }
+
         // Main health check loop with smart polling
         async function checkAllServices() {
             // Cancel any pending requests from previous poll
             cancelPendingRequests();
 
-            const nginxReady = await checkHealth('/health/nginx', 'nginx');
-            const backendReady = await checkHealth('/health/backend', 'backend');
-            const frontendReady = await checkHealth('/health/frontend', 'frontend');
+            const basePath = getBasePath();
+            const nginxReady = await checkHealth(basePath + '/health/nginx', 'nginx');
+            const backendReady = await checkHealth(basePath + '/health/backend', 'backend');
+            const frontendReady = await checkHealth(basePath + '/health/frontend', 'frontend');
 
             // Update progress based on services ready
             let readyCount = (nginxReady ? 1 : 0) + (backendReady ? 1 : 0) + (frontendReady ? 1 : 0);
@@ -419,7 +429,8 @@
                 document.getElementById('funMessage').textContent = '🎉 All systems go!';
                 
                 setTimeout(() => {
-                    window.location.href = '/map';
+                    const basePath = getBasePath();
+                    window.location.href = basePath + '/map';
                 }, 500);
             } else {
                 // Schedule next check with adaptive interval

@@ -51,6 +51,7 @@ MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB in bytes
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 # Authentication settings
+AUTH_ENABLED = os.getenv("AUTH_ENABLED", "true").lower() not in {"0", "false", "no", "off", "n"}
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 OIDC_PROVIDERS = [p.strip() for p in os.getenv("OIDC_PROVIDERS", "google").split(",") if p.strip()]

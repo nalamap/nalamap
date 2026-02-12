@@ -1,5 +1,13 @@
 import { test, expect } from "@playwright/test";
 
+// Extend Window for test-only properties used in page.evaluate()
+declare global {
+  interface Window {
+    testLayer: any;
+    testSearchResults: any[];
+  }
+}
+
 test.describe("CRS Metadata Display", () => {
   const mockLayerWithMetadata = {
     id: "test-layer-1",
