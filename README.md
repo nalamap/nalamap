@@ -157,7 +157,24 @@ To modify advanced LLM parameters (temperature, max_tokens, timeout, etc.), edit
 
 Each file contains a `get_llm()` function where you can adjust parameters like `temperature`, `max_tokens`, `max_retries`, etc.
 
-#### 3. Setup Backend (Python/FastAPI)
+#### 3. Setup Database (Required)
+
+NaLaMap requires a PostgreSQL/PostGIS database for user authentication and geospatial processing. The easiest way to run this locally is using Docker.
+
+1. **Start the Database Container:**
+   ```bash
+   docker-compose up -d db
+   ```
+
+2. **Run Database Migrations:**
+   ```bash
+   cd backend
+   poetry run alembic upgrade head
+   ```
+
+> **Note:** If you cannot use Docker, you must install PostgreSQL and PostGIS manually and update `DATABASE_URL` in your `.env` file.
+
+#### 4. Setup Backend (Python/FastAPI)
 ```bash
 # Navigate to backend directory
 cd backend

@@ -26,6 +26,31 @@ Thank you for your interest in contributing to NaLaMap! We're excited to welcome
 4. Test your changes
 5. Submit a pull request
 
+### Local Environment Setup
+
+To run the application locally, you need a running PostgreSQL/PostGIS database.
+
+**1. Start the Database (Docker)**
+The repository includes a `docker-compose.yml` configured for local development.
+```bash
+docker-compose up -d db
+```
+
+**2. Configure Environment**
+Ensure your `.env` file points to the local database:
+```bash
+DATABASE_URL=postgresql://app:app@localhost:5432/app
+```
+
+**3. Apply Migrations**
+Initialize the database schema:
+```bash
+cd backend
+poetry run alembic upgrade head
+```
+
+Refer to `README.md` for full setup instructions including Backend (Poetry) and Frontend (npm).
+
 ## Code Style
 
 - Follow the existing code style in the project
