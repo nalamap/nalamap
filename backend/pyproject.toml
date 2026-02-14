@@ -3,7 +3,6 @@ name = "backend"
 version = "0.1.0"
 description = "NalaMap Backend - Geospatial AI Assistant"
 authors = ["NalaMaps Dev Team"]
-readme = "README.md"
 
 # ← disable installing your project's own code
 package-mode = false

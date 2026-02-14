@@ -25,7 +25,7 @@ from api import (
 )
 
 # from sqlalchemy.ext.asyncio import AsyncSession
-from core.config import ALLOWED_CORS_ORIGINS, LOCAL_UPLOAD_DIR
+from core.config import ALLOWED_CORS_ORIGINS, LOCAL_UPLOAD_DIR, USE_OGCAPI_STORAGE
 from services.deployment_config_loader import load_and_validate_config
 from services.startup_preloader import schedule_startup_preload
 
@@ -120,17 +120,13 @@ else:
 # Ensure GeoJSON files are served with an explicit media type
 mimetypes.add_type("application/geo+json", ".geojson")
 
-os.makedirs(LOCAL_UPLOAD_DIR, exist_ok=True)
-
-# Legacy /uploads/ endpoint using StaticFiles
-# NOTE: This may have issues with large files in Azure Container Apps
-# Prefer using /api/stream/ for new code (uses async generator)
-# We keep this for backward compatibility, but redirect internally where possible
-# Legacy /uploads/ endpoint using StaticFiles
-# NOTE: This may have issues with large files in Azure Container Apps
-# Prefer using /api/stream/ for new code (uses async generator)
-# We keep this for backward compatibility, but redirect internally where possible
-app.mount("/uploads", StaticFiles(directory=LOCAL_UPLOAD_DIR), name="uploads")
+if not USE_OGCAPI_STORAGE:
+    os.makedirs(LOCAL_UPLOAD_DIR, exist_ok=True)
+    # Legacy /uploads/ endpoint using StaticFiles
+    # NOTE: This may have issues with large files in Azure Container Apps
+    # Prefer using /api/stream/ for new code (uses async generator)
+    # We keep this for backward compatibility, but redirect internally where possible
+    app.mount("/uploads", StaticFiles(directory=LOCAL_UPLOAD_DIR), name="uploads")
 
 # Include API routers
 app.include_router(debug.router, prefix="/api")
