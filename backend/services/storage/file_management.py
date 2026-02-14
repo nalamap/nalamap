@@ -1,8 +1,11 @@
 import gzip
+import io
 import os
 import uuid
 from datetime import datetime, timedelta
 from typing import BinaryIO, Tuple
+
+import requests
 
 from core.config import (
     AZ_CONN,
@@ -10,7 +13,10 @@ from core.config import (
     AZURE_SAS_EXPIRY_HOURS,
     BASE_URL,
     LOCAL_UPLOAD_DIR,
+    OGCAPI_BASE_URL,
+    OGCAPI_TIMEOUT_SECONDS,
     USE_AZURE,
+    USE_OGCAPI_STORAGE,
 )
 from utility.string_methods import sanitize_filename
 
@@ -96,6 +102,23 @@ def store_file(name: str, content: bytes) -> Tuple[str, str]:
     safe_name = sanitize_filename(name)
     unique_name = f"{uuid.uuid4().hex}_{safe_name}"
 
+    if USE_OGCAPI_STORAGE and OGCAPI_BASE_URL:
+        files = {"file": (safe_name, io.BytesIO(content), "application/octet-stream")}
+        resp = requests.post(
+            f"{OGCAPI_BASE_URL}/uploads/file",
+            files=files,
+            timeout=OGCAPI_TIMEOUT_SECONDS,
+        )
+        if resp.status_code >= 400:
+            from fastapi import HTTPException
+
+            raise HTTPException(
+                status_code=502,
+                detail=f"OGC API upload failed: {resp.status_code} {resp.text}",
+            )
+        payload = resp.json()
+        return payload["url"], payload.get("id") or unique_name
+
     if USE_AZURE:
         from azure.storage.blob import BlobServiceClient, ContentSettings
 
@@ -157,6 +180,52 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
 
     total = 0
     chunk_size = 1024 * 1024  # 1 MiB chunks
+
+    if USE_OGCAPI_STORAGE and OGCAPI_BASE_URL:
+        class SizeLimitedReader:
+            def __init__(self, base_stream: BinaryIO, limit: int):
+                self._s = base_stream
+                self._limit = limit
+                self._read = 0
+
+            def read(self, n: int = -1) -> bytes:
+                data = self._s.read(n)
+                if not data:
+                    return data
+                self._read += len(data)
+                if self._read > self._limit:
+                    raise RuntimeError("MAX_FILE_SIZE_EXCEEDED")
+                return data
+
+        limiter = SizeLimitedReader(stream, MAX_FILE_SIZE)
+        files = {"file": (safe_name, limiter, "application/octet-stream")}
+        try:
+            resp = requests.post(
+                f"{OGCAPI_BASE_URL}/uploads/file",
+                files=files,
+                timeout=OGCAPI_TIMEOUT_SECONDS,
+            )
+        except RuntimeError as exc:
+            from fastapi import HTTPException
+
+            if str(exc) == "MAX_FILE_SIZE_EXCEEDED":
+                raise HTTPException(status_code=413, detail="File exceeds the 100MB limit.") from exc
+            raise HTTPException(status_code=502, detail=f"OGC API upload failed: {exc}") from exc
+        except Exception as exc:
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=502, detail=f"OGC API upload failed: {exc}") from exc
+        if resp.status_code >= 400:
+            from fastapi import HTTPException
+
+            if resp.status_code == 413 or "MAX_FILE_SIZE" in resp.text:
+                raise HTTPException(status_code=413, detail="File exceeds the 100MB limit.")
+            raise HTTPException(
+                status_code=502,
+                detail=f"OGC API upload failed: {resp.status_code} {resp.text}",
+            )
+        payload = resp.json()
+        return payload["url"], payload.get("id") or unique_name
 
     if USE_AZURE:
         from azure.storage.blob import BlobServiceClient, ContentSettings
