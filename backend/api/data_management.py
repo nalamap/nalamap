@@ -122,7 +122,7 @@ async def get_upload_meta(file_id: str) -> Dict[str, str]:
                 timeout=core_config.OGCAPI_TIMEOUT_SECONDS,
             )
         except Exception as exc:
-            raise HTTPException(status_code=502, detail=f"OGC API meta request failed: {exc}") from exc
+            raise HTTPException(status_code=502, detail=f"OGCAPI request failed: {exc}") from exc
         if resp.status_code >= 400:
             raise HTTPException(
                 status_code=resp.status_code,
