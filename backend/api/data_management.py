@@ -110,7 +110,7 @@ async def upload_file(file: UploadFile = File(...)) -> Dict[str, str]:
 
 # Debug/ops: fetch file metadata (size, sha256) to verify integrity end-to-end
 @router.get("/uploads/meta/{file_id:path}")
-async def get_upload_meta(file_id: str) -> Dict[str, str]:
+async def get_upload_meta(file_id: str) -> Dict[str, Any]:
     """Return file size and SHA256 for a stored upload by its ID (filename).
 
     Supports both local storage and Azure Blob Storage backends.
