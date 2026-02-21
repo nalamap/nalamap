@@ -78,7 +78,7 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         raise RuntimeError(
             """
             Database session factory is not configured;
-            set DATABASE_URL and ensure PostgreSQL is running 
+            set DATABASE_URL and ensure PostgreSQL is running
             (e.g. docker compose -f db/docker-compose.yml up -d).
             """
         )
