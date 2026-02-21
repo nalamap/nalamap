@@ -1,12 +1,17 @@
 """Database engine and session configuration for ORM models."""
 
+import asyncio
+import logging
 from typing import AsyncGenerator, Optional
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.exc import OperationalError
 
 from core.config import DATABASE_URL
 from db.base import Base
+
+logger = logging.getLogger(__name__)
 
 
 def _make_async_url(url: str) -> Optional[str]:
@@ -46,16 +51,36 @@ async def init_db() -> None:
     """Initialize the database by creating all tables defined on Base metadata."""
     if engine is None:
         return
-    async with engine.begin() as conn:
-        # run_sync executes a synchronous callable in the async engine
-        await conn.run_sync(Base.metadata.create_all)
+    max_attempts = 15
+    delay = 1.0
+    for attempt in range(1, max_attempts + 1):
+        try:
+            async with engine.begin() as conn:
+                # run_sync executes a synchronous callable in the async engine
+                await conn.run_sync(Base.metadata.create_all)
+            return
+        except OperationalError as exc:
+            if attempt >= max_attempts:
+                raise
+            logger.warning(
+                "Database not ready (attempt %s/%s): %s",
+                attempt,
+                max_attempts,
+                exc,
+            )
+            await asyncio.sleep(delay)
+            delay = min(delay * 1.5, 5.0)
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     """Async generator yielding a database session for dependency injection."""
     if AsyncSessionLocal is None:
         raise RuntimeError(
-            "Database session factory is not configured; set DATABASE_AZURE_URL first."
+            """
+            Database session factory is not configured;
+            set DATABASE_URL and ensure PostgreSQL is running
+            (e.g. docker compose -f db/docker-compose.yml up -d).
+            """
         )
     async with AsyncSessionLocal() as session:
         yield session

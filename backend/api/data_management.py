@@ -9,6 +9,7 @@ from pydantic import BaseModel
 import core.config as core_config
 from core.config import MAX_FILE_SIZE
 from services.storage.file_management import store_file_stream
+import requests
 
 
 # Helper function for formatting file size
@@ -109,11 +110,30 @@ async def upload_file(file: UploadFile = File(...)) -> Dict[str, str]:
 
 # Debug/ops: fetch file metadata (size, sha256) to verify integrity end-to-end
 @router.get("/uploads/meta/{file_id:path}")
-async def get_upload_meta(file_id: str) -> Dict[str, str]:
+async def get_upload_meta(file_id: str) -> Dict[str, Any]:
     """Return file size and SHA256 for a stored upload by its ID (filename).
 
     Supports both local storage and Azure Blob Storage backends.
     """
+    if core_config.USE_OGCAPI_STORAGE and core_config.OGCAPI_BASE_URL:
+        try:
+            resp = requests.get(
+                f"{core_config.OGCAPI_BASE_URL}/uploads/meta/{file_id}",
+                timeout=core_config.OGCAPI_TIMEOUT_SECONDS,
+            )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=502, detail=f"OGC API meta request failed: {exc}"
+            ) from exc
+        if resp.status_code >= 400:
+            raise HTTPException(
+                status_code=resp.status_code,
+                detail=f"OGC API meta request failed: {resp.text}",
+            )
+        payload = resp.json()
+        payload.setdefault("storage", "ogcapi")
+        return payload
+
     # Check if we're using Azure Blob Storage
     if core_config.USE_AZURE and core_config.AZ_CONN:
         try:
