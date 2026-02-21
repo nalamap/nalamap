@@ -182,6 +182,7 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
     chunk_size = 1024 * 1024  # 1 MiB chunks
 
     if USE_OGCAPI_STORAGE and OGCAPI_BASE_URL:
+
         class SizeLimitedReader:
             def __init__(self, base_stream: BinaryIO, limit: int):
                 self._s = base_stream
@@ -209,7 +210,9 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
             from fastapi import HTTPException
 
             if str(exc) == "MAX_FILE_SIZE_EXCEEDED":
-                raise HTTPException(status_code=413, detail="File exceeds the 100MB limit.") from exc
+                raise HTTPException(
+                    status_code=413, detail="File exceeds the 100MB limit."
+                ) from exc
             raise HTTPException(status_code=502, detail=f"OGC API upload failed: {exc}") from exc
         except Exception as exc:
             from fastapi import HTTPException
