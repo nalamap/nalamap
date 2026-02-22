@@ -13,6 +13,8 @@ Components:
 import hashlib
 import json
 import logging
+import re
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -209,6 +211,70 @@ class OverpassQueryBuilder:
                 parts.append(f"  relation{tag_filter}{location_filter};")
             parts.append(");")
             parts.append(f"out geom {self.max_results};")
+
+        return "\n".join(parts)
+
+    def build_multi_tag_query(
+        self,
+        tags: List[Dict[str, str]],
+        location: OverpassLocation,
+        radius_meters: int = 10000,
+    ) -> str:
+        """
+        Build an Overpass QL query matching ANY of the given tags (OR semantics).
+
+        Groups tags by key and uses regex filters when multiple values share the same key
+        (e.g. building=residential|apartments|house). Cross-key tags use a union block.
+
+        Args:
+            tags: List of {"key": ..., "value": ...} dicts
+            location: OverpassLocation with geocoded data
+            radius_meters: Search radius for point-based queries
+
+        Returns:
+            Overpass QL query string
+        """
+        from services.tools.geocoding import should_include_element_in_query
+
+        parts = [f"[out:json][timeout:{self.timeout}];"]
+
+        if location.has_area:
+            overpass_area_id = location.osm_relation_id + 3600000000
+            parts.append(f"area({overpass_area_id})->.search_area;")
+            location_filter = "(area.search_area)"
+        elif location.has_bbox:
+            s, w, n, e = location.bbox
+            location_filter = f"({s},{w},{n},{e})"
+        elif location.has_point:
+            location_filter = f"(around:{radius_meters},{location.lat},{location.lon})"
+        else:
+            raise ValueError("Location must have area, bbox, or point coordinates")
+
+        # Group values by key for regex optimisation
+        by_key: Dict[str, List[str]] = defaultdict(list)
+        for tag in tags:
+            by_key[tag["key"]].append(tag["value"])
+
+        parts.append("(")
+        for key, values in by_key.items():
+            if len(values) == 1:
+                if values[0] == "*":
+                    tag_filter = f'["{key}"]'
+                else:
+                    tag_filter = f'["{key}"="{values[0]}"]'
+            else:
+                # Multiple values for same key → anchored regex OR
+                pattern = "|".join(re.escape(v) for v in values)
+                tag_filter = f'["{key}"~"^({pattern})$"]'
+
+            # Use the first value as representative for element-type preferences
+            ref_value = values[0]
+            for elem_type in ["node", "way", "relation"]:
+                if should_include_element_in_query(key, ref_value, elem_type):
+                    parts.append(f"  {elem_type}{tag_filter}{location_filter};")
+
+        parts.append(");")
+        parts.append(f"out geom {self.max_results};")
 
         return "\n".join(parts)
 

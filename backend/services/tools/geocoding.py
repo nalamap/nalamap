@@ -121,6 +121,64 @@ def _find_similar_amenity_keys(query: str, max_suggestions: int = 5) -> List[str
     return suggestions
 
 
+def _expand_tags_with_llm(user_intent: str) -> Optional[List[Dict[str, Any]]]:
+    """
+    Use a cheap LLM to expand a user's intent into a list of OSM key=value tags.
+
+    Validates returned keys against VALID_OSM_KEYS and falls back to None on any error.
+
+    Args:
+        user_intent: Natural-language description of what to search for (e.g. "residential buildings")
+
+    Returns:
+        List of {"key": ..., "value": ...} dicts, or None if expansion failed/unavailable.
+    """
+    import os
+
+    from openai import OpenAI
+
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key or api_key == "sk-test-key-not-set":
+        return None
+
+    try:
+        client = OpenAI(api_key=api_key)
+        prompt = (
+            f'You are an OpenStreetMap expert. The user wants to find: "{user_intent}"\n\n'
+            "List all relevant OSM key=value tags that match this intent. Include related subtypes "
+            "and synonyms. Only use real, commonly-used OSM tags. "
+            "Exclude tags that are a completely different concept.\n\n"
+            'Respond ONLY with valid JSON: {"tags": [{"key": "building", "value": "residential"}, ...]}'
+        )
+        response = client.chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0,
+            max_tokens=400,
+            response_format={"type": "json_object"},
+        )
+        content = response.choices[0].message.content
+        data = json.loads(content)
+        raw_tags = data.get("tags", [])
+
+        validated: List[Dict[str, Any]] = []
+        for tag in raw_tags:
+            if isinstance(tag, dict) and "key" in tag and "value" in tag:
+                k = str(tag["key"]).strip().lower()
+                v = str(tag["value"]).strip().lower()
+                if k and v and k in VALID_OSM_KEYS:
+                    validated.append({"key": k, "value": v})
+
+        if validated:
+            logger.info(f"LLM expanded '{user_intent}' to {len(validated)} tags: {validated}")
+            return validated
+        return None
+
+    except Exception as e:
+        logger.warning(f"LLM tag expansion failed for '{user_intent}': {e}")
+        return None
+
+
 headers_nalamap = {
     "User-Agent": "NaLaMap, github.com/nalamap, next generation geospatial analysis using agents"
 }
@@ -917,6 +975,7 @@ def geocode_using_overpass_to_geostate(
     amenity_key_cleaned = amenity_key.lower().replace(" ", "_")
     osm_tag_kv = AMENITY_MAPPING.get(amenity_key_cleaned)
     is_raw_tag = False
+    resolved_tags: Optional[List[Dict[str, Any]]] = None
 
     if not osm_tag_kv:
         # Fallback 1: Try raw key=value format (e.g. "tourism=artwork")
@@ -927,7 +986,16 @@ def geocode_using_overpass_to_geostate(
             logger.info(f"Using raw OSM tag '{raw_tag}' (not in AMENITY_MAPPING)")
 
     if not osm_tag_kv:
-        # Fallback 2: Suggest similar known amenity keys
+        # Fallback 2: LLM semantic tag expansion
+        expanded = _expand_tags_with_llm(amenity_key)
+        if expanded:
+            resolved_tags = expanded
+            primary = expanded[0]
+            osm_tag_kv = f"{primary['key']}={primary['value']}"
+            logger.info(f"Using LLM-expanded tags, primary: {osm_tag_kv}")
+
+    if not osm_tag_kv:
+        # Fallback 3: Suggest similar known amenity keys
         suggestions = _find_similar_amenity_keys(amenity_key)
         if suggestions:
             suggestion_list = ", ".join(f"'{s}'" for s in suggestions[:5])
@@ -1003,19 +1071,25 @@ def geocode_using_overpass_to_geostate(
     # 3. Build and execute Overpass query
     query_builder = OverpassQueryBuilder(timeout=timeout, max_results=max_results)
 
-    # Prioritize ways/relations for linear feature queries to reduce point noise
-    prioritize_ways = is_linear_feature_query(osm_query_key)
-    if prioritize_ways:
-        logger.info(f"{osm_query_key} query detected, prioritizing ways/relations")
-
     try:
-        overpass_query = query_builder.build_amenity_query(
-            osm_query_key,
-            osm_query_value,
-            location,
-            radius_meters=radius_meters,
-            prioritize_ways_relations=prioritize_ways,
-        )
+        if resolved_tags and len(resolved_tags) > 1:
+            # Multi-tag path: LLM-expanded semantic query
+            overpass_query = query_builder.build_multi_tag_query(
+                resolved_tags, location, radius_meters=radius_meters
+            )
+        else:
+            # Single-tag path: existing behaviour
+            # Prioritize ways/relations for linear feature queries to reduce point noise
+            prioritize_ways = is_linear_feature_query(osm_query_key)
+            if prioritize_ways:
+                logger.info(f"{osm_query_key} query detected, prioritizing ways/relations")
+            overpass_query = query_builder.build_amenity_query(
+                osm_query_key,
+                osm_query_value,
+                location,
+                radius_meters=radius_meters,
+                prioritize_ways_relations=prioritize_ways,
+            )
     except ValueError as e:
         return Command(
             update={
@@ -1077,17 +1151,36 @@ def geocode_using_overpass_to_geostate(
             continue
 
         # Apply geometry preferences filtering on raw elements
-        if not should_include_element_in_results(element, osm_query_key, osm_query_value):
-            continue
+        # For multi-tag queries: include if any tag's preferences allow it
+        if resolved_tags:
+            if not any(
+                should_include_element_in_results(element, t["key"], t["value"])
+                for t in resolved_tags
+            ):
+                continue
+        else:
+            if not should_include_element_in_results(element, osm_query_key, osm_query_value):
+                continue
 
-        feature = converter.convert_element_to_geojson(
-            element, osm_tag_filter=(osm_query_key, osm_query_value)
-        )
+        # For multi-tag: skip converter-level filtering (handled below via is_tagged)
+        if resolved_tags:
+            feature = converter.convert_element_to_geojson(element, osm_tag_filter=None)
+        else:
+            feature = converter.convert_element_to_geojson(
+                element, osm_tag_filter=(osm_query_key, osm_query_value)
+            )
 
         if feature and feature.get("geometry"):
-            # Check tag matching: for wildcards check key exists, for specific check exact match
+            # Check tag matching
             element_tags = feature.get("properties", {})
-            if osm_query_value == "*":
+            if resolved_tags:
+                # Multi-tag: match if element carries any of the resolved tags
+                is_tagged = any(
+                    (t["value"] == "*" and t["key"] in element_tags)
+                    or element_tags.get(t["key"]) == t["value"]
+                    for t in resolved_tags
+                )
+            elif osm_query_value == "*":
                 is_tagged = osm_query_key in element_tags
             else:
                 is_tagged = element_tags.get(osm_query_key) == osm_query_value
@@ -1095,7 +1188,13 @@ def geocode_using_overpass_to_geostate(
             if element["type"] == "node" or is_tagged:
                 # Check if this GeoJSON geometry type should be included
                 geom_type = feature["geometry"]["type"]
-                if not should_include_geojson_geometry(geom_type, osm_query_key):
+                if resolved_tags:
+                    geom_ok = any(
+                        should_include_geojson_geometry(geom_type, t["key"]) for t in resolved_tags
+                    )
+                else:
+                    geom_ok = should_include_geojson_geometry(geom_type, osm_query_key)
+                if not geom_ok:
                     continue
 
                 processed_osm_ids.add(osm_element_id)
