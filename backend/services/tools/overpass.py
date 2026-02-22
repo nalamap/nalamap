@@ -573,6 +573,9 @@ def create_feature_collection_geodata(
     # Extract sample feature names for preview
     sample_names = _extract_sample_names(features, max_samples=5)
 
+    # Generate spatial extent description
+    spatial_extent = _describe_spatial_extent(bounding_box_str)
+
     return GeoDataObject(
         id=unique_id,
         data_source_id="geocodeOverpassCollection",
@@ -596,6 +599,7 @@ def create_feature_collection_geodata(
             "geometry_label": geo_label,
             "geometry_hint": geo_hint,
             "sample_names": sample_names,
+            "spatial_extent": spatial_extent,
         },
         sha256=sha256_hex,
         size=size_bytes,
@@ -613,6 +617,50 @@ def _extract_sample_names(features: List[Dict[str, Any]], max_samples: int = 5) 
         if len(names) >= max_samples:
             break
     return names
+
+
+def _describe_spatial_extent(
+    bbox_str: Optional[str],
+) -> Optional[str]:
+    """
+    Generate a human-readable description of a bounding box extent.
+
+    Args:
+        bbox_str: WKT POLYGON string from _calculate_bbox_string
+
+    Returns:
+        A plain-language extent description, or None
+    """
+    if not bbox_str:
+        return None
+
+    try:
+        # Parse coordinates from WKT POLYGON
+        inner = bbox_str.replace("POLYGON((", "").replace("))", "")
+        coords = [c.strip().split() for c in inner.split(",")]
+        lons = [float(c[0]) for c in coords]
+        lats = [float(c[1]) for c in coords]
+
+        min_lon, max_lon = min(lons), max(lons)
+        min_lat, max_lat = min(lats), max(lats)
+
+        # Approximate distance in km (rough, using equirectangular)
+        import math
+
+        avg_lat = (min_lat + max_lat) / 2
+        lat_dist_km = (max_lat - min_lat) * 111.32
+        lon_dist_km = (max_lon - min_lon) * 111.32 * math.cos(math.radians(avg_lat))
+
+        if lat_dist_km < 1 and lon_dist_km < 1:
+            return (
+                f"covers a small area (about {max(lat_dist_km, lon_dist_km) * 1000:.0f} m across)"
+            )
+        elif lat_dist_km < 10 and lon_dist_km < 10:
+            return f"covers about {lon_dist_km:.1f} km x {lat_dist_km:.1f} km"
+        else:
+            return f"covers about {lon_dist_km:.0f} km x {lat_dist_km:.0f} km"
+    except (ValueError, IndexError):
+        return None
 
 
 def _calculate_bbox_string(features: List[Dict[str, Any]]) -> Optional[str]:

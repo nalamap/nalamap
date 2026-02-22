@@ -25,7 +25,101 @@ from .overpass import (
     is_linear_feature_query,
 )
 
+# Valid OSM top-level keys for raw tag fallback validation
+VALID_OSM_KEYS = {
+    "amenity",
+    "shop",
+    "tourism",
+    "leisure",
+    "highway",
+    "railway",
+    "waterway",
+    "natural",
+    "building",
+    "landuse",
+    "boundary",
+    "place",
+    "aeroway",
+    "military",
+    "power",
+    "office",
+    "craft",
+    "man_made",
+    "historic",
+    "emergency",
+    "healthcare",
+    "sport",
+    "public_transport",
+    "barrier",
+    "geological",
+    "route",
+    "telecom",
+    "club",
+    "advertising",
+}
+
 logger = logging.getLogger(__name__)
+
+
+def _try_parse_raw_osm_tag(amenity_key: str) -> Optional[str]:
+    """
+    Try to parse a raw OSM tag in key=value format.
+
+    Accepts formats like "tourism=artwork", "shop=bicycle", "craft=*".
+    Validates the key against known OSM top-level keys.
+
+    Returns:
+        The validated "key=value" string, or None if not a valid raw tag.
+    """
+    if "=" not in amenity_key:
+        return None
+
+    parts = amenity_key.split("=", 1)
+    if len(parts) != 2:
+        return None
+
+    key, value = parts[0].strip(), parts[1].strip()
+    if not key or not value:
+        return None
+
+    if key not in VALID_OSM_KEYS:
+        return None
+
+    return f"{key}={value}"
+
+
+def _find_similar_amenity_keys(query: str, max_suggestions: int = 5) -> List[str]:
+    """
+    Find similar amenity keys from AMENITY_MAPPING using simple substring matching.
+
+    Returns a list of suggested amenity names.
+    """
+    query_lower = query.lower().strip()
+    suggestions = []
+
+    # First: exact substring matches
+    for key in AMENITY_MAPPING:
+        if query_lower in key or key in query_lower:
+            if key not in suggestions:
+                suggestions.append(key)
+            if len(suggestions) >= max_suggestions:
+                break
+
+    # Second: word-level overlap
+    if len(suggestions) < max_suggestions:
+        query_words = set(query_lower.replace("_", " ").split())
+        scored = []
+        for key in AMENITY_MAPPING:
+            key_words = set(key.replace("_", " ").split())
+            overlap = len(query_words & key_words)
+            if overlap > 0 and key not in suggestions:
+                scored.append((overlap, key))
+        scored.sort(key=lambda x: -x[0])
+        for _, key in scored[: max_suggestions - len(suggestions)]:
+            suggestions.append(key)
+
+    return suggestions
+
 
 headers_nalamap = {
     "User-Agent": "NaLaMap, github.com/nalamap, next generation geospatial analysis using agents"
@@ -390,18 +484,21 @@ def geocode_using_nominatim_to_geostate(
                 if num_objects_created > 0:
                     for elem in cleaned_data:
                         if "id" in elem and "data_source_id" in elem:
-                            actionable_layers_info.append(
-                                {
-                                    "name": elem.get(
-                                        "name",
-                                        elem.get("display_name", "Unknown Location"),
-                                    ),
-                                    "id": elem["id"],
-                                    "data_source_id": elem[
-                                        "data_source_id"
-                                    ],  # Should be "geocodeNominatim"
-                                }
-                            )
+                            layer_info = {
+                                "name": elem.get(
+                                    "name",
+                                    elem.get("display_name", "Unknown Location"),
+                                ),
+                                "id": elem["id"],
+                                "data_source_id": elem[
+                                    "data_source_id"
+                                ],  # Should be "geocodeNominatim"
+                                "display_name": elem.get("display_name", ""),
+                                "osm_type": elem.get("osm_type", ""),
+                                "type": elem.get("type", ""),
+                                "class": elem.get("class", ""),
+                            }
+                            actionable_layers_info.append(layer_info)
 
                 if not actionable_layers_info:
                     tool_message_content = (
@@ -422,12 +519,24 @@ def geocode_using_nominatim_to_geostate(
 
                     # Build disambiguation info if multiple results
                     if len(actionable_layers_info) > 1:
+                        # Build comparison table for the agent
+                        comparison_items = []
+                        for i, layer in enumerate(actionable_layers_info, 1):
+                            item = (
+                                f"  {i}. '{layer.get('display_name', layer['name'])}' "
+                                f"(type: {layer.get('type', 'unknown')}, "
+                                f"class: {layer.get('class', 'unknown')})"
+                            )
+                            comparison_items.append(item)
+                        comparison_text = "\n".join(comparison_items)
+
                         disambiguation_hint = (
                             "DISAMBIGUATION: Multiple results were found "
                             "for this query. Present the results to the "
-                            "user and help them identify which one they "
-                            "need. Mention distinguishing details like "
-                            "the full display_name or country. "
+                            "user as numbered options with distinguishing "
+                            "details (full location path, type) so they "
+                            "can choose the correct one.\n"
+                            f"Candidates:\n{comparison_text}\n"
                         )
                     else:
                         disambiguation_hint = ""
@@ -791,7 +900,9 @@ def geocode_using_overpass_to_geostate(
             "barracks"), aviation (e.g. "airport", "aeroway"), natural features
             (e.g. "waterway", "natural"), buildings, and places. Use generic
             terms like "road" or "military" to search for all features of
-            that type.
+            that type. Also accepts raw OSM tags in key=value format
+            (e.g. "craft=brewery", "historic=castle", "sport=soccer")
+            for features not covered by the built-in mapping.
         location_name: The location to search (e.g. "Paris", "London", "Germany").
         radius_meters: Search radius in meters (default: 10000).
         max_results: Maximum number of results to return (default: 2500).
@@ -805,18 +916,44 @@ def geocode_using_overpass_to_geostate(
     # 1. Map amenity_key to OSM tag
     amenity_key_cleaned = amenity_key.lower().replace(" ", "_")
     osm_tag_kv = AMENITY_MAPPING.get(amenity_key_cleaned)
+    is_raw_tag = False
 
     if not osm_tag_kv:
+        # Fallback 1: Try raw key=value format (e.g. "tourism=artwork")
+        raw_tag = _try_parse_raw_osm_tag(amenity_key.lower().strip())
+        if raw_tag:
+            osm_tag_kv = raw_tag
+            is_raw_tag = True
+            logger.info(f"Using raw OSM tag '{raw_tag}' (not in AMENITY_MAPPING)")
+
+    if not osm_tag_kv:
+        # Fallback 2: Suggest similar known amenity keys
+        suggestions = _find_similar_amenity_keys(amenity_key)
+        if suggestions:
+            suggestion_list = ", ".join(f"'{s}'" for s in suggestions[:5])
+            hint = (
+                f"I could not find an exact match for '{amenity_key}' "
+                f"in my known features. Did you mean one of these: "
+                f"{suggestion_list}? "
+                "Alternatively, you can provide a raw OSM tag in "
+                "key=value format (e.g., 'craft=brewery', "
+                "'historic=castle', 'healthcare=pharmacy')."
+            )
+        else:
+            hint = (
+                f"I could not find '{amenity_key}' in my known "
+                "features. You can try: a common amenity type "
+                "(e.g., 'restaurant', 'hospital', 'park'), or a raw "
+                "OSM tag in key=value format (e.g., 'craft=brewery', "
+                "'historic=castle', 'sport=soccer')."
+            )
         return Command(
             update={
                 "messages": [
                     *state["messages"],
                     ToolMessage(
                         name="geocode_using_overpass_to_geostate",
-                        content=(
-                            f"Sorry, I don't know how to search for '{amenity_key}'. "
-                            "Please try a common amenity type."
-                        ),
+                        content=hint,
                         tool_call_id=tool_call_id,
                     ),
                 ]
@@ -824,6 +961,13 @@ def geocode_using_overpass_to_geostate(
         )
 
     amenity_key_display = amenity_key_cleaned.replace("_", " ").title()
+    if is_raw_tag:
+        # For raw tags, use the value part as display name
+        _, raw_value = osm_tag_kv.split("=", 1)
+        amenity_key_display = raw_value.replace("_", " ").title()
+        if raw_value == "*":
+            raw_key = osm_tag_kv.split("=", 1)[0]
+            amenity_key_display = raw_key.replace("_", " ").title()
     osm_query_key, osm_query_value = osm_tag_kv.split("=", 1)
 
     # 2. Create location object - use explicit coordinates if provided
@@ -1002,6 +1146,7 @@ def geocode_using_overpass_to_geostate(
                         "geometry_label": props.get("geometry_label", collection_type.lower()),
                         "geometry_hint": props.get("geometry_hint", ""),
                         "sample_names": props.get("sample_names", []),
+                        "spatial_extent": props.get("spatial_extent"),
                     }
                 )
 
@@ -1194,9 +1339,13 @@ def _build_overpass_response_message(
         samples = layer.get("sample_names", [])
         name = layer.get("name", "Unknown")
 
+        extent = layer.get("spatial_extent")
+
         choice_desc = f"- '{name}': {count} {label}"
         if hint:
             choice_desc += f" ({hint})"
+        if extent:
+            choice_desc += f", {extent}"
         if samples:
             sample_str = ", ".join(samples[:3])
             if len(samples) > 3:
