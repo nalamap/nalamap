@@ -21,6 +21,8 @@ import requests
 from models.geodata import DataOrigin, DataType, GeoDataObject
 from services.storage.file_management import store_file
 
+from .constants import get_geometry_display_label
+
 logger = logging.getLogger(__name__)
 
 # Default headers for Overpass API requests
@@ -515,6 +517,9 @@ def create_feature_collection_geodata(
     """
     Create a GeoDataObject for a FeatureCollection of a specific geometry type.
 
+    Uses user-friendly geometry labels instead of technical terms (e.g.,
+    "Hospital locations" instead of "Hospitals (Points)").
+
     Args:
         features: List of GeoJSON Feature dictionaries
         collection_type: Type of collection ("Points", "Areas", "Lines")
@@ -554,11 +559,19 @@ def create_feature_collection_geodata(
     # Calculate bounding box
     bounding_box_str = _calculate_bbox_string(features)
 
-    collection_name = f"{amenity_display} ({collection_type}) near {location_display}"
+    # Get user-friendly geometry label
+    osm_key = osm_tag_kv.split("=", 1)[0] if "=" in osm_tag_kv else ""
+    geo_label, geo_hint = get_geometry_display_label(osm_key, collection_type)
+
+    # Build user-friendly collection name
+    collection_name = f"{amenity_display} {geo_label} in {location_display}"
     description = (
-        f"{len(features)} {amenity_display.lower()} ({collection_type.lower()}) "
-        f"found matching '{osm_tag_kv}' near {location_display}. Data from OpenStreetMap."
+        f"{len(features)} {amenity_display.lower()} {geo_label} ({geo_hint}) "
+        f"near {location_display}. Data from OpenStreetMap."
     )
+
+    # Extract sample feature names for preview
+    sample_names = _extract_sample_names(features, max_samples=5)
 
     return GeoDataObject(
         id=unique_id,
@@ -580,10 +593,26 @@ def create_feature_collection_geodata(
             "query_location": location_display,
             "query_osm_tag": osm_tag_kv,
             "geometry_type_collected": collection_type,
+            "geometry_label": geo_label,
+            "geometry_hint": geo_hint,
+            "sample_names": sample_names,
         },
         sha256=sha256_hex,
         size=size_bytes,
     )
+
+
+def _extract_sample_names(features: List[Dict[str, Any]], max_samples: int = 5) -> List[str]:
+    """Extract sample feature names from a list of GeoJSON features."""
+    names = []
+    for feature in features:
+        props = feature.get("properties", {})
+        name = props.get("name") or props.get("name:en") or props.get("alt_name")
+        if name and name not in names:
+            names.append(name)
+        if len(names) >= max_samples:
+            break
+    return names
 
 
 def _calculate_bbox_string(features: List[Dict[str, Any]]) -> Optional[str]:

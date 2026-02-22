@@ -404,29 +404,55 @@ def geocode_using_nominatim_to_geostate(
                             )
 
                 if not actionable_layers_info:
-                    tool_message_content = "Successfully geocoded '{query}'. Found {len(cleaned_data)} potential result(s), but no GeoData objects with full geometry were created or stored."
+                    tool_message_content = (
+                        f"Successfully geocoded '{query}'. Found "
+                        f"{len(cleaned_data)} potential result(s), but no "
+                        "GeoData objects with full geometry were created."
+                    )
                 else:
-                    tool_message_content = "Successfully geocoded '{query}'. Found {len(cleaned_data)} potential result(s). {len(actionable_layers_info)} GeoData object(s) with full geometry created and stored in geodata_results. "
+                    tool_message_content = (
+                        f"Successfully geocoded '{query}'. Found "
+                        f"{len(cleaned_data)} potential result(s). "
+                        f"{len(actionable_layers_info)} GeoData object(s) "
+                        "with full geometry created and stored. "
+                    )
 
-                    # Provide structured info for the agent and clear instructions
+                    # Provide structured info for the agent
                     layer_details_for_agent = json.dumps(actionable_layers_info)
 
-                    # Get an example name for the guidance
-                    example_name = (
-                        actionable_layers_info[0].get("name", "Unknown Location")
-                        if actionable_layers_info
-                        else "Unknown Location"
-                    )
+                    # Build disambiguation info if multiple results
+                    if len(actionable_layers_info) > 1:
+                        disambiguation_hint = (
+                            "DISAMBIGUATION: Multiple results were found "
+                            "for this query. Present the results to the "
+                            "user and help them identify which one they "
+                            "need. Mention distinguishing details like "
+                            "the full display_name or country. "
+                        )
+                    else:
+                        disambiguation_hint = ""
 
                     user_response_guidance = (
-                        "Call 'set_result_list' to make these layer(s) available for the user to select. "
-                        + f"In your textual response to the user, confirm the geocoding success and mention the type of locations found (e.g., based on the query or results like '{example_name}'). "
-                        + "State that the found layers are now listed (e.g., in a list or panel) and can be selected by the user to be added to the map. "
-                        + "Ensure your response clearly indicates the user needs to take an action to add them to the map. "
-                        + "Do NOT state or imply that the layers have already been added to the map. "
-                        + "Do NOT include direct file paths, sandbox links, or any other internal storage paths in your textual response or as Markdown links."
+                        f"{disambiguation_hint}"
+                        "RESPONSE INSTRUCTIONS:\n"
+                        "1. Confirm what was found and where.\n"
+                        "2. If showing boundaries/polygons, describe "
+                        "them in plain language (e.g., 'the city "
+                        "boundary of Munich' not 'a Polygon "
+                        "GeoJSON').\n"
+                        "3. The found layers are now listed and can "
+                        "be selected by the user to add to the map.\n"
+                        "4. Do NOT state or imply layers have already "
+                        "been added to the map.\n"
+                        "5. Do NOT include file paths or internal "
+                        "storage links.\n"
                     )
-                    tool_message_content += f"Actionable layer details: {layer_details_for_agent}. User response guidance: {user_response_guidance}"
+                    tool_message_content += (
+                        f"Actionable layer details: "
+                        f"{layer_details_for_agent}. "
+                        f"User response guidance: "
+                        f"{user_response_guidance}"
+                    )
 
                 return Command(
                     update={
@@ -965,6 +991,7 @@ def geocode_using_overpass_to_geostate(
             )
             if collection_obj:
                 created_collections.append(collection_obj)
+                props = collection_obj.properties or {}
                 actionable_layers_info.append(
                     {
                         "name": collection_obj.name,
@@ -972,6 +999,9 @@ def geocode_using_overpass_to_geostate(
                         "count": len(features),
                         "id": collection_obj.id,
                         "data_source_id": "geocodeOverpassCollection",
+                        "geometry_label": props.get("geometry_label", collection_type.lower()),
+                        "geometry_hint": props.get("geometry_hint", ""),
+                        "sample_names": props.get("sample_names", []),
                     }
                 )
 
@@ -1127,7 +1157,12 @@ def _build_overpass_response_message(
     layers_info: List[Dict[str, Any]],
     location_display: str,
 ) -> str:
-    """Build the response message for the LLM."""
+    """Build the response message for the LLM.
+
+    Produces a structured message that helps the agent present results
+    as clear, user-friendly choices with plain-language descriptions
+    instead of GIS jargon.
+    """
     if not layers_info:
         return (
             f"Found {amenity_display} {search_mode}, "
@@ -1144,27 +1179,59 @@ def _build_overpass_response_message(
             f"LIMIT_INFO: The query returned the maximum allowed number of "
             f"features ({max_results}). If you need more results, you can ask "
             "me to increase this limit. However, please be aware that a very "
-            "large number of features can significantly degrade map performance. "
+            "large number of features can significantly degrade map "
+            "performance. "
         )
 
     layer_details = json.dumps(layers_info)
-    example_name = layers_info[0].get("name", "Unknown Layer") if layers_info else ""
+
+    # Build geometry choice descriptions for the agent
+    choice_descriptions = []
+    for layer in layers_info:
+        label = layer.get("geometry_label", layer.get("type", "").lower())
+        hint = layer.get("geometry_hint", "")
+        count = layer.get("count", 0)
+        samples = layer.get("sample_names", [])
+        name = layer.get("name", "Unknown")
+
+        choice_desc = f"- '{name}': {count} {label}"
+        if hint:
+            choice_desc += f" ({hint})"
+        if samples:
+            sample_str = ", ".join(samples[:3])
+            if len(samples) > 3:
+                sample_str += ", ..."
+            choice_desc += f". Examples: {sample_str}"
+        choice_descriptions.append(choice_desc)
+
+    choices_text = "\n".join(choice_descriptions)
 
     guidance = (
-        "Call 'set_result_list' to make these layers available for the user to select. "
-        f"In your textual response to the user, mention the type of amenities and "
-        f"location searched (e.g., '{amenity_display}' near '{location_display}'). "
-        f"You can cite an example layer name like '{example_name}'. "
-        "State that the found layers are now listed and can be selected by the user "
-        "to be added to the map. "
-        "Ensure your response clearly indicates the user needs to take an action "
-        "to add them to the map. "
-        "Do NOT state or imply that the layers have already been added to the map. "
-        "Do NOT include direct file paths, sandbox links, or any other internal "
-        "storage paths in your textual response or as Markdown links."
+        "RESPONSE INSTRUCTIONS:\n"
+        "1. Tell the user what you searched for and where: "
+        f"'{amenity_display}' {search_mode}.\n"
+        "2. Present the available layers as CHOICES using plain language. "
+        "Do NOT use GIS jargon like 'Points', 'Lines', 'Polygons', "
+        "'LineString', 'GeoJSON'. Instead use the friendly labels from "
+        "the layer details (e.g., 'locations', 'buildings', "
+        "'road network', 'boundaries').\n"
+        "3. Briefly explain what each option shows so the user can make "
+        "an informed choice (use the geometry_hint from the layer "
+        "details).\n"
+        "4. If sample feature names are available, mention a few "
+        "examples.\n"
+        "5. Offer to add all layers if the user wants a complete "
+        "picture.\n"
+        "6. State that the user can select which layers to add to the "
+        "map.\n"
+        "7. Do NOT state or imply layers have already been added to the "
+        "map.\n"
+        "8. Do NOT include file paths, sandbox links, or internal "
+        "storage paths.\n"
+        f"\nAvailable choices:\n{choices_text}\n"
     )
 
-    msg += f"Actionable layer details: {layer_details}. User response guidance: {guidance}"
+    msg += f"Actionable layer details: {layer_details}. " f"User response guidance: {guidance}"
     return msg
 
 
