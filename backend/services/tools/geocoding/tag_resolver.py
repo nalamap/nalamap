@@ -86,10 +86,16 @@ class SemanticTagResolver:
             return None
 
         try:
-            # Stage 1: Vector similarity search
-            candidates = self._vector_search(
+            # Stage 1a: Fuzzy matching (sub-ms, catches typos and lexical near-matches)
+            fuzzy_candidates = self._fuzzy_search(user_intent)
+
+            # Stage 1b: Vector similarity search (semantic)
+            vector_candidates = self._vector_search(
                 user_intent, max_candidates, min_similarity, min_tag_count
             )
+
+            # Stage 1c: Merge and deduplicate
+            candidates = self._merge_candidates(fuzzy_candidates, vector_candidates)
 
             if not candidates:
                 return TagResolution(
@@ -149,6 +155,83 @@ class SemanticTagResolver:
             for r in raw_results
             if r.get("score", 0.0) >= min_similarity
         ]
+
+    def _fuzzy_search(
+        self, query: str, limit: int = 10, min_score: float = 70.0
+    ) -> List[TagCandidate]:
+        """Search for tags using fuzzy string matching (RapidFuzz).
+
+        Catches typos and lexical near-matches. Complements vector search
+        which handles semantic similarity.
+
+        Uses RapidFuzz WRatio scorer (weighted ratio) which handles:
+        - Partial matches ("restaurant" matches "amenity=restaurant")
+        - Reordered tokens ("bus stop" matches "highway=bus_stop")
+        - Typos ("resturant" matches "amenity=restaurant")
+
+        Returns empty list if rapidfuzz is not installed (graceful degradation).
+        """
+        try:
+            from rapidfuzz import fuzz, process
+        except ImportError:
+            logger.debug("rapidfuzz not installed, skipping fuzzy matching")
+            return []
+
+        store = self._get_store()
+        all_labels = store.get_all_tag_labels()  # ["amenity=restaurant", ...]
+
+        if not all_labels:
+            return []
+
+        matches = process.extract(
+            query,
+            all_labels,
+            scorer=fuzz.WRatio,
+            limit=limit,
+            score_cutoff=min_score,
+        )
+
+        candidates = []
+        for tag_str, score, _ in matches:
+            key, value = tag_str.split("=", 1)
+            candidates.append(
+                TagCandidate(
+                    key=key,
+                    value=value,
+                    tag=tag_str,
+                    score=score / 100.0,  # Normalize to 0-1 range
+                    source="fuzzy",
+                )
+            )
+        return candidates
+
+    def _merge_candidates(
+        self, fuzzy: List[TagCandidate], vector: List[TagCandidate]
+    ) -> List[TagCandidate]:
+        """Merge fuzzy and vector candidates, deduplicating by tag string.
+
+        When a tag appears in both lists:
+        - Use the higher score
+        - Mark source as "both"
+
+        Sort by score descending.
+        """
+        by_tag: Dict[str, TagCandidate] = {}
+        for c in fuzzy:
+            by_tag[c.tag] = c
+
+        for c in vector:
+            if c.tag in by_tag:
+                existing = by_tag[c.tag]
+                if c.score > existing.score:
+                    c.source = "both"
+                    by_tag[c.tag] = c
+                else:
+                    existing.source = "both"
+            else:
+                by_tag[c.tag] = c
+
+        return sorted(by_tag.values(), key=lambda c: c.score, reverse=True)
 
     # ------------------------------------------------------------------
     # Stage 2: LLM filter
