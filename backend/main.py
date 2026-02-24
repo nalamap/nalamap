@@ -16,6 +16,7 @@ from api import (
     data_management,
     debug,
     file_streaming,
+    geocoding_settings,
     layers,
     mcp,
     maps,
@@ -140,6 +141,7 @@ app.include_router(data_management.router, prefix="/api")
 app.include_router(ai_style.router, prefix="/api")  # AI Style button functionality
 app.include_router(auto_styling.router, prefix="/api")  # Automatic styling
 app.include_router(settings.router, prefix="/api")
+app.include_router(geocoding_settings.router, prefix="/api")  # OSM tag embedding management
 app.include_router(file_streaming.router, prefix="/api")  # Streaming files
 app.include_router(mcp.router, prefix="/api")  # MCP server endpoint
 app.include_router(proxy.router, prefix="/api/proxy")  # CORS proxy for external data
