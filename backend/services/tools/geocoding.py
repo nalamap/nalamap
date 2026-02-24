@@ -16,6 +16,7 @@ from models.states import GeoDataAgentState
 from services.storage.file_management import store_file
 
 from .constants import AMENITY_MAPPING, OSM_GEOMETRY_PREFERENCES
+from .geocoding.tag_resolver import SemanticTagResolver
 from .overpass import (
     OverpassClient,
     OverpassLocation,
@@ -182,6 +183,9 @@ def _expand_tags_with_llm(user_intent: str) -> Optional[List[Dict[str, Any]]]:
 headers_nalamap = {
     "User-Agent": "NaLaMap, github.com/nalamap, next generation geospatial analysis using agents"
 }
+
+# Module-level semantic tag resolver (lazy-initialises on first use)
+_tag_resolver = SemanticTagResolver()
 
 
 def get_geometry_preferences(osm_key: str) -> Dict[str, Any]:
@@ -976,6 +980,8 @@ def geocode_using_overpass_to_geostate(
     osm_tag_kv = AMENITY_MAPPING.get(amenity_key_cleaned)
     is_raw_tag = False
     resolved_tags: Optional[List[Dict[str, Any]]] = None
+    resolution_method = "direct_match"
+    resolution_detail = "matched via static tag dictionary"
 
     if not osm_tag_kv:
         # Fallback 1: Try raw key=value format (e.g. "tourism=artwork")
@@ -983,16 +989,33 @@ def geocode_using_overpass_to_geostate(
         if raw_tag:
             osm_tag_kv = raw_tag
             is_raw_tag = True
+            resolution_method = "direct_match"
+            resolution_detail = "parsed as raw OSM tag"
             logger.info(f"Using raw OSM tag '{raw_tag}' (not in AMENITY_MAPPING)")
 
     if not osm_tag_kv:
-        # Fallback 2: LLM semantic tag expansion
-        expanded = _expand_tags_with_llm(amenity_key)
-        if expanded:
-            resolved_tags = expanded
-            primary = expanded[0]
+        # Fallback 2: Semantic tag resolver (vector store + optional LLM filter)
+        semantic_resolution = _tag_resolver.resolve(amenity_key)
+        if semantic_resolution is not None and semantic_resolution.tags:
+            resolved_tags = semantic_resolution.tags
+            primary = resolved_tags[0]
             osm_tag_kv = f"{primary['key']}={primary['value']}"
-            logger.info(f"Using LLM-expanded tags, primary: {osm_tag_kv}")
+            resolution_method = semantic_resolution.method
+            resolution_detail = semantic_resolution.detail
+            logger.info(
+                f"Semantic resolver resolved '{amenity_key}' to {len(resolved_tags)} tags, "
+                f"primary: {osm_tag_kv}"
+            )
+        else:
+            # Fallback 3: LLM semantic tag expansion (Phase A)
+            expanded = _expand_tags_with_llm(amenity_key)
+            if expanded:
+                resolved_tags = expanded
+                primary = expanded[0]
+                osm_tag_kv = f"{primary['key']}={primary['value']}"
+                resolution_method = "llm_expansion"  # noqa: F841 — used by F07
+                resolution_detail = "expanded via AI-assisted tag expansion"  # noqa: F841
+                logger.info(f"Using LLM-expanded tags, primary: {osm_tag_kv}")
 
     if not osm_tag_kv:
         # Fallback 3: Suggest similar known amenity keys
