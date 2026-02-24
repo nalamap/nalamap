@@ -780,6 +780,18 @@ def is_highway_query(osm_tag_key: str) -> bool:
     return osm_tag_key == "highway"
 
 
-def is_linear_feature_query(osm_tag_key: str) -> bool:
-    """Check if the query is for linear feature types (highway, railway, waterway, etc.)."""
-    return osm_tag_key in ("highway", "railway", "waterway", "aeroway", "power")
+def is_linear_feature_query(osm_tag_key: str, osm_tag_value: str = "*") -> bool:
+    """Check if the query is for linear feature types (highway, railway, waterway, etc.).
+
+    For aeroway, distinguishes between linear sub-features (runway, taxiway) and
+    point/area features (aerodrome, helipad, terminal, …) which should be queried
+    like amenities (nodes included) rather than like highways (ways only).
+    """
+    if osm_tag_key == "aeroway":
+        from services.tools.constants import AEROWAY_POINT_VALUES
+
+        # Wildcard or actual linear values → treat as linear
+        if osm_tag_value == "*":
+            return True
+        return osm_tag_value not in AEROWAY_POINT_VALUES
+    return osm_tag_key in ("highway", "railway", "waterway", "power")

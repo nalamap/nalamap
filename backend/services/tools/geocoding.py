@@ -236,7 +236,9 @@ def should_include_element_in_query(osm_key: str, osm_value: str, element_type: 
     return True
 
 
-def should_include_geojson_geometry(geojson_geometry_type: str, osm_key: str) -> bool:
+def should_include_geojson_geometry(
+    geojson_geometry_type: str, osm_key: str, osm_value: str = "*"
+) -> bool:
     """
     Determine if a GeoJSON geometry type should be included in results.
 
@@ -244,15 +246,24 @@ def should_include_geojson_geometry(geojson_geometry_type: str, osm_key: str) ->
     exclude Polygon geometries since these represent areas rather than the
     expected linear features.
 
+    For aeroway point features (aerodrome, helipad, …), Polygons are valid
+    because large airports are mapped as closed ways / relations.
+
     Args:
         geojson_geometry_type: GeoJSON geometry type ("Point", "LineString", "Polygon")
         osm_key: OSM tag key (e.g., "highway")
+        osm_value: OSM tag value (e.g., "aerodrome"); defaults to "*"
 
     Returns:
         True if geometry type should be included, False otherwise
     """
     linear_keys = {"highway", "railway", "waterway", "aeroway", "power"}
     if osm_key in linear_keys and geojson_geometry_type == "Polygon":
+        if osm_key == "aeroway":
+            from services.tools.constants import AEROWAY_POINT_VALUES
+
+            if osm_value in AEROWAY_POINT_VALUES:
+                return True  # Polygon boundaries are valid for aerodromes etc.
         return False
     return True
 
@@ -276,9 +287,18 @@ def should_include_element_in_results(
     element_type = element.get("type")
     element_tags = element.get("tags", {})
 
-    # Check if geometry type is excluded
+    # Check if geometry type is excluded — but skip exclusion for aeroway point features
+    # (e.g. aerodrome, helipad) which are stored as nodes in OSM, not ways.
     if element_type in prefs.get("exclude_geometries", []):
-        return False
+        if osm_key == "aeroway":
+            from services.tools.constants import AEROWAY_POINT_VALUES
+
+            if osm_value in AEROWAY_POINT_VALUES:
+                pass  # Allow node elements for point aeroway features
+            else:
+                return False
+        else:
+            return False
 
     # Check if specific tag value is excluded
     element_value = element_tags.get(osm_key)
@@ -1103,7 +1123,7 @@ def geocode_using_overpass_to_geostate(
         else:
             # Single-tag path: existing behaviour
             # Prioritize ways/relations for linear feature queries to reduce point noise
-            prioritize_ways = is_linear_feature_query(osm_query_key)
+            prioritize_ways = is_linear_feature_query(osm_query_key, osm_query_value)
             if prioritize_ways:
                 logger.info(f"{osm_query_key} query detected, prioritizing ways/relations")
             overpass_query = query_builder.build_amenity_query(
@@ -1216,7 +1236,9 @@ def geocode_using_overpass_to_geostate(
                         should_include_geojson_geometry(geom_type, t["key"]) for t in resolved_tags
                     )
                 else:
-                    geom_ok = should_include_geojson_geometry(geom_type, osm_query_key)
+                    geom_ok = should_include_geojson_geometry(
+                        geom_type, osm_query_key, osm_query_value
+                    )
                 if not geom_ok:
                     continue
 
@@ -1232,7 +1254,7 @@ def geocode_using_overpass_to_geostate(
     )
 
     # Filter out point noise for linear feature queries when lines/areas exist
-    if is_linear_feature_query(osm_query_key):
+    if is_linear_feature_query(osm_query_key, osm_query_value):
         point_features = converter.filter_point_noise(
             point_features, polygon_features, linestring_features
         )
