@@ -20,6 +20,14 @@ export interface ProcessingMetadata {
   wkt?: string; // Full WKT definition
   wkt_hash?: string; // Short hash for identification
   wkt_params?: Record<string, any>; // Parameter dictionary
+  // Geocoding query construction (optional, only populated for Overpass results)
+  query_intent?: string;
+  query_location?: string;
+  resolution_method?: string; // "direct_match"|"llm_expansion"|"semantic"|"fuzzy"
+  resolution_detail?: string;
+  osm_tags_used?: string[];
+  osm_tags_excluded?: { tag: string; reason: string }[];
+  overpass_query?: string;
 }
 
 export interface LayerStyle {

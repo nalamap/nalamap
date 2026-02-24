@@ -11,7 +11,7 @@ from langgraph.prebuilt import InjectedState
 from langgraph.types import Command
 from typing_extensions import Annotated
 
-from models.geodata import DataOrigin, DataType, GeoDataObject
+from models.geodata import DataOrigin, DataType, GeoDataObject, ProcessingMetadata
 from models.states import GeoDataAgentState
 from services.storage.file_management import store_file
 
@@ -1241,6 +1241,12 @@ def geocode_using_overpass_to_geostate(
     created_collections: List[GeoDataObject] = []
     actionable_layers_info = []
 
+    # Build the list of OSM tags actually used in the query
+    if resolved_tags:
+        osm_tags_used_list = [f"{t['key']}={t['value']}" for t in resolved_tags]
+    else:
+        osm_tags_used_list = [osm_tag_kv] if osm_tag_kv else []
+
     for features, collection_type in [
         (point_features, "Points"),
         (polygon_features, "Areas"),
@@ -1256,6 +1262,20 @@ def geocode_using_overpass_to_geostate(
                 location_name,
             )
             if collection_obj:
+                # Attach geocoding query transparency metadata
+                collection_obj.processing_metadata = ProcessingMetadata(
+                    operation="overpass_query",
+                    crs_used="EPSG:4326",
+                    crs_name="WGS 84",
+                    auto_selected=True,
+                    query_intent=amenity_key,
+                    query_location=location.display_name,
+                    resolution_method=resolution_method,
+                    resolution_detail=resolution_detail,
+                    osm_tags_used=osm_tags_used_list,
+                    osm_tags_excluded=[],
+                    overpass_query=overpass_query,
+                )
                 created_collections.append(collection_obj)
                 props = collection_obj.properties or {}
                 actionable_layers_info.append(
@@ -1305,6 +1325,8 @@ def geocode_using_overpass_to_geostate(
         max_results,
         actionable_layers_info,
         location.display_name,
+        resolution_method=resolution_method,
+        osm_tags_used=osm_tags_used_list,
     )
 
     return Command(
@@ -1423,6 +1445,8 @@ def _build_overpass_response_message(
     max_results: int,
     layers_info: List[Dict[str, Any]],
     location_display: str,
+    resolution_method: Optional[str] = None,
+    osm_tags_used: Optional[List[str]] = None,
 ) -> str:
     """Build the response message for the LLM.
 
@@ -1501,6 +1525,26 @@ def _build_overpass_response_message(
         "storage paths.\n"
         f"\nAvailable choices:\n{choices_text}\n"
     )
+
+    if resolution_method and resolution_method != "direct_match":
+        method_label = {
+            "llm_expansion": "AI-assisted tag expansion",
+            "semantic": "semantic search across the OSM tag vocabulary",
+            "fuzzy": "fuzzy matching",
+        }.get(resolution_method, "automatic resolution")
+
+        tags_summary = ", ".join(
+            (t.split("=")[1] if "=" in t else t) for t in (osm_tags_used or [])[:6]
+        )
+
+        construction_guidance = (
+            "\nQUERY CONSTRUCTION CONTEXT (share this with the user):\n"
+            f"- Resolution method: {method_label}\n"
+            f"- OSM tags used: {tags_summary}\n"
+            "- Offer to refine: suggest the user can narrow down "
+            "(e.g., 'only apartments') or expand the tag selection.\n"
+        )
+        guidance += construction_guidance
 
     msg += f"Actionable layer details: {layer_details}. " f"User response guidance: {guidance}"
     return msg
