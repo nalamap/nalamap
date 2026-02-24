@@ -241,6 +241,82 @@ function DetailsPopup({
         </div>
       )}
 
+      {/* Query Construction Section (for geocoding results) */}
+      {result.processing_metadata?.query_intent && (
+        <div className="pt-3 mt-3 border-t border-neutral-200 dark:border-neutral-600">
+          <h5 className="font-semibold text-neutral-700 dark:text-neutral-200 mb-2 text-xs">
+            Query Construction
+          </h5>
+
+          {/* Search intent */}
+          <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
+            <span className="text-xs font-semibold text-blue-800 dark:text-blue-300">
+              Search Intent
+            </span>
+            <p className="text-xs text-neutral-900 dark:text-neutral-100 mt-1">
+              &quot;{result.processing_metadata.query_intent}&quot;
+              {result.processing_metadata.query_location && (
+                <> in {result.processing_metadata.query_location}</>
+              )}
+            </p>
+          </div>
+
+          {/* Resolution method */}
+          {result.processing_metadata.resolution_detail && (
+            <div className="mb-2">
+              <span className="font-semibold text-neutral-700 dark:text-neutral-300 text-xs">
+                Resolution:
+              </span>
+              <p className="text-xs text-neutral-900 dark:text-neutral-100">
+                {result.processing_metadata.resolution_detail}
+              </p>
+            </div>
+          )}
+
+          {/* Tags used */}
+          {result.processing_metadata.osm_tags_used &&
+            result.processing_metadata.osm_tags_used.length > 0 && (
+              <div className="mb-2">
+                <span className="font-semibold text-neutral-700 dark:text-neutral-300 text-xs">
+                  OSM Tags ({result.processing_metadata.osm_tags_used.length}):
+                </span>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {result.processing_metadata.osm_tags_used.map((tag: string) => (
+                    <span
+                      key={tag}
+                      className="px-1.5 py-0.5 bg-neutral-100 dark:bg-neutral-700 rounded text-xs font-mono"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+          {/* Excluded tags (if any) */}
+          {result.processing_metadata.osm_tags_excluded &&
+            result.processing_metadata.osm_tags_excluded.length > 0 && (
+              <div className="mb-2">
+                <span className="font-semibold text-neutral-500 dark:text-neutral-400 text-xs">
+                  Excluded:
+                </span>
+                {result.processing_metadata.osm_tags_excluded.map(
+                  (e: { tag: string; reason: string }) => (
+                    <p key={e.tag} className="text-xs text-neutral-500 dark:text-neutral-400 italic">
+                      {e.tag} — {e.reason}
+                    </p>
+                  )
+                )}
+              </div>
+            )}
+
+          {/* Refinement hint */}
+          <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-2 italic">
+            Ask in the chat to refine this query
+          </p>
+        </div>
+      )}
+
       <button
         onClick={(e) => {
           e.stopPropagation();
