@@ -1023,7 +1023,7 @@ export default function LayerList({
             {/* Close button */}
             <button
               onClick={() => setActiveMetadataId(null)}
-              className="absolute top-2 right-2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
+              className="absolute top-2 right-2 text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
               aria-label="Close metadata"
             >
               <X size={16} />
@@ -1178,7 +1178,7 @@ export default function LayerList({
                           {layer.processing_metadata.osm_tags_used.map((tag: string) => (
                             <span
                               key={tag}
-                              className="px-1.5 py-0.5 bg-neutral-100 dark:bg-neutral-700 rounded text-xs font-mono"
+                              className="px-1.5 py-0.5 bg-neutral-200 dark:bg-neutral-700 text-neutral-800 dark:text-neutral-200 rounded text-xs font-mono"
                             >
                               {tag}
                             </span>
@@ -1191,12 +1191,12 @@ export default function LayerList({
                   {layer.processing_metadata.osm_tags_excluded &&
                     layer.processing_metadata.osm_tags_excluded.length > 0 && (
                       <div className="mb-2">
-                        <span className="font-semibold text-neutral-500 dark:text-neutral-400 text-xs">
+                        <span className="font-semibold text-neutral-700 dark:text-neutral-300 text-xs">
                           Excluded:
                         </span>
                         {layer.processing_metadata.osm_tags_excluded.map(
                           (e: { tag: string; reason: string }) => (
-                            <p key={e.tag} className="text-xs text-neutral-500 dark:text-neutral-400 italic">
+                            <p key={e.tag} className="text-xs text-neutral-600 dark:text-neutral-400 italic">
                               {e.tag} — {e.reason}
                             </p>
                           )
@@ -1205,7 +1205,7 @@ export default function LayerList({
                     )}
 
                   {/* Refinement hint */}
-                  <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-2 italic">
+                  <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-2 italic">
                     Ask in the chat to refine this query
                   </p>
                 </div>

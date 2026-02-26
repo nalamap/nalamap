@@ -964,7 +964,8 @@ def geocode_using_overpass_to_geostate(
     amenity_key: str,
     location_name: str,
     radius_meters: int = 10000,
-    max_results: int = 2500,
+    max_results: int = 5000,
+    max_tags: int = 10,
     timeout: int = 300,
     center_lat: Optional[float] = None,
     center_lon: Optional[float] = None,
@@ -987,7 +988,13 @@ def geocode_using_overpass_to_geostate(
             for features not covered by the built-in mapping.
         location_name: The location to search (e.g. "Paris", "London", "Germany").
         radius_meters: Search radius in meters (default: 10000).
-        max_results: Maximum number of results to return (default: 2500).
+        max_results: Maximum number of features to return (default: 5000). Increase
+            only if the user explicitly asks for more results, and warn them that
+            very large result sets may slow down the map.
+        max_tags: Maximum number of OSM tag combinations used to build the query
+            (default: 10). Higher values increase coverage for broad queries but
+            slow down the Overpass API search. Increase only if the user asks for
+            more complete results and a timeout is not already occurring.
         timeout: Timeout for API requests in seconds (default: 300).
         center_lat: Optional explicit latitude for center point search.
         center_lon: Optional explicit longitude for center point search.
@@ -1143,6 +1150,17 @@ def geocode_using_overpass_to_geostate(
         search_mode_description = _get_search_mode_description(location, radius_meters)
 
     # 3. Build and execute Overpass query
+    # Cap resolved_tags to prevent overly complex union queries that time out
+    tags_were_capped = resolved_tags is not None and len(resolved_tags) > max_tags
+    if tags_were_capped:
+        logger.info(
+            f"Capping resolved tags from {len(resolved_tags)} to {max_tags} "
+            f"to avoid Overpass query complexity timeout."
+        )
+        resolved_tags = resolved_tags[:max_tags]
+        primary = resolved_tags[0]
+        osm_tag_kv = f"{primary['key']}={primary['value']}"
+
     query_builder = OverpassQueryBuilder(timeout=timeout, max_results=max_results)
 
     try:
@@ -1380,6 +1398,8 @@ def geocode_using_overpass_to_geostate(
         location.display_name,
         resolution_method=resolution_method,
         osm_tags_used=osm_tags_used_list,
+        tags_were_capped=tags_were_capped,
+        max_tags=max_tags,
     )
 
     return Command(
@@ -1500,6 +1520,8 @@ def _build_overpass_response_message(
     location_display: str,
     resolution_method: Optional[str] = None,
     osm_tags_used: Optional[List[str]] = None,
+    tags_were_capped: bool = False,
+    max_tags: int = 10,
 ) -> str:
     """Build the response message for the LLM.
 
@@ -1525,6 +1547,15 @@ def _build_overpass_response_message(
             "me to increase this limit. However, please be aware that a very "
             "large number of features can significantly degrade map "
             "performance. "
+        )
+
+    if tags_were_capped:
+        msg += (
+            f"TAG_CAP_INFO: The semantic search returned more OSM tag combinations "
+            f"than the current limit of {max_tags}. Only the {max_tags} most relevant "
+            f"tags were queried. If you suspect results are incomplete, you can ask me "
+            f"to increase the tag limit (e.g. to 15 or 20), but be aware that more tags "
+            f"make the query slower and may cause a timeout for large areas. "
         )
 
     layer_details = json.dumps(layers_info)
