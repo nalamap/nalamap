@@ -39,6 +39,7 @@ export default function ToolSettingsComponent() {
   const categoryDisplayNames: { [key: string]: string } = {
     geocoding: "Geocoding",
     geoprocessing: "Geoprocessing",
+    ogcapi: "OGC API",
     attributes: "Attribute Operations",
     styling: "Styling",
     data_retrieval: "Data Retrieval",

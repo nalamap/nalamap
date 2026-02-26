@@ -36,6 +36,23 @@ class MCPServer(BaseModel):
     )
 
 
+class OGCAPIServer(BaseModel):
+    url: str = Field(..., description="OGC API server base URL")
+    name: Optional[str] = Field(None, description="Human-friendly name for this OGC API server")
+    description: Optional[str] = Field(
+        None, description="Optional description of datasets/processes on this server"
+    )
+    enabled: bool = Field(True, description="Enable or disable this OGC API server")
+    api_key: Optional[str] = Field(
+        None,
+        description="Optional API key for authentication (e.g., Bearer token)",
+    )
+    headers: Optional[Dict[str, str]] = Field(
+        None,
+        description="Additional HTTP headers for authentication",
+    )
+
+
 class SearchPortal(BaseModel):
     url: str = Field(..., description="Geodata portal URL")
     enabled: bool = Field(True, description="Enable or disable this portal")
@@ -157,6 +174,9 @@ class SettingsSnapshot(BaseModel):
     )
     mcp_servers: List[MCPServer] = Field(
         default_factory=list, description="Configured MCP (Model Context Protocol) servers"
+    )
+    ogcapi_servers: List[OGCAPIServer] = Field(
+        default_factory=list, description="Configured OGC API servers for geospatial workflows"
     )
     model_settings: ModelSettings = Field(..., description="Configuration for LLM model usage")
     tools: List[ToolConfig] = Field(..., description="Per-tool configuration overrides")

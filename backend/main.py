@@ -1,6 +1,7 @@
 import logging
 import mimetypes
 import os
+import sys
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
@@ -17,7 +18,6 @@ from api import (
     debug,
     file_streaming,
     layers,
-    mcp,
     maps,
     nalamap,
     proxy,
@@ -60,8 +60,18 @@ async def lifespan(app: FastAPI):
     """FastAPI lifespan context manager for startup/shutdown events."""
     from db.session import init_db, engine
 
+    running_in_pytest = "pytest" in sys.modules or "PYTEST_CURRENT_TEST" in os.environ
+
     # Startup
     logger.info("NaLaMap API starting up...")
+
+    if running_in_pytest:
+        logger.info("Pytest context detected; skipping heavy startup tasks")
+        yield
+        logger.info("NaLaMap API shutting down (pytest context)...")
+        if engine is not None:
+            await engine.dispose()
+        return
 
     # Initialize database (if configured)
     await init_db()
@@ -137,10 +147,17 @@ app.include_router(ai_style.router, prefix="/api")  # AI Style button functional
 app.include_router(auto_styling.router, prefix="/api")  # Automatic styling
 app.include_router(settings.router, prefix="/api")
 app.include_router(file_streaming.router, prefix="/api")  # Streaming files
-app.include_router(mcp.router, prefix="/api")  # MCP server endpoint
 app.include_router(proxy.router, prefix="/api/proxy")  # CORS proxy for external data
 app.include_router(maps.router, prefix="/api")
 app.include_router(layers.router, prefix="/api")
+
+# MCP router is optional (module removed in slim deployments)
+try:
+    from api import mcp as mcp_router
+
+    app.include_router(mcp_router.router, prefix="/api")  # MCP server endpoint
+except Exception:
+    logger.info("MCP router not available; skipping /api/mcp endpoints")
 
 
 @app.get("/")

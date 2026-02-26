@@ -26,6 +26,7 @@ export type ChatInterfaceState = {
   toolUpdates: ToolUpdate[];
   streamingMessage: string;
   isStreaming: boolean;
+  includeSelectedLayersInPrompt: boolean;
 
   // getters
   getInput: () => string;
@@ -36,6 +37,7 @@ export type ChatInterfaceState = {
   getToolUpdates: () => ToolUpdate[];
   getStreamingMessage: () => string;
   getIsStreaming: () => boolean;
+  getIncludeSelectedLayersInPrompt: () => boolean;
 
   // setters / mutators
   setInput: (input: string) => void;
@@ -64,6 +66,7 @@ export type ChatInterfaceState = {
   clearStreamingMessage: () => void;
   clearToolUpdates: () => void;
   setIsStreaming: (flag: boolean) => void;
+  setIncludeSelectedLayersInPrompt: (flag: boolean) => void;
 };
 
 export const useChatInterfaceStore = create<ChatInterfaceState>((set, get) => ({
@@ -78,6 +81,7 @@ export const useChatInterfaceStore = create<ChatInterfaceState>((set, get) => ({
   toolUpdates: [],
   streamingMessage: "",
   isStreaming: false,
+  includeSelectedLayersInPrompt: true,
 
   // getters
   getInput: () => get().input,
@@ -88,6 +92,7 @@ export const useChatInterfaceStore = create<ChatInterfaceState>((set, get) => ({
   getToolUpdates: () => get().toolUpdates,
   getStreamingMessage: () => get().streamingMessage,
   getIsStreaming: () => get().isStreaming,
+  getIncludeSelectedLayersInPrompt: () => get().includeSelectedLayersInPrompt,
 
   // mutators
   setInput: (input) => set({ input }),
@@ -144,6 +149,8 @@ export const useChatInterfaceStore = create<ChatInterfaceState>((set, get) => ({
   clearToolUpdates: () => set({ toolUpdates: [] }),
 
   setIsStreaming: (flag) => set({ isStreaming: flag }),
+  setIncludeSelectedLayersInPrompt: (flag) =>
+    set({ includeSelectedLayersInPrompt: flag }),
 }));
 
 // Expose store for testing in development/test environments

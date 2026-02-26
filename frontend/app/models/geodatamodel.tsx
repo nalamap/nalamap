@@ -99,6 +99,7 @@ export interface NaLaMapResponse {
   results_title?: string;
   geodata_results?: GeoDataObject[];
   geodata_layers?: GeoDataObject[];
+  ogcapi_job_results_urls?: string[];
   //global_geodata?: GeoDataObject[]
   options?: Record<string, unknown[]>;
 }

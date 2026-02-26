@@ -32,6 +32,9 @@ type LayerApiPayload = {
 
 const inferLayerType = (dataType?: string, dataLink?: string): string | undefined => {
   const link = (dataLink || "").toLowerCase();
+  if (/\/processes\/[^/]+\/jobs\/[^/]+\/results(?:[/?#]|$)/i.test(link)) {
+    return "GEOJSON";
+  }
   if (link.includes("service=wms") || link.includes("/wms")) {
     return "WMS";
   }
@@ -44,8 +47,8 @@ const inferLayerType = (dataType?: string, dataLink?: string): string | undefine
   if (link.includes("service=wcs") || link.includes("/wcs")) {
     return "WCS";
   }
-  if (link.endsWith(".geojson") || link.includes("application/json")) {
-    return "UPLOADED";
+  if (link.endsWith(".geojson") || link.includes("application/json") || link.includes("/json")) {
+    return "GEOJSON";
   }
   if (dataType) {
     return dataType.toUpperCase();
@@ -125,6 +128,13 @@ const extractOrder = (record: LayerApiRecord, fallback: number): number => {
 };
 
 const apiUrl = (path: string) => `${getApiBase()}${path}`;
+const LAYER_AUTH_BACKOFF_MS = 60_000;
+let layerApiBlockedUntil = 0;
+
+const isLayerApiBlocked = () => Date.now() < layerApiBlockedUntil;
+const blockLayerApiTemporarily = () => {
+  layerApiBlockedUntil = Date.now() + LAYER_AUTH_BACKOFF_MS;
+};
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -132,9 +142,14 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
     headers: { "Content-Type": "application/json" },
     ...options,
   });
+  if (res.status === 401) {
+    blockLayerApiTemporarily();
+    throw new Error("Request failed: 401");
+  }
   if (!res.ok) {
     throw new Error(`Request failed: ${res.status}`);
   }
+  layerApiBlockedUntil = 0;
   return (await res.json()) as T;
 }
 
@@ -147,6 +162,7 @@ type LayerStore = {
   removeLayer: (resource_id: string | number) => void;
   toggleLayerVisibility: (resource_id: string | number) => void;
   toggleLayerSelection: (resource_id: string | number) => void;
+  setSelectedLayerIds: (resource_ids: Array<string | number>) => void;
   resetLayers: () => void;
   selectLayerForSearch: (resource_id: string | number) => void;
   reorderLayers: (from: number, to: number) => void;
@@ -174,6 +190,7 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
     layerId: string | number,
     orderOverride?: number,
   ): Promise<string | null> => {
+    if (isLayerApiBlocked()) return null;
     const state = get();
     const layerIndex = state.layers.findIndex((layer) => layer.id === layerId);
     if (layerIndex === -1) return null;
@@ -225,11 +242,16 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
   };
 
   const persistLayerDelete = async (dbId: string) => {
+    if (isLayerApiBlocked()) return;
     try {
       const res = await fetch(apiUrl(`/layers/${dbId}`), {
         method: "DELETE",
         credentials: "include",
       });
+      if (res.status === 401) {
+        blockLayerApiTemporarily();
+        return;
+      }
       if (!res.ok && res.status !== 404) {
         throw new Error(`Delete failed: ${res.status}`);
       }
@@ -246,6 +268,7 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
   };
 
   const loadLayersFromBackend = async () => {
+    if (isLayerApiBlocked()) return;
     try {
       const records = await fetchJson<LayerApiRecord[]>(apiUrl("/layers/"));
       const withOrder = records.map((record, index) => ({
@@ -265,6 +288,7 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
   };
 
   const loadLayersForMap = async (mapId: string) => {
+    if (isLayerApiBlocked()) return;
     try {
       const records = await fetchJson<MapLayerApiRecord[]>(
         apiUrl(`/maps/${mapId}/layers`),
@@ -278,6 +302,7 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
   };
 
   const saveLayersToMap = async (mapId: string) => {
+    if (isLayerApiBlocked()) return;
     const state = get();
     const resolved = await Promise.all(
       state.layers.map((layer, index) => persistLayer(layer.id, index)),
@@ -357,6 +382,15 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
           l.id === resource_id ? { ...l, selected: !l.selected } : l,
         ),
       })),
+    setSelectedLayerIds: (resource_ids: Array<string | number>) => {
+      const selectedSet = new Set(resource_ids.map((id) => String(id)));
+      set((state: LayerStore) => ({
+        layers: state.layers.map((layer: GeoDataObject) => ({
+          ...layer,
+          selected: selectedSet.has(String(layer.id)),
+        })),
+      }));
+    },
     reorderLayers: (from: number, to: number) => {
       set((state: LayerStore) => {
         const layers = [...state.layers];

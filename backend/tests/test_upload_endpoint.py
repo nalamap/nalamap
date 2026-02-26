@@ -1,5 +1,6 @@
 import importlib
 import io
+import json
 import os
 import sys
 from pathlib import Path
@@ -129,3 +130,224 @@ def test_get_upload_meta_rejects_absolute_path(client):
 def test_get_upload_meta_rejects_hidden_segment(client):
     resp = client.get("/api/uploads/meta/nested/.hidden")
     assert resp.status_code == 400
+
+
+def test_register_geojson_collection_returns_collection_id(monkeypatch):
+    import api.data_management as data_management
+
+    monkeypatch.setattr(data_management.core_config, "USE_OGCAPI_STORAGE", True, raising=False)
+    monkeypatch.setattr(
+        data_management.core_config, "OGCAPI_BASE_URL", "http://ogcapi:8000/v1", raising=False
+    )
+    monkeypatch.setattr(data_management.core_config, "OGCAPI_TIMEOUT_SECONDS", 5, raising=False)
+
+    class MockResponse:
+        status_code = 200
+        text = ""
+
+        @staticmethod
+        def json():
+            return {"status": "ok", "collection_id": "points_simple_upload"}
+
+    def fake_post(url, data=None, files=None, timeout=None):
+        assert url.endswith("/uploads/vector")
+        assert data["new_collection_title"] == "points_simple"
+        assert "new_collection_id" in data
+        assert files["file"][0] == "points_simple.geojson"
+        return MockResponse()
+
+    monkeypatch.setattr(data_management.requests, "post", fake_post)
+
+    class UploadStub:
+        def __init__(self):
+            self.file = io.BytesIO(b'{"type":"FeatureCollection","features":[]}')
+
+    collection_id = data_management._register_geojson_collection(
+        UploadStub(), "points_simple.geojson"
+    )
+    assert collection_id == "points_simple_upload"
+
+
+def test_register_geojson_collection_flattens_nested_feature_properties(monkeypatch):
+    import api.data_management as data_management
+
+    monkeypatch.setattr(data_management.core_config, "USE_OGCAPI_STORAGE", True, raising=False)
+    monkeypatch.setattr(
+        data_management.core_config, "OGCAPI_BASE_URL", "http://ogcapi:8000/v1", raising=False
+    )
+    monkeypatch.setattr(data_management.core_config, "OGCAPI_TIMEOUT_SECONDS", 5, raising=False)
+
+    captured_payload = {}
+
+    class MockResponse:
+        status_code = 200
+        text = ""
+
+        @staticmethod
+        def json():
+            return {"status": "ok", "collection_id": "points_simple_upload"}
+
+    def fake_post(url, data=None, files=None, timeout=None):
+        upload_stream = files["file"][1]
+        upload_stream.seek(0)
+        captured_payload["geojson"] = json.loads(upload_stream.read())
+        return MockResponse()
+
+    monkeypatch.setattr(data_management.requests, "post", fake_post)
+
+    class UploadStub:
+        def __init__(self):
+            self.file = io.BytesIO(
+                b'{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Point","coordinates":[1,2]},"properties":{"properties":{"id":1,"name":"a"}}}]}'
+            )
+
+    collection_id = data_management._register_geojson_collection(
+        UploadStub(), "points_simple.geojson"
+    )
+    assert collection_id == "points_simple_upload"
+    feature_props = captured_payload["geojson"]["features"][0]["properties"]
+    assert feature_props == {"id": 1, "name": "a"}
+
+
+def test_register_geojson_collection_works_when_storage_flag_disabled(monkeypatch):
+    import api.data_management as data_management
+
+    monkeypatch.setattr(data_management.core_config, "USE_OGCAPI_STORAGE", False, raising=False)
+    monkeypatch.setattr(
+        data_management.core_config, "OGCAPI_BASE_URL", "http://ogcapi:8000/v1", raising=False
+    )
+    monkeypatch.setattr(data_management.core_config, "OGCAPI_TIMEOUT_SECONDS", 5, raising=False)
+
+    class MockResponse:
+        status_code = 200
+        text = ""
+
+        @staticmethod
+        def json():
+            return {"status": "ok", "collection_id": "points_simple_upload"}
+
+    monkeypatch.setattr(data_management.requests, "post", lambda *args, **kwargs: MockResponse())
+
+    class UploadStub:
+        def __init__(self):
+            self.file = io.BytesIO(b'{"type":"FeatureCollection","features":[]}')
+
+    collection_id = data_management._register_geojson_collection(
+        UploadStub(), "points_simple.geojson"
+    )
+    assert collection_id == "points_simple_upload"
+
+
+def test_collection_items_url_uses_file_url_host():
+    import api.data_management as data_management
+
+    file_url = "http://localhost:8081/v1/uploads/files/abc123_points_simple.geojson"
+    items_url = data_management._collection_items_url(file_url, "points_simple_upload")
+    assert items_url == "http://localhost:8081/v1/collections/points_simple_upload/items"
+
+
+def test_collection_items_url_rewrites_internal_ogc_host(monkeypatch):
+    import api.data_management as data_management
+
+    monkeypatch.setattr(data_management.core_config, "OGCAPI_BASE_URL", "http://localhost:8081/v1")
+    monkeypatch.setattr(
+        data_management.core_config, "OGCAPI_PUBLIC_BASE_URL", "http://localhost:8081/v1"
+    )
+    file_url = "http://ogcapi:8000/v1/uploads/files/abc123_points_simple.geojson"
+    items_url = data_management._collection_items_url(file_url, "points_simple_upload")
+    assert items_url == "http://localhost:8081/v1/collections/points_simple_upload/items"
+
+
+def test_collection_items_url_uses_public_base_url_when_runtime_is_internal(monkeypatch):
+    import api.data_management as data_management
+
+    monkeypatch.setattr(data_management.core_config, "OGCAPI_BASE_URL", "http://ogcapi:8000/v1")
+    monkeypatch.setattr(
+        data_management.core_config, "OGCAPI_PUBLIC_BASE_URL", "http://localhost:8081/v1"
+    )
+    file_url = "http://ogcapi:8000/v1/uploads/files/abc123_points_simple.geojson"
+    items_url = data_management._collection_items_url(file_url, "points_simple_upload")
+    assert items_url == "http://localhost:8081/v1/collections/points_simple_upload/items"
+
+
+def test_register_geojson_collection_remaps_localhost_in_container(monkeypatch):
+    import api.data_management as data_management
+
+    monkeypatch.setattr(data_management.core_config, "OGCAPI_BASE_URL", "http://localhost:8081/v1")
+    monkeypatch.setattr(data_management.core_config, "OGCAPI_TIMEOUT_SECONDS", 5, raising=False)
+    monkeypatch.setattr(data_management, "_is_container_runtime", lambda: True)
+
+    class MockResponse:
+        status_code = 200
+        text = ""
+
+        @staticmethod
+        def json():
+            return {"status": "ok", "collection_id": "points_simple_upload"}
+
+    def fake_post(url, data=None, files=None, timeout=None):
+        assert url == "http://ogcapi:8000/v1/uploads/vector"
+        return MockResponse()
+
+    monkeypatch.setattr(data_management.requests, "post", fake_post)
+
+    class UploadStub:
+        def __init__(self):
+            self.file = io.BytesIO(b'{"type":"FeatureCollection","features":[]}')
+
+    collection_id = data_management._register_geojson_collection(
+        UploadStub(), "points_simple.geojson"
+    )
+    assert collection_id == "points_simple_upload"
+
+
+def test_store_file_rewrites_internal_ogc_url_to_public(monkeypatch):
+    import services.storage.file_management as file_management
+
+    monkeypatch.setattr(file_management, "USE_OGCAPI_STORAGE", True)
+    monkeypatch.setattr(file_management, "OGCAPI_BASE_URL", "http://ogcapi:8000/v1")
+    monkeypatch.setattr(file_management, "OGCAPI_PUBLIC_BASE_URL", "http://localhost:8081/v1")
+    monkeypatch.setattr(file_management, "OGCAPI_TIMEOUT_SECONDS", 5)
+
+    class MockResponse:
+        status_code = 200
+        text = ""
+
+        @staticmethod
+        def json():
+            return {
+                "id": "abc123_points_simple.geojson",
+                "url": "http://ogcapi:8000/v1/uploads/files/abc123_points_simple.geojson",
+            }
+
+    monkeypatch.setattr(file_management.requests, "post", lambda *args, **kwargs: MockResponse())
+    url, file_id = file_management.store_file("points_simple.geojson", b'{"type":"FeatureCollection"}')
+    assert file_id == "abc123_points_simple.geojson"
+    assert url == "http://localhost:8081/v1/uploads/files/abc123_points_simple.geojson"
+
+
+def test_store_file_stream_rewrites_internal_ogc_url_to_public(monkeypatch):
+    import services.storage.file_management as file_management
+
+    monkeypatch.setattr(file_management, "USE_OGCAPI_STORAGE", True)
+    monkeypatch.setattr(file_management, "OGCAPI_BASE_URL", "http://ogcapi:8000/v1")
+    monkeypatch.setattr(file_management, "OGCAPI_PUBLIC_BASE_URL", "http://localhost:8081/v1")
+    monkeypatch.setattr(file_management, "OGCAPI_TIMEOUT_SECONDS", 5)
+
+    class MockResponse:
+        status_code = 200
+        text = ""
+
+        @staticmethod
+        def json():
+            return {
+                "id": "def456_points_simple.geojson",
+                "url": "http://ogcapi:8000/v1/uploads/files/def456_points_simple.geojson",
+            }
+
+    monkeypatch.setattr(file_management.requests, "post", lambda *args, **kwargs: MockResponse())
+    url, file_id = file_management.store_file_stream(
+        "points_simple.geojson", io.BytesIO(b'{"type":"FeatureCollection"}')
+    )
+    assert file_id == "def456_points_simple.geojson"
+    assert url == "http://localhost:8081/v1/uploads/files/def456_points_simple.geojson"

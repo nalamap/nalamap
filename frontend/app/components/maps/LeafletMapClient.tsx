@@ -149,6 +149,20 @@ function isExternalUrl(url: string): boolean {
 }
 
 /**
+ * Detect Docker-internal service hosts that are unreachable from the browser.
+ * These should always be fetched through the backend proxy.
+ */
+function isContainerInternalHostUrl(url: string): boolean {
+  try {
+    const targetUrl = new URL(url);
+    const host = (targetUrl.hostname || "").toLowerCase();
+    return host === "ogcapi" || host === "backend";
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Build a proxied URL for fetching external GeoJSON/WFS data through our backend.
  */
 function getProxiedUrl(originalUrl: string, srsName?: string): string {
@@ -178,6 +192,24 @@ async function fetchWithCorsProxy(
   options?: RequestInit,
 ): Promise<Response> {
   const isExternal = isExternalUrl(url);
+  const forceProxy = isExternal && isContainerInternalHostUrl(url);
+
+  // Docker-internal hostnames are not browser-reachable; proxy directly.
+  if (forceProxy) {
+    let srsName: string | undefined;
+    try {
+      const testU = new URL(url);
+      srsName = testU.searchParams.get("srsName") || undefined;
+    } catch {
+      /* ignore */
+    }
+    const proxiedUrl = getProxiedUrl(url, srsName);
+    return fetch(proxiedUrl, {
+      headers: {
+        Accept: "application/json, application/geo+json, */*;q=0.1",
+      },
+    });
+  }
 
   // First, try direct fetch
   try {
@@ -212,6 +244,26 @@ async function fetchWithCorsProxy(
     // Not a CORS error or not external, re-throw
     throw err;
   }
+}
+
+function isGeoJsonLikeLayer(layer: GeoDataObject): boolean {
+  const layerType = (layer.layer_type || "").toUpperCase();
+  const dataType = (layer.data_type || "").toUpperCase();
+  const link = (layer.data_link || "").toLowerCase();
+
+  if (layerType === "WFS" || layerType === "UPLOADED" || layerType === "GEOJSON") {
+    return true;
+  }
+  if (dataType === "GEOJSON" || dataType === "GEOJSONLAYER") {
+    return true;
+  }
+  if (link.includes("json")) {
+    return true;
+  }
+  if (/\/processes\/[^/]+\/jobs\/[^/]+\/results(?:[/?#]|$)/i.test(link)) {
+    return true;
+  }
+  return false;
 }
 
 
@@ -1737,11 +1789,7 @@ export default function LeafletMapComponent() {
                     attribution={layer.title}
                   />
                 );
-              } else if (
-                layer.layer_type?.toUpperCase() === "WFS" ||
-                layer.layer_type?.toUpperCase() === "UPLOADED" ||
-                layer.data_link.toLowerCase().includes("json")
-              ) {
+              } else if (isGeoJsonLikeLayer(layer)) {
                 // Create a stable style hash for the key to force re-render when style changes
                 const styleHash = layer.style
                   ? `${layer.style.stroke_color}-${layer.style.fill_color}-${layer.style.stroke_weight}-${layer.style.fill_opacity}-${layer.style.radius}-${layer.style.stroke_opacity}-${layer.style.stroke_dash_array}`

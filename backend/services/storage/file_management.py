@@ -4,6 +4,7 @@ import os
 import uuid
 from datetime import datetime, timedelta
 from typing import BinaryIO, Tuple
+from urllib.parse import urlparse, urlunparse
 
 import requests
 
@@ -14,6 +15,7 @@ from core.config import (
     BASE_URL,
     LOCAL_UPLOAD_DIR,
     OGCAPI_BASE_URL,
+    OGCAPI_PUBLIC_BASE_URL,
     OGCAPI_TIMEOUT_SECONDS,
     USE_AZURE,
     USE_OGCAPI_STORAGE,
@@ -22,6 +24,61 @@ from utility.string_methods import sanitize_filename
 
 # Minimum file size for compression (1MB)
 MIN_COMPRESS_SIZE = 1024 * 1024
+
+
+def _is_container_runtime() -> bool:
+    return os.path.exists("/.dockerenv")
+
+
+def _runtime_ogcapi_base_url() -> str:
+    base = (OGCAPI_BASE_URL or "").rstrip("/")
+    if not base:
+        return base
+    parsed = urlparse(base)
+    hostname = (parsed.hostname or "").lower()
+    if hostname not in {"localhost", "127.0.0.1", "::1"} or not _is_container_runtime():
+        return base
+    remapped = parsed._replace(
+        scheme=parsed.scheme or "http",
+        netloc="ogcapi:8000",
+    )
+    return urlunparse(remapped).rstrip("/")
+
+
+def _rewrite_ogcapi_url_to_public(url: str) -> str:
+    if not isinstance(url, str) or not url.strip():
+        return url
+    public_base = (OGCAPI_PUBLIC_BASE_URL or OGCAPI_BASE_URL or "").rstrip("/")
+    runtime_base = _runtime_ogcapi_base_url()
+    if not public_base:
+        return url
+
+    public_parsed = urlparse(public_base)
+    runtime_parsed = urlparse(runtime_base) if runtime_base else None
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"}:
+        return url
+
+    hostname = (parsed.hostname or "").lower()
+    runtime_hostname = (runtime_parsed.hostname or "").lower() if runtime_parsed else ""
+    if hostname not in {"ogcapi", runtime_hostname} and parsed.netloc != (
+        runtime_parsed.netloc if runtime_parsed else ""
+    ):
+        return url
+
+    new_path = parsed.path or ""
+    public_prefix = (public_parsed.path or "").rstrip("/")
+    if public_prefix and not new_path.startswith(public_prefix + "/") and new_path != public_prefix:
+        if not new_path.startswith("/"):
+            new_path = "/" + new_path
+        new_path = f"{public_prefix}{new_path}"
+
+    rewritten = parsed._replace(
+        scheme=public_parsed.scheme or parsed.scheme,
+        netloc=public_parsed.netloc or parsed.netloc,
+        path=new_path,
+    )
+    return urlunparse(rewritten)
 
 
 def _should_compress_for_azure(filename: str, size: int) -> bool:
@@ -103,9 +160,10 @@ def store_file(name: str, content: bytes) -> Tuple[str, str]:
     unique_name = f"{uuid.uuid4().hex}_{safe_name}"
 
     if USE_OGCAPI_STORAGE and OGCAPI_BASE_URL:
+        runtime_base_url = _runtime_ogcapi_base_url()
         files = {"file": (safe_name, io.BytesIO(content), "application/octet-stream")}
         resp = requests.post(
-            f"{OGCAPI_BASE_URL}/uploads/file",
+            f"{runtime_base_url}/uploads/file",
             files=files,
             timeout=OGCAPI_TIMEOUT_SECONDS,
         )
@@ -117,7 +175,8 @@ def store_file(name: str, content: bytes) -> Tuple[str, str]:
                 detail=f"OGC API upload failed: {resp.status_code} {resp.text}",
             )
         payload = resp.json()
-        return payload["url"], payload.get("id") or unique_name
+        public_url = _rewrite_ogcapi_url_to_public(payload["url"])
+        return public_url, payload.get("id") or unique_name
 
     if USE_AZURE:
         from azure.storage.blob import BlobServiceClient, ContentSettings
@@ -182,6 +241,7 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
     chunk_size = 1024 * 1024  # 1 MiB chunks
 
     if USE_OGCAPI_STORAGE and OGCAPI_BASE_URL:
+        runtime_base_url = _runtime_ogcapi_base_url()
 
         class SizeLimitedReader:
             def __init__(self, base_stream: BinaryIO, limit: int):
@@ -202,7 +262,7 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
         files = {"file": (safe_name, limiter, "application/octet-stream")}
         try:
             resp = requests.post(
-                f"{OGCAPI_BASE_URL}/uploads/file",
+                f"{runtime_base_url}/uploads/file",
                 files=files,
                 timeout=OGCAPI_TIMEOUT_SECONDS,
             )
@@ -228,7 +288,8 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
                 detail=f"OGC API upload failed: {resp.status_code} {resp.text}",
             )
         payload = resp.json()
-        return payload["url"], payload.get("id") or unique_name
+        public_url = _rewrite_ogcapi_url_to_public(payload["url"])
+        return public_url, payload.get("id") or unique_name
 
     if USE_AZURE:
         from azure.storage.blob import BlobServiceClient, ContentSettings

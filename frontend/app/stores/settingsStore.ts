@@ -16,6 +16,12 @@ export interface ExampleMCPServer {
   description: string;
 }
 
+export interface ExampleOGCAPIServer {
+  url: string;
+  name: string;
+  description: string;
+}
+
 export interface GeoServerBackend {
   url: string;
   name?: string;
@@ -27,6 +33,15 @@ export interface GeoServerBackend {
 }
 
 export interface MCPServer {
+  url: string;
+  name?: string;
+  description?: string;
+  enabled: boolean;
+  api_key?: string; // Optional API key for authentication
+  headers?: Record<string, string>; // Optional custom headers for auth
+}
+
+export interface OGCAPIServer {
   url: string;
   name?: string;
   description?: string;
@@ -122,6 +137,7 @@ export interface SettingsSnapshot {
   search_portals?: SearchPortal[]; // DEPRECATED: No longer used in the application
   geoserver_backends: GeoServerBackend[];
   mcp_servers?: MCPServer[]; // MCP server configuration
+  ogcapi_servers?: OGCAPIServer[]; // OGC API server configuration
   model_settings: ModelSettings;
   tools: ToolConfig[];
   tool_options: Record<string, ToolOption>;
@@ -140,8 +156,10 @@ export interface SettingsState extends SettingsSnapshot {
     tool_options: Record<string, ToolOption>;
     example_geoserver_backends: ExampleGeoServer[];
     example_mcp_servers: ExampleMCPServer[];
+    example_ogcapi_servers: ExampleOGCAPIServer[];
     preconfigured_geoserver_backends?: ExampleGeoServer[];
     preconfigured_mcp_servers?: ExampleMCPServer[];
+    preconfigured_ogcapi_servers?: ExampleOGCAPIServer[];
     model_options: Record<string, ModelOption[]>;
     color_settings: ColorSettings;
     session_id: string;
@@ -165,6 +183,13 @@ export interface SettingsState extends SettingsSnapshot {
   ) => void;
   removeMCPServer: (url: string) => void;
   toggleMCPServer: (url: string) => void;
+
+  // OGC API server actions
+  addOGCAPIServer: (
+    server: Omit<OGCAPIServer, "enabled"> & { enabled?: boolean },
+  ) => void;
+  removeOGCAPIServer: (url: string) => void;
+  toggleOGCAPIServer: (url: string) => void;
 
   // Model actions
   setModelProvider: (provider: string) => void;
@@ -197,6 +222,8 @@ export interface SettingsState extends SettingsSnapshot {
   setAvailableExampleGeoServers: (geoservers: ExampleGeoServer[]) => void;
   available_example_mcp_servers: ExampleMCPServer[];
   setAvailableExampleMCPServers: (servers: ExampleMCPServer[]) => void;
+  available_example_ogcapi_servers: ExampleOGCAPIServer[];
+  setAvailableExampleOGCAPIServers: (servers: ExampleOGCAPIServer[]) => void;
   available_model_providers: string[];
   setAvailableModelProviders: (providers: string[]) => void;
   available_model_names: string[];
@@ -273,6 +300,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       addToolConfig,
       setAvailableExampleGeoServers,
       setAvailableExampleMCPServers,
+      setAvailableExampleOGCAPIServers,
       setAvailableModelProviders,
       setModelProvider,
       setModelOptions,
@@ -284,6 +312,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       available_tools,
       available_example_geoservers,
       available_example_mcp_servers,
+      available_example_ogcapi_servers,
       model_options,
       color_settings,
       setSessionId,
@@ -330,8 +359,24 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       setAvailableExampleMCPServers(allMcpExamples);
     }
 
+    if (available_example_ogcapi_servers.length === 0) {
+      // Combine example and preconfigured OGC API servers for the dropdown
+      const allOgcApiExamples = [
+        ...(opts.preconfigured_ogcapi_servers || []),
+        ...opts.example_ogcapi_servers,
+      ];
+      setAvailableExampleOGCAPIServers(allOgcApiExamples);
+    }
+
     // Auto-add preconfigured geoserver backends (from deployment config)
-    const { geoserver_backends, addBackend, mcp_servers, addMCPServer } = get();
+    const {
+      geoserver_backends,
+      addBackend,
+      mcp_servers,
+      addMCPServer,
+      ogcapi_servers,
+      addOGCAPIServer,
+    } = get();
     if (opts.preconfigured_geoserver_backends && opts.preconfigured_geoserver_backends.length > 0) {
       for (const backend of opts.preconfigured_geoserver_backends) {
         // Only add if not already present
@@ -367,6 +412,23 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       }
     }
 
+    // Auto-add preconfigured OGC API servers (from deployment config)
+    if (opts.preconfigured_ogcapi_servers && opts.preconfigured_ogcapi_servers.length > 0) {
+      for (const server of opts.preconfigured_ogcapi_servers) {
+        // Only add if not already present
+        const exists = (ogcapi_servers || []).some((s) => s.url === server.url);
+        if (!exists) {
+          addOGCAPIServer({
+            url: server.url,
+            name: server.name,
+            description: server.description,
+            enabled: true, // Auto-enable preconfigured servers
+          });
+          Logger.log(`Auto-added preconfigured OGC API server: ${server.name}`);
+        }
+      }
+    }
+
     if (Object.keys(model_options).length === 0) {
       setModelOptions(opts.model_options);
       const providers = Object.keys(opts.model_options);
@@ -384,6 +446,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   search_portals: [],
   geoserver_backends: [],
   mcp_servers: [],
+  ogcapi_servers: [],
   model_settings: {
     model_provider: "",
     model_name: "",
@@ -411,6 +474,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   available_tools: [],
   available_example_geoservers: [],
   available_example_mcp_servers: [],
+  available_example_ogcapi_servers: [],
   available_model_providers: [],
   available_model_names: [],
 
@@ -515,6 +579,43 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       ),
     })),
 
+  // ogc api servers
+  addOGCAPIServer: (server) =>
+    set((state) => {
+      const existingIndex = (state.ogcapi_servers || []).findIndex(
+        (s) => s.url === server.url,
+      );
+      if (existingIndex >= 0) {
+        const next = [...(state.ogcapi_servers || [])];
+        const previous = next[existingIndex];
+        next[existingIndex] = {
+          ...previous,
+          ...server,
+          enabled: server.enabled ?? previous.enabled,
+        };
+        return { ogcapi_servers: next };
+      }
+      return {
+        ogcapi_servers: [
+          ...(state.ogcapi_servers || []),
+          {
+            ...server,
+            enabled: server.enabled ?? true,
+          },
+        ],
+      };
+    }),
+  removeOGCAPIServer: (url) =>
+    set((state) => ({
+      ogcapi_servers: (state.ogcapi_servers || []).filter((s) => s.url !== url),
+    })),
+  toggleOGCAPIServer: (url) =>
+    set((state) => ({
+      ogcapi_servers: (state.ogcapi_servers || []).map((s) =>
+        s.url === url ? { ...s, enabled: !s.enabled } : s,
+      ),
+    })),
+
   // model
   setModelProvider: (provider) =>
     set((state) => ({
@@ -610,6 +711,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ available_example_geoservers: geoservers }),
   setAvailableExampleMCPServers: (servers) =>
     set({ available_example_mcp_servers: servers }),
+  setAvailableExampleOGCAPIServers: (servers) =>
+    set({ available_example_ogcapi_servers: servers }),
   setAvailableModelProviders: (providers) =>
     set({ available_model_providers: providers }),
   setAvailableModelNames: (names) => set({ available_model_names: names }),
@@ -654,6 +757,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   getSettings: () => ({
     search_portals: get().search_portals || [],
     geoserver_backends: get().geoserver_backends,
+    mcp_servers: get().mcp_servers || [],
+    ogcapi_servers: get().ogcapi_servers || [],
     model_settings: get().model_settings,
     tools: get().tools,
     tool_options: get().tool_options,
@@ -667,6 +772,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const newState = {
         search_portals: settings.search_portals || [],
         geoserver_backends: settings.geoserver_backends,
+        mcp_servers: settings.mcp_servers || [],
+        ogcapi_servers: settings.ogcapi_servers || [],
         model_settings: settings.model_settings,
         tools: settings.tools,
         tool_options: settings.tool_options,

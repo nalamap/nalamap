@@ -105,7 +105,10 @@ export function ZoomToSelected() {
     } else if (
       layer.layer_type?.toUpperCase() === "WFS" ||
       layer.layer_type?.toUpperCase() === "UPLOADED" ||
-      layer.data_link.toLowerCase().includes("json")
+      layer.layer_type?.toUpperCase() === "GEOJSON" ||
+      layer.data_type?.toUpperCase() === "GEOJSON" ||
+      layer.data_link.toLowerCase().includes("json") ||
+      /\/processes\/[^/]+\/jobs\/[^/]+\/results(?:[/?#]|$)/i.test(layer.data_link)
     ) {
       // For GeoJSON layers, fetch the data to get the bounds
       Logger.log("Attempting to fetch GeoJSON data to get bounds");

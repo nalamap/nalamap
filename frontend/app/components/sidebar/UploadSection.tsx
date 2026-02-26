@@ -176,7 +176,11 @@ export default function UploadSection({
         // Compute SHA-256 locally before upload for integrity verification
         const localSha256 = await sha256OfFile(file);
 
-        const { url, id } = await new Promise<{ url: string; id: string }>(
+        const { url, id, ogc_collection_id } = await new Promise<{
+          url: string;
+          id: string;
+          ogc_collection_id?: string;
+        }>(
           (resolve, reject) => {
             const xhr = new XMLHttpRequest();
             xhrRef.current = xhr;
@@ -270,6 +274,7 @@ export default function UploadSection({
           data_origin: "uploaded",
           data_source: "user",
           layer_type: "UPLOADED",
+          properties: ogc_collection_id ? { ogc_collection_id } : {},
         };
 
         // Add to store
@@ -290,7 +295,7 @@ export default function UploadSection({
           // Set a funny styling message
           setFunnyMessage(getRandomMessage(FUNNY_STYLING_MESSAGES));
 
-          const styleResponse = await fetch(`${API_BASE_URL}/ai-style`, {
+          const styleResponse = await fetch(`${API_BASE_URL}/auto-style`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",

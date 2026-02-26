@@ -81,6 +81,34 @@ function normalizeSettings(raw: Record<string, any>): Record<string, any> {
   return out;
 }
 
+function buildQueryWithExplicitLayerRefs(
+  query: string,
+  selectedLayers: GeoDataObject[],
+  enabled: boolean,
+): string {
+  if (!enabled || selectedLayers.length === 0) {
+    return query;
+  }
+
+  const layerRefs = selectedLayers
+    .slice(0, 12)
+    .map((layer) => {
+      const title = layer.title || "";
+      const name = layer.name || "";
+      if (title || name) {
+        return { title, name };
+      }
+      return { id: layer.id };
+    });
+
+  if (layerRefs.length === 0) {
+    return query;
+  }
+
+  const refsJson = JSON.stringify({ layer_refs: layerRefs });
+  return `${query}\n\n[EXPLICIT_LAYER_REFS_JSON]${refsJson}[/EXPLICIT_LAYER_REFS_JSON]`;
+}
+
 export function useNaLaMapAgent(apiUrl: string) {
   const layerStore = useLayerStore();
   const chatInterfaceStore = useChatInterfaceStore();
@@ -103,6 +131,10 @@ export function useNaLaMapAgent(apiUrl: string) {
 
     chatInterfaceStore.setMessages([...chatInterfaceStore.messages, humanMsg]);
   };
+
+  const hasBackendLayers = (
+    layers: GeoDataObject[] | undefined,
+  ): layers is GeoDataObject[] => Array.isArray(layers) && layers.length > 0;
 
   async function queryNaLaMapAgent(
     endpoint: "chat" | "search" | "geocode" | "geoprocess" | "ai-style",
@@ -149,12 +181,21 @@ export function useNaLaMapAgent(apiUrl: string) {
         const selectedLayers = useLayerStore
           .getState()
           .layers.filter((l) => l.selected);
+        const currentLayers = useLayerStore.getState().layers;
+        const includeSelectedLayersInPrompt = useChatInterfaceStore
+          .getState()
+          .includeSelectedLayersInPrompt;
+        const queryForBackend = buildQueryWithExplicitLayerRefs(
+          chatInterfaceStore.input,
+          selectedLayers,
+          includeSelectedLayersInPrompt,
+        );
         appendHumanMessage(chatInterfaceStore.input);
         const payload: NaLaMapRequest = {
           messages: chatInterfaceStore.messages,
-          query: chatInterfaceStore.input,
+          query: queryForBackend,
           geodata_last_results: chatInterfaceStore.geoDataList,
-          geodata_layers: layerStore.layers,
+          geodata_layers: currentLayers,
           // global_geodata: layerStore.globalGeodata,
           options: settingsObj,
         };
@@ -175,7 +216,7 @@ export function useNaLaMapAgent(apiUrl: string) {
         const payload = {
           query: chatInterfaceStore.input,
           messages: chatInterfaceStore.messages,
-          geodata_layers: layerStore.layers,
+          geodata_layers: useLayerStore.getState().layers,
           geodata_last_results: chatInterfaceStore.geoDataList,
         };
         chatInterfaceStore.setInput("");
@@ -232,9 +273,6 @@ export function useNaLaMapAgent(apiUrl: string) {
 
       chatInterfaceStore.setGeoDataList(data.geodata_results);
       chatInterfaceStore.setMessages(data.messages);
-      if (data.geodata_layers)
-        layerStore.synchronizeLayersFromBackend(data.geodata_layers);
-
       // Check if this was a styling operation by looking for style_map_layers in messages
       const isStyleOperation = data.messages.some(
         (msg) =>
@@ -242,7 +280,7 @@ export function useNaLaMapAgent(apiUrl: string) {
           msg.content?.includes("Successfully applied styling"),
       );
 
-      if (data.geodata_layers) {
+      if (hasBackendLayers(data.geodata_layers)) {
         if (isStyleOperation) {
           // For styling operations, use updateLayersFromBackend to preserve existing layers
           Logger.log(
@@ -302,13 +340,22 @@ export function useNaLaMapAgent(apiUrl: string) {
       const selectedLayers = useLayerStore
         .getState()
         .layers.filter((l) => l.selected);
+      const currentLayers = useLayerStore.getState().layers;
+      const includeSelectedLayersInPrompt = useChatInterfaceStore
+        .getState()
+        .includeSelectedLayersInPrompt;
+      const queryForBackend = buildQueryWithExplicitLayerRefs(
+        chatInterfaceStore.input,
+        selectedLayers,
+        includeSelectedLayersInPrompt,
+      );
       appendHumanMessage(chatInterfaceStore.input);
 
       const payload: NaLaMapRequest = {
         messages: chatInterfaceStore.messages,
-        query: chatInterfaceStore.input,
+        query: queryForBackend,
         geodata_last_results: chatInterfaceStore.geoDataList,
-        geodata_layers: layerStore.layers,
+        geodata_layers: currentLayers,
         options: settingsObj, // Contains session_id for GeoServer layer lookup
       };
       
@@ -435,13 +482,54 @@ export function useNaLaMapAgent(apiUrl: string) {
                     return true;
                   });
 
-                Logger.log("Setting messages to:", messages);
+                const ogcapiUrls: string[] = Array.isArray(data.ogcapi_job_results_urls)
+                  ? Array.from(
+                      new Set(
+                        data.ogcapi_job_results_urls.filter(
+                          (value: any) => typeof value === "string" && value.trim().length > 0,
+                        ),
+                      ),
+                    )
+                  : [];
+
+                const existingAiText = messages
+                  .filter((msg) => msg.type === "ai" && typeof msg.content === "string")
+                  .map((msg) => msg.content)
+                  .join("\n");
+                const geodataResultLinks = Array.isArray(data.geodata_results)
+                  ? new Set(
+                      data.geodata_results
+                        .map((item: any) => item?.data_link)
+                        .filter(
+                          (value: any) =>
+                            typeof value === "string" && value.trim().length > 0,
+                        ),
+                    )
+                  : new Set<string>();
+                const missingOgcapiUrls = ogcapiUrls.filter(
+                  (url) => !existingAiText.includes(url) && !geodataResultLinks.has(url),
+                );
+
+                const finalMessages = [...messages];
+                if (missingOgcapiUrls.length > 0) {
+                  const label =
+                    missingOgcapiUrls.length === 1
+                      ? "OGC API result endpoint:"
+                      : "OGC API result endpoints:";
+                  finalMessages.push({
+                    type: "ai",
+                    content: `${label}\n${missingOgcapiUrls.map((url) => `- ${url}`).join("\n")}`,
+                  });
+                }
+
+                Logger.log("Setting messages to:", finalMessages);
                 Logger.log("Setting geodata results to:", data.geodata_results);
+                Logger.log("OGC API result URLs:", ogcapiUrls);
 
                 chatInterfaceStore.setGeoDataList(data.geodata_results);
-                chatInterfaceStore.setMessages(messages);
+                chatInterfaceStore.setMessages(finalMessages);
 
-                if (data.geodata_layers) {
+                if (hasBackendLayers(data.geodata_layers)) {
                   layerStore.synchronizeLayersFromBackend(data.geodata_layers);
                 }
 

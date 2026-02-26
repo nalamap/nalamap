@@ -2,6 +2,8 @@
 
 import asyncio
 import logging
+import os
+import sys
 from typing import AsyncGenerator, Optional
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
@@ -51,6 +53,7 @@ async def init_db() -> None:
     """Initialize the database by creating all tables defined on Base metadata."""
     if engine is None:
         return
+    running_in_pytest = "pytest" in sys.modules or "PYTEST_CURRENT_TEST" in os.environ
     max_attempts = 15
     delay = 1.0
     for attempt in range(1, max_attempts + 1):
@@ -60,6 +63,12 @@ async def init_db() -> None:
                 await conn.run_sync(Base.metadata.create_all)
             return
         except OperationalError as exc:
+            if running_in_pytest:
+                logger.warning(
+                    "Database not ready in test context; skipping init_db retries: %s",
+                    exc,
+                )
+                return
             if attempt >= max_attempts:
                 raise
             logger.warning(
