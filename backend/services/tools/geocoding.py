@@ -1015,6 +1015,13 @@ def geocode_using_overpass_to_geostate(
 
     if not osm_tag_kv:
         # Fallback 2: Semantic tag resolver (vector store + optional LLM filter)
+        # Threshold: if the semantic resolver returns fewer than this many tags, the result
+        # is considered "thin" (typically caused by the hashing embedding model returning no
+        # vector matches, leaving only fuzzy-matched candidates that miss semantic subtypes
+        # such as building=detached for "residential buildings"). In that case Stage 3 is
+        # supplemented with the LLM expansion from Stage 4 to fill the coverage gap.
+        _SEMANTIC_THIN_THRESHOLD = 5
+
         semantic_resolution = _tag_resolver.resolve(amenity_key)
         if semantic_resolution is not None and semantic_resolution.tags:
             resolved_tags = semantic_resolution.tags
@@ -1026,6 +1033,30 @@ def geocode_using_overpass_to_geostate(
                 f"Semantic resolver resolved '{amenity_key}' to {len(resolved_tags)} tags, "
                 f"primary: {osm_tag_kv}"
             )
+
+            # If the semantic result is thin, supplement with LLM expansion so broad
+            # queries ("houses where people live") don't miss subtypes (detached, terrace…)
+            if len(resolved_tags) < _SEMANTIC_THIN_THRESHOLD:
+                logger.info(
+                    f"Semantic result thin ({len(resolved_tags)} tags < {_SEMANTIC_THIN_THRESHOLD}), "
+                    f"supplementing with LLM expansion for '{amenity_key}'"
+                )
+                expanded = _expand_tags_with_llm(amenity_key)
+                if expanded:
+                    existing = {f"{t['key']}={t['value']}" for t in resolved_tags}
+                    added = 0
+                    for tag in expanded:
+                        tag_str = f"{tag['key']}={tag['value']}"
+                        if tag_str not in existing:
+                            resolved_tags.append(tag)
+                            existing.add(tag_str)
+                            added += 1
+                    if added:
+                        resolution_detail = semantic_resolution.detail + " + LLM supplemented"
+                        logger.info(
+                            f"Supplemented semantic result with {added} LLM tags, "
+                            f"total: {len(resolved_tags)}"
+                        )
         else:
             # Fallback 3: LLM semantic tag expansion (Phase A)
             expanded = _expand_tags_with_llm(amenity_key)

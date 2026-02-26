@@ -263,8 +263,16 @@ class SemanticTagResolver:
             )
             prompt = (
                 f'You are an OpenStreetMap expert. The user wants to find: "{user_intent}"\n\n'
-                "From the following OSM tag candidates, select ONLY those that are directly "
-                "relevant to the user intent. Exclude tags for unrelated concepts.\n\n"
+                "From the following OSM tag candidates, select ALL tags that could represent "
+                "what the user is looking for — including all subtypes, variants, and related "
+                "categories. When the user asks for a broad concept (e.g. 'houses where people "
+                "live', 'roads', 'shops'), include ALL specific subtypes that fall under that "
+                "concept (e.g. detached, semidetached, terrace, apartments for houses; "
+                "residential, service, primary for roads).\n"
+                "Only exclude tags that are for a COMPLETELY DIFFERENT use case "
+                "(e.g. if the user asks for buildings, exclude landuse= or highway= tags; "
+                "if the user asks for roads, exclude building= tags).\n"
+                "When in doubt, INCLUDE the tag.\n\n"
                 f"Candidates:\n{candidate_lines}\n\n"
                 "Respond ONLY with valid JSON in this exact format:\n"
                 '{"selected": ["tag1=value1", "tag2=value2"], '
@@ -312,6 +320,12 @@ class SemanticTagResolver:
                 len(selected),
                 len(excluded),
             )
+            logger.debug("LLM filter selected: %s", [c.tag for c in selected])
+            if excluded:
+                logger.debug(
+                    "LLM filter excluded: %s",
+                    [(c.tag, reason) for c, reason in excluded],
+                )
             return selected, excluded
 
         except Exception as e:

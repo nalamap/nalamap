@@ -62,9 +62,20 @@ def _call_overpass(amenity_key="unknown_place", location_name="Paris"):
 
 @pytest.mark.unit
 def test_semantic_resolver_used_when_store_initialized():
-    """When vector store is populated, semantic resolver should be used and
-    _expand_tags_with_llm must NOT be called."""
-    mock_resolution = _make_resolution([{"key": "building", "value": "residential"}])
+    """When vector store is populated and returns enough tags (≥5), the semantic
+    resolver is the primary path and _expand_tags_with_llm must NOT be called.
+    (If the semantic result is thin — fewer than 5 tags — LLM supplementing fires;
+    that behaviour is tested separately in test_thin_semantic_result_is_supplemented.)"""
+    # Return 5 tags to simulate a "good" (non-thin) semantic result
+    mock_resolution = _make_resolution(
+        [
+            {"key": "building", "value": "residential"},
+            {"key": "building", "value": "apartments"},
+            {"key": "building", "value": "house"},
+            {"key": "building", "value": "detached"},
+            {"key": "building", "value": "terrace"},
+        ]
+    )
 
     with (
         patch(f"{_MOD}._tag_resolver") as mock_resolver,
@@ -207,11 +218,14 @@ def test_semantic_resolver_multi_tag_uses_build_multi_tag_query():
 
 @pytest.mark.unit
 def test_semantic_resolver_single_tag_uses_build_amenity_query():
-    """When semantic resolver returns exactly one tag, build_amenity_query is used."""
+    """When semantic resolver returns exactly one tag and LLM supplementing returns
+    nothing, build_amenity_query is used (single-tag path)."""
     single_resolution = _make_resolution([{"key": "amenity", "value": "cafe"}])
 
     with (
         patch(f"{_MOD}._tag_resolver") as mock_resolver,
+        # LLM supplement returns None → single tag from semantic is kept as-is
+        patch(f"{_MOD}._expand_tags_with_llm", return_value=None),
         patch(
             f"{_MOD}._geocode_location_for_overpass",
             return_value=(_MOCK_LOCATION, None),
@@ -254,3 +268,45 @@ def test_resolver_not_called_when_static_mapping_hit():
         _call_overpass("restaurant")
 
     mock_resolver.resolve.assert_not_called()
+
+
+@pytest.mark.unit
+def test_thin_semantic_result_is_supplemented_with_llm():
+    """When semantic resolver returns fewer than 5 tags (thin result), the code
+    calls _expand_tags_with_llm to supplement — combining both tag sets."""
+    thin_resolution = _make_resolution(
+        [
+            {"key": "building", "value": "residential"},
+            {"key": "building", "value": "house"},
+        ]
+    )
+    llm_extra = [
+        {"key": "building", "value": "detached"},
+        {"key": "building", "value": "semidetached_house"},
+        {"key": "building", "value": "terrace"},
+        {"key": "building", "value": "apartments"},
+    ]
+
+    with (
+        patch(f"{_MOD}._tag_resolver") as mock_resolver,
+        patch(f"{_MOD}._expand_tags_with_llm", return_value=llm_extra) as mock_llm,
+        patch(
+            f"{_MOD}._geocode_location_for_overpass",
+            return_value=(_MOCK_LOCATION, None),
+        ),
+        patch(
+            f"{_MOD}.OverpassClient.execute_query",
+            return_value=(_OVERPASS_EMPTY, None),
+        ),
+        patch(
+            f"{_MOD}.OverpassQueryBuilder.build_multi_tag_query",
+            return_value="[out:json];node;out;",
+        ) as mock_multi,
+    ):
+        mock_resolver.resolve.return_value = thin_resolution
+        _call_overpass("residential buildings")
+
+    # LLM supplement must have been called once
+    mock_llm.assert_called_once_with("residential buildings")
+    # Combined result has >1 tag → multi-tag query path
+    mock_multi.assert_called_once()
