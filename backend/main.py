@@ -2,6 +2,7 @@ import logging
 import mimetypes
 import os
 from contextlib import asynccontextmanager
+from logging.handlers import RotatingFileHandler
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -33,10 +34,23 @@ from services.startup_preloader import schedule_startup_preload
 # Configure logging with environment variable support
 # Set LOG_LEVEL=WARNING in production to reduce noise, DEBUG for verbose output
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+_log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 logging.basicConfig(
     level=getattr(logging, log_level, logging.INFO),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    format=_log_format,
 )
+
+# File handler: writes to backend/debug.log, rotates at 5 MB, keeps 2 backups
+_log_dir = os.path.dirname(os.path.abspath(__file__))
+_file_handler = RotatingFileHandler(
+    os.path.join(_log_dir, "debug.log"),
+    maxBytes=5 * 1024 * 1024,
+    backupCount=2,
+    encoding="utf-8",
+)
+_file_handler.setLevel(getattr(logging, log_level, logging.INFO))
+_file_handler.setFormatter(logging.Formatter(_log_format))
+logging.getLogger().addHandler(_file_handler)
 
 logger = logging.getLogger(__name__)
 

@@ -446,11 +446,59 @@ npm install --save-dev <package-name>
 
 ### Debugging Backend Issues
 
+#### Log File
+
+The backend writes all log output to **`backend/debug.log`** in addition to stdout.
+The file rotates automatically at 5 MB (2 backups kept), so it never grows unbounded.
+It is listed in `.gitignore` (`*.log`) and is never committed.
+
 ```bash
-# Run backend with debug logging
-cd backend
+# Watch logs live while the backend is running
+tail -f backend/debug.log
+
+# Show only the last 50 lines
+tail -50 backend/debug.log
+
+# Find all chat requests (includes first 120 chars of the user query)
+grep "\[CHAT\]" backend/debug.log
+
+# Find all agent tool activity (which tools were active for each request)
+grep "\[AGENT\]" backend/debug.log
+
+# Find errors and warnings only
+grep -E "ERROR|WARNING" backend/debug.log
+
+# Combine: see the full lifecycle of the last few requests
+grep -E "\[CHAT\]|\[AGENT\]|on_tool_start|on_tool_end|ERROR" backend/debug.log | tail -40
+```
+
+**Structured log markers** added to key locations:
+
+| Marker | Module | What it logs |
+|--------|--------|-------------|
+| `[CHAT]` | `api.nalamap` | User query (first 120 chars) at request start |
+| `[AGENT] tools_available=` | `services.single_agent` | Full list of configured tools before dynamic selection |
+| `[AGENT] tools_active=` | `services.single_agent` | Final tool list passed to the agent (after dynamic selection, if enabled) |
+| `[AGENT] dynamic tool selection:` | `services.single_agent` | Number selected and their names, when dynamic tool selection is on |
+
+#### Log Level
+
+Control verbosity via the `LOG_LEVEL` environment variable (applies to both console and file):
+
+```bash
+# Default — INFO and above
+poetry run python main.py
+
+# Verbose — includes LangGraph state transitions and agent internals
 LOG_LEVEL=DEBUG poetry run python main.py
 
+# Quiet — warnings and errors only (useful in production)
+LOG_LEVEL=WARNING poetry run python main.py
+```
+
+#### Other debug commands
+
+```bash
 # Run single test with detailed output
 poetry run pytest tests/test_specific.py -v -s
 

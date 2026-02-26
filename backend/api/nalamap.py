@@ -195,6 +195,8 @@ async def _prepare_chat_context(
     from services.planner import create_execution_plan, build_plan_system_addendum
     from utility.performance_metrics import PerformanceCallbackHandler
 
+    logger.info(f"[CHAT] query={request.query[:120]!r}")
+
     # Normalize incoming messages and append user query
     messages: List[BaseMessage] = normalize_messages(request.messages)
     messages.append(HumanMessage(request.query))

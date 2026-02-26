@@ -320,6 +320,8 @@ async def create_geo_agent(
         else False
     )
 
+    logger.info(f"[AGENT] tools_available={sorted(tools_dict.keys())}")
+
     if enable_dynamic_tools and query:
         from services.tool_selector import create_tool_selector
 
@@ -358,9 +360,13 @@ async def create_geo_agent(
 
         # Select relevant tools
         tools: List[BaseTool] = await selector.select_tools(query, tools_dict)
-        logger.info(f"Dynamic tool selection: {len(tools)}/{len(tools_dict)} tools selected")
+        logger.info(
+            f"[AGENT] dynamic tool selection: {len(tools)}/{len(tools_dict)} selected="
+            f"{sorted(t.name for t in tools)}"
+        )
     else:
         tools: List[BaseTool] = list(tools_dict.values())
+        logger.info(f"[AGENT] tools_active={sorted(t.name for t in tools)}")
 
     # Load external MCP tools if configured
     if mcp_servers:
