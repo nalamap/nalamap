@@ -88,6 +88,7 @@ export interface ModelSettings {
   use_summarization?: boolean; // Optional: Enable automatic conversation summarization (default: false)
   // Intelligent CRS Selection (Projection Improvements)
   enable_smart_crs?: boolean; // Optional: Enable intelligent CRS selection for geoprocessing (default: true)
+  enable_planning?: boolean; // Optional: Enable multi-step execution planning (default: false)
 }
 
 export interface ColorScale {
@@ -183,6 +184,7 @@ export interface SettingsState extends SettingsSnapshot {
   setUseSummarization: (enabled: boolean) => void;
   // Intelligent CRS Selection (Projection Improvements)
   setEnableSmartCrs: (enabled: boolean) => void;
+  setEnablePlanning: (enabled: boolean) => void;
 
   // Tool config actions
   addToolConfig: (name: string) => void;
@@ -401,6 +403,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     use_summarization: false, // Default: disabled
     // Intelligent CRS Selection (Projection Improvements)
     enable_smart_crs: true, // Default: enabled for better geometric accuracy
+    enable_planning: false, // Default: disabled for cost savings
   },
   tools: [],
 
@@ -573,6 +576,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setEnableSmartCrs: (enabled: boolean) =>
     set((state) => ({
       model_settings: { ...state.model_settings, enable_smart_crs: enabled },
+    })),
+
+  // Multi-step Planning
+  setEnablePlanning: (enabled: boolean) =>
+    set((state) => ({
+      model_settings: { ...state.model_settings, enable_planning: enabled },
     })),
 
   // tools

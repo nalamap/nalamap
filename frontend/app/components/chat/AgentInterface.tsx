@@ -110,7 +110,7 @@ export default function AgentInterface() {
         />
 
         {/* Execution Plan - shows the agent's multi-step plan */}
-        {isStreaming && executionPlan && (
+        {executionPlan && (
           <div ref={agentActivityRef} className="scroll-mt-4">
             <PlanDisplay plan={executionPlan} />
           </div>

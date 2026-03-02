@@ -137,6 +137,15 @@ class ModelSettings(BaseModel):
             "to use legacy EPSG:4326 behavior for all operations."
         ),
     )
+    enable_planning: bool = Field(
+        False,
+        description=(
+            "Enable multi-step execution planning. When enabled, the agent "
+            "analyzes complex queries and creates a structured plan before "
+            "execution. The plan is streamed to the frontend for visibility "
+            "and helps the agent follow a logical sequence of steps."
+        ),
+    )
 
 
 class ToolConfig(BaseModel):

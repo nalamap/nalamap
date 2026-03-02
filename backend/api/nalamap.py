@@ -259,7 +259,7 @@ async def _prepare_chat_context(
     # Analyze the query to determine if it requires a multi-step plan.
     # If so, the plan is injected into the agent's prompt so it follows
     # the structured steps, and streamed to the frontend for visibility.
-    enable_planning = getattr(options.model_settings, "enable_planning", True)
+    enable_planning = getattr(options.model_settings, "enable_planning", False)
     execution_plan = None
 
     if enable_planning:
