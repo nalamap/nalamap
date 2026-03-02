@@ -131,11 +131,16 @@ class TestShouldIncludeElementInQuery:
         assert should_include_element_in_query("amenity", "*", "relation") is True
 
     def test_excluded_specific_value(self):
-        """Test that excluded specific values return False."""
-        # bus_stop is in exclude_values for highway
-        assert should_include_element_in_query("highway", "bus_stop", "node") is False
-        assert should_include_element_in_query("highway", "bus_stop", "way") is False
-        assert should_include_element_in_query("highway", "bus_stop", "relation") is False
+        """Test that specific excluded values are still queryable.
+
+        When a user explicitly queries highway=bus_stop, all element types
+        should be included. The exclude_values mechanism only applies to
+        wildcard queries (highway=*) to filter out geometry mismatches.
+        """
+        # Specific queries must include all element types
+        assert should_include_element_in_query("highway", "bus_stop", "node") is True
+        assert should_include_element_in_query("highway", "bus_stop", "way") is True
+        assert should_include_element_in_query("highway", "bus_stop", "relation") is True
 
 
 @pytest.mark.unit
@@ -298,8 +303,13 @@ class TestEdgeCases:
         assert prefs["exclude_values"] == set()
 
     def test_specific_value_not_wildcard(self):
-        """Test that specific values (not wildcard) work correctly."""
-        assert should_include_element_in_query("highway", "bus_stop", "way") is False
+        """Test that specific values (not wildcard) include all element types.
+
+        Even values in exclude_values should be queryable when explicitly
+        requested (non-wildcard). Only wildcard queries use exclude_values.
+        """
+        assert should_include_element_in_query("highway", "bus_stop", "way") is True
+        assert should_include_element_in_query("highway", "bus_stop", "node") is True
         assert should_include_element_in_query("highway", "motorway", "way") is True
 
     def test_missing_geometry_type(self):

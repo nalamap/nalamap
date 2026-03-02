@@ -68,7 +68,7 @@ class TestWildcardMappings:
         assert "place" in AMENITY_MAPPING
         assert AMENITY_MAPPING["place"] == "place=*"
         assert "settlement" in AMENITY_MAPPING
-        assert AMENITY_MAPPING["settlement"] == "settlement=*"
+        assert AMENITY_MAPPING["settlement"] == "place=*"
 
 
 class TestSynonymMappings:

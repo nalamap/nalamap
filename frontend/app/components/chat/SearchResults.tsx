@@ -355,7 +355,7 @@ export default function SearchResults({
     }
   }, [results]);
 
-  if (results.length === 0 || loading) {
+  if (results.length === 0) {
     return null;
   }
 

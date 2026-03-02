@@ -5,8 +5,6 @@ Tests for Phase 2 geocoding improvements:
 - Spatial extent description
 """
 
-import pytest
-
 from services.tools.geocoding import (
     VALID_OSM_KEYS,
     _find_similar_amenity_keys,
@@ -97,13 +95,7 @@ class TestSpatialExtentDescription:
     def test_small_area(self):
         """Test description for a very small area (< 1 km)."""
         # ~500m x ~500m area
-        bbox = (
-            "POLYGON((13.4 52.5,"
-            "13.4 52.5045,"
-            "13.406 52.5045,"
-            "13.406 52.5,"
-            "13.4 52.5))"
-        )
+        bbox = "POLYGON((13.4 52.5," "13.4 52.5045," "13.406 52.5045," "13.406 52.5," "13.4 52.5))"
         result = _describe_spatial_extent(bbox)
         assert result is not None
         assert "m across" in result
@@ -111,13 +103,7 @@ class TestSpatialExtentDescription:
     def test_medium_area(self):
         """Test description for a medium area (1-10 km)."""
         # ~5km x ~5km area
-        bbox = (
-            "POLYGON((13.3 52.45,"
-            "13.3 52.5,"
-            "13.38 52.5,"
-            "13.38 52.45,"
-            "13.3 52.45))"
-        )
+        bbox = "POLYGON((13.3 52.45," "13.3 52.5," "13.38 52.5," "13.38 52.45," "13.3 52.45))"
         result = _describe_spatial_extent(bbox)
         assert result is not None
         assert "km x" in result
@@ -125,13 +111,7 @@ class TestSpatialExtentDescription:
     def test_large_area(self):
         """Test description for a large area (> 10 km)."""
         # ~100km x ~100km area
-        bbox = (
-            "POLYGON((12.0 52.0,"
-            "12.0 53.0,"
-            "14.0 53.0,"
-            "14.0 52.0,"
-            "12.0 52.0))"
-        )
+        bbox = "POLYGON((12.0 52.0," "12.0 53.0," "14.0 53.0," "14.0 52.0," "12.0 52.0))"
         result = _describe_spatial_extent(bbox)
         assert result is not None
         assert "km x" in result

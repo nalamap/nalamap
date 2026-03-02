@@ -125,24 +125,28 @@ def _expand_tags_with_llm(user_intent: str) -> Optional[List[Dict[str, Any]]]:
     """
     Use a cheap LLM to expand a user's intent into a list of OSM key=value tags.
 
+    Uses the deployment's configured LLM provider (via LLM_PROVIDER env var)
+    instead of hardcoding a specific provider.
+
     Validates returned keys against VALID_OSM_KEYS and falls back to None on any error.
 
     Args:
-        user_intent: Natural-language description of what to search for (e.g. "residential buildings")
+        user_intent: Natural-language description of what to search for
+            (e.g. "residential buildings")
 
     Returns:
-        List of {"key": ..., "value": ...} dicts, or None if expansion failed/unavailable.
+        List of {"key": ..., "value": ...} dicts, or None if expansion
+        failed/unavailable.
     """
-    import os
+    from services.ai.llm_config import get_llm
 
-    from openai import OpenAI
-
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key or api_key == "sk-test-key-not-set":
+    try:
+        llm = get_llm(max_tokens=400)
+    except Exception as e:
+        logger.warning(f"LLM tag expansion unavailable: {e}")
         return None
 
     try:
-        client = OpenAI(api_key=api_key)
         prompt = (
             f'You are an OpenStreetMap expert. The user wants to find: "{user_intent}"\n\n'
             "List all relevant OSM key=value tags that match this intent. Include related subtypes "
@@ -150,15 +154,18 @@ def _expand_tags_with_llm(user_intent: str) -> Optional[List[Dict[str, Any]]]:
             "Exclude tags that are a completely different concept.\n\n"
             'Respond ONLY with valid JSON: {"tags": [{"key": "building", "value": "residential"}, ...]}'
         )
-        response = client.chat.completions.create(
-            model="gpt-4.1-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0,
-            max_tokens=400,
-            response_format={"type": "json_object"},
-        )
-        content = response.choices[0].message.content
-        data = json.loads(content)
+        response = llm.invoke(prompt)
+        content = response.content
+
+        # Try to extract JSON from the response
+        # Some models may wrap JSON in markdown code blocks
+        text = content.strip()
+        if text.startswith("```"):
+            # Remove markdown code block wrapper
+            lines = text.split("\n")
+            text = "\n".join(lines[1:-1]) if len(lines) > 2 else text
+
+        data = json.loads(text)
         raw_tags = data.get("tags", [])
 
         validated: List[Dict[str, Any]] = []
@@ -221,14 +228,16 @@ def should_include_element_in_query(osm_key: str, osm_value: str, element_type: 
     # If wildcard query and key has preferences, use them
     if osm_value == "*" and osm_key in OSM_GEOMETRY_PREFERENCES:
         prefs = get_geometry_preferences(osm_key)
-        return element_type in prefs["preferred_geometries"]
+        # For wildcard queries, also exclude element types whose values
+        # are mostly of a different geometry (e.g. bus_stop nodes under highway=*)
+        if element_type not in prefs["preferred_geometries"]:
+            return False
+        return True
 
-    # For specific values, check if excluded
-    prefs = get_geometry_preferences(osm_key)
-    if osm_value in prefs.get("exclude_values", set()):
-        return False
-
-    # Default: include all
+    # For specific (non-wildcard) values, always include all element types.
+    # The exclude_values mechanism is only for wildcard queries to skip
+    # value/geometry mismatches (e.g. highway=bus_stop as node under highway=*).
+    # When a user explicitly asks for e.g. highway=bus_stop, we must query it.
     return True
 
 
@@ -350,7 +359,7 @@ def geocode_using_nominatim(query: str, geojson: bool = False, maxRows: int = 3)
         else:
             return "No results found."
     else:
-        print(response.json())
+        logger.error("Nominatim API error: %s", response.json())
         return "Error querying the Nominatim API."
 
 
@@ -657,7 +666,7 @@ def geocode_using_nominatim_to_geostate(
         else:
             return {"message": "No results found."}
     else:
-        print(response.json())
+        logger.error("Nominatim API error: %s", response.json())
         return {"message": "Error querying the Nominatim API."}
 
 
