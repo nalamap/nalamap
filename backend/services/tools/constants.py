@@ -578,3 +578,96 @@ OSM_GEOMETRY_PREFERENCES = {
         "description": "Power lines are linear features, infrastructure is points",
     },
 }
+
+# User-friendly display labels for geometry types per OSM feature category.
+# Maps (osm_key, collection_type) to (display_label, description_hint).
+# collection_type is "Points", "Areas", or "Lines".
+# Falls back to generic labels when a specific key is not configured.
+GEOMETRY_DISPLAY_LABELS = {
+    # Amenities (hospitals, schools, restaurants, etc.)
+    ("amenity", "Points"): ("locations", "markers showing where each one is"),
+    ("amenity", "Areas"): ("buildings & grounds", "outlines of the actual buildings or grounds"),
+    ("amenity", "Lines"): ("connections", "linear features connecting amenities"),
+    # Leisure (parks, playgrounds, sports centres)
+    ("leisure", "Points"): ("locations", "markers showing where each one is"),
+    ("leisure", "Areas"): ("boundaries", "outlines showing the area and extent"),
+    ("leisure", "Lines"): ("paths", "linear features like tracks or trails"),
+    # Tourism (museums, hotels, attractions)
+    ("tourism", "Points"): ("locations", "markers showing where each one is"),
+    ("tourism", "Areas"): ("sites", "outlines of the grounds or premises"),
+    ("tourism", "Lines"): ("routes", "linear tourism features"),
+    # Shops
+    ("shop", "Points"): ("locations", "markers showing where each shop is"),
+    ("shop", "Areas"): ("buildings", "outlines of the shop buildings"),
+    ("shop", "Lines"): ("frontages", "linear shop features"),
+    # Highway / roads
+    ("highway", "Points"): ("infrastructure points", "point features like junctions"),
+    ("highway", "Areas"): ("road areas", "areas like roundabouts or pedestrian zones"),
+    ("highway", "Lines"): ("road network", "the actual road and path lines"),
+    # Railway
+    ("railway", "Points"): ("stations & stops", "point features like stations"),
+    ("railway", "Areas"): ("railway areas", "areas like station buildings or yards"),
+    ("railway", "Lines"): ("rail network", "the actual railway lines and tracks"),
+    # Waterway
+    ("waterway", "Points"): ("water features", "point features like weirs or locks"),
+    ("waterway", "Areas"): ("water surfaces", "areas like wide river sections or lakes"),
+    ("waterway", "Lines"): ("waterway paths", "river, stream, and canal lines"),
+    # Natural
+    ("natural", "Points"): ("natural features", "point features like peaks or springs"),
+    ("natural", "Areas"): ("natural areas", "areas like forests, lakes, or wetlands"),
+    ("natural", "Lines"): ("natural lines", "linear features like coastlines or ridges"),
+    # Building
+    ("building", "Points"): ("building locations", "markers for each building"),
+    ("building", "Areas"): ("building footprints", "outlines of the buildings"),
+    ("building", "Lines"): ("building outlines", "linear building features"),
+    # Boundary
+    ("boundary", "Points"): ("boundary markers", "point markers on boundaries"),
+    ("boundary", "Areas"): ("administrative boundaries", "outlines of administrative areas"),
+    ("boundary", "Lines"): ("boundary lines", "the actual boundary lines"),
+    # Military
+    ("military", "Points"): ("facility locations", "markers for military facilities"),
+    ("military", "Areas"): ("military zones", "outlines of military areas"),
+    ("military", "Lines"): ("military lines", "linear military features"),
+    # Aeroway
+    ("aeroway", "Points"): ("aviation features", "point features like gates"),
+    ("aeroway", "Areas"): ("aviation areas", "areas like terminals or aprons"),
+    ("aeroway", "Lines"): ("runways & taxiways", "linear aviation features"),
+    # Landuse
+    ("landuse", "Points"): ("land use points", "markers for specific land use"),
+    ("landuse", "Areas"): ("land use zones", "areas showing different land uses"),
+    ("landuse", "Lines"): ("land use boundaries", "linear land use features"),
+    # Power
+    ("power", "Points"): ("power infrastructure", "point features like towers"),
+    ("power", "Areas"): ("power facilities", "areas like substations"),
+    ("power", "Lines"): ("power lines", "the actual power line routes"),
+    # Place
+    ("place", "Points"): ("place markers", "markers for named places"),
+    ("place", "Areas"): ("place boundaries", "outlines of named places"),
+    ("place", "Lines"): ("place features", "linear place features"),
+}
+
+# Generic fallback labels when OSM key is not in GEOMETRY_DISPLAY_LABELS
+GEOMETRY_DISPLAY_LABELS_FALLBACK = {
+    "Points": ("locations", "markers showing where each one is"),
+    "Areas": ("boundaries & outlines", "outlines showing the area and extent"),
+    "Lines": ("routes & paths", "linear features like roads or rivers"),
+}
+
+
+def get_geometry_display_label(osm_key: str, collection_type: str) -> tuple:
+    """
+    Get user-friendly display label for a geometry type.
+
+    Args:
+        osm_key: OSM tag key (e.g., "amenity", "highway")
+        collection_type: Collection type ("Points", "Areas", "Lines")
+
+    Returns:
+        Tuple of (display_label, description_hint)
+    """
+    key = (osm_key, collection_type)
+    if key in GEOMETRY_DISPLAY_LABELS:
+        return GEOMETRY_DISPLAY_LABELS[key]
+    return GEOMETRY_DISPLAY_LABELS_FALLBACK.get(
+        collection_type, ("features", "geographic features")
+    )

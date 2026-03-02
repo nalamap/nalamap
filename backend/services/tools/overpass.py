@@ -13,6 +13,8 @@ Components:
 import hashlib
 import json
 import logging
+import re
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -20,6 +22,8 @@ import requests
 
 from models.geodata import DataOrigin, DataType, GeoDataObject
 from services.storage.file_management import store_file
+
+from .constants import get_geometry_display_label
 
 logger = logging.getLogger(__name__)
 
@@ -207,6 +211,70 @@ class OverpassQueryBuilder:
                 parts.append(f"  relation{tag_filter}{location_filter};")
             parts.append(");")
             parts.append(f"out geom {self.max_results};")
+
+        return "\n".join(parts)
+
+    def build_multi_tag_query(
+        self,
+        tags: List[Dict[str, str]],
+        location: OverpassLocation,
+        radius_meters: int = 10000,
+    ) -> str:
+        """
+        Build an Overpass QL query matching ANY of the given tags (OR semantics).
+
+        Groups tags by key and uses regex filters when multiple values share the same key
+        (e.g. building=residential|apartments|house). Cross-key tags use a union block.
+
+        Args:
+            tags: List of {"key": ..., "value": ...} dicts
+            location: OverpassLocation with geocoded data
+            radius_meters: Search radius for point-based queries
+
+        Returns:
+            Overpass QL query string
+        """
+        from services.tools.geocoding import should_include_element_in_query
+
+        parts = [f"[out:json][timeout:{self.timeout}];"]
+
+        if location.has_area:
+            overpass_area_id = location.osm_relation_id + 3600000000
+            parts.append(f"area({overpass_area_id})->.search_area;")
+            location_filter = "(area.search_area)"
+        elif location.has_bbox:
+            s, w, n, e = location.bbox
+            location_filter = f"({s},{w},{n},{e})"
+        elif location.has_point:
+            location_filter = f"(around:{radius_meters},{location.lat},{location.lon})"
+        else:
+            raise ValueError("Location must have area, bbox, or point coordinates")
+
+        # Group values by key for regex optimisation
+        by_key: Dict[str, List[str]] = defaultdict(list)
+        for tag in tags:
+            by_key[tag["key"]].append(tag["value"])
+
+        parts.append("(")
+        for key, values in by_key.items():
+            if len(values) == 1:
+                if values[0] == "*":
+                    tag_filter = f'["{key}"]'
+                else:
+                    tag_filter = f'["{key}"="{values[0]}"]'
+            else:
+                # Multiple values for same key → anchored regex OR
+                pattern = "|".join(re.escape(v) for v in values)
+                tag_filter = f'["{key}"~"^({pattern})$"]'
+
+            # Use the first value as representative for element-type preferences
+            ref_value = values[0]
+            for elem_type in ["node", "way", "relation"]:
+                if should_include_element_in_query(key, ref_value, elem_type):
+                    parts.append(f"  {elem_type}{tag_filter}{location_filter};")
+
+        parts.append(");")
+        parts.append(f"out geom {self.max_results};")
 
         return "\n".join(parts)
 
@@ -515,6 +583,9 @@ def create_feature_collection_geodata(
     """
     Create a GeoDataObject for a FeatureCollection of a specific geometry type.
 
+    Uses user-friendly geometry labels instead of technical terms (e.g.,
+    "Hospital locations" instead of "Hospitals (Points)").
+
     Args:
         features: List of GeoJSON Feature dictionaries
         collection_type: Type of collection ("Points", "Areas", "Lines")
@@ -554,11 +625,22 @@ def create_feature_collection_geodata(
     # Calculate bounding box
     bounding_box_str = _calculate_bbox_string(features)
 
-    collection_name = f"{amenity_display} ({collection_type}) near {location_display}"
+    # Get user-friendly geometry label
+    osm_key = osm_tag_kv.split("=", 1)[0] if "=" in osm_tag_kv else ""
+    geo_label, geo_hint = get_geometry_display_label(osm_key, collection_type)
+
+    # Build user-friendly collection name
+    collection_name = f"{amenity_display} {geo_label} in {location_display}"
     description = (
-        f"{len(features)} {amenity_display.lower()} ({collection_type.lower()}) "
-        f"found matching '{osm_tag_kv}' near {location_display}. Data from OpenStreetMap."
+        f"{len(features)} {amenity_display.lower()} {geo_label} ({geo_hint}) "
+        f"near {location_display}. Data from OpenStreetMap."
     )
+
+    # Extract sample feature names for preview
+    sample_names = _extract_sample_names(features, max_samples=5)
+
+    # Generate spatial extent description
+    spatial_extent = _describe_spatial_extent(bounding_box_str)
 
     return GeoDataObject(
         id=unique_id,
@@ -580,10 +662,71 @@ def create_feature_collection_geodata(
             "query_location": location_display,
             "query_osm_tag": osm_tag_kv,
             "geometry_type_collected": collection_type,
+            "geometry_label": geo_label,
+            "geometry_hint": geo_hint,
+            "sample_names": sample_names,
+            "spatial_extent": spatial_extent,
         },
         sha256=sha256_hex,
         size=size_bytes,
     )
+
+
+def _extract_sample_names(features: List[Dict[str, Any]], max_samples: int = 5) -> List[str]:
+    """Extract sample feature names from a list of GeoJSON features."""
+    names = []
+    for feature in features:
+        props = feature.get("properties", {})
+        name = props.get("name") or props.get("name:en") or props.get("alt_name")
+        if name and name not in names:
+            names.append(name)
+        if len(names) >= max_samples:
+            break
+    return names
+
+
+def _describe_spatial_extent(
+    bbox_str: Optional[str],
+) -> Optional[str]:
+    """
+    Generate a human-readable description of a bounding box extent.
+
+    Args:
+        bbox_str: WKT POLYGON string from _calculate_bbox_string
+
+    Returns:
+        A plain-language extent description, or None
+    """
+    if not bbox_str:
+        return None
+
+    try:
+        # Parse coordinates from WKT POLYGON
+        inner = bbox_str.replace("POLYGON((", "").replace("))", "")
+        coords = [c.strip().split() for c in inner.split(",")]
+        lons = [float(c[0]) for c in coords]
+        lats = [float(c[1]) for c in coords]
+
+        min_lon, max_lon = min(lons), max(lons)
+        min_lat, max_lat = min(lats), max(lats)
+
+        # Approximate distance in km (rough, using equirectangular)
+        import math
+
+        avg_lat = (min_lat + max_lat) / 2
+        lat_dist_km = (max_lat - min_lat) * 111.32
+        lon_dist_km = (max_lon - min_lon) * 111.32 * math.cos(math.radians(avg_lat))
+
+        if lat_dist_km < 1 and lon_dist_km < 1:
+            return (
+                f"covers a small area (about {max(lat_dist_km, lon_dist_km) * 1000:.0f} m across)"
+            )
+        elif lat_dist_km < 10 and lon_dist_km < 10:
+            return f"covers about {lon_dist_km:.1f} km x {lat_dist_km:.1f} km"
+        else:
+            return f"covers about {lon_dist_km:.0f} km x {lat_dist_km:.0f} km"
+    except (ValueError, IndexError):
+        return None
 
 
 def _calculate_bbox_string(features: List[Dict[str, Any]]) -> Optional[str]:
