@@ -5,7 +5,7 @@ NaLaMap is an open-source platform that helps users find and analyze geospatial 
 ## Features
 
 * Upload and display vector data on a map. 
-* Geocode Locations using OSM and GeoNames (e.g. hospitals, schools etc.).
+* Geocode Locations using OSM and GeoNames (e.g. hospitals, schools, roads, railways). Intelligent geometry filtering ensures queries return the correct feature types (e.g., road segments instead of bus stops). See [OSM Geometry Filtering Documentation](docs/geocoding-osm-geometry-filtering.md).
 * Find and integrate data from existing Open Data Portals or own databases.
 * Chat with AI-agent to retrieve information on data content and quality.
 * **Multi-Provider LLM Support**: Choose from OpenAI, Azure OpenAI, Google Gemini, Mistral AI, or DeepSeek.
@@ -15,11 +15,9 @@ NaLaMap is an open-source platform that helps users find and analyze geospatial 
 * Flexible Extension Possibilities of Toolbox e.g. for including document or web-search
 * **Color Customization**: Customize the application's color scheme to match corporate branding or personal preferences. See [Color Customization Guide](docs/color-customization.md).
 
-## Roadmap
 
-We use GitHub [Milestones](https://github.com/nalamap/nalamap/milestones) and a [Kanban board](https://github.com/orgs/nalamap/projects/1/) to collaborate on our Minimal Viable Product (MVP). We hope to realize this first major release (V.1.0.0) in February 2026. 
 
-Our next Milestone is V 0.3.0 is scheduled for the 10th of Junuary 2026. We will add the noew roadmap here as soon as it is available. 
+
 
 
 ## Versioning Strategy
@@ -262,7 +260,7 @@ npm test
 npx playwright test --ui
 ```
 
-> 📖 **For detailed testing guidelines**, see [AGENTS.md](AGENTS.md#testing-guidelines)  
+> 📖 **For detailed testing guidelines**, see [CONTRIBUTING.md](CONTRIBUTING.md#testing-guidelines)  
 > 📖 **For frontend test documentation**, see [frontend/tests/README.md](frontend/tests/README.md)
 
 **Note**: Some tests may require environment variables (e.g., `OPENAI_API_KEY`). Mock data is used where possible to avoid external dependencies.
@@ -284,8 +282,6 @@ npx playwright test --ui
 - Ensure Node.js 18+ is installed: `node --version`
 - Clear npm cache: `npm cache clean --force`
 - Delete node_modules and reinstall: `rm -rf node_modules && npm i`
-
-> **Note**: Additional README files are available in the `/frontend` directory with more specific instructions for each component.
 
 ## Security
 
@@ -312,11 +308,15 @@ NaLaMap has comprehensive documentation to help you get started and contribute:
 
 ### Core Documentation
 - **[README.md](README.md)** (this file) - Project overview and quick start guide
-- **[AGENTS.md](AGENTS.md)** - Development guidelines for AI agents and developers
-  - How to run components (backend, frontend, Docker)
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Main development guide
+  - Environment setup and running components
   - Testing guidelines (pytest, Playwright)
-  - Code quality & linting (flake8, black)
-  - Development workflow and best practices
+  - Code quality & linting
+  - Workflow and troubleshooting
+- **[AGENTS.md](AGENTS.md)** - Context for AI coding assistants
+  - Repository map and architecture context
+  - Agent-specific best practices
+  - Core directives for AI tools
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture and design
   - High-level architecture overview
   - Backend and frontend structure
@@ -326,7 +326,9 @@ NaLaMap has comprehensive documentation to help you get started and contribute:
 
 ### Additional Documentation
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** - How to contribute to the project
-- **[CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)** - Community guidelines
+- **[CHANGELOG.md](CHANGELOG.md)** - Version history
+- **[backend/tests/README.md](backend/tests/README.md)** - Backend testing guide
+- **[backend/services/tools/README.md](backend/services/tools/README.md)** - AI tools documentation
 - **[frontend/tests/README.md](frontend/tests/README.md)** - Frontend testing guide
 - **[docs/](docs/)** - Feature-specific documentation
   - Color customization
@@ -338,8 +340,8 @@ NaLaMap has comprehensive documentation to help you get started and contribute:
 
 We welcome contributions from the community! If you're interested in helping improve NaLaMap, please check out our documentation:
 
-- **[Contributing Guide](CONTRIBUTING.md)** - Guidelines for contributing
-- **[AGENTS.md](AGENTS.md)** - Development workflow and best practices for AI agents and developers
+- **[Contributing Guide](CONTRIBUTING.md)** - Guidelines for development and testing
+- **[AGENTS.md](AGENTS.md)** - Context for AI coding assistants
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture and component structure
 - **[Code of Conduct](CODE_OF_CONDUCT.md)** - Community guidelines
 
