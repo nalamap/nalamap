@@ -702,6 +702,40 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
     async def event_generator():
         """Generate SSE events from agent execution."""
         stream_id = "unknown"  # Initialize at function scope
+        pending_tools: List[Dict[str, Optional[str]]] = []
+
+        def _track_tool_start(tool_name: str, run_id: Optional[str]) -> None:
+            pending_tools.append({"tool": tool_name, "run_id": run_id})
+
+        def _track_tool_end(tool_name: str, run_id: Optional[str]) -> None:
+            # Prefer exact run_id matching when available; fallback to first same-name match.
+            if run_id:
+                for idx, item in enumerate(pending_tools):
+                    if item.get("run_id") == run_id:
+                        pending_tools.pop(idx)
+                        return
+
+            for idx, item in enumerate(pending_tools):
+                if item.get("tool") == tool_name:
+                    pending_tools.pop(idx)
+                    return
+
+        async def _emit_pending_tool_end_events(reason: str):
+            while pending_tools:
+                pending = pending_tools.pop(0)
+                tool_name = pending.get("tool") or "unknown_tool"
+                reason_text = str(reason)
+                ellipsis = "..." if len(reason_text) > 200 else ""
+                output_data = {
+                    "tool": tool_name,
+                    "output": {"error": reason_text},
+                    "output_preview": f"Tool error: {reason_text[:200]}{ellipsis}",
+                    "is_state_update": False,
+                    "output_type": "dict",
+                }
+                yield "event: tool_end\n"
+                yield f"data: {json.dumps(output_data)}\n\n"
+
         try:
             # Initialize performance tracking
             metrics = PerformanceMetrics()
@@ -758,6 +792,7 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                 if event_type == "on_tool_start":
                     tool_name = event_name
                     tool_input = event_data.get("input", {})
+                    _track_tool_start(tool_name=tool_name, run_id=event.get("run_id"))
                     # Make tool_input JSON serializable (may contain LangChain messages)
                     serializable_input = make_json_serializable(tool_input)
                     yield "event: tool_start\n"
@@ -766,6 +801,7 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
 
                 elif event_type == "on_tool_end":
                     tool_name = event_name
+                    _track_tool_end(tool_name=tool_name, run_id=event.get("run_id"))
                     tool_output = event_data.get("output", {})
                     # Make tool_output JSON serializable
                     serializable_output = make_json_serializable(tool_output)
@@ -807,6 +843,7 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
 
                 elif event_type == "on_tool_error":
                     tool_name = event_name
+                    _track_tool_end(tool_name=tool_name, run_id=event.get("run_id"))
                     tool_error = event_data.get("error", event_data)
                     serializable_error = make_json_serializable(tool_error)
                     error_text = str(serializable_error)
@@ -918,12 +955,20 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                         }
                         yield f"data: {json.dumps(result_data)}\n\n"
 
+            # Ensure every emitted tool_start has a corresponding tool_end.
+            async for chunk in _emit_pending_tool_end_events(
+                "Tool execution did not emit a completion event."
+            ):
+                yield chunk
+
             # Send done event
             yield "event: done\n"
             yield f"data: {json.dumps({'status': 'complete'})}\n\n"
 
         except openai.InternalServerError as e:
             logger.error(f"OpenAI Internal Server Error during streaming: {e}")
+            async for chunk in _emit_pending_tool_end_events(f"Streaming interrupted: {e}"):
+                yield chunk
             yield "event: error\n"
             yield f"data: {json.dumps({'error': 'model_error', 'message': str(e)})}\n\n"
             yield "event: done\n"
@@ -931,6 +976,8 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
 
         except openai.APIError as e:
             logger.error(f"OpenAI API Error during streaming: {e}")
+            async for chunk in _emit_pending_tool_end_events(f"Streaming interrupted: {e}"):
+                yield chunk
             yield "event: error\n"
             yield f"data: {json.dumps({'error': 'api_error', 'message': str(e)})}\n\n"
             yield "event: done\n"
@@ -938,6 +985,8 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
 
         except Exception as e:
             logger.exception(f"Unexpected error during streaming: {e}")
+            async for chunk in _emit_pending_tool_end_events(f"Streaming interrupted: {e}"):
+                yield chunk
             yield "event: error\n"
             yield f"data: {json.dumps({'error': 'unexpected_error', 'message': str(e)})}\n\n"
             yield "event: done\n"
