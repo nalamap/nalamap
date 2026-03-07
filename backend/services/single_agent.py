@@ -390,16 +390,16 @@ async def create_geo_agent(
         tools: List[BaseTool] = list(tools_dict.values())
 
     # Load external MCP tools if configured
-    #if mcp_servers:
+    # if mcp_servers:
     #    try:
     #        from services.mcp.integration import load_mcp_tools
-#
+    #
     #        for mcp_server in mcp_servers:
     #            try:
     #                server_url = mcp_server.url
     #                api_key = getattr(mcp_server, "api_key", None)
     #                headers = getattr(mcp_server, "headers", None)
-#
+    #
     #                logger.info(f"Loading tools from MCP server: {server_url}")
     #                mcp_tools = await load_mcp_tools(server_url, api_key=api_key, headers=headers)
     #                tools.extend(mcp_tools)

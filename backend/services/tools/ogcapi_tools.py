@@ -418,7 +418,9 @@ def _endpoint_url(server_cache: Dict[str, Any], path: str) -> str:
     return _join_url(base_root, effective_path)
 
 
-def _public_endpoint_url(server_cache: Dict[str, Any], server: OGCAPIServerRuntime, path: str) -> str:
+def _public_endpoint_url(
+    server_cache: Dict[str, Any], server: OGCAPIServerRuntime, path: str
+) -> str:
     prefix = server_cache.get("api_prefix", "") or ""
     configured_root = _strip_suffix_path(server.url, prefix or "")
     effective_path = f"{prefix.rstrip('/')}{path}" if prefix else path
@@ -427,7 +429,7 @@ def _public_endpoint_url(server_cache: Dict[str, Any], server: OGCAPIServerRunti
 
 def _manifest_process_ids(server_cache: Dict[str, Any]) -> List[str]:
     manifest = server_cache.get("manifest") or {}
-    items = ((manifest.get("capabilities") or {}).get("processes") or [])
+    items = (manifest.get("capabilities") or {}).get("processes") or []
     process_ids: List[str] = []
     seen: set[str] = set()
     for item in items:
@@ -515,7 +517,9 @@ def _collection_exists(
     return response.status_code < 400
 
 
-def _choose_collection_id(collections_payload: Any, requested_collection: Optional[str]) -> Optional[str]:
+def _choose_collection_id(
+    collections_payload: Any, requested_collection: Optional[str]
+) -> Optional[str]:
     collections = []
     if isinstance(collections_payload, dict):
         collections = collections_payload.get("collections") or []
@@ -581,7 +585,7 @@ def _parse_cql2_to_query_params(expression: str) -> Optional[Dict[str, str]]:
 
 
 def _build_attribute_params(
-    attribute_filter: Optional[Union[str, Dict[str, Any]]]
+    attribute_filter: Optional[Union[str, Dict[str, Any]]],
 ) -> Tuple[Optional[Dict[str, str]], Optional[str], List[str]]:
     if attribute_filter is None:
         return {}, None, []
@@ -1021,7 +1025,9 @@ def _resolve_state_layer_ref(
     if allow_fuzzy:
         fuzzy_ranked: List[Tuple[float, Dict[str, Any], List[str]]] = []
         for layer, aliases in layer_candidates:
-            best_alias_score = max((_alias_match_score(ref, alias) for alias in aliases), default=0.0)
+            best_alias_score = max(
+                (_alias_match_score(ref, alias) for alias in aliases), default=0.0
+            )
             if best_alias_score > 0:
                 fuzzy_ranked.append((best_alias_score, layer, aliases))
 
@@ -1438,9 +1444,7 @@ def build_ogcapi_tools(
             )
 
         manifest = server_cache.get("manifest", {})
-        process_count = len(
-            (manifest.get("capabilities", {}) or {}).get("processes", []) or []
-        )
+        process_count = len((manifest.get("capabilities", {}) or {}).get("processes", []) or [])
         payload = {
             "status": "ok",
             "server": target_server.url,
@@ -1551,7 +1555,9 @@ def build_ogcapi_tools(
                 request_context=request_context,
             )
 
-        queryables_url = _endpoint_url(server_cache, f"/collections/{resolved_collection}/queryables")
+        queryables_url = _endpoint_url(
+            server_cache, f"/collections/{resolved_collection}/queryables"
+        )
         queryables_response, queryables_payload = _request_json(
             "GET",
             queryables_url,
@@ -1571,9 +1577,11 @@ def build_ogcapi_tools(
                 detail=queryables_payload,
                 request_context=queryables_context,
             )
-        queryable_props = ((queryables_payload or {}).get("properties") or {}) if isinstance(
-            queryables_payload, dict
-        ) else {}
+        queryable_props = (
+            ((queryables_payload or {}).get("properties") or {})
+            if isinstance(queryables_payload, dict)
+            else {}
+        )
         queryable_keys = set(queryable_props.keys())
 
         attribute_params, parse_error, filter_fields = _build_attribute_params(attribute_filter)
@@ -1708,8 +1716,7 @@ def build_ogcapi_tools(
             payload["preview_truncated"] = len(features) > preview_limit
         elif output_mode == "ids":
             payload["ids"] = [
-                feature.get("id")
-                or (feature.get("properties") or {}).get("id")
+                feature.get("id") or (feature.get("properties") or {}).get("id")
                 for feature in features
             ]
         elif output_mode == "stats_only":
@@ -1849,10 +1856,12 @@ def build_ogcapi_tools(
                     resolved_ref_kinds[ref] = "feature_collection"
                 continue
 
-            state_value, state_input_key, available_aliases, state_data_link = _resolve_state_layer_ref(
-                state,
-                ref,
-                allow_fuzzy=allow_fuzzy_layer_ref,
+            state_value, state_input_key, available_aliases, state_data_link = (
+                _resolve_state_layer_ref(
+                    state,
+                    ref,
+                    allow_fuzzy=allow_fuzzy_layer_ref,
+                )
             )
             if state_value is not None and state_input_key:
                 if state_input_key == "collection_id" and isinstance(state_value, str):
@@ -1931,12 +1940,19 @@ def build_ogcapi_tools(
                     code="ambiguous_source_inputs",
                     message=(
                         f"Process '{resolved_process_id}' received multiple source inputs. "
-                        "Provide exactly one of collection_id, feature_collection, or feature_collection_path."
+                        """Provide exactly one of collection_id,
+                         feature_collection, or feature_collection_path."""
                     ),
                     recoverable=True,
                     retryable=False,
                     suggested_action="keep_exactly_one_source_input",
-                    detail={"provided_keys": [k for k in _SINGLE_SOURCE_INPUT_KEYS if working_inputs.get(k) is not None]},
+                    detail={
+                        "provided_keys": [
+                            k
+                            for k in _SINGLE_SOURCE_INPUT_KEYS
+                            if working_inputs.get(k) is not None
+                        ]
+                    },
                 )
 
             if not _has_single_source_input(working_inputs):
@@ -1945,9 +1961,7 @@ def build_ogcapi_tools(
                 )
                 if auto_key is None:
                     auto_key, auto_value, available_aliases = (
-                        _autobind_single_source_input_from_query(
-                            state, server_cache, target_server
-                        )
+                        _autobind_single_source_input_from_query(state, server_cache, target_server)
                     )
                 if auto_key and auto_value is not None:
                     working_inputs[auto_key] = auto_value
@@ -1982,8 +1996,8 @@ def build_ogcapi_tools(
             if isinstance(provided_collection_id, str) and provided_collection_id.strip():
                 candidate_collection_id = provided_collection_id.strip()
                 if not _collection_exists(server_cache, target_server, candidate_collection_id):
-                    auto_key, auto_value, available_aliases = _autobind_single_source_input_from_state(
-                        state, server_cache, target_server
+                    auto_key, auto_value, available_aliases = (
+                        _autobind_single_source_input_from_state(state, server_cache, target_server)
                     )
                     if auto_key and auto_value is not None:
                         working_inputs.pop("collection_id", None)
@@ -2007,7 +2021,8 @@ def build_ogcapi_tools(
                             "process_geodata",
                             tool_call_id,
                             code="collection_not_found",
-                            message=f"Collection '{candidate_collection_id}' was not found on the target OGC API server.",
+                            message=f"""Collection '{candidate_collection_id}' was not found
+                             on the target OGC API server.""",
                             recoverable=True,
                             retryable=False,
                             suggested_action="use_existing_collection_id_or_layer_ref",
@@ -2128,7 +2143,8 @@ def build_ogcapi_tools(
             working_inputs = normalized_inputs
 
         idempotency_key = hashlib.sha256(
-            f"{session_id}:{resolved_process_id}:{json.dumps(working_inputs, sort_keys=True, default=str)}".encode(
+            f"""{session_id}:{resolved_process_id}:
+            {json.dumps(working_inputs, sort_keys=True, default=str)}""".encode(
                 "utf-8"
             )
         ).hexdigest()[:32]

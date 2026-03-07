@@ -312,9 +312,9 @@ def _fallback_ogcapi_servers_from_env() -> List[OGCAPIServer]:
     if not core_config.USE_OGCAPI_STORAGE:
         return []
 
-    fallback_url = (
-        core_config.OGCAPI_PUBLIC_BASE_URL or core_config.OGCAPI_BASE_URL or ""
-    ).rstrip("/")
+    fallback_url = (core_config.OGCAPI_PUBLIC_BASE_URL or core_config.OGCAPI_BASE_URL or "").rstrip(
+        "/"
+    )
     if not fallback_url:
         return []
 
@@ -413,7 +413,9 @@ async def _prepare_chat_context(
     configured_ogcapi_servers = list(getattr(options, "ogcapi_servers", []) or [])
     ogcapi_servers = _resolve_enabled_ogcapi_servers(options)
     explicit_ogcapi_config = bool(configured_ogcapi_servers)
-    ogcapi_servers_arg = ogcapi_servers if ogcapi_servers else ([] if explicit_ogcapi_config else None)
+    ogcapi_servers_arg = (
+        ogcapi_servers if ogcapi_servers else ([] if explicit_ogcapi_config else None)
+    )
 
     single_agent, llm = await create_geo_agent(
         model_settings=options.model_settings,

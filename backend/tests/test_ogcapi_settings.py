@@ -152,8 +152,20 @@ def test_split_query_and_explicit_layer_refs():
     clean_query, refs = nalamap_api._split_query_and_explicit_layer_refs(
         (
             "buffer with 4km\n\n"
-            '[EXPLICIT_LAYER_REFS_JSON]{"layer_refs":[{"id":"layer-1","name":"points_simple.geojson","title":"Points"}]}'
-            "[/EXPLICIT_LAYER_REFS_JSON]"
+            """
+            [EXPLICIT_LAYER_REFS_JSON]
+            {
+                "layer_refs":
+                    [
+                        {
+                            "id":"layer-1",
+                            "name":"points_simple.geojson",
+                            "title":"Points"
+                        }
+                    ]
+            }
+            [/EXPLICIT_LAYER_REFS_JSON]
+            """
         )
     )
 
@@ -169,8 +181,18 @@ def test_split_query_and_explicit_layer_refs_normalizes_prefixed_names():
     clean_query, refs = nalamap_api._split_query_and_explicit_layer_refs(
         (
             "buffer with 4km\n\n"
-            '[EXPLICIT_LAYER_REFS_JSON]{"layer_refs":[{"id":"48f8cf46100047b7a732e02cb4640501_points_simple.geojson","name":"points_simple.geojson","data_source_id":"manual"}]}'
-            "[/EXPLICIT_LAYER_REFS_JSON]"
+            """[EXPLICIT_LAYER_REFS_JSON]
+            {
+                "layer_refs":
+                    [
+                        {
+                            "id":"48f8cf46100047b7a732e02cb4640501_points_simple.geojson",
+                            "name":"points_simple.geojson",
+                            "data_source_id":"manual"
+                        }
+                    ]
+            }
+            [/EXPLICIT_LAYER_REFS_JSON]"""
         )
     )
 

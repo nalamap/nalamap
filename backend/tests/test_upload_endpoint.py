@@ -198,7 +198,23 @@ def test_register_geojson_collection_flattens_nested_feature_properties(monkeypa
     class UploadStub:
         def __init__(self):
             self.file = io.BytesIO(
-                b'{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Point","coordinates":[1,2]},"properties":{"properties":{"id":1,"name":"a"}}}]}'
+                b"""{
+                    "type":"FeatureCollection",
+                    "features":[
+                        {"type":"Feature",
+                        "geometry":{"type":"Point",
+                        "coordinates":[1,2]},
+                        "properties":
+                            {
+                                "properties":
+                                {
+                                    "id":1,
+                                    "name":"a"
+                                }
+                            }
+                            }
+                        ]
+                    }"""
             )
 
     collection_id = data_management._register_geojson_collection(
@@ -321,7 +337,9 @@ def test_store_file_rewrites_internal_ogc_url_to_public(monkeypatch):
             }
 
     monkeypatch.setattr(file_management.requests, "post", lambda *args, **kwargs: MockResponse())
-    url, file_id = file_management.store_file("points_simple.geojson", b'{"type":"FeatureCollection"}')
+    url, file_id = file_management.store_file(
+        "points_simple.geojson", b'{"type":"FeatureCollection"}'
+    )
     assert file_id == "abc123_points_simple.geojson"
     assert url == "http://localhost:8081/v1/uploads/files/abc123_points_simple.geojson"
 

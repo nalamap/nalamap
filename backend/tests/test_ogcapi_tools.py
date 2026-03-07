@@ -1,6 +1,5 @@
 import json
 
-import pytest
 from langchain_core.messages import HumanMessage
 
 from models.geodata import GeoDataObject
@@ -52,10 +51,7 @@ def test_layer_aliases_hide_opaque_identifiers():
     assert "points_simple.geojson" in aliases
     assert "points_simple" in aliases
     assert "0309c151bad845ca86d90100b7a42e21" not in aliases
-    assert (
-        "0309c151bad845ca86d90100b7a42e21_points_simple.geojson"
-        not in aliases
-    )
+    assert "0309c151bad845ca86d90100b7a42e21_points_simple.geojson" not in aliases
 
 
 def test_fetch_feature_collection_remaps_backend_stream_in_container(monkeypatch):
@@ -154,7 +150,11 @@ def test_filter_geodata_returns_filtered_ref_and_ids(monkeypatch):
             return MockResponse(
                 status_code=200,
                 payload={"service": {"apiPrefix": "/v1"}, "capabilities": {"processes": []}},
-                headers={"ETag": 'W/"manifest-2"', "x-request-id": "req-cap", "x-trace-id": "trace-cap"},
+                headers={
+                    "ETag": 'W/"manifest-2"',
+                    "x-request-id": "req-cap",
+                    "x-trace-id": "trace-cap",
+                },
             )
         if url.endswith("/v1/collections"):
             return MockResponse(
@@ -165,7 +165,9 @@ def test_filter_geodata_returns_filtered_ref_and_ids(monkeypatch):
         if url.endswith("/v1/collections/places/queryables"):
             return MockResponse(
                 status_code=200,
-                payload={"properties": {"name": {"type": "string"}, "population": {"type": "number"}}},
+                payload={
+                    "properties": {"name": {"type": "string"}, "population": {"type": "number"}}
+                },
                 headers={"x-request-id": "req-q", "x-trace-id": "trace-q"},
             )
         if url.endswith("/v1/collections/places/items"):
@@ -226,7 +228,11 @@ def test_process_geodata_sync_with_filtered_ref(monkeypatch):
             return MockResponse(
                 status_code=200,
                 payload={"service": {"apiPrefix": "/v1"}, "capabilities": {"processes": []}},
-                headers={"ETag": 'W/"manifest-3"', "x-request-id": "req-cap", "x-trace-id": "trace-cap"},
+                headers={
+                    "ETag": 'W/"manifest-3"',
+                    "x-request-id": "req-cap",
+                    "x-trace-id": "trace-cap",
+                },
             )
         if url.endswith("/v1/collections"):
             return MockResponse(
@@ -364,7 +370,11 @@ def test_process_geodata_short_circuits_duplicate_async_calls(monkeypatch):
                     "service": {"apiPrefix": "/v1"},
                     "capabilities": {"processes": [{"id": "vector-buffer"}]},
                 },
-                headers={"ETag": 'W/"manifest-dup"', "x-request-id": "req-cap", "x-trace-id": "trace-cap"},
+                headers={
+                    "ETag": 'W/"manifest-dup"',
+                    "x-request-id": "req-cap",
+                    "x-trace-id": "trace-cap",
+                },
             )
         if url.endswith("/v1/collections/points_upload"):
             return MockResponse(
@@ -458,7 +468,11 @@ def test_process_geodata_resolves_state_layer_ref(monkeypatch):
             return MockResponse(
                 status_code=200,
                 payload={"service": {"apiPrefix": "/v1"}, "capabilities": {"processes": []}},
-                headers={"ETag": 'W/"manifest-ref"', "x-request-id": "req-cap", "x-trace-id": "trace-cap"},
+                headers={
+                    "ETag": 'W/"manifest-ref"',
+                    "x-request-id": "req-cap",
+                    "x-trace-id": "trace-cap",
+                },
             )
         if url.endswith("/v1/collections/points_upload"):
             return MockResponse(
@@ -541,7 +555,11 @@ def test_process_geodata_resolves_fuzzy_state_layer_ref(monkeypatch):
             return MockResponse(
                 status_code=200,
                 payload={"service": {"apiPrefix": "/v1"}, "capabilities": {"processes": []}},
-                headers={"ETag": 'W/"manifest-ref-fuzzy"', "x-request-id": "req-cap", "x-trace-id": "trace-cap"},
+                headers={
+                    "ETag": 'W/"manifest-ref-fuzzy"',
+                    "x-request-id": "req-cap",
+                    "x-trace-id": "trace-cap",
+                },
             )
         if url.endswith("/v1/collections/points_upload"):
             return MockResponse(
@@ -618,7 +636,11 @@ def test_process_geodata_autobinds_single_state_layer_without_input_refs(monkeyp
                     "service": {"apiPrefix": "/v1"},
                     "capabilities": {"processes": [{"id": "vector-buffer"}]},
                 },
-                headers={"ETag": 'W/"manifest-autobind"', "x-request-id": "req-cap", "x-trace-id": "trace-cap"},
+                headers={
+                    "ETag": 'W/"manifest-autobind"',
+                    "x-request-id": "req-cap",
+                    "x-trace-id": "trace-cap",
+                },
             )
         if url.endswith("/v1/collections/points_upload"):
             return MockResponse(
@@ -697,7 +719,11 @@ def test_process_geodata_autobinds_from_query_when_multiple_layers(monkeypatch):
                     "service": {"apiPrefix": "/v1"},
                     "capabilities": {"processes": [{"id": "vector-buffer"}]},
                 },
-                headers={"ETag": 'W/"manifest-query-autobind"', "x-request-id": "req-cap", "x-trace-id": "trace-cap"},
+                headers={
+                    "ETag": 'W/"manifest-query-autobind"',
+                    "x-request-id": "req-cap",
+                    "x-trace-id": "trace-cap",
+                },
             )
         if url.endswith("/v1/collections/points_upload"):
             return MockResponse(
@@ -789,7 +815,11 @@ def test_process_geodata_autobinds_from_explicit_layer_refs(monkeypatch):
                     "service": {"apiPrefix": "/v1"},
                     "capabilities": {"processes": [{"id": "vector-buffer"}]},
                 },
-                headers={"ETag": 'W/"manifest-query-explicit"', "x-request-id": "req-cap", "x-trace-id": "trace-cap"},
+                headers={
+                    "ETag": 'W/"manifest-query-explicit"',
+                    "x-request-id": "req-cap",
+                    "x-trace-id": "trace-cap",
+                },
             )
         if url.endswith("/v1/collections/points_upload"):
             return MockResponse(
@@ -838,11 +868,7 @@ def test_process_geodata_autobinds_from_explicit_layer_refs(monkeypatch):
     process_tool = tools[0]
 
     explicit_refs = json.dumps(
-        {
-            "layer_refs": [
-                {"title": "Major Roads", "name": "roads_major.geojson", "id": "layer-2"}
-            ]
-        }
+        {"layer_refs": [{"title": "Major Roads", "name": "roads_major.geojson", "id": "layer-2"}]}
     )
     state = {
         "messages": [
@@ -894,7 +920,11 @@ def test_process_geodata_disables_fuzzy_input_ref_when_explicit_refs_present(mon
             return MockResponse(
                 status_code=200,
                 payload={"service": {"apiPrefix": "/v1"}, "capabilities": {"processes": []}},
-                headers={"ETag": 'W/"manifest-ref-strict"', "x-request-id": "req-cap", "x-trace-id": "trace-cap"},
+                headers={
+                    "ETag": 'W/"manifest-ref-strict"',
+                    "x-request-id": "req-cap",
+                    "x-trace-id": "trace-cap",
+                },
             )
         raise AssertionError(f"Unexpected request: {method} {url}")
 
@@ -963,7 +993,11 @@ def test_process_geodata_autobinds_from_state_explicit_layer_refs(monkeypatch):
                     "service": {"apiPrefix": "/v1"},
                     "capabilities": {"processes": [{"id": "vector-buffer"}]},
                 },
-                headers={"ETag": 'W/"manifest-state-explicit"', "x-request-id": "req-cap", "x-trace-id": "trace-cap"},
+                headers={
+                    "ETag": 'W/"manifest-state-explicit"',
+                    "x-request-id": "req-cap",
+                    "x-trace-id": "trace-cap",
+                },
             )
         if url.endswith("/v1/collections/roads_upload"):
             return MockResponse(
@@ -1043,7 +1077,11 @@ def test_process_geodata_autobinds_from_explicit_refs_with_prefixed_layer_name(m
                     "service": {"apiPrefix": "/v1"},
                     "capabilities": {"processes": [{"id": "vector-buffer"}]},
                 },
-                headers={"ETag": 'W/"manifest-prefixed-name"', "x-request-id": "req-cap", "x-trace-id": "trace-cap"},
+                headers={
+                    "ETag": 'W/"manifest-prefixed-name"',
+                    "x-request-id": "req-cap",
+                    "x-trace-id": "trace-cap",
+                },
             )
         if url.endswith("/v1/collections/points_upload"):
             return MockResponse(
@@ -1126,7 +1164,11 @@ def test_process_geodata_returns_error_when_source_input_missing(monkeypatch):
                     "service": {"apiPrefix": "/v1"},
                     "capabilities": {"processes": [{"id": "vector-buffer"}]},
                 },
-                headers={"ETag": 'W/"manifest-missing-source"', "x-request-id": "req-cap", "x-trace-id": "trace-cap"},
+                headers={
+                    "ETag": 'W/"manifest-missing-source"',
+                    "x-request-id": "req-cap",
+                    "x-trace-id": "trace-cap",
+                },
             )
         raise AssertionError(f"Unexpected request: {method} {url}")
 
@@ -1177,7 +1219,11 @@ def test_process_geodata_rebinds_missing_collection_id_from_state(monkeypatch):
                     "service": {"apiPrefix": "/v1"},
                     "capabilities": {"processes": [{"id": "vector-buffer"}]},
                 },
-                headers={"ETag": 'W/"manifest-rebind"', "x-request-id": "req-cap", "x-trace-id": "trace-cap"},
+                headers={
+                    "ETag": 'W/"manifest-rebind"',
+                    "x-request-id": "req-cap",
+                    "x-trace-id": "trace-cap",
+                },
             )
         if url.endswith("/v1/collections/missing_collection"):
             return MockResponse(
@@ -1262,7 +1308,11 @@ def test_process_geodata_rejects_ambiguous_source_inputs(monkeypatch):
                     "service": {"apiPrefix": "/v1"},
                     "capabilities": {"processes": [{"id": "vector-buffer"}]},
                 },
-                headers={"ETag": 'W/"manifest-ambiguous"', "x-request-id": "req-cap", "x-trace-id": "trace-cap"},
+                headers={
+                    "ETag": 'W/"manifest-ambiguous"',
+                    "x-request-id": "req-cap",
+                    "x-trace-id": "trace-cap",
+                },
             )
         raise AssertionError(f"Unexpected request: {method} {url}")
 
@@ -1300,7 +1350,10 @@ def test_process_geodata_rejects_ambiguous_source_inputs(monkeypatch):
 
     assert process_payload["status"] == "error"
     assert process_payload["error"]["code"] == "ambiguous_source_inputs"
-    assert sorted(process_payload["detail"]["provided_keys"]) == ["collection_id", "feature_collection"]
+    assert sorted(process_payload["detail"]["provided_keys"]) == [
+        "collection_id",
+        "feature_collection",
+    ]
 
 
 def test_process_geodata_resolves_legacy_process_alias(monkeypatch):
@@ -1312,7 +1365,11 @@ def test_process_geodata_resolves_legacy_process_alias(monkeypatch):
                     "service": {"apiPrefix": "/v1"},
                     "capabilities": {"processes": [{"id": "vector-buffer"}]},
                 },
-                headers={"ETag": 'W/"manifest-alias"', "x-request-id": "req-cap", "x-trace-id": "trace-cap"},
+                headers={
+                    "ETag": 'W/"manifest-alias"',
+                    "x-request-id": "req-cap",
+                    "x-trace-id": "trace-cap",
+                },
             )
         if url.endswith("/v1/processes/vector-buffer/validate"):
             return MockResponse(
@@ -1373,7 +1430,11 @@ def test_process_geodata_rejects_unknown_process_id_without_validate_call(monkey
                     "service": {"apiPrefix": "/v1"},
                     "capabilities": {"processes": [{"id": "vector-buffer"}]},
                 },
-                headers={"ETag": 'W/"manifest-unknown"', "x-request-id": "req-cap", "x-trace-id": "trace-cap"},
+                headers={
+                    "ETag": 'W/"manifest-unknown"',
+                    "x-request-id": "req-cap",
+                    "x-trace-id": "trace-cap",
+                },
             )
         raise AssertionError(f"Unexpected request: {method} {url}")
 
@@ -1421,7 +1482,11 @@ def test_process_geodata_falls_back_to_feature_collection_when_collection_missin
                     "service": {"apiPrefix": "/v1"},
                     "capabilities": {"processes": [{"id": "vector-buffer"}]},
                 },
-                headers={"ETag": 'W/"manifest-fallback"', "x-request-id": "req-cap", "x-trace-id": "trace-cap"},
+                headers={
+                    "ETag": 'W/"manifest-fallback"',
+                    "x-request-id": "req-cap",
+                    "x-trace-id": "trace-cap",
+                },
             )
         if url.endswith("/v1/collections/missing_collection"):
             return MockResponse(

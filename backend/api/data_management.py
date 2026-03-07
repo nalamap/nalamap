@@ -233,7 +233,11 @@ def _register_geojson_collection(file: UploadFile, filename: str) -> str | None:
             timeout=core_config.OGCAPI_TIMEOUT_SECONDS,
         )
         if normalized:
-            logger.info("Normalized nested GeoJSON feature properties for %s before OGC upload", filename)
+            logger.info(
+                """Normalized nested GeoJSON feature properties
+                        for %s before OGC upload""",
+                filename,
+            )
     except Exception as exc:
         logger.warning("OGC collection registration failed for %s: %s", filename, exc)
         return None
@@ -275,10 +279,7 @@ def _collection_items_url(file_url: str, collection_id: str) -> str:
         base_url = urlunparse(base).rstrip("/")
         return f"{base_url}/collections/{quote(collection_id, safe='')}/items"
     runtime_base_url = _runtime_ogcapi_base_url()
-    internal_url = (
-        f"{runtime_base_url}/collections/"
-        f"{quote(collection_id, safe='')}/items"
-    )
+    internal_url = f"{runtime_base_url}/collections/" f"{quote(collection_id, safe='')}/items"
     return _rewrite_ogcapi_url_to_public(internal_url)
 
 

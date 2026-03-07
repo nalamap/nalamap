@@ -228,9 +228,9 @@ def _env_preconfigured_ogcapi_server() -> Optional[ExampleOGCAPIServer]:
     if not core_config.USE_OGCAPI_STORAGE:
         return None
 
-    fallback_url = (
-        core_config.OGCAPI_PUBLIC_BASE_URL or core_config.OGCAPI_BASE_URL or ""
-    ).rstrip("/")
+    fallback_url = (core_config.OGCAPI_PUBLIC_BASE_URL or core_config.OGCAPI_BASE_URL or "").rstrip(
+        "/"
+    )
     if not fallback_url:
         return None
 
