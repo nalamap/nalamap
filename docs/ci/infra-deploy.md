@@ -6,13 +6,15 @@ This repository builds and pushes Docker images for frontend, backend, and nginx
 
 - push to default branch (main)
 - push of version tags matching `v*.*.*`
-- pull_request (as deploy-preview, for testing)
+- pull_request from branches in this repository (as `deploy-preview`, for testing)
+  - PRs from forks do not dispatch (secrets are unavailable by design).
 
 ## Secrets required
 
 - `CLOUD_INFRA_REPO_TOKEN`: GitHub Personal Access Token with `repo` scope that can access `nalamap/cloud-infrastructure`.
   - Store as a Repository Secret in this repo.
   - Used only in the dispatch step to call the GitHub API for the target repo.
+  - If missing for an eligible event, the dispatch job fails fast.
 
 ## Payload format
 
