@@ -739,7 +739,12 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                 event_data = event.get("data", {})
 
                 # Debug logging for cancellation checking
-                if event_type in ["on_tool_start", "on_tool_end", "on_chain_start"]:
+                if event_type in [
+                    "on_tool_start",
+                    "on_tool_end",
+                    "on_tool_error",
+                    "on_chain_start",
+                ]:
                     logger.info(
                         f"Event: {event_type} | name: {event_name} | "
                         f"stream: {stream_id} | cancelled: {await is_cancelled(stream_id)}"
@@ -796,6 +801,26 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                             "output_type": type(serializable_output).__name__,
                         }
 
+                    yield "event: tool_end\n"
+                    data = json.dumps(output_data)
+                    yield f"data: {data}\n\n"
+
+                elif event_type == "on_tool_error":
+                    tool_name = event_name
+                    tool_error = event_data.get("error", event_data)
+                    serializable_error = make_json_serializable(tool_error)
+                    error_text = str(serializable_error)
+                    ellipsis = "..." if len(error_text) > 200 else ""
+
+                    # Emit tool_end shape for tool failures so the frontend/test
+                    # stream can treat tool execution lifecycle consistently.
+                    output_data = {
+                        "tool": tool_name,
+                        "output": {"error": serializable_error},
+                        "output_preview": f"Tool error: {error_text[:200]}{ellipsis}",
+                        "is_state_update": False,
+                        "output_type": "dict",
+                    }
                     yield "event: tool_end\n"
                     data = json.dumps(output_data)
                     yield f"data: {data}\n\n"

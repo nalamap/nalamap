@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional, Union
 from langchain_core.messages import HumanMessage
 from langgraph.graph import MessagesState
 from pydantic import Field
-from typing_extensions import Annotated
+from typing_extensions import Annotated, NotRequired
 
 from models.settings_model import SettingsSnapshot
 
@@ -131,12 +131,16 @@ class GeoDataAgentState(MessagesState):
     options: Optional[Union[Dict[str, Any], SettingsSnapshot]] = Field(
         default_factory=dict, exclude=True, validate_default=False
     )
-    explicit_layer_refs: List[str] = Field(
-        default_factory=list,
-        exclude=True,
-        validate_default=False,
-        description="Layer refs extracted from explicit frontend marker block.",
-    )
+    explicit_layer_refs: NotRequired[
+        Annotated[
+            List[str],
+            Field(
+                exclude=True,
+                validate_default=False,
+                description="Layer refs extracted from explicit frontend marker block.",
+            ),
+        ]
+    ]
 
     # Required by create_react_agent
     remaining_steps: Optional[int] = Field(

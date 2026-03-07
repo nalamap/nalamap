@@ -6,6 +6,7 @@ import pytest
 import json
 from httpx import AsyncClient
 from httpx_sse import aconnect_sse
+from langchain_core.messages import AIMessage
 
 
 def get_test_payload(query: str, tools: list = None):
@@ -245,3 +246,77 @@ async def test_streaming_event_sequence(async_client: AsyncClient):
     result_idx = events_received.index("result")
     done_idx = events_received.index("done")
     assert result_idx < done_idx, "result should come before done"
+
+
+@pytest.mark.asyncio
+async def test_streaming_tool_error_emits_tool_end(async_client: AsyncClient, monkeypatch):
+    """Tool errors should still emit a tool_end payload for lifecycle consistency."""
+    from api import nalamap as nalamap_api
+    from types import SimpleNamespace
+
+    class MockPerfCallback:
+        def get_metrics(self):
+            return {"token_usage": {"total": 0, "prompt": 0, "completion": 0}}
+
+    class MockAgent:
+        async def astream_events(self, state, version="v2", config=None):
+            yield {
+                "event": "on_tool_start",
+                "name": "mock_tool",
+                "data": {"input": {"query": "trigger error"}},
+            }
+            yield {
+                "event": "on_tool_error",
+                "name": "mock_tool",
+                "data": {"error": RuntimeError("tool failed")},
+            }
+            yield {
+                "event": "on_chain_end",
+                "name": "GeoAgent",
+                "data": {
+                    "output": {
+                        "messages": [AIMessage(content="Handled tool error.")],
+                        "results_title": "",
+                        "geodata_results": [],
+                        "geodata_layers": [],
+                    }
+                },
+            }
+
+    async def mock_prepare_chat_context(request, raw_request, metrics):
+        options = SimpleNamespace(
+            model_settings=SimpleNamespace(enable_performance_metrics=False),
+            session_id="test-streaming-session",
+        )
+        return (
+            {},
+            MockAgent(),
+            options,
+            MockPerfCallback(),
+            "test-streaming-session",
+            "test-streaming-session",
+        )
+
+    monkeypatch.setattr(nalamap_api, "_prepare_chat_context", mock_prepare_chat_context)
+
+    payload = get_test_payload("trigger error", tools=["overpass_search"])
+    tool_end_events = []
+
+    async with aconnect_sse(
+        async_client, "POST", "/api/chat/stream", json=payload, timeout=30.0
+    ) as event_source:
+        async for sse in event_source.aiter_sse():
+            event_type = sse.event or "message"
+            data = json.loads(sse.data)
+
+            if event_type == "tool_end":
+                tool_end_events.append(data)
+            elif event_type == "done":
+                break
+
+    assert len(tool_end_events) == 1
+    event = tool_end_events[0]
+    assert event["tool"] == "mock_tool"
+    assert event["is_state_update"] is False
+    assert event["output_type"] == "dict"
+    assert "error" in event["output"]
