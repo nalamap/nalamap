@@ -278,6 +278,7 @@ export function useNaLaMapAgent(apiUrl: string) {
     chatInterfaceStore.clearStreamingMessage();
     chatInterfaceStore.clearToolUpdates();
     chatInterfaceStore.clearExecutionPlan();
+    chatInterfaceStore.setGeoDataList([]);
 
     await useSettingsStore.getState().initializeIfNeeded();
     const rawSettings = useSettingsStore.getState().getSettings();
