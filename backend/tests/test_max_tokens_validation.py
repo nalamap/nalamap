@@ -78,7 +78,9 @@ class TestGetLLMWithValidation:
 
     def test_get_llm_for_provider_with_valid_max_tokens(self):
         """Test that valid max_tokens passes through unchanged."""
-        llm, capabilities = get_llm_for_provider("openai", max_tokens=5000, model_name="gpt-4.1-mini")
+        llm, capabilities = get_llm_for_provider(
+            "openai", max_tokens=5000, model_name="gpt-4.1-mini"
+        )
         assert llm is not None
         assert capabilities is not None
         assert llm.max_tokens == 5000
