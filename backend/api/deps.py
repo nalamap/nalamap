@@ -52,11 +52,11 @@ async def get_current_user(
 
     # Validate user_id is a valid UUID format before database query
     try:
-        UUIDType(user_id)
+        user_id_uuid = UUIDType(user_id)
     except (ValueError, TypeError):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(select(User).where(User.id == user_id_uuid))
     user = result.scalars().first()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")

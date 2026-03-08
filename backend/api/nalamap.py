@@ -215,7 +215,11 @@ async def _prepare_chat_context(
         else:
             logger.warning("No session_id provided in options or cookies")
 
-    session_id = getattr(options, "session_id", None) or "unknown"
+    session_id = getattr(options, "session_id", None)
+    if not session_id:
+        import uuid
+        session_id = str(uuid.uuid4())
+        logger.warning(f"Generated fallback session_id: {session_id}")
 
     # Get message window size from model settings or environment
     message_window_size = getattr(options.model_settings, "message_window_size", None)
@@ -448,13 +452,13 @@ async def ask_nalamap_agent(request: NaLaMapRequest, raw_request: Request):
         final_metrics = metrics.finalize()
 
         # Store metrics in global storage if enabled
-        session_id = getattr(options, "session_id", None) or "unknown"
+        metrics_session_id = getattr(options, "session_id", None) or session_id
         enable_performance_metrics = getattr(
             options.model_settings, "enable_performance_metrics", False
         )
         if enable_performance_metrics:
             storage = get_metrics_storage()
-            storage.store(session_id=session_id, metrics=final_metrics)
+            storage.store(session_id=metrics_session_id, metrics=final_metrics)
 
         logger.info(
             "Agent execution completed",
@@ -762,13 +766,13 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
 
                         # Finalize and store metrics
                         final_metrics = metrics.finalize()
-                        session_id = getattr(options, "session_id", None) or "unknown"
+                        metrics_session_id = getattr(options, "session_id", None) or session_id
                         enable_performance_metrics = getattr(
                             options.model_settings, "enable_performance_metrics", False
                         )
                         if enable_performance_metrics:
                             storage = get_metrics_storage()
-                            storage.store(session_id=session_id, metrics=final_metrics)
+                            storage.store(session_id=metrics_session_id, metrics=final_metrics)
 
                         logger.info(
                             "Agent execution completed (streaming)",

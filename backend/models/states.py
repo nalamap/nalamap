@@ -197,7 +197,10 @@ class GeoDataAgentState(MessagesState):
     # Execution plan for multi-step tasks (excluded from LLM prompt)
     # Note: Uses NotRequired so existing state dicts without this field
     # still pass TypedDict validation (backward compatible).
-    execution_plan: NotRequired[Optional[ExecutionPlan]]
+    execution_plan: Annotated[
+        NotRequired[Optional[ExecutionPlan]],
+        reduce_execution_plan,
+    ] = Field(default=None, exclude=True, validate_default=False)
 
     # Required by create_react_agent
     remaining_steps: Optional[int] = Field(
