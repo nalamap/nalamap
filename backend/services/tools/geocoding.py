@@ -495,6 +495,7 @@ def geocode_using_nominatim_to_geostate(
     query: str,
     geojson: bool = True,
     maxRows: int = 5,
+    add_to_results: bool = True,
 ) -> Union[Dict[str, Any], Command]:
     """Geocode an address using OpenStreetMap Nominatim API. Returns Bounding Box for further
     request and GeoJson of the area to show to the user.
@@ -512,6 +513,14 @@ def geocode_using_nominatim_to_geostate(
     * Nominatim relies on crowd-sourced OSM data, so accuracy and completeness depend on community contributions.
     * Provides limited metadata. It does not include attributes like population, elevation, time zones, or weather data.
     * does not support broader geographical queries like finding nearby places, hierarchical relationships beyond administrative divisions
+
+    Args:
+        query: The address or place name to geocode
+        geojson: Whether to request polygon geometry
+        maxRows: Maximum number of results
+        add_to_results: Whether to add output to the final result list.
+            Set to False for intermediate plan steps so only the final
+            step's output appears in results.
     """
     url: str = (
         f"https://nominatim.openstreetmap.org/search"
@@ -523,6 +532,7 @@ def geocode_using_nominatim_to_geostate(
         data = response.json()
         if len(data):
             cleaned_data: List[Dict[str, Any]] = []
+            new_geodata_objects: List[GeoDataObject] = []
             for elem in data:
                 if "geojson" in elem:
                     geocoded_object: Optional[GeoDataObject] = create_geodata_object_from_geojson(
@@ -532,14 +542,7 @@ def geocode_using_nominatim_to_geostate(
                     if geocoded_object:
                         elem["id"] = geocoded_object.id
                         elem["data_source_id"] = geocoded_object.data_source_id
-                        if (
-                            "geodata_results" not in state
-                            or state["geodata_results"] is None
-                            or not isinstance(state["geodata_results"], List)
-                        ):
-                            state["geodata_results"] = [geocoded_object]
-                        else:
-                            state["geodata_results"].append(geocoded_object)
+                        new_geodata_objects.append(geocoded_object)
                 cleaned_data.append(dict(elem))
             if geojson:
                 # Simplified message for LLM
@@ -640,8 +643,9 @@ def geocode_using_nominatim_to_geostate(
                                 tool_call_id=tool_call_id,
                             ),
                         ],
-                        # "global_geodata": state["global_geodata"],
-                        "geodata_results": state["geodata_results"],
+                        # Always write to geodata_last_results for chaining
+                        "geodata_last_results": new_geodata_objects,
+                        **({"geodata_results": new_geodata_objects} if add_to_results else {}),
                     }
                 )
             else:
@@ -953,6 +957,7 @@ def geocode_using_overpass_to_geostate(
     timeout: int = 300,
     center_lat: Optional[float] = None,
     center_lon: Optional[float] = None,
+    add_to_results: bool = True,
 ) -> Union[Dict[str, Any], Command]:
     """
     Geocode a location and search for amenities/POIs using the Overpass API.
@@ -976,6 +981,9 @@ def geocode_using_overpass_to_geostate(
         timeout: Timeout for API requests in seconds (default: 300).
         center_lat: Optional explicit latitude for center point search.
         center_lon: Optional explicit longitude for center point search.
+        add_to_results: Whether to add output to the final result list.
+            Set to False for intermediate plan steps so only the final
+            step's output appears in results.
 
     Returns:
         A Command object to update the agent state or a dictionary with results.
@@ -1275,11 +1283,8 @@ def geocode_using_overpass_to_geostate(
             }
         )
 
-    # Update state
-    current_geodata = state.get("geodata_results", [])
-    if not isinstance(current_geodata, list):
-        current_geodata = []
-    current_geodata.extend(created_collections)
+    # Collect only the NEW results — reducers handle merging
+    new_geodata = list(created_collections)
 
     total_features = len(point_features) + len(polygon_features) + len(linestring_features)
 
@@ -1293,19 +1298,22 @@ def geocode_using_overpass_to_geostate(
         location.display_name,
     )
 
-    return Command(
-        update={
-            "messages": [
-                *state["messages"],
-                ToolMessage(
-                    name="geocode_using_overpass_to_geostate",
-                    content=tool_message_content,
-                    tool_call_id=tool_call_id,
-                ),
-            ],
-            "geodata_results": current_geodata,
-        }
-    )
+    state_update: Dict[str, Any] = {
+        "messages": [
+            *state["messages"],
+            ToolMessage(
+                name="geocode_using_overpass_to_geostate",
+                content=tool_message_content,
+                tool_call_id=tool_call_id,
+            ),
+        ],
+        # Always write to geodata_last_results for chaining
+        "geodata_last_results": new_geodata,
+    }
+    if add_to_results:
+        state_update["geodata_results"] = new_geodata
+
+    return Command(update=state_update)
 
 
 def _geocode_location_for_overpass(

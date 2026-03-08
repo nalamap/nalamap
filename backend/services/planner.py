@@ -208,6 +208,16 @@ def build_plan_system_addendum(plan: ExecutionPlan) -> str:
         "- If a step fails, explain the issue and try an alternative approach.\n"
         "- After completing all steps, provide a comprehensive summary of what was accomplished.\n"
         "- You may skip steps if they become unnecessary based on intermediate results.\n"
+        "\n"
+        "IMPORTANT — Result chaining between steps:\n"
+        "- Tools can access layers produced by earlier steps automatically.\n"
+        "  For example, if step 1 geocodes 'Poland', step 2 can reference the\n"
+        "  layer 'Poland' by name in target_layer_names.\n"
+        "- For INTERMEDIATE steps (not the last step), set add_to_results=False\n"
+        "  so their output is available for chaining but does NOT appear in the\n"
+        "  final result list shown to the user.\n"
+        "- For the FINAL step, use add_to_results=True (or omit it, as True is\n"
+        "  the default) so the output goes to the result list.\n"
     )
 
 
