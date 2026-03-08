@@ -303,7 +303,7 @@ class TestBuildPlanSystemAddendum:
     def test_addendum_contains_instructions(self):
         plan = _make_plan(2)
         addendum = build_plan_system_addendum(plan)
-        assert "Execute each step in order" in addendum
+        assert "Execute EVERY step in order" in addendum
         assert "EXECUTION PLAN" in addendum
 
     def test_addendum_shows_step_statuses(self):

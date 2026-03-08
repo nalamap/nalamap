@@ -69,12 +69,18 @@ Examples of SIMPLE queries (is_complex=false):
 - "Style the rivers blue" → single styling call
 
 Examples of COMPLEX queries (is_complex=true):
+- "Find hospitals within 30km of Darmstadt and style them" → 3 steps:
+  geocode hospitals, buffer 30km around Darmstadt and clip/intersect, style results
 - "Geocode Europe, find protected areas globally, then intersect them to get only
    European protected areas" → 3 steps: geocode, fetch data, geoprocess
 - "Find hospitals in Berlin, create 1km buffers, and show how many parks are within
    each buffer" → 4 steps: geocode POIs, buffer, geocode parks, intersect/analyze
 - "Get rainfall data for Kenya and overlay it with crop production statistics" →
    3 steps: geocode region, fetch weather, fetch World Bank data
+
+IMPORTANT: When the user says "within X km/miles" or "near" or "around" with a distance,
+you MUST include a geoprocessing step (buffer + intersect/clip) to enforce the radius.
+Do NOT rely on geocoding alone for spatial radius queries.
 
 User's current context:
 {context}
@@ -202,14 +208,14 @@ def build_plan_system_addendum(plan: ExecutionPlan) -> str:
         f"The user's request has been analyzed and broken into these sequential steps:\n"
         f"Goal: {plan.goal}\n\n"
         f"Steps:\n{steps_text}\n\n"
-        "Instructions for following the plan:\n"
-        "- Execute each step in order. Later steps may depend on results from earlier steps.\n"
-        "- Use your judgment to select the best tool for each step.\n"
-        "- If a step fails, explain the issue and try an alternative approach.\n"
-        "- After completing all steps, provide a comprehensive summary of what was accomplished.\n"
-        "- You may skip steps if they become unnecessary based on intermediate results.\n"
+        "CRITICAL INSTRUCTIONS — you MUST follow these:\n"
+        "1. Execute EVERY step in order by calling the appropriate tool.\n"
+        "2. Do NOT write a final text response until ALL steps have been completed.\n"
+        "3. After each tool returns, immediately proceed to the NEXT step's tool call.\n"
+        "4. If a step fails, explain briefly and move to the next step.\n"
+        "5. Only after the LAST step's tool has returned may you write a summary.\n"
         "\n"
-        "IMPORTANT — Result chaining between steps:\n"
+        "Result chaining between steps:\n"
         "- Tools can access layers produced by earlier steps automatically.\n"
         "  For example, if step 1 geocodes 'Poland', step 2 can reference the\n"
         "  layer 'Poland' by name in target_layer_names.\n"
@@ -218,6 +224,9 @@ def build_plan_system_addendum(plan: ExecutionPlan) -> str:
         "  final result list shown to the user.\n"
         "- For the FINAL step, use add_to_results=True (or omit it, as True is\n"
         "  the default) so the output goes to the result list.\n"
+        "\n"
+        "WARNING: If you respond with text before completing all steps,\n"
+        "the remaining steps will NOT be executed. You MUST call tools first.\n"
     )
 
 
