@@ -10,24 +10,24 @@ class TestMaxTokensValidation:
 
     def test_validate_max_tokens_within_limit(self):
         """Test that valid max_tokens within model limit is accepted."""
-        # OpenAI gpt-5-mini has max_tokens=100000
-        result = _validate_max_tokens("openai", 5000, "gpt-5-mini")
+        # OpenAI gpt-4.1-mini has max_tokens=32768
+        result = _validate_max_tokens("openai", 5000, "gpt-4.1-mini")
         assert result == 5000
 
     def test_validate_max_tokens_exceeds_limit(self):
         """Test clamping when max_tokens exceeds model's limit"""
-        # gpt-5-mini has max_tokens=128000
-        result = _validate_max_tokens("openai", 200000, "gpt-5-mini")
-        assert result == 128000  # Should be clamped to model's limit
+        # gpt-4.1-mini has max_tokens=32768
+        result = _validate_max_tokens("openai", 200000, "gpt-4.1-mini")
+        assert result == 32768  # Should be clamped to model's limit
 
     def test_validate_max_tokens_zero_uses_model_default(self):
         """Test that zero or negative max_tokens uses model's max_tokens"""
-        # gpt-5-mini has max_tokens=128000
-        result = _validate_max_tokens("openai", 0, "gpt-5-mini")
-        assert result == 128000  # Should use model's max_tokens
+        # gpt-4.1-mini has max_tokens=32768
+        result = _validate_max_tokens("openai", 0, "gpt-4.1-mini")
+        assert result == 32768  # Should use model's max_tokens
 
-        result = _validate_max_tokens("openai", -100, "gpt-5-mini")
-        assert result == 128000  # Should use model's max_tokens
+        result = _validate_max_tokens("openai", -100, "gpt-4.1-mini")
+        assert result == 32768  # Should use model's max_tokens
 
     def test_validate_max_tokens_no_model_name_uses_first_model(self):
         """Test that validation works when no model name is specified."""
@@ -68,7 +68,7 @@ class TestGetLLMWithValidation:
         """Test that get_llm_for_provider validates and clamps max_tokens."""
         # This should not raise an error even with excessive max_tokens
         llm, capabilities = get_llm_for_provider(
-            "openai", max_tokens=999999, model_name="gpt-5-mini"
+            "openai", max_tokens=999999, model_name="gpt-4.1-mini"
         )
         assert llm is not None
         assert capabilities is not None
@@ -78,7 +78,7 @@ class TestGetLLMWithValidation:
 
     def test_get_llm_for_provider_with_valid_max_tokens(self):
         """Test that valid max_tokens passes through unchanged."""
-        llm, capabilities = get_llm_for_provider("openai", max_tokens=5000, model_name="gpt-5-mini")
+        llm, capabilities = get_llm_for_provider("openai", max_tokens=5000, model_name="gpt-4.1-mini")
         assert llm is not None
         assert capabilities is not None
         assert llm.max_tokens == 5000
@@ -93,11 +93,11 @@ class TestGetLLMWithValidation:
 
     def test_get_llm_for_provider_handles_zero_tokens(self):
         """Test that zero max_tokens uses model's default."""
-        llm, capabilities = get_llm_for_provider("openai", max_tokens=0, model_name="gpt-5-mini")
+        llm, capabilities = get_llm_for_provider("openai", max_tokens=0, model_name="gpt-4.1-mini")
         assert llm is not None
         assert capabilities is not None
-        # Should use model's max_tokens (gpt-5-mini has max_tokens=128000)
-        assert llm.max_tokens == 128000
+        # Should use model's max_tokens (gpt-4.1-mini has max_tokens=32768)
+        assert llm.max_tokens == 32768
 
     def test_get_llm_for_provider_returns_capabilities(self):
         """Test that get_llm_for_provider returns model capabilities."""
