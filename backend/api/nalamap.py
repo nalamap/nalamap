@@ -1,7 +1,8 @@
+import asyncio
 import json
 import logging
+import uuid
 from typing import Any, Dict, List, Optional
-import asyncio
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from langchain_core.messages import (
@@ -217,7 +218,6 @@ async def _prepare_chat_context(
 
     session_id = getattr(options, "session_id", None)
     if not session_id:
-        import uuid
         session_id = str(uuid.uuid4())
         logger.warning(f"Generated fallback session_id: {session_id}")
 
