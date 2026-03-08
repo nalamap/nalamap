@@ -212,10 +212,72 @@ class TestMatchToolToPlanStep:
     def test_skips_completed_steps(self):
         plan = _make_plan(3)
         plan.steps[0].status = "complete"
-        # geocoding tool should not match step 1 (already complete)
+        # geocoding tool should fall back to first pending step (step 2)
         result = match_tool_to_plan_step("geocode_using_nominatim_to_geostate", plan)
-        # Should fall back to first pending step (step 2)
         assert result == 2
+
+    def test_stays_on_current_step_same_category(self):
+        """Multiple tool calls of the same category stay on the current step."""
+        plan = _make_plan(3)
+        plan.steps[0].status = "in-progress"
+        # Second geocode call while step 1 is in-progress should stay on step 1
+        result = match_tool_to_plan_step(
+            "geocode_using_nominatim_to_geostate", plan, current_step=1
+        )
+        assert result == 1
+
+    def test_advances_when_different_category(self):
+        """Different tool category should advance to the next step."""
+        plan = _make_plan(3)
+        plan.steps[0].status = "in-progress"
+        # geoprocess tool while step 1 (geocoding) is in-progress should advance
+        result = match_tool_to_plan_step("geoprocess_tool", plan, current_step=1)
+        assert result == 3  # Step 3 has "geoprocessing" hint
+
+    def test_multi_geocode_single_step(self):
+        """Simulates geocoding 3 countries in one plan step."""
+        plan = _make_plan(3)
+        # First geocode → matches step 1
+        r1 = match_tool_to_plan_step("geocode_using_nominatim_to_geostate", plan)
+        assert r1 == 1
+        plan.steps[0].status = "in-progress"
+
+        # Second geocode with current_step=1 → stays on step 1
+        r2 = match_tool_to_plan_step("geocode_using_nominatim_to_geostate", plan, current_step=1)
+        assert r2 == 1
+
+        # Third geocode with current_step=1 → stays on step 1
+        r3 = match_tool_to_plan_step("geocode_using_nominatim_to_geostate", plan, current_step=1)
+        assert r3 == 1
+
+    def test_does_not_match_tool_category_in_title(self):
+        """Tool category in step title should NOT cause false matches.
+
+        E.g. 'geocod' appearing in 'Combine Geocoded Areas' title should not
+        match a geocode tool to that step.
+        """
+        steps = [
+            PlanStep(
+                step_number=1,
+                title="Geocode countries",
+                description="Find boundaries",
+                tool_hint="geocoding",
+                status="complete",
+            ),
+            PlanStep(
+                step_number=2,
+                title="Combine Geocoded Areas",
+                description="Merge boundaries",
+                tool_hint="geoprocessing",
+                status="pending",
+            ),
+        ]
+        plan = ExecutionPlan(goal="Test", steps=steps, is_complex=True)
+
+        # geocode tool should NOT match step 2 (even though "geocod" is in the title)
+        # It should fall back to first pending step
+        result = match_tool_to_plan_step("geocode_using_nominatim_to_geostate", plan)
+        assert result == 2  # fallback to first pending (expected for unmatched)
 
 
 # =============================================================================

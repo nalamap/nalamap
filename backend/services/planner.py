@@ -211,23 +211,8 @@ def build_plan_system_addendum(plan: ExecutionPlan) -> str:
     )
 
 
-def match_tool_to_plan_step(
-    tool_name: str,
-    plan: ExecutionPlan,
-) -> Optional[int]:
-    """Try to match a tool execution to a plan step based on tool category.
-
-    Uses the tool_hint and tool name to find the most likely matching
-    pending/in-progress step. This is a best-effort heuristic.
-
-    Args:
-        tool_name: Name of the tool being executed
-        plan: The current execution plan
-
-    Returns:
-        Step number if matched, None otherwise
-    """
-    # Tool name to category mapping
+def get_tool_category(tool_name: str) -> str:
+    """Map a tool name to its category for plan step matching."""
     tool_categories = {
         "geocode_using_nominatim_to_geostate": "geocod",
         "geocode_using_overpass_to_geostate": "geocod",
@@ -246,21 +231,45 @@ def match_tool_to_plan_step(
         "get_nasa_gibs_layer": "satellite",
         "list_nasa_gibs_layers": "satellite",
     }
+    return tool_categories.get(tool_name, tool_name.lower())
 
-    tool_category = tool_categories.get(tool_name, tool_name.lower())
 
-    # Find first pending step that matches the tool category
+def match_tool_to_plan_step(
+    tool_name: str,
+    plan: ExecutionPlan,
+    current_step: Optional[int] = None,
+) -> Optional[int]:
+    """Match a tool execution to a plan step based on tool category.
+
+    Uses the tool_hint to find the matching step. If the same tool category
+    is already running for an in-progress step, stays on that step (handles
+    cases like 3 geocode calls all belonging to one "Geocode" step).
+
+    Args:
+        tool_name: Name of the tool being executed
+        plan: The current execution plan
+        current_step: The currently active (in-progress) step number, if any
+
+    Returns:
+        Step number if matched, None otherwise
+    """
+    tool_category = get_tool_category(tool_name)
+
+    # If there's a current in-progress step and this tool matches it,
+    # stay on the same step (e.g. 3 geocode calls for one "Geocode" step)
+    if current_step is not None:
+        for step in plan.steps:
+            if step.step_number == current_step and step.status == "in-progress":
+                hint = (step.tool_hint or "").lower()
+                if tool_category in hint or tool_name.lower() in hint:
+                    return current_step
+
+    # Find the first pending step whose tool_hint matches this tool category
     for step in plan.steps:
-        if step.status not in ("pending", "in-progress"):
+        if step.status != "pending":
             continue
-
-        # Check tool_hint match
         hint = (step.tool_hint or "").lower()
-        title = step.title.lower()
-        desc = step.description.lower()
-        search_text = f"{hint} {title} {desc}"
-
-        if tool_category in search_text or tool_name.lower() in search_text:
+        if tool_category in hint or tool_name.lower() in hint:
             return step.step_number
 
     # Fallback: return first pending step (tools execute in order)

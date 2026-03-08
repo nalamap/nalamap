@@ -464,6 +464,16 @@ export function useNaLaMapAgent(apiUrl: string) {
                 // Clear streaming UI state since we now have the final result
                 chatInterfaceStore.clearStreamingMessage();
                 chatInterfaceStore.clearToolUpdates();
+
+                // Mark any remaining in-progress plan steps as complete
+                const plan = chatInterfaceStore.getExecutionPlan();
+                if (plan) {
+                  for (const step of plan.steps) {
+                    if (step.status === "in-progress" || step.status === "pending") {
+                      chatInterfaceStore.updatePlanStepStatus(step.step_number, "complete");
+                    }
+                  }
+                }
                 
                 Logger.log("Messages AFTER setting:", chatInterfaceStore.getMessages());
                 Logger.log("GeoData AFTER setting:", chatInterfaceStore.getGeoDataList());

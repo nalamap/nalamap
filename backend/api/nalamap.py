@@ -564,8 +564,12 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
     )
     from utility.metrics_storage import get_metrics_storage
     from services.planner import match_tool_to_plan_step, update_plan_step_status
+    import asyncio
     import json
     import openai
+
+    # Keepalive interval for SSE (seconds) - prevents proxy idle timeouts
+    SSE_KEEPALIVE_INTERVAL = 30
 
     async def event_generator():
         """Generate SSE events from agent execution."""
@@ -594,10 +598,27 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
             # Start timing
             metrics.start_timer("agent_execution")
 
-            # Stream events using astream_events v2
-            async for event in single_agent.astream_events(
+            # Track which plan step is currently active
+            current_active_step = None  # step_number of the in-progress step
+            # Map tool invocation run_id → step_number (to reuse on tool_end)
+            tool_step_map = {}
+
+            # Stream events with keepalive heartbeat
+            aiter = single_agent.astream_events(
                 state, version="v2", config={"callbacks": [perf_callback]}
-            ):
+            ).__aiter__()
+            while True:
+                try:
+                    event = await asyncio.wait_for(
+                        aiter.__anext__(), timeout=SSE_KEEPALIVE_INTERVAL
+                    )
+                except StopAsyncIteration:
+                    break
+                except asyncio.TimeoutError:
+                    # Emit SSE comment as keepalive to prevent proxy idle timeout
+                    yield ": keepalive\n\n"
+                    continue
+
                 # Check for cancellation before processing each event (use stream_id)
                 if await is_cancelled(stream_id):
                     logger.warning(
@@ -628,14 +649,37 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                 if event_type == "on_tool_start":
                     tool_name = event_name
                     tool_input = event_data.get("input", {})
+                    run_id = event.get("run_id")
                     # Make tool_input JSON serializable (may contain LangChain messages)
                     serializable_input = make_json_serializable(tool_input)
 
                     # Track plan step progress
                     matched_step = None
                     if execution_plan:
-                        matched_step = match_tool_to_plan_step(tool_name, execution_plan)
+                        matched_step = match_tool_to_plan_step(
+                            tool_name, execution_plan, current_active_step
+                        )
                         if matched_step:
+                            # Remember mapping for tool_end
+                            if run_id:
+                                tool_step_map[run_id] = matched_step
+
+                            # If advancing to a new step, auto-complete the previous one
+                            if (
+                                current_active_step is not None
+                                and matched_step != current_active_step
+                            ):
+                                update_plan_step_status(
+                                    execution_plan, current_active_step, "complete"
+                                )
+                                yield "event: plan_step_update\n"
+                                step_data = {
+                                    "step_number": current_active_step,
+                                    "status": "complete",
+                                }
+                                yield f"data: {json.dumps(step_data)}\n\n"
+
+                            current_active_step = matched_step
                             update_plan_step_status(execution_plan, matched_step, "in-progress")
                             # Emit plan step update
                             yield "event: plan_step_update\n"
@@ -658,6 +702,7 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
 
                 elif event_type == "on_tool_end":
                     tool_name = event_name
+                    run_id = event.get("run_id")
                     tool_output = event_data.get("output", {})
                     # Make tool_output JSON serializable
                     serializable_output = make_json_serializable(tool_output)
@@ -670,35 +715,14 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                         or "geodata_layers" in serializable_output
                     )
 
-                    # Track plan step completion
+                    # Reuse step mapping from tool_start (don't re-match)
                     matched_step = None
-                    if execution_plan:
-                        matched_step = match_tool_to_plan_step(tool_name, execution_plan)
-                        if matched_step:
-                            # Build a short result summary
-                            result_summary = None
-                            if is_state_update:
-                                msg_count = len(serializable_output.get("messages", []))
-                                result_summary = f"Completed with {msg_count} messages"
-                            else:
-                                output_str = str(serializable_output)
-                                result_summary = output_str[:100]
-
-                            update_plan_step_status(
-                                execution_plan,
-                                matched_step,
-                                "complete",
-                                result_summary,
-                            )
-                            # Emit plan step update
-                            yield "event: plan_step_update\n"
-                            step_update = {
-                                "step_number": matched_step,
-                                "status": "complete",
-                                "tool": tool_name,
-                                "result_summary": result_summary,
-                            }
-                            yield f"data: {json.dumps(step_update)}\n\n"
+                    if execution_plan and run_id:
+                        matched_step = tool_step_map.pop(run_id, None)
+                    # Note: we do NOT mark the step as "complete" here.
+                    # Steps are auto-completed when the NEXT step starts,
+                    # or when the agent finishes. This handles multi-tool
+                    # steps (e.g. 3 geocode calls for one step).
 
                     # For state updates, only send summary
                     # For actual results, send full output
@@ -806,6 +830,20 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                             layer.model_dump() if hasattr(layer, "model_dump") else layer
                             for layer in geodata_layers
                         ]
+
+                        # Mark all remaining in-progress/pending steps as complete
+                        if execution_plan:
+                            for step in execution_plan.steps:
+                                if step.status in ("pending", "in-progress"):
+                                    update_plan_step_status(
+                                        execution_plan, step.step_number, "complete"
+                                    )
+                                    yield "event: plan_step_update\n"
+                                    step_data = {
+                                        "step_number": step.step_number,
+                                        "status": "complete",
+                                    }
+                                    yield f"data: {json.dumps(step_data)}\n\n"
 
                         yield "event: result\n"
                         result_data = {
