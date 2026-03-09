@@ -321,10 +321,13 @@ class OverpassQueryBuilder:
         # Search multiple name fields for better coverage
         name_tags = ["name", "name:en", "name:de", "alt_name", "old_name", "official_name"]
 
+        # Escape regex special characters in user-provided name
+        escaped_name = re.escape(name)
+
         parts.append("(")
         for tag in name_tags:
             # Case-insensitive regex search
-            parts.append(f'  nwr["{tag}"~"{name}",i]{location_filter};')
+            parts.append(f'  nwr["{tag}"~"{escaped_name}",i]{location_filter};')
         parts.append(");")
         parts.append(f"out geom {self.max_results};")
 

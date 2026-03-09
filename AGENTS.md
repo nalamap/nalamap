@@ -1,365 +1,81 @@
-# AGENTS.md - NaLaMap Development Guide for AI Agents
+# AGENTS.md - AI Development Context
 
-> **Purpose**: This guide instructs AI agents on how to efficiently develop in the NaLaMap project.  
-> **Target Audience**: AI coding assistants, automated development tools, and human developers.
+> **Target Audience**: AI coding assistants (Cursor, Copilot, etc.) and automated development tools.
 
----
-
-## 📋 Table of Contents
-
-1. [Project Overview](#project-overview)
-2. [Quick Start for Development](#quick-start-for-development)
-3. [Running Project Components](#running-project-components)
-4. [Testing Guidelines](#testing-guidelines)
-5. [Code Quality & Linting](#code-quality--linting)
-6. [Development Workflow](#development-workflow)
-7. [Common Development Tasks](#common-development-tasks)
-8. [Troubleshooting](#troubleshooting)
+This document provides high-level context and specific instructions for AI agents working on the NaLaMap project. For standard development procedures, please refer to **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
 ---
 
-## 📖 Project Overview
+## 🤖 Core Directives for Agents
 
-**NaLaMap** is an open-source geospatial AI platform built with:
-- **Backend**: Python 3.11+, FastAPI, LangChain, LangGraph
-- **Frontend**: Next.js 15, React 19, TypeScript, Leaflet
-- **Infrastructure**: Docker, Nginx, PostgreSQL
+When contributing to this repository, you **MUST** follow these rules:
 
-**Repository Structure**:
-```
-nalamap/
-├── backend/              # Python FastAPI backend
-├── frontend/             # Next.js frontend  
-├── nginx/                # Nginx reverse proxy configuration
-├── docs/                 # Documentation
-├── .github/workflows/    # CI/CD pipelines
-└── docker-compose.yml    # Production deployment
-```
-
----
-
-## 🚀 Quick Start for Development
-
-### Prerequisites
-- **Python 3.11+**
-- **Node.js 18+**  
-- **Poetry** (Python dependency management)
-- **Docker & Docker Compose** (optional)
-- **Git**
-
-### Environment Setup
-
-1. **Clone the repository**:
-   ```bash
-   git clone git@github.com:nalamap/nalamap.git
-   cd nalamap
-   ```
-
-2. **Configure environment variables**:
-   ```bash
-   cp .env.example .env
-   # Edit .env with your configuration (API keys, database credentials, etc.)
-   ```
-
-3. **Configure Poetry** (recommended):
-   ```bash
-   poetry config virtualenvs.create true
-   poetry config virtualenvs.in-project true
-   ```
+1.  **Single Source of Truth**: All development workflows (testing, linting, running) are defined in **[CONTRIBUTING.md](CONTRIBUTING.md)**. Do not hallucinate alternative procedures.
+2.  **Test-Driven Development**:
+    *   **Always** run existing tests before modifying code to establish a baseline.
+    *   **Always** write new tests for new features or bug fixes.
+    *   **Verify** changes by running the relevant test suite (`pytest` for backend, `playwright` for frontend).
+3.  **Code Quality**:
+    *   **Linting is mandatory**. After editing files, run the linters defined in `CONTRIBUTING.md` (`flake8`, `black`, `npm run lint`).
+    *   Fix linter errors immediately. Do not submit code with linting violations.
+4.  **Documentation**:
+    *   Update `README.md` files if you change how a component works.
+    *   If you add a new tool, update `backend/services/tools/README.md`.
+    *   If you add a new dependency, update `pyproject.toml` or `package.json`.
 
 ---
 
-## 🏃 Running Project Components
+## 🗺️ Repository Map & Context
 
-### Backend (FastAPI)
+To help you navigate the codebase efficiently:
 
-**Directory**: `backend/`
+### Backend Structure (`backend/`)
+*   **API Layer**: `api/` (FastAPI endpoints).
+*   **Business Logic**: `services/` (AI agents, tools, database logic).
+    *   `services/agents/`: Legacy agent implementations.
+    *   `services/tools/`: **Core AI tools** (geocoding, geoprocessing). **Read `backend/services/tools/README.md`** for details.
+*   **Data Models**: `models/` (Pydantic models).
+*   **Tests**: `tests/` (pytest suite). **Read `backend/tests/README.md`** for details.
 
-#### Local Development (Recommended for testing)
-```bash
-cd backend
+### Frontend Structure (`frontend/`)
+*   **Pages**: `app/page.tsx` (Main entry).
+*   **Components**: `app/components/` (React components).
+    *   `maps/`: Leaflet map logic.
+    *   `chat/`: AI chat interface.
+*   **State**: `app/stores/` (Zustand stores).
+*   **Tests**: `tests/` (Playwright E2E). **Read `frontend/tests/README.md`** for details.
 
-# Install dependencies
-poetry install
-
-# Run the backend server
-poetry run python main.py
-```
-
-**Backend runs on**: `http://localhost:8000`  
-**API Documentation**: `http://localhost:8000/docs` (Swagger UI)
-
-#### Docker Development
-```bash
-# From project root
-docker-compose -f dev.docker-compose.yml up backend --build
-```
-
-### Frontend (Next.js)
-
-**Directory**: `frontend/`
-
-#### Local Development (Recommended for testing)
-```bash
-cd frontend
-
-# Install dependencies
-npm install
-
-# Run development server with hot reload
-npm run dev
-```
-
-**Frontend runs on**: `http://localhost:3000`
-
-#### Docker Development
-```bash
-# From project root
-docker-compose -f dev.docker-compose.yml up frontend --build
-```
-
-### Full Stack Development
-
-**Option 1: Local Development** (Best for active development)
-```bash
-# Terminal 1: Backend
-cd backend && poetry run python main.py
-
-# Terminal 2: Frontend  
-cd frontend && npm run dev
-```
-
-**Option 2: Docker Development** (Matches production environment)
-```bash
-# From project root
-docker-compose -f dev.docker-compose.yml up --build
-```
-
-**Option 3: Production-like Deployment**
-```bash
-# From project root
-docker-compose up --build
-```
+### Key Configuration Files
+*   `backend/pyproject.toml`: Python dependencies and tool config (flake8, black).
+*   `frontend/package.json`: Node dependencies and scripts.
+*   `docker-compose.yml`: Production deployment.
+*   `dev.docker-compose.yml`: Development environment.
 
 ---
 
-## 🧪 Testing Guidelines
+## 🛠️ Common Tasks for Agents
 
-### Backend Tests (pytest)
+### 1. Adding a New AI Tool
+When asked to add a new capability to the AI assistant:
+1.  Create the tool function in `backend/services/tools/`.
+2.  Use the `@tool` decorator from `langchain.tools`.
+3.  Add unit tests in `backend/tests/`.
+4.  **Register the tool** in `backend/services/default_agent_settings.py`.
+5.  Document it in `backend/services/tools/README.md`.
 
-**Location**: `backend/tests/`
+### 2. Modifying the Agent Workflow
+The main agent logic is in `backend/services/single_agent.py` (LangGraph ReAct agent).
+*   If changing the system prompt, look for `DEFAULT_SYSTEM_PROMPT`.
+*   If changing tool selection logic, check `create_geo_agent`.
 
-#### Running Backend Tests
-
-```bash
-cd backend
-
-# Run all tests
-poetry run pytest tests/
-
-# Run specific test file
-poetry run pytest tests/test_styling_ops.py
-
-# Run with verbose output
-poetry run pytest tests/ -v
-
-# Run tests with specific markers
-poetry run pytest tests/ -m unit
-poetry run pytest tests/ -m integration
-poetry run pytest tests/ -m styling
-
-# Run tests and show durations
-poetry run pytest tests/ --durations=10
-
-# Run tests with coverage
-poetry run pytest tests/ --cov=. --cov-report=html
-```
-
-#### Test Markers Available
-- `unit`: Unit tests for individual functions
-- `integration`: Integration tests via API
-- `slow`: Slow running tests (>5 seconds)
-- `performance`: Performance and stress tests
-- `edge_case`: Edge case and boundary condition tests
-- `styling`: All styling-related tests
-- `color_theory`: Tests related to color theory
-
-#### Writing New Backend Tests
-- Place new test files in `backend/tests/`
-- Name test files with `test_*.py` pattern
-- Use fixtures from `conftest.py`
-- Add appropriate test markers
-- Mock external API calls to avoid rate limits
-- Follow existing test patterns
-
-**Example Test Structure**:
-```python
-import pytest
-from models.geodata import GeoDataObject
-
-@pytest.mark.unit
-def test_something(sample_river_layer):
-    """Test description."""
-    # Arrange
-    layer = sample_river_layer
-    
-    # Act
-    result = some_function(layer)
-    
-    # Assert
-    assert result is not None
-```
-
-### Frontend Tests (Playwright)
-
-**Location**: `frontend/tests/`
-
-#### Running Frontend Tests
-
-```bash
-cd frontend
-
-# Install Playwright browsers (first time only)
-npx playwright install --with-deps
-
-# Run all tests
-npm test
-# or
-npx playwright test
-
-# Run specific test file
-npx playwright test tests/leaflet-map.spec.ts
-
-# Run in interactive UI mode (recommended for debugging)
-npx playwright test --ui
-
-# Run in headed mode (see browser)
-npx playwright test --headed
-
-# Run specific test by name
-npx playwright test -g "should display geocoded location"
-
-# Generate HTML report
-npx playwright test --reporter=html
-npx playwright show-report
-```
-
-#### Frontend Test Categories
-- **Map Tests** (`leaflet-map.spec.ts`): Geocoding, Overpass, OGC services
-- **Chat Interface** (`chat-interface.spec.ts`): AI chat functionality
-- **Settings** (`settings.spec.ts`, `settings-tools-collapsible.spec.ts`): Settings panels
-- **Geoprocessing** (`geoprocessing.spec.ts`): Spatial operations
-- **Layer Management**: Layer loading and caching tests
-- **Color Settings** (`color-settings.spec.ts`): Color customization
-
-#### Writing New Frontend Tests
-- Use Playwright test framework
-- Place tests in `frontend/tests/`
-- Use fixtures from `frontend/tests/fixtures/`
-- Mock backend API responses when appropriate
-- Test user interactions and UI state
+### 3. Debugging
+If tests fail:
+*   **Backend**: Read the `pytest` output. Use `pytest -vv` for more detail. Check `backend/app_output.log` if available.
+*   **Frontend**: Use `npx playwright test --ui` or check the HTML report.
 
 ---
 
-## ✅ Code Quality & Linting
-
-### Backend Linting & Formatting
-
-**Tools**: Flake8 (linting), Black (formatting), isort (import sorting)
-
-#### Running Linters
-
-```bash
-cd backend
-
-# Run flake8 (linting)
-poetry run flake8 .
-
-# Run black (formatting check)
-poetry run black --check .
-
-# Auto-format with black
-poetry run black .
-
-# Sort imports with isort
-poetry run isort .
-```
-
-#### Backend Code Standards
-- **Line Length**: 100 characters (configured in `pyproject.toml`)
-- **Style Guide**: PEP 8 with Black formatting
-- **Import Order**: Managed by isort
-- **Ignore Rules**: E203, W503 (conflicts with Black)
-
-#### Configuration Files
-- `backend/pyproject.toml`: Contains `[tool.flake8]` and `[tool.black]` sections
-- Per-file ignores are configured for specific patterns (e.g., long docstrings, test fixtures)
-
-### Frontend Linting
-
-```bash
-cd frontend
-
-# Run Next.js linter
-npm run lint
-```
-
-**Note**: Frontend linting is configured but not strictly enforced in CI/CD.
-
----
-
-## 🔄 Development Workflow
-
-### Before Starting Work
-
-1. **Pull latest changes**:
-   ```bash
-   git pull origin main
-   ```
-
-2. **Create a feature branch**:
-   ```bash
-   git checkout -b features/YYYYMMDD_YourFeatureName
-   ```
-
-3. **Ensure environment is up-to-date**:
-   ```bash
-   # Backend
-   cd backend && poetry install
-   
-   # Frontend
-   cd frontend && npm install
-   ```
-
-### While Developing
-
-1. **Run components locally** (see [Running Project Components](#running-project-components))
-
-2. **Write tests for new features**:
-   - Add unit tests for new functions/modules
-   - Add integration tests for new API endpoints
-   - Add E2E tests for new UI features
-
-3. **Run tests frequently**:
-   ```bash
-   # Backend
-   poetry run pytest tests/
-   
-   # Frontend
-   npm test
-   ```
-
-4. **Check code quality**:
-   ```bash
-   # Backend linting
-   poetry run flake8 .
-   poetry run black --check .
-   
-   # Frontend linting
-   npm run lint
-   ```
-
-### Before Committing
+## 🔄 Quick Reference: Commands
 
 **Critical Checklist**:
 
@@ -671,6 +387,7 @@ docker-compose restart backend
 
 ---
 
-**Last Updated**: October 2025  
-**Maintainers**: NaLaMap Development Team  
-**Contact**: [info@nalamap.org](mailto:info@nalamap.org)
+*   **Run Backend Tests**: `cd backend && poetry run pytest`
+*   **Run Frontend Tests**: `cd frontend && npx playwright test`
+*   **Lint Backend**: `cd backend && poetry run flake8 . && poetry run black .`
+*   **Lint Frontend**: `cd frontend && npm run lint`

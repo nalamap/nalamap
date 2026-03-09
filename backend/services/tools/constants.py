@@ -480,8 +480,8 @@ AMENITY_MAPPING = {
     "places": "place=*",
     "location": "place=*",
     "locations": "place=*",
-    "settlement": "settlement=*",
-    "settlements": "settlement=*",
+    "settlement": "place=*",
+    "settlements": "place=*",
     # Generic name search
     "name": "name=*",
     "named": "name=*",

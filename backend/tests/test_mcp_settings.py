@@ -137,7 +137,7 @@ async def test_create_geo_agent_with_no_mcp_servers():
     from services.single_agent import create_geo_agent
 
     # Create agent without MCP servers
-    agent = await create_geo_agent(
+    agent, llm = await create_geo_agent(
         selected_tools=[],
         session_id="test-session",
         mcp_servers=None,
@@ -153,7 +153,7 @@ async def test_create_geo_agent_with_empty_mcp_servers():
     from services.single_agent import create_geo_agent
 
     # Create agent with empty MCP server list
-    agent = await create_geo_agent(
+    agent, llm = await create_geo_agent(
         selected_tools=[],
         session_id="test-session",
         mcp_servers=[],

@@ -145,11 +145,13 @@ jobs:
     needs: build-and-push
     # Run even if some matrix builds failed — the infra repo decides whether
     # a partial set of images is deployable (e.g. only nginx changed).
-    # Skip only when the entire workflow was cancelled.
+    # Skip only when the entire workflow was cancelled. For PRs, dispatch only
+    # for branches in this same repository (fork PRs do not get secrets).
     if: >-
-      !cancelled()
+      always()
+      && !cancelled()
       && (github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/'))
-         || github.event_name == 'pull_request')
+        || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository))
     steps:
       - name: Download image metadata
         uses: actions/download-artifact@v4
@@ -311,8 +313,7 @@ jobs:
 
               const token = process.env.CLOUD_INFRA_REPO_TOKEN;
               if (!token) {
-                core.info('CLOUD_INFRA_REPO_TOKEN not set. Skipping repository_dispatch to nalamap/cloud-infrastructure.');
-                core.info(`Would have sent event '${eventType}' with ${images.length} images.`);
+                core.setFailed('CLOUD_INFRA_REPO_TOKEN is not set. Cannot dispatch to nalamap/cloud-infrastructure.');
                 return;
               }
 

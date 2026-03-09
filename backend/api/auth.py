@@ -193,11 +193,11 @@ async def me(request: Request, db: AsyncSession = Depends(get_session)):
 
     # Validate user_id is a valid UUID format before database query
     try:
-        UUIDType(user_id)
+        user_uuid = UUIDType(user_id)
     except (ValueError, TypeError):
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    result = await db.execute(select(User).filter_by(id=user_id))
+    result = await db.execute(select(User).filter_by(id=user_uuid))
     user = result.scalars().first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")

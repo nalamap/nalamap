@@ -150,6 +150,7 @@ def query_librarian_postgis(
                 ],
                 # "global_geodata": new_global_geodata,
                 "geodata_results": new_global_geodata,
+                "geodata_last_results": results,
             }
         )
 

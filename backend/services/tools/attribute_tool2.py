@@ -41,7 +41,7 @@ from services.tools.attribute_tools import (
     summarize_gdf,
     unique_values_gdf,
 )
-from services.tools.utils import match_layer_names
+from services.tools.utils import get_all_available_layers, match_layer_names
 
 logger = logging.getLogger(__name__)
 
@@ -82,6 +82,7 @@ def attribute_tool2(
     sort_fields: Optional[List[Dict[str, str]]] = None,
     columns: Optional[List[str]] = None,
     row_filter: Optional[str] = None,
+    add_to_results: bool = True,
 ) -> Union[Dict[str, Any], Command]:
     """
     Perform attribute operations on GeoJSON layers - Version 2 (simplified).
@@ -158,8 +159,8 @@ def attribute_tool2(
                        columns=["NAME", "DESIG_ENG", "REP_AREA"],
                        row_filter="WDPA_PID = '555555'")
     """
-    # Get layers from state
-    layers = state.get("geodata_layers") or []
+    # Combined pool: user's map layers + results from previous tool steps
+    layers = get_all_available_layers(state)
     if not layers:
         return Command(
             update={
@@ -241,19 +242,19 @@ def attribute_tool2(
     # Execute operation
     try:
         if operation == "list_fields":
-            return _handle_list_fields(gdf, layer, tool_call_id)
+            result = _handle_list_fields(gdf, layer, tool_call_id)
 
         elif operation == "summarize":
-            return _handle_summarize(gdf, layer, fields, tool_call_id)
+            result = _handle_summarize(gdf, layer, fields, tool_call_id)
 
         elif operation == "unique_values":
-            return _handle_unique_values(gdf, layer, field, top_k, tool_call_id)
+            result = _handle_unique_values(gdf, layer, field, top_k, tool_call_id)
 
         elif operation == "filter_where":
-            return _handle_filter_where(gdf, layer, where, state, tool_call_id)
+            result = _handle_filter_where(gdf, layer, where, state, tool_call_id)
 
         elif operation == "select_fields":
-            return _handle_select_fields(
+            result = _handle_select_fields(
                 gdf, layer, include_fields, exclude_fields, keep_geometry, state, tool_call_id
             )
 
@@ -272,13 +273,13 @@ def attribute_tool2(
                         sort_fields_tuples.append(tuple(sf))
                     else:
                         logger.warning(f"Invalid sort field format: {sf}")
-            return _handle_sort_by(gdf, layer, sort_fields_tuples, state, tool_call_id)
+            result = _handle_sort_by(gdf, layer, sort_fields_tuples, state, tool_call_id)
 
         elif operation == "describe_dataset":
-            return _handle_describe_dataset(gdf, layer, tool_call_id)
+            result = _handle_describe_dataset(gdf, layer, tool_call_id)
 
         elif operation == "get_attribute_values":
-            return _handle_get_attribute_values(gdf, layer, columns, row_filter, tool_call_id)
+            result = _handle_get_attribute_values(gdf, layer, columns, row_filter, tool_call_id)
 
         else:
             return Command(
@@ -293,6 +294,19 @@ def attribute_tool2(
                     ]
                 }
             )
+
+        # Post-process: ensure geodata_last_results is set for chaining,
+        # and conditionally include geodata_results based on add_to_results.
+        if isinstance(result, Command) and hasattr(result, "update"):
+            upd = result.update
+            if isinstance(upd, dict) and "geodata_results" in upd:
+                geo_data = upd["geodata_results"]
+                # Always write to geodata_last_results for chaining
+                upd["geodata_last_results"] = geo_data
+                if not add_to_results:
+                    del upd["geodata_results"]
+
+        return result
 
     except Exception as e:
         logger.exception(f"Error executing attribute operation '{operation}'")

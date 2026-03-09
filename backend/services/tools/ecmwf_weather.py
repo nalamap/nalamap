@@ -378,6 +378,7 @@ def get_ecmwf_weather_data(
         "'temperature', 'precipitation', 'wind_speed', 'pressure', 'humidity', 'cloud_cover'. "
         "If not specified, returns temperature and precipitation.",
     ] = None,
+    add_to_results: bool = True,
     state: Annotated[GeoDataAgentState, InjectedState] = None,
     tool_call_id: Annotated[str, InjectedToolCallId] = None,
 ) -> Command[Any]:
@@ -598,12 +599,13 @@ def get_ecmwf_weather_data(
 
         response_text = "\n".join(summary_lines)
 
-        return Command(
-            update={
-                "geodata_results": [geo_obj],
-                "messages": [ToolMessage(content=response_text, tool_call_id=tool_call_id)],
-            }
-        )
+        state_update = {
+            "geodata_last_results": [geo_obj],
+            "messages": [ToolMessage(content=response_text, tool_call_id=tool_call_id)],
+        }
+        if add_to_results:
+            state_update["geodata_results"] = [geo_obj]
+        return Command(update=state_update)
 
     except Exception as e:
         logger.exception(f"Error in ECMWF weather tool: {e}")

@@ -1187,7 +1187,7 @@ def _get_custom_geoserver_data(
     if not isinstance(current_messages, list):
         current_messages = []
 
-    # Update messages; DO NOT overwrite geodata_layers or geodata_last_results here.
+    # Update messages; write geodata_last_results for tool chaining.
     state["messages"] = current_messages + [tool_message]
 
     # Prepare new geodata_results (replace previous search results with current set)
@@ -1197,6 +1197,7 @@ def _get_custom_geoserver_data(
         update={
             "messages": state["messages"],
             "geodata_results": new_results,
+            "geodata_last_results": new_results,
         }
     )
 

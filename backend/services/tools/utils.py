@@ -1,5 +1,29 @@
 import difflib
-from typing import Any, List
+from typing import Any, Dict, List
+
+from models.geodata import GeoDataObject
+
+
+def get_all_available_layers(state: Dict[str, Any]) -> List[GeoDataObject]:
+    """
+    Return the combined pool of layers available for tool input:
+    geodata_layers (user's map layers) + geodata_last_results (previous tool outputs).
+
+    This enables multi-step plan chaining: a geoprocess tool can find
+    geocoded results produced by a prior step.
+    """
+    layers = list(state.get("geodata_layers") or [])
+    last_results = state.get("geodata_last_results") or []
+
+    # Deduplicate by (id, data_source_id) — prefer geodata_layers entries
+    seen = {(layer.id, layer.data_source_id) for layer in layers}
+    for item in last_results:
+        key = (item.id, item.data_source_id)
+        if key not in seen:
+            layers.append(item)
+            seen.add(key)
+
+    return layers
 
 
 def match_layer_names(layers: List[Any], target_names: List[str], cutoff: float = 0.6) -> List[Any]:

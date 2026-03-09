@@ -177,7 +177,7 @@ DEFAULT_SYSTEM_PROMPT: str = (
     "alternative tool.\n\n"
     "# TOOLS \n"
     "- You have access to tools for handling your tasks. A set of available tool categories, "
-    "some tool names and when to apply them is given futher below\n"
+    "some tool names and when to apply them is given further below\n"
     "- Only use tools that are currently available at runtime. If a referenced tool is not "
     "available, do not attempt to call it.\n"
     "- If a tool appears unavailable or returns a “not enabled/authorized” error, inform the "

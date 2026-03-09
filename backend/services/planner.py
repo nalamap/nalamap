@@ -69,12 +69,18 @@ Examples of SIMPLE queries (is_complex=false):
 - "Style the rivers blue" → single styling call
 
 Examples of COMPLEX queries (is_complex=true):
+- "Find hospitals within 30km of Darmstadt and style them" → 3 steps:
+  geocode hospitals, buffer 30km around Darmstadt and clip/intersect, style results
 - "Geocode Europe, find protected areas globally, then intersect them to get only
    European protected areas" → 3 steps: geocode, fetch data, geoprocess
 - "Find hospitals in Berlin, create 1km buffers, and show how many parks are within
    each buffer" → 4 steps: geocode POIs, buffer, geocode parks, intersect/analyze
 - "Get rainfall data for Kenya and overlay it with crop production statistics" →
    3 steps: geocode region, fetch weather, fetch World Bank data
+
+IMPORTANT: When the user says "within X km/miles" or "near" or "around" with a distance,
+you MUST include a geoprocessing step (buffer + intersect/clip) to enforce the radius.
+Do NOT rely on geocoding alone for spatial radius queries.
 
 User's current context:
 {context}
@@ -202,32 +208,30 @@ def build_plan_system_addendum(plan: ExecutionPlan) -> str:
         f"The user's request has been analyzed and broken into these sequential steps:\n"
         f"Goal: {plan.goal}\n\n"
         f"Steps:\n{steps_text}\n\n"
-        "Instructions for following the plan:\n"
-        "- Execute each step in order. Later steps may depend on results from earlier steps.\n"
-        "- Use your judgment to select the best tool for each step.\n"
-        "- If a step fails, explain the issue and try an alternative approach.\n"
-        "- After completing all steps, provide a comprehensive summary of what was accomplished.\n"
-        "- You may skip steps if they become unnecessary based on intermediate results.\n"
+        "CRITICAL INSTRUCTIONS — you MUST follow these:\n"
+        "1. Execute EVERY step in order by calling the appropriate tool.\n"
+        "2. Do NOT write a final text response until ALL steps have been completed.\n"
+        "3. After each tool returns, immediately proceed to the NEXT step's tool call.\n"
+        "4. If a step fails, explain briefly and move to the next step.\n"
+        "5. Only after the LAST step's tool has returned may you write a summary.\n"
+        "\n"
+        "Result chaining between steps:\n"
+        "- Tools can access layers produced by earlier steps automatically.\n"
+        "  For example, if step 1 geocodes 'Poland', step 2 can reference the\n"
+        "  layer 'Poland' by name in target_layer_names.\n"
+        "- For INTERMEDIATE steps (not the last step), set add_to_results=False\n"
+        "  so their output is available for chaining but does NOT appear in the\n"
+        "  final result list shown to the user.\n"
+        "- For the FINAL step, use add_to_results=True (or omit it, as True is\n"
+        "  the default) so the output goes to the result list.\n"
+        "\n"
+        "WARNING: If you respond with text before completing all steps,\n"
+        "the remaining steps will NOT be executed. You MUST call tools first.\n"
     )
 
 
-def match_tool_to_plan_step(
-    tool_name: str,
-    plan: ExecutionPlan,
-) -> Optional[int]:
-    """Try to match a tool execution to a plan step based on tool category.
-
-    Uses the tool_hint and tool name to find the most likely matching
-    pending/in-progress step. This is a best-effort heuristic.
-
-    Args:
-        tool_name: Name of the tool being executed
-        plan: The current execution plan
-
-    Returns:
-        Step number if matched, None otherwise
-    """
-    # Tool name to category mapping
+def get_tool_category(tool_name: str) -> str:
+    """Map a tool name to its category for plan step matching."""
     tool_categories = {
         "geocode_using_nominatim_to_geostate": "geocod",
         "geocode_using_overpass_to_geostate": "geocod",
@@ -246,21 +250,45 @@ def match_tool_to_plan_step(
         "get_nasa_gibs_layer": "satellite",
         "list_nasa_gibs_layers": "satellite",
     }
+    return tool_categories.get(tool_name, tool_name.lower())
 
-    tool_category = tool_categories.get(tool_name, tool_name.lower())
 
-    # Find first pending step that matches the tool category
+def match_tool_to_plan_step(
+    tool_name: str,
+    plan: ExecutionPlan,
+    current_step: Optional[int] = None,
+) -> Optional[int]:
+    """Match a tool execution to a plan step based on tool category.
+
+    Uses the tool_hint to find the matching step. If the same tool category
+    is already running for an in-progress step, stays on that step (handles
+    cases like 3 geocode calls all belonging to one "Geocode" step).
+
+    Args:
+        tool_name: Name of the tool being executed
+        plan: The current execution plan
+        current_step: The currently active (in-progress) step number, if any
+
+    Returns:
+        Step number if matched, None otherwise
+    """
+    tool_category = get_tool_category(tool_name)
+
+    # If there's a current in-progress step and this tool matches it,
+    # stay on the same step (e.g. 3 geocode calls for one "Geocode" step)
+    if current_step is not None:
+        for step in plan.steps:
+            if step.step_number == current_step and step.status == "in-progress":
+                hint = (step.tool_hint or "").lower()
+                if tool_category in hint or tool_name.lower() in hint:
+                    return current_step
+
+    # Find the first pending step whose tool_hint matches this tool category
     for step in plan.steps:
-        if step.status not in ("pending", "in-progress"):
+        if step.status != "pending":
             continue
-
-        # Check tool_hint match
         hint = (step.tool_hint or "").lower()
-        title = step.title.lower()
-        desc = step.description.lower()
-        search_text = f"{hint} {title} {desc}"
-
-        if tool_category in search_text or tool_name.lower() in search_text:
+        if tool_category in hint or tool_name.lower() in hint:
             return step.step_number
 
     # Fallback: return first pending step (tools execute in order)

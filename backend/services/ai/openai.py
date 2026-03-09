@@ -26,12 +26,26 @@ def get_available_models() -> list[ModelInfo]:
     """
     return [
         ModelInfo(
+            name="gpt-4.1-mini",
+            max_tokens=32768,
+            input_cost_per_million=0.40,
+            output_cost_per_million=1.60,
+            cache_cost_per_million=0.10,
+            description="GPT-4.1 Mini - Cost-efficient GPT-4.1, recommended default",
+            supports_tools=True,
+            supports_vision=True,
+            context_window=1000000,
+            supports_parallel_tool_calls=True,
+            tool_calling_quality="good",
+            reasoning_capability="advanced",
+        ),
+        ModelInfo(
             name="gpt-4.1",
             max_tokens=32768,
             input_cost_per_million=2.00,
             output_cost_per_million=8.00,
             cache_cost_per_million=0.50,
-            description="GPT-4.1 - Enhanced GPT-4 model, recommended default",
+            description="GPT-4.1 - Enhanced GPT-4 model",
             supports_tools=True,
             supports_vision=True,
             context_window=1000000,
@@ -63,20 +77,6 @@ def get_available_models() -> list[ModelInfo]:
             supports_tools=True,
             supports_vision=True,
             context_window=128000,
-            supports_parallel_tool_calls=True,
-            tool_calling_quality="good",
-            reasoning_capability="advanced",
-        ),
-        ModelInfo(
-            name="gpt-4.1-mini",
-            max_tokens=32768,
-            input_cost_per_million=0.40,
-            output_cost_per_million=1.60,
-            cache_cost_per_million=0.10,
-            description="GPT-4.1 Mini - Cost-efficient GPT-4.1",
-            supports_tools=True,
-            supports_vision=True,
-            context_window=1000000,
             supports_parallel_tool_calls=True,
             tool_calling_quality="good",
             reasoning_capability="advanced",
@@ -254,7 +254,7 @@ def get_llm(max_tokens: int = 6000, model_name: Optional[str] = None):
         api_key = "sk-test-key-not-set"
 
     # Use provided model_name, fall back to env var, or default
-    model = model_name or getenv("OPENAI_MODEL", "gpt-4.1")
+    model = model_name or getenv("OPENAI_MODEL", "gpt-4.1-mini")
 
     return ChatOpenAI(
         model=model,

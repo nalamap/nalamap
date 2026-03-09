@@ -5,8 +5,6 @@ Tests for Phase 2 geocoding improvements:
 - Spatial extent description
 """
 
-import pytest
-
 from services.tools.geocoding import (
     VALID_OSM_KEYS,
     _find_similar_amenity_keys,
