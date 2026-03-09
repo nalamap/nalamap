@@ -579,6 +579,14 @@ OSM_GEOMETRY_PREFERENCES = {
     },
 }
 
+# Aeroway values that represent point or area features (not linear).
+# These should be queried like amenities (include nodes + relations),
+# NOT like highways/railways (ways-only). Examples: aerodromes are stored
+# as nodes (small airports) or relations (large airports with boundaries).
+AEROWAY_POINT_VALUES: frozenset = frozenset(
+    {"aerodrome", "helipad", "heliport", "terminal", "hangar", "windsock"}
+)
+
 # User-friendly display labels for geometry types per OSM feature category.
 # Maps (osm_key, collection_type) to (display_label, description_hint).
 # collection_type is "Points", "Areas", or "Lines".

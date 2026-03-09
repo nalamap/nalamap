@@ -11,11 +11,12 @@ from langgraph.prebuilt import InjectedState
 from langgraph.types import Command
 from typing_extensions import Annotated
 
-from models.geodata import DataOrigin, DataType, GeoDataObject
+from models.geodata import DataOrigin, DataType, GeoDataObject, ProcessingMetadata
 from models.states import GeoDataAgentState
 from services.storage.file_management import store_file
 
 from .constants import AMENITY_MAPPING, OSM_GEOMETRY_PREFERENCES
+from .geocoding.tag_resolver import SemanticTagResolver
 from .overpass import (
     OverpassClient,
     OverpassLocation,
@@ -190,6 +191,9 @@ headers_nalamap = {
     "User-Agent": "NaLaMap, github.com/nalamap, next generation geospatial analysis using agents"
 }
 
+# Module-level semantic tag resolver (lazy-initialises on first use)
+_tag_resolver = SemanticTagResolver()
+
 
 def get_geometry_preferences(osm_key: str) -> Dict[str, Any]:
     """
@@ -241,7 +245,9 @@ def should_include_element_in_query(osm_key: str, osm_value: str, element_type: 
     return True
 
 
-def should_include_geojson_geometry(geojson_geometry_type: str, osm_key: str) -> bool:
+def should_include_geojson_geometry(
+    geojson_geometry_type: str, osm_key: str, osm_value: str = "*"
+) -> bool:
     """
     Determine if a GeoJSON geometry type should be included in results.
 
@@ -249,15 +255,24 @@ def should_include_geojson_geometry(geojson_geometry_type: str, osm_key: str) ->
     exclude Polygon geometries since these represent areas rather than the
     expected linear features.
 
+    For aeroway point features (aerodrome, helipad, …), Polygons are valid
+    because large airports are mapped as closed ways / relations.
+
     Args:
         geojson_geometry_type: GeoJSON geometry type ("Point", "LineString", "Polygon")
         osm_key: OSM tag key (e.g., "highway")
+        osm_value: OSM tag value (e.g., "aerodrome"); defaults to "*"
 
     Returns:
         True if geometry type should be included, False otherwise
     """
     linear_keys = {"highway", "railway", "waterway", "aeroway", "power"}
     if osm_key in linear_keys and geojson_geometry_type == "Polygon":
+        if osm_key == "aeroway":
+            from services.tools.constants import AEROWAY_POINT_VALUES
+
+            if osm_value in AEROWAY_POINT_VALUES:
+                return True  # Polygon boundaries are valid for aerodromes etc.
         return False
     return True
 
@@ -281,9 +296,18 @@ def should_include_element_in_results(
     element_type = element.get("type")
     element_tags = element.get("tags", {})
 
-    # Check if geometry type is excluded
+    # Check if geometry type is excluded — but skip exclusion for aeroway point features
+    # (e.g. aerodrome, helipad) which are stored as nodes in OSM, not ways.
     if element_type in prefs.get("exclude_geometries", []):
-        return False
+        if osm_key == "aeroway":
+            from services.tools.constants import AEROWAY_POINT_VALUES
+
+            if osm_value in AEROWAY_POINT_VALUES:
+                pass  # Allow node elements for point aeroway features
+            else:
+                return False
+        else:
+            return False
 
     # Check if specific tag value is excluded
     element_value = element_tags.get(osm_key)
@@ -953,7 +977,8 @@ def geocode_using_overpass_to_geostate(
     amenity_key: str,
     location_name: str,
     radius_meters: int = 10000,
-    max_results: int = 2500,
+    max_results: int = 5000,
+    max_tags: int = 10,
     timeout: int = 300,
     center_lat: Optional[float] = None,
     center_lon: Optional[float] = None,
@@ -977,7 +1002,13 @@ def geocode_using_overpass_to_geostate(
             for features not covered by the built-in mapping.
         location_name: The location to search (e.g. "Paris", "London", "Germany").
         radius_meters: Search radius in meters (default: 10000).
-        max_results: Maximum number of results to return (default: 2500).
+        max_results: Maximum number of features to return (default: 5000). Increase
+            only if the user explicitly asks for more results, and warn them that
+            very large result sets may slow down the map.
+        max_tags: Maximum number of OSM tag combinations used to build the query
+            (default: 10). Higher values increase coverage for broad queries but
+            slow down the Overpass API search. Increase only if the user asks for
+            more complete results and a timeout is not already occurring.
         timeout: Timeout for API requests in seconds (default: 300).
         center_lat: Optional explicit latitude for center point search.
         center_lon: Optional explicit longitude for center point search.
@@ -993,6 +1024,8 @@ def geocode_using_overpass_to_geostate(
     osm_tag_kv = AMENITY_MAPPING.get(amenity_key_cleaned)
     is_raw_tag = False
     resolved_tags: Optional[List[Dict[str, Any]]] = None
+    resolution_method = "direct_match"
+    resolution_detail = "matched via static tag dictionary"
 
     if not osm_tag_kv:
         # Fallback 1: Try raw key=value format (e.g. "tourism=artwork")
@@ -1000,16 +1033,64 @@ def geocode_using_overpass_to_geostate(
         if raw_tag:
             osm_tag_kv = raw_tag
             is_raw_tag = True
+            resolution_method = "direct_match"
+            resolution_detail = "parsed as raw OSM tag"
             logger.info(f"Using raw OSM tag '{raw_tag}' (not in AMENITY_MAPPING)")
 
     if not osm_tag_kv:
-        # Fallback 2: LLM semantic tag expansion
-        expanded = _expand_tags_with_llm(amenity_key)
-        if expanded:
-            resolved_tags = expanded
-            primary = expanded[0]
+        # Fallback 2: Semantic tag resolver (vector store + optional LLM filter)
+        # Threshold: if the semantic resolver returns fewer than this many tags, the result
+        # is considered "thin" (typically caused by the hashing embedding model returning no
+        # vector matches, leaving only fuzzy-matched candidates that miss semantic subtypes
+        # such as building=detached for "residential buildings"). In that case Stage 3 is
+        # supplemented with the LLM expansion from Stage 4 to fill the coverage gap.
+        _SEMANTIC_THIN_THRESHOLD = 5
+
+        semantic_resolution = _tag_resolver.resolve(amenity_key)
+        if semantic_resolution is not None and semantic_resolution.tags:
+            resolved_tags = semantic_resolution.tags
+            primary = resolved_tags[0]
             osm_tag_kv = f"{primary['key']}={primary['value']}"
-            logger.info(f"Using LLM-expanded tags, primary: {osm_tag_kv}")
+            resolution_method = semantic_resolution.method
+            resolution_detail = semantic_resolution.detail
+            logger.info(
+                f"Semantic resolver resolved '{amenity_key}' to {len(resolved_tags)} tags, "
+                f"primary: {osm_tag_kv}"
+            )
+
+            # If the semantic result is thin, supplement with LLM expansion so broad
+            # queries ("houses where people live") don't miss subtypes (detached, terrace…)
+            if len(resolved_tags) < _SEMANTIC_THIN_THRESHOLD:
+                logger.info(
+                    f"Semantic result thin ({len(resolved_tags)} tags < {_SEMANTIC_THIN_THRESHOLD}), "
+                    f"supplementing with LLM expansion for '{amenity_key}'"
+                )
+                expanded = _expand_tags_with_llm(amenity_key)
+                if expanded:
+                    existing = {f"{t['key']}={t['value']}" for t in resolved_tags}
+                    added = 0
+                    for tag in expanded:
+                        tag_str = f"{tag['key']}={tag['value']}"
+                        if tag_str not in existing:
+                            resolved_tags.append(tag)
+                            existing.add(tag_str)
+                            added += 1
+                    if added:
+                        resolution_detail = semantic_resolution.detail + " + LLM supplemented"
+                        logger.info(
+                            f"Supplemented semantic result with {added} LLM tags, "
+                            f"total: {len(resolved_tags)}"
+                        )
+        else:
+            # Fallback 3: LLM semantic tag expansion (Phase A)
+            expanded = _expand_tags_with_llm(amenity_key)
+            if expanded:
+                resolved_tags = expanded
+                primary = expanded[0]
+                osm_tag_kv = f"{primary['key']}={primary['value']}"
+                resolution_method = "llm_expansion"  # noqa: F841 — used by F07
+                resolution_detail = "expanded via AI-assisted tag expansion"  # noqa: F841
+                logger.info(f"Using LLM-expanded tags, primary: {osm_tag_kv}")
 
     if not osm_tag_kv:
         # Fallback 3: Suggest similar known amenity keys
@@ -1086,6 +1167,17 @@ def geocode_using_overpass_to_geostate(
         search_mode_description = _get_search_mode_description(location, radius_meters)
 
     # 3. Build and execute Overpass query
+    # Cap resolved_tags to prevent overly complex union queries that time out
+    tags_were_capped = resolved_tags is not None and len(resolved_tags) > max_tags
+    if tags_were_capped:
+        logger.info(
+            f"Capping resolved tags from {len(resolved_tags)} to {max_tags} "
+            f"to avoid Overpass query complexity timeout."
+        )
+        resolved_tags = resolved_tags[:max_tags]
+        primary = resolved_tags[0]
+        osm_tag_kv = f"{primary['key']}={primary['value']}"
+
     query_builder = OverpassQueryBuilder(timeout=timeout, max_results=max_results)
 
     try:
@@ -1097,7 +1189,7 @@ def geocode_using_overpass_to_geostate(
         else:
             # Single-tag path: existing behaviour
             # Prioritize ways/relations for linear feature queries to reduce point noise
-            prioritize_ways = is_linear_feature_query(osm_query_key)
+            prioritize_ways = is_linear_feature_query(osm_query_key, osm_query_value)
             if prioritize_ways:
                 logger.info(f"{osm_query_key} query detected, prioritizing ways/relations")
             overpass_query = query_builder.build_amenity_query(
@@ -1210,7 +1302,9 @@ def geocode_using_overpass_to_geostate(
                         should_include_geojson_geometry(geom_type, t["key"]) for t in resolved_tags
                     )
                 else:
-                    geom_ok = should_include_geojson_geometry(geom_type, osm_query_key)
+                    geom_ok = should_include_geojson_geometry(
+                        geom_type, osm_query_key, osm_query_value
+                    )
                 if not geom_ok:
                     continue
 
@@ -1226,7 +1320,7 @@ def geocode_using_overpass_to_geostate(
     )
 
     # Filter out point noise for linear feature queries when lines/areas exist
-    if is_linear_feature_query(osm_query_key):
+    if is_linear_feature_query(osm_query_key, osm_query_value):
         point_features = converter.filter_point_noise(
             point_features, polygon_features, linestring_features
         )
@@ -1234,6 +1328,12 @@ def geocode_using_overpass_to_geostate(
     # 5. Create GeoDataObject collections
     created_collections: List[GeoDataObject] = []
     actionable_layers_info = []
+
+    # Build the list of OSM tags actually used in the query
+    if resolved_tags:
+        osm_tags_used_list = [f"{t['key']}={t['value']}" for t in resolved_tags]
+    else:
+        osm_tags_used_list = [osm_tag_kv] if osm_tag_kv else []
 
     for features, collection_type in [
         (point_features, "Points"),
@@ -1250,6 +1350,20 @@ def geocode_using_overpass_to_geostate(
                 location_name,
             )
             if collection_obj:
+                # Attach geocoding query transparency metadata
+                collection_obj.processing_metadata = ProcessingMetadata(
+                    operation="overpass_query",
+                    crs_used="EPSG:4326",
+                    crs_name="WGS 84",
+                    auto_selected=True,
+                    query_intent=amenity_key,
+                    query_location=location.display_name,
+                    resolution_method=resolution_method,
+                    resolution_detail=resolution_detail,
+                    osm_tags_used=osm_tags_used_list,
+                    osm_tags_excluded=[],
+                    overpass_query=overpass_query,
+                )
                 created_collections.append(collection_obj)
                 props = collection_obj.properties or {}
                 actionable_layers_info.append(
@@ -1296,6 +1410,10 @@ def geocode_using_overpass_to_geostate(
         max_results,
         actionable_layers_info,
         location.display_name,
+        resolution_method=resolution_method,
+        osm_tags_used=osm_tags_used_list,
+        tags_were_capped=tags_were_capped,
+        max_tags=max_tags,
     )
 
     state_update: Dict[str, Any] = {
@@ -1417,6 +1535,10 @@ def _build_overpass_response_message(
     max_results: int,
     layers_info: List[Dict[str, Any]],
     location_display: str,
+    resolution_method: Optional[str] = None,
+    osm_tags_used: Optional[List[str]] = None,
+    tags_were_capped: bool = False,
+    max_tags: int = 10,
 ) -> str:
     """Build the response message for the LLM.
 
@@ -1442,6 +1564,15 @@ def _build_overpass_response_message(
             "me to increase this limit. However, please be aware that a very "
             "large number of features can significantly degrade map "
             "performance. "
+        )
+
+    if tags_were_capped:
+        msg += (
+            f"TAG_CAP_INFO: The semantic search returned more OSM tag combinations "
+            f"than the current limit of {max_tags}. Only the {max_tags} most relevant "
+            f"tags were queried. If you suspect results are incomplete, you can ask me "
+            f"to increase the tag limit (e.g. to 15 or 20), but be aware that more tags "
+            f"make the query slower and may cause a timeout for large areas. "
         )
 
     layer_details = json.dumps(layers_info)
@@ -1495,6 +1626,26 @@ def _build_overpass_response_message(
         "storage paths.\n"
         f"\nAvailable choices:\n{choices_text}\n"
     )
+
+    if resolution_method and resolution_method != "direct_match":
+        method_label = {
+            "llm_expansion": "AI-assisted tag expansion",
+            "semantic": "semantic search across the OSM tag vocabulary",
+            "fuzzy": "fuzzy matching",
+        }.get(resolution_method, "automatic resolution")
+
+        tags_summary = ", ".join(
+            (t.split("=")[1] if "=" in t else t) for t in (osm_tags_used or [])[:6]
+        )
+
+        construction_guidance = (
+            "\nQUERY CONSTRUCTION CONTEXT (share this with the user):\n"
+            f"- Resolution method: {method_label}\n"
+            f"- OSM tags used: {tags_summary}\n"
+            "- Offer to refine: suggest the user can narrow down "
+            "(e.g., 'only apartments') or expand the tag selection.\n"
+        )
+        guidance += construction_guidance
 
     msg += f"Actionable layer details: {layer_details}. " f"User response guidance: {guidance}"
     return msg

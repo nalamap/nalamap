@@ -124,9 +124,10 @@ class OverpassClient:
 class OverpassQueryBuilder:
     """Builds Overpass QL queries for various search types."""
 
-    def __init__(self, timeout: int = 300, max_results: int = 2500):
+    def __init__(self, timeout: int = 300, max_results: int = 5000, maxsize: int = 67108864):
         self.timeout = timeout
         self.max_results = max_results
+        self.maxsize = maxsize
 
     @staticmethod
     def format_tag_filter(key: str, value: str) -> str:
@@ -172,7 +173,7 @@ class OverpassQueryBuilder:
         """
         from services.tools.geocoding import should_include_element_in_query
 
-        parts = [f"[out:json][timeout:{self.timeout}];"]
+        parts = [f"[out:json][timeout:{self.timeout}][maxsize:{self.maxsize}];"]
         tag_filter = self.format_tag_filter(osm_tag_key, osm_tag_value)
 
         if location.has_area:
@@ -236,7 +237,7 @@ class OverpassQueryBuilder:
         """
         from services.tools.geocoding import should_include_element_in_query
 
-        parts = [f"[out:json][timeout:{self.timeout}];"]
+        parts = [f"[out:json][timeout:{self.timeout}][maxsize:{self.maxsize}];"]
 
         if location.has_area:
             overpass_area_id = location.osm_relation_id + 3600000000
@@ -303,7 +304,7 @@ class OverpassQueryBuilder:
         Returns:
             Overpass QL query string
         """
-        parts = [f"[out:json][timeout:{self.timeout}];"]
+        parts = [f"[out:json][timeout:{self.timeout}][maxsize:{self.maxsize}];"]
 
         if location.has_area:
             overpass_area_id = location.osm_relation_id + 3600000000
@@ -357,7 +358,7 @@ class OverpassQueryBuilder:
         """
         from services.tools.geocoding import should_include_element_in_query
 
-        parts = [f"[out:json][timeout:{self.timeout}];"]
+        parts = [f"[out:json][timeout:{self.timeout}][maxsize:{self.maxsize}];"]
         tag_filter = self.format_tag_filter(osm_tag_key, osm_tag_value)
         location_filter = f"(around:{radius_meters},{lat},{lon})"
 
@@ -783,6 +784,18 @@ def is_highway_query(osm_tag_key: str) -> bool:
     return osm_tag_key == "highway"
 
 
-def is_linear_feature_query(osm_tag_key: str) -> bool:
-    """Check if the query is for linear feature types (highway, railway, waterway, etc.)."""
-    return osm_tag_key in ("highway", "railway", "waterway", "aeroway", "power")
+def is_linear_feature_query(osm_tag_key: str, osm_tag_value: str = "*") -> bool:
+    """Check if the query is for linear feature types (highway, railway, waterway, etc.).
+
+    For aeroway, distinguishes between linear sub-features (runway, taxiway) and
+    point/area features (aerodrome, helipad, terminal, …) which should be queried
+    like amenities (nodes included) rather than like highways (ways only).
+    """
+    if osm_tag_key == "aeroway":
+        from services.tools.constants import AEROWAY_POINT_VALUES
+
+        # Wildcard or actual linear values → treat as linear
+        if osm_tag_value == "*":
+            return True
+        return osm_tag_value not in AEROWAY_POINT_VALUES
+    return osm_tag_key in ("highway", "railway", "waterway", "power")

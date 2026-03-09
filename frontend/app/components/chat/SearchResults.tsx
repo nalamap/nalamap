@@ -135,7 +135,7 @@ function DetailsPopup({
 }) {
   return (
     <div
-      className="fixed left-4 right-4 bottom-20 max-h-[60vh] overflow-y-auto bg-white border border-gray-300 rounded-lg shadow-xl p-4 z-50 md:absolute md:bottom-full md:left-0 md:right-auto md:mb-2 md:w-80 md:max-h-96"
+      className="fixed left-4 right-4 bottom-20 max-h-[60vh] overflow-y-auto bg-white dark:bg-neutral-800 border border-gray-300 dark:border-neutral-600 text-neutral-900 dark:text-neutral-100 rounded-lg shadow-xl p-4 z-50 md:absolute md:bottom-full md:left-0 md:right-auto md:mb-2 md:w-80 md:max-h-96"
       onClick={(e) => e.stopPropagation()}
     >
       <h4 className="font-bold text-sm mb-2 break-words">
@@ -241,12 +241,88 @@ function DetailsPopup({
         </div>
       )}
 
+      {/* Query Construction Section (for geocoding results) */}
+      {result.processing_metadata?.query_intent && (
+        <div className="pt-3 mt-3 border-t border-neutral-200 dark:border-neutral-600">
+          <h5 className="font-semibold text-neutral-700 dark:text-neutral-200 mb-2 text-xs">
+            Query Construction
+          </h5>
+
+          {/* Search intent */}
+          <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
+            <span className="text-xs font-semibold text-blue-800 dark:text-blue-300">
+              Search Intent
+            </span>
+            <p className="text-xs text-neutral-900 dark:text-neutral-100 mt-1">
+              &quot;{result.processing_metadata.query_intent}&quot;
+              {result.processing_metadata.query_location && (
+                <> in {result.processing_metadata.query_location}</>
+              )}
+            </p>
+          </div>
+
+          {/* Resolution method */}
+          {result.processing_metadata.resolution_detail && (
+            <div className="mb-2">
+              <span className="font-semibold text-neutral-700 dark:text-neutral-300 text-xs">
+                Resolution:
+              </span>
+              <p className="text-xs text-neutral-900 dark:text-neutral-100">
+                {result.processing_metadata.resolution_detail}
+              </p>
+            </div>
+          )}
+
+          {/* Tags used */}
+          {result.processing_metadata.osm_tags_used &&
+            result.processing_metadata.osm_tags_used.length > 0 && (
+              <div className="mb-2">
+                <span className="font-semibold text-neutral-700 dark:text-neutral-300 text-xs">
+                  OSM Tags ({result.processing_metadata.osm_tags_used.length}):
+                </span>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {result.processing_metadata.osm_tags_used.map((tag: string) => (
+                    <span
+                      key={tag}
+                      className="px-1.5 py-0.5 bg-neutral-200 dark:bg-neutral-700 text-neutral-800 dark:text-neutral-200 rounded text-xs font-mono"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+          {/* Excluded tags (if any) */}
+          {result.processing_metadata.osm_tags_excluded &&
+            result.processing_metadata.osm_tags_excluded.length > 0 && (
+              <div className="mb-2">
+                <span className="font-semibold text-neutral-700 dark:text-neutral-300 text-xs">
+                  Excluded:
+                </span>
+                {result.processing_metadata.osm_tags_excluded.map(
+                  (e: { tag: string; reason: string }) => (
+                    <p key={e.tag} className="text-xs text-neutral-600 dark:text-neutral-400 italic">
+                      {e.tag} — {e.reason}
+                    </p>
+                  )
+                )}
+              </div>
+            )}
+
+          {/* Refinement hint */}
+          <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-2 italic">
+            Ask in the chat to refine this query
+          </p>
+        </div>
+      )}
+
       <button
         onClick={(e) => {
           e.stopPropagation();
           onClose();
         }}
-        className="mt-3 w-full py-2 bg-neutral-200 hover:bg-neutral-300 rounded text-xs font-medium md:hidden"
+        className="mt-3 w-full py-2 bg-neutral-200 hover:bg-neutral-300 dark:bg-neutral-700 dark:hover:bg-neutral-600 rounded text-xs font-medium md:hidden"
       >
         Close
       </button>
@@ -269,28 +345,28 @@ function GeometryCard({
   const p = getOverpassProps(result);
 
   return (
-    <div className="border rounded p-2 bg-white hover:bg-neutral-50 transition-colors">
+    <div className="border rounded p-2 bg-white dark:bg-neutral-800 dark:border-neutral-600 hover:bg-neutral-50 dark:hover:bg-neutral-700 transition-colors">
       {/* Header: geometry label + feature count */}
       <div className="flex items-start justify-between gap-1 mb-1">
-        <div className="flex items-center gap-1 font-semibold text-xs text-neutral-800 min-w-0">
+        <div className="flex items-center gap-1 font-semibold text-xs text-neutral-800 dark:text-neutral-100 min-w-0">
           <GeometryTypeIcon type={p.geometryType} />
           <span className="break-words">{p.geometryLabel || p.geometryType}</span>
         </div>
-        <span className="text-[10px] text-neutral-500 flex-shrink-0 bg-neutral-100 rounded px-1 whitespace-nowrap">
+        <span className="text-[10px] text-neutral-700 dark:text-neutral-300 flex-shrink-0 bg-neutral-200 dark:bg-neutral-700 rounded px-1 whitespace-nowrap">
           {p.featureCount.toLocaleString()} features
         </span>
       </div>
 
       {/* Hint */}
       {p.geometryHint && (
-        <div className="text-[10px] text-neutral-500 mb-1 italic">
+        <div className="text-[10px] text-neutral-600 dark:text-neutral-400 mb-1 italic">
           {p.geometryHint}
         </div>
       )}
 
       {/* Sample names preview */}
       {p.sampleNames.length > 0 && (
-        <div className="text-[10px] text-neutral-600 mb-2 line-clamp-1">
+        <div className="text-[10px] text-neutral-700 dark:text-neutral-300 mb-2 line-clamp-1">
           e.g. {p.sampleNames.slice(0, 3).join(", ")}
         </div>
       )}
@@ -363,24 +439,24 @@ export default function SearchResults({
   const othersToShow = showAllResults ? others : others.slice(0, 5);
 
   return (
-    <div className="mt-6 mb-2 px-2 bg-neutral-50 rounded border">
+    <div className="mt-6 mb-2 px-2 bg-neutral-50 dark:bg-neutral-900 rounded border dark:border-neutral-700">
       <div className="font-semibold p-1">Search Results:</div>
 
       {/* Overpass geometry groups */}
       {groups.map((group) => (
-        <div key={group.groupKey} className="border-b last:border-none py-2">
+        <div key={group.groupKey} className="border-b dark:border-neutral-700 last:border-none py-2">
           {/* Group header */}
           <div className="mb-2">
-            <div className="font-semibold text-sm text-neutral-800">
+            <div className="font-semibold text-sm text-neutral-800 dark:text-neutral-100">
               {group.groupTitle}
             </div>
             {group.spatialExtent && (
-              <div className="text-[10px] text-neutral-500">
+              <div className="text-[10px] text-neutral-600 dark:text-neutral-400">
                 {group.spatialExtent}
               </div>
             )}
             {group.results.length > 1 && (
-              <div className="text-[10px] text-neutral-400 mt-0.5">
+              <div className="text-[10px] text-neutral-600 dark:text-neutral-400 mt-0.5">
                 Choose one or more geometry types to add:
               </div>
             )}
@@ -409,7 +485,7 @@ export default function SearchResults({
         return (
           <div
             key={result.id}
-            className="p-2 border-b last:border-none hover:bg-neutral-100"
+            className="p-2 border-b dark:border-neutral-700 last:border-none hover:bg-neutral-100 dark:hover:bg-neutral-800"
           >
             <div
               onClick={() => onSelectLayer(result)}
@@ -417,7 +493,7 @@ export default function SearchResults({
             >
               <div className="font-bold text-sm break-words">{result.title}</div>
               <div
-                className="text-xs text-gray-600 line-clamp-2"
+                className="text-xs text-neutral-700 dark:text-neutral-300 line-clamp-2"
                 title={result.llm_description}
               >
                 {result.llm_description}
@@ -483,7 +559,7 @@ export default function SearchResults({
                 )}
               </div>
 
-              <div className="text-[10px] text-gray-500 mt-1">
+              <div className="text-[10px] text-neutral-600 dark:text-neutral-400 mt-1">
                 {result.data_origin}
               </div>
             </div>

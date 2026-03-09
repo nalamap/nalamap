@@ -41,6 +41,33 @@ class ProcessingMetadata(BaseModel):
         description="Names of the input layers used to generate this result",
     )
 
+    # Geocoding query construction (optional, only populated for Overpass results)
+    query_intent: Optional[str] = Field(
+        None, description="The user's intended feature type (e.g., 'residential buildings')"
+    )
+    query_location: Optional[str] = Field(
+        None, description="The location used in the query (e.g., 'Bonn Nordstadt')"
+    )
+    resolution_method: Optional[str] = Field(
+        None,
+        description="How the OSM tags were resolved: 'direct_match'|'llm_expansion'|'semantic'|'fuzzy'",
+    )
+    resolution_detail: Optional[str] = Field(
+        None,
+        description="Human-readable explanation of the resolution (e.g., 'matched via static tag dictionary')",
+    )
+    osm_tags_used: Optional[List[str]] = Field(
+        None,
+        description="OSM tags used in the query (e.g., ['building=residential', 'building=apartments'])",
+    )
+    osm_tags_excluded: Optional[List[Dict[str, str]]] = Field(
+        None,
+        description="Tags considered but excluded, with reasons (e.g., [{'tag': 'landuse=residential', 'reason': '...'}])",
+    )
+    overpass_query: Optional[str] = Field(
+        None, description="The raw Overpass QL query string that was executed"
+    )
+
     model_config = ConfigDict(extra="ignore")
 
 
