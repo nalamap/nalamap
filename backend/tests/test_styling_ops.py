@@ -124,3 +124,54 @@ def create_test_layer(name: str, has_default_style: bool = True) -> GeoDataObjec
         layer.style = LayerStyle(stroke_color="#404040", fill_color="#808080")
 
     return layer
+
+
+def test_style_map_layers_writes_geodata_last_results():
+    """Styling tools must write to geodata_last_results for tool chaining."""
+    from services.tools.styling_tools import style_map_layers
+
+    layer = create_test_layer("parks")
+    state = {
+        "messages": [],
+        "geodata_layers": [layer],
+        "geodata_last_results": [],
+    }
+
+    result = style_map_layers.func(
+        state=state,
+        tool_call_id="test-call-1",
+        fill_color="#00FF00",
+    )
+
+    update = result.update
+    assert "geodata_layers" in update
+    assert "geodata_last_results" in update
+    # Both should contain the styled layer
+    assert len(update["geodata_layers"]) == 1
+    assert len(update["geodata_last_results"]) == 1
+    assert update["geodata_layers"][0].style.fill_color.lower() == "#00ff00"
+    assert update["geodata_last_results"][0].style.fill_color.lower() == "#00ff00"
+
+
+def test_apply_intelligent_color_scheme_writes_geodata_last_results():
+    """Color scheme tool must write to geodata_last_results for tool chaining."""
+    from services.tools.styling_tools import apply_intelligent_color_scheme
+
+    layer = create_test_layer("rivers")
+    state = {
+        "messages": [],
+        "geodata_layers": [layer],
+        "geodata_last_results": [],
+    }
+
+    result = apply_intelligent_color_scheme.func(
+        state=state,
+        tool_call_id="test-call-2",
+        scheme_request="colorblind safe",
+    )
+
+    update = result.update
+    assert "geodata_layers" in update
+    assert "geodata_last_results" in update
+    assert len(update["geodata_layers"]) == 1
+    assert len(update["geodata_last_results"]) == 1

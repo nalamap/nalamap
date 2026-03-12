@@ -316,6 +316,7 @@ def style_map_layers(
                 ToolMessage(name="style_map_layers", content=message, tool_call_id=tool_call_id),
             ],
             "geodata_layers": updated_layers,
+            "geodata_last_results": updated_layers,
         }
     )
 
@@ -480,6 +481,7 @@ def auto_style_new_layers(
                 ),
             ],
             "geodata_layers": updated_layers,
+            "geodata_last_results": updated_layers,
         }
     )
 
@@ -702,6 +704,7 @@ def apply_intelligent_color_scheme(
                 ),
             ],
             "geodata_layers": updated_layers,
+            "geodata_last_results": updated_layers,
         }
     )
 
