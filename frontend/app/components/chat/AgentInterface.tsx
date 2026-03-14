@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useNaLaMapAgent } from "../../hooks/useNaLaMapAgent";
 import { useLayerStore } from "../../stores/layerStore";
 import { useChatInterfaceStore } from "../../stores/chatInterfaceStore";
@@ -21,6 +21,7 @@ export default function AgentInterface() {
   // Refs for smart scrolling
   const agentActivityRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollEndRef = useRef<HTMLDivElement>(null);
   const [scrollLocked, setScrollLocked] = useState(false);
   
   // Use hook for functions only
@@ -45,6 +46,11 @@ export default function AgentInterface() {
   
   const showToolMessages = false; // TODO: Move to settings
 
+  // Scroll-to-bottom callback for ChatMessages and post-streaming
+  const doScrollToBottom = useCallback(() => {
+    scrollEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
+
   // Smart scrolling: Lock view on Agent Activity when streaming starts
   useEffect(() => {
     if (isStreaming && (toolUpdates.length > 0 || executionPlan) && agentActivityRef.current) {
@@ -55,13 +61,14 @@ export default function AgentInterface() {
         block: "start" 
       });
     } else if (!isStreaming && scrollLocked) {
-      // Unlock after streaming completes (after a short delay)
+      // Unlock after streaming completes and scroll to final result
       const timer = setTimeout(() => {
         setScrollLocked(false);
-      }, 500);
+        doScrollToBottom();
+      }, 300);
       return () => clearTimeout(timer);
     }
-  }, [isStreaming, toolUpdates.length, executionPlan, scrollLocked]);
+  }, [isStreaming, toolUpdates.length, executionPlan, scrollLocked, doScrollToBottom]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,6 +114,7 @@ export default function AgentInterface() {
           expandedToolMessage={expandedToolMessage}
           onToggleToolMessage={handleToggleToolMessage}
           disableAutoScroll={scrollLocked}
+          scrollToBottom={doScrollToBottom}
         />
 
         {/* Execution Plan - shows the agent's multi-step plan */}
@@ -148,6 +156,9 @@ export default function AgentInterface() {
           loading={loading}
           onSelectLayer={handleLayerSelect}
         />
+
+        {/* Scroll target at very bottom of all content */}
+        <div ref={scrollEndRef} />
       </div>
 
       <hr className="my-4 flex-shrink-0" />

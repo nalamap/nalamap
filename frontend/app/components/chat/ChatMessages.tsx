@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { hashString } from "../../utils/hashUtil";
@@ -37,15 +37,15 @@ export default function ChatMessages({
   expandedToolMessage = {},
   onToggleToolMessage,
   disableAutoScroll = false,
-}: ChatMessagesProps) {
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  scrollToBottom,
+}: ChatMessagesProps & { scrollToBottom?: () => void }) {
 
   // Auto-scroll to bottom with new entry, unless scroll is locked
   useEffect(() => {
-    if (!disableAutoScroll) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!disableAutoScroll && scrollToBottom) {
+      scrollToBottom();
     }
-  }, [conversation, loading, disableAutoScroll]);
+  }, [conversation, loading, disableAutoScroll, scrollToBottom]);
 
   return (
     <div className="flex-1 pb-2">
@@ -138,8 +138,6 @@ export default function ChatMessages({
           </div>
         )}
         
-        {/* Scroll target */}
-        <div ref={messagesEndRef} />
       </div>
     </div>
   );

@@ -577,13 +577,23 @@ def geoprocess_tool(
             "operation: centroid params:",
             "operation: clip params: crs=<EPSG_code_optional>",
             (
-                "operation: dissolve params: by=<string>|null, "
+                "operation: dissolve — Combines/merges the GEOMETRIES of features "
+                "into a single shape. Use to merge multiple polygons into one unified "
+                "polygon (e.g. combine Germany + Poland into one shape). "
+                "params: by=<string>|null, "
                 "aggfunc=<first|last|sum|mean|min|max>, crs=<EPSG_code_optional>"
             ),
-            ("operation: merge params: on=<list_of_strings>|null, " "how=<inner|left|right|outer>"),
             (
-                "operation: overlay params: "
-                "how=<intersection|union|difference|symmetric_difference|identity>, "
+                "operation: merge — Joins ATTRIBUTES (properties) between two layers "
+                "by matching column values. Does NOT combine geometries — keeps only the "
+                "first layer's geometry. Use for tabular joins, not spatial merging. "
+                "params: on=<list_of_strings>|null, how=<inner|left|right|outer>"
+            ),
+            (
+                "operation: overlay — Performs spatial overlay between two layers. "
+                "Use how=union to combine two layers' geometries into one. "
+                "Use how=intersection for areas where both layers overlap. "
+                "params: how=<intersection|union|difference|symmetric_difference|identity>, "
                 "crs=<EPSG_code_optional>"
             ),
             ("operation: simplify params: tolerance=<number>, " "preserve_topology=<bool>"),
