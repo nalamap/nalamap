@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useNaLaMapAgent } from "../../hooks/useNaLaMapAgent";
 import { useLayerStore } from "../../stores/layerStore";
 import { useChatInterfaceStore } from "../../stores/chatInterfaceStore";
@@ -11,6 +11,7 @@ import SearchResults from "./SearchResults";
 import ChatInput from "./ChatInput";
 import ToolProgressIndicator from "../ToolProgressIndicator";
 import PlanDisplay from "../PlanDisplay";
+import ReactMarkdown from "react-markdown";
 
 export default function AgentInterface() {
   const API_BASE_URL = getApiBase();
@@ -45,6 +46,24 @@ export default function AgentInterface() {
   const executionPlan = useChatInterfaceStore((s) => s.executionPlan);
   
   const showToolMessages = false; // TODO: Move to settings
+
+  // When a plan exists and streaming is done, separate the final AI result
+  // message so it renders BELOW the plan instead of above it.
+  const { mainConversation, resultMessage } = useMemo(() => {
+    if (executionPlan && !isStreaming && conversation.length > 0) {
+      const lastMsg = conversation[conversation.length - 1];
+      if (
+        lastMsg.type === "ai" &&
+        !lastMsg.additional_kwargs?.tool_calls?.length
+      ) {
+        return {
+          mainConversation: conversation.slice(0, -1),
+          resultMessage: lastMsg,
+        };
+      }
+    }
+    return { mainConversation: conversation, resultMessage: null };
+  }, [conversation, executionPlan, isStreaming]);
 
   // Scroll-to-bottom callback for ChatMessages and post-streaming
   const doScrollToBottom = useCallback(() => {
@@ -106,9 +125,9 @@ export default function AgentInterface() {
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
       >
-        {/* Chat Messages */}
+        {/* Chat Messages (excludes final AI result when plan exists) */}
         <ChatMessages
-          conversation={conversation}
+          conversation={mainConversation}
           loading={loading}
           showToolMessages={showToolMessages}
           expandedToolMessage={expandedToolMessage}
@@ -117,17 +136,16 @@ export default function AgentInterface() {
           scrollToBottom={doScrollToBottom}
         />
 
-        {/* Execution Plan - shows the agent's multi-step plan */}
+        {/* Execution Plan - shows the agent's multi-step plan with integrated tool details */}
         {executionPlan && (
           <div ref={agentActivityRef} className="scroll-mt-4">
-            <PlanDisplay plan={executionPlan} />
+            <PlanDisplay plan={executionPlan} toolUpdates={toolUpdates} />
           </div>
         )}
 
-        {/* Tool Progress Indicator - shows during streaming, BELOW user message */}
-        {/* This is the "Agent Activity" section that we lock the view on */}
-        {isStreaming && toolUpdates.length > 0 && (
-          <div ref={!executionPlan ? agentActivityRef : undefined} className="scroll-mt-4">
+        {/* Standalone Tool Progress - only when there is NO execution plan */}
+        {isStreaming && toolUpdates.length > 0 && !executionPlan && (
+          <div ref={agentActivityRef} className="scroll-mt-4">
             <ToolProgressIndicator toolUpdates={toolUpdates} />
           </div>
         )}
@@ -145,6 +163,24 @@ export default function AgentInterface() {
                 <div className="text-xs text-primary-500 mt-1">
                   Agent
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Final AI result - rendered BELOW plan when plan execution completed */}
+        {resultMessage && (
+          <div className="mb-3">
+            <div className="flex justify-start">
+              <div className="max-w-[80%] px-4 py-2 rounded-lg bg-neutral-50 rounded-tl-none border border-primary-200">
+                <div className="text-sm break-words chat-markdown text-primary-900">
+                  <ReactMarkdown>
+                    {typeof resultMessage.content === "string"
+                      ? resultMessage.content
+                      : String(resultMessage.content)}
+                  </ReactMarkdown>
+                </div>
+                <div className="text-xs text-primary-500 mt-1">Agent</div>
               </div>
             </div>
           </div>
