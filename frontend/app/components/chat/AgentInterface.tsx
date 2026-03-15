@@ -152,6 +152,7 @@ export default function AgentInterface() {
         {executionPlan && (
           <div ref={agentActivityRef} className="scroll-mt-4">
             <PlanDisplay plan={executionPlan} toolUpdates={toolUpdates} />
+            <PlanDisplay plan={executionPlan} toolUpdates={toolUpdates} />
           </div>
         )}
 

@@ -1,12 +1,13 @@
 // components/PlanDisplay.tsx
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { ExecutionPlan, PlanStep, ToolUpdate } from "../stores/chatInterfaceStore";
+import { formatToolInput, formatToolName } from "./ToolProgressIndicator";
 
 interface PlanDisplayProps {
   plan: ExecutionPlan;
-  toolUpdates: ToolUpdate[];
+  toolUpdates?: ToolUpdate[];
 }
 
 /**
@@ -14,7 +15,7 @@ interface PlanDisplayProps {
  * Shows each step with its current status (pending, in-progress, complete, etc.)
  * and animates transitions as the agent progresses through the plan.
  */
-const PlanDisplay: React.FC<PlanDisplayProps> = ({ plan }) => {
+const PlanDisplay: React.FC<PlanDisplayProps> = ({ plan, toolUpdates = [] }) => {
   const completedSteps = plan.steps.filter((s) => s.status === "complete").length;
   const totalSteps = plan.steps.length;
   const progressPercent = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0;
@@ -42,7 +43,12 @@ const PlanDisplay: React.FC<PlanDisplayProps> = ({ plan }) => {
       {/* Steps list */}
       <div className="plan-display-steps">
         {plan.steps.map((step, index) => (
-          <PlanStepItem key={step.step_number} step={step} isLast={index === plan.steps.length - 1} />
+          <PlanStepItem
+            key={step.step_number}
+            step={step}
+            isLast={index === plan.steps.length - 1}
+            toolUpdates={toolUpdates}
+          />
         ))}
       </div>
     </div>
@@ -50,12 +56,25 @@ const PlanDisplay: React.FC<PlanDisplayProps> = ({ plan }) => {
 };
 
 /**
- * Individual plan step with status icon and connecting line.
+ * Individual plan step with status icon, connecting line, and collapsible tool details.
  */
-const PlanStepItem: React.FC<{ step: PlanStep; isLast: boolean }> = ({
+const PlanStepItem: React.FC<{ step: PlanStep; isLast: boolean; toolUpdates: ToolUpdate[] }> = ({
   step,
   isLast,
+  toolUpdates,
 }) => {
+  const stepTools = toolUpdates.filter((t) => t.plan_step === step.step_number);
+  const [toolsExpanded, setToolsExpanded] = useState(false);
+
+  // Auto-expand when step is in-progress, auto-collapse when complete
+  useEffect(() => {
+    if (step.status === "in-progress") {
+      setToolsExpanded(true);
+    } else if (step.status === "complete" || step.status === "error") {
+      setToolsExpanded(false);
+    }
+  }, [step.status]);
+
   return (
     <div className={`plan-step-item plan-step-${step.status}`}>
       {/* Step indicator with connecting line */}
@@ -75,6 +94,115 @@ const PlanStepItem: React.FC<{ step: PlanStep; isLast: boolean }> = ({
         <div className="plan-step-description">{step.description}</div>
         {step.result_summary && step.status === "complete" && (
           <div className="plan-step-result">{step.result_summary}</div>
+        )}
+
+        {/* Collapsible tool details */}
+        {stepTools.length > 0 && (
+          <div className="plan-step-tools">
+            <button
+              className="plan-step-tools-toggle"
+              onClick={() => setToolsExpanded(!toolsExpanded)}
+            >
+              <span className={`plan-step-tools-chevron ${toolsExpanded ? "expanded" : ""}`}>
+                ▸
+              </span>
+              {stepTools.length} tool{stepTools.length !== 1 ? "s" : ""} used
+            </button>
+            {toolsExpanded && (
+              <div className="plan-step-tools-list">
+                {stepTools.map((tool, i) => {
+                  const params = formatToolInput(tool.input);
+                  return (
+                    <div
+                      key={i}
+                      className={`plan-step-tool-item plan-step-tool-${tool.status}`}
+                    >
+                      <div className="plan-step-tool-icon">
+                        {tool.status === "running" && (
+                          <svg
+                            className="tool-spinner"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <circle
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              strokeLinecap="round"
+                              strokeDasharray="32 32"
+                            >
+                              <animateTransform
+                                attributeName="transform"
+                                type="rotate"
+                                from="0 12 12"
+                                to="360 12 12"
+                                dur="1s"
+                                repeatCount="indefinite"
+                              />
+                            </circle>
+                          </svg>
+                        )}
+                        {tool.status === "complete" && (
+                          <svg
+                            className="tool-check"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <path
+                              d="M20 6L9 17L4 12"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        )}
+                        {tool.status === "error" && (
+                          <svg
+                            className="tool-error"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <circle
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                            />
+                            <path
+                              d="M15 9L9 15M9 9L15 15"
+                              stroke="currentColor"
+                              strokeWidth="3"
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                        )}
+                      </div>
+                      <div className="plan-step-tool-content">
+                        <span className="plan-step-tool-name">
+                          {formatToolName(tool.name)}
+                        </span>
+                        {params && (
+                          <span className="plan-step-tool-params">{params}</span>
+                        )}
+                        {tool.error && (
+                          <span className="plan-step-tool-error-msg">
+                            {tool.error}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>
