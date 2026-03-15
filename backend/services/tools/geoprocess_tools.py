@@ -34,7 +34,7 @@ from services.tools.geoprocessing.ops.sjoin_nearest import op_sjoin_nearest
 
 # Imports of operation functions from geoprocessing ops and utils
 from services.tools.geoprocessing.utils import get_last_human_content
-from services.tools.utils import match_layer_names
+from services.tools.utils import get_all_available_layers, match_layer_names
 
 
 def slugify(text: str) -> str:
@@ -355,6 +355,7 @@ def geoprocess_tool(
     tool_call_id: Annotated[str, InjectedToolCallId],
     target_layer_names: Optional[List[str]] = None,
     operation: Optional[str] = None,
+    add_to_results: bool = True,
 ) -> Union[Dict[str, Any], Command]:
     """
     Tool to geoprocess specific geospatial layers from the state.
@@ -362,13 +363,16 @@ def geoprocess_tool(
     Args:
         state: The agent state containing geodata_layers
         tool_call_id: ID for this tool call
-        target_layer_ids: IDs of the specific layers to process. Try to provide and to read out from state.
+        target_layer_names: Names of the specific layers to process. Try to provide and to read out from state.
         operation: Optional operation hint (buffer, overlay, etc.)
+        add_to_results: Whether to add output to the final result list.
+            Set to False for intermediate plan steps so only the final
+            step's output appears in results.
 
     The tool will apply operations like buffer, overlay, simplify, sjoin, merge, sjoin_nearest, centroid to the specified layers.
     """
-    # Safely pull out the list (defaults to [] if key missing or None)
-    layers = state.get("geodata_layers") or []
+    # Combined pool: user's map layers + results from previous tool steps
+    layers = get_all_available_layers(state)
     messages = state.get("messages") or []
 
     if not layers:
@@ -573,13 +577,23 @@ def geoprocess_tool(
             "operation: centroid params:",
             "operation: clip params: crs=<EPSG_code_optional>",
             (
-                "operation: dissolve params: by=<string>|null, "
+                "operation: dissolve — Combines/merges the GEOMETRIES of features "
+                "into a single shape. Use to merge multiple polygons into one unified "
+                "polygon (e.g. combine Germany + Poland into one shape). "
+                "params: by=<string>|null, "
                 "aggfunc=<first|last|sum|mean|min|max>, crs=<EPSG_code_optional>"
             ),
-            ("operation: merge params: on=<list_of_strings>|null, " "how=<inner|left|right|outer>"),
             (
-                "operation: overlay params: "
-                "how=<intersection|union|difference|symmetric_difference|identity>, "
+                "operation: merge — Joins ATTRIBUTES (properties) between two layers "
+                "by matching column values. Does NOT combine geometries — keeps only the "
+                "first layer's geometry. Use for tabular joins, not spatial merging. "
+                "params: on=<list_of_strings>|null, how=<inner|left|right|outer>"
+            ),
+            (
+                "operation: overlay — Performs spatial overlay between two layers. "
+                "Use how=union to combine two layers' geometries into one. "
+                "Use how=intersection for areas where both layers overlap. "
+                "params: how=<intersection|union|difference|symmetric_difference|identity>, "
                 "crs=<EPSG_code_optional>"
             ),
             ("operation: simplify params: tolerance=<number>, " "preserve_topology=<bool>"),
@@ -628,16 +642,9 @@ def geoprocess_tool(
     # Use LLM-generated title or fallback to default
     display_title = llm_title if llm_title else default_name
 
-    # Build new GeoDataObjects
-    new_geodata: List[GeoDataObject]
-    if (
-        "geodata_results" not in state
-        or state["geodata_results"] is None
-        or not isinstance(state["geodata_results"], List)
-    ):
-        new_geodata = []
-    else:
-        new_geodata = state["geodata_results"]
+    # Build new GeoDataObjects — collect only the NEW results from this call.
+    # The state reducers will handle merging with existing results.
+    new_geodata: List[GeoDataObject] = []
 
     # Get existing names to ensure uniqueness
     existing_layer_names = []
@@ -645,6 +652,8 @@ def geoprocess_tool(
         existing_layer_names.extend([layer.name for layer in state["geodata_layers"]])
     if "geodata_results" in state and state["geodata_results"]:
         existing_layer_names.extend([layer.name for layer in state["geodata_results"]])
+    last_results = state.get("geodata_last_results") or []
+    existing_layer_names.extend([layer.name for layer in last_results])
 
     out_urls: List[str] = []
     for layer in result_layers:
@@ -809,19 +818,23 @@ def geoprocess_tool(
     logger.info(f"geoprocess_tool: Tool content length: {len(tool_content)} chars")
 
     try:
-        command = Command(
-            update={
-                "messages": [
-                    ToolMessage(
-                        name="geoprocess_tool",
-                        content=tool_content,
-                        tool_call_id=tool_call_id,
-                    )
-                ],
-                # "global_geodata": new_geodata,
-                "geodata_results": new_geodata,
-            }
-        )
+        state_update: Dict[str, Any] = {
+            "messages": [
+                ToolMessage(
+                    name="geoprocess_tool",
+                    content=tool_content,
+                    tool_call_id=tool_call_id,
+                )
+            ],
+            # Always write to geodata_last_results so subsequent steps
+            # can find these layers via get_all_available_layers().
+            "geodata_last_results": new_geodata,
+        }
+        if add_to_results:
+            # Only populate the final result list when requested.
+            state_update["geodata_results"] = new_geodata
+
+        command = Command(update=state_update)
         logger.info("geoprocess_tool: Command created successfully, returning to agent")
         return command
     except Exception as e:

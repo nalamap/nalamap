@@ -11,6 +11,7 @@ import AgentSettingsComponent from "../components/settings/AgentSettingsComponen
 import ToolSettingsComponent from "../components/settings/ToolSettingsComponent";
 import GeoServerSettingsComponent from "../components/settings/GeoServerSettingsComponent";
 import MCPServerSettingsComponent from "../components/settings/MCPServerSettingsComponent";
+import GeocodingSettingsComponent from "../components/settings/GeocodingSettingsComponent";
 
 import { useInitializedSettingsStore } from "../hooks/useInitializedSettingsStore";
 import { getApiBase } from "../utils/apiBase";
@@ -832,6 +833,11 @@ export default function SettingsPage() {
               interpolatedProgress={interpolatedProgress}
               handleToggleBackendInsecure={handleToggleBackendInsecure}
             />
+          </section>
+
+          {/* Geocoding Tag Database */}
+          <section>
+            <GeocodingSettingsComponent />
           </section>
         </main>
       </div>

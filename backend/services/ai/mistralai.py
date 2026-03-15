@@ -16,16 +16,30 @@ def is_available() -> bool:
 def get_available_models() -> list[ModelInfo]:
     """Get list of available Mistral AI models with pricing information.
 
-    Pricing as of October 2025 (per 1M tokens in USD):
+    Pricing as of February 2026 (per 1M tokens in USD):
     Source: Mistral AI pricing page
 
     Phase 1 Enhancements:
-    - context_window: Based on Mistral AI documentation (32K for most models)
+    - context_window: Based on Mistral AI documentation
     - supports_parallel_tool_calls: True for latest models
     - tool_calling_quality: Based on observed performance
     - reasoning_capability: Based on model tier
     """
     return [
+        ModelInfo(
+            name="pixtral-large-latest",
+            max_tokens=8192,
+            input_cost_per_million=2.00,
+            output_cost_per_million=6.00,
+            cache_cost_per_million=None,
+            description="Pixtral Large - Frontier multimodal model from Mistral",
+            supports_tools=True,
+            supports_vision=True,
+            context_window=128000,
+            supports_parallel_tool_calls=True,
+            tool_calling_quality="excellent",
+            reasoning_capability="expert",
+        ),
         ModelInfo(
             name="mistral-large-latest",
             max_tokens=8192,

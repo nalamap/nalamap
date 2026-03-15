@@ -2,6 +2,7 @@ import logging
 import mimetypes
 import os
 from contextlib import asynccontextmanager
+from logging.handlers import RotatingFileHandler
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -16,6 +17,7 @@ from api import (
     data_management,
     debug,
     file_streaming,
+    geocoding_settings,
     layers,
     mcp,
     maps,
@@ -32,10 +34,23 @@ from services.startup_preloader import schedule_startup_preload
 # Configure logging with environment variable support
 # Set LOG_LEVEL=WARNING in production to reduce noise, DEBUG for verbose output
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+_log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 logging.basicConfig(
     level=getattr(logging, log_level, logging.INFO),
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    format=_log_format,
 )
+
+# File handler: writes to backend/debug.log, rotates at 5 MB, keeps 2 backups
+_log_dir = os.path.dirname(os.path.abspath(__file__))
+_file_handler = RotatingFileHandler(
+    os.path.join(_log_dir, "debug.log"),
+    maxBytes=5 * 1024 * 1024,
+    backupCount=2,
+    encoding="utf-8",
+)
+_file_handler.setLevel(getattr(logging, log_level, logging.INFO))
+_file_handler.setFormatter(logging.Formatter(_log_format))
+logging.getLogger().addHandler(_file_handler)
 
 logger = logging.getLogger(__name__)
 
@@ -140,6 +155,7 @@ app.include_router(data_management.router, prefix="/api")
 app.include_router(ai_style.router, prefix="/api")  # AI Style button functionality
 app.include_router(auto_styling.router, prefix="/api")  # Automatic styling
 app.include_router(settings.router, prefix="/api")
+app.include_router(geocoding_settings.router, prefix="/api")  # OSM tag embedding management
 app.include_router(file_streaming.router, prefix="/api")  # Streaming files
 app.include_router(mcp.router, prefix="/api")  # MCP server endpoint
 app.include_router(proxy.router, prefix="/api/proxy")  # CORS proxy for external data

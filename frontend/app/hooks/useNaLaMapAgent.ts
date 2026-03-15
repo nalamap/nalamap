@@ -3,7 +3,6 @@
 
 import {
   ChatMessage,
-  GeoDataObject,
   NaLaMapRequest,
   NaLaMapResponse,
 } from "../models/geodatamodel";
@@ -139,7 +138,7 @@ export function useNaLaMapAgent(apiUrl: string) {
 
     try {
       let response = null;
-      let fullQuery = chatInterfaceStore.input;
+      const fullQuery = chatInterfaceStore.input;
       if (
         endpoint === "geoprocess" ||
         endpoint === "chat" ||
@@ -278,6 +277,8 @@ export function useNaLaMapAgent(apiUrl: string) {
     chatInterfaceStore.setError("");
     chatInterfaceStore.clearStreamingMessage();
     chatInterfaceStore.clearToolUpdates();
+    chatInterfaceStore.clearExecutionPlan();
+    chatInterfaceStore.setGeoDataList([]);
 
     await useSettingsStore.getState().initializeIfNeeded();
     const rawSettings = useSettingsStore.getState().getSettings();
@@ -385,6 +386,7 @@ export function useNaLaMapAgent(apiUrl: string) {
                   name: data.tool,
                   status: "running",
                   input: data.input, // Store tool input parameters
+                  plan_step: data.plan_step ?? null,
                 });
                 break;
 
@@ -409,6 +411,20 @@ export function useNaLaMapAgent(apiUrl: string) {
               case "llm_token":
                 // Append token to streaming message
                 chatInterfaceStore.appendStreamingToken(data.token);
+                break;
+
+              case "plan":
+                Logger.log("Execution plan received:", data);
+                chatInterfaceStore.setExecutionPlan(data);
+                break;
+
+              case "plan_step_update":
+                Logger.log(`Plan step ${data.step_number} → ${data.status}`, data);
+                chatInterfaceStore.updatePlanStepStatus(
+                  data.step_number,
+                  data.status,
+                  data.result_summary,
+                );
                 break;
 
               case "result":
@@ -448,6 +464,16 @@ export function useNaLaMapAgent(apiUrl: string) {
                 // Clear streaming UI state since we now have the final result
                 chatInterfaceStore.clearStreamingMessage();
                 chatInterfaceStore.clearToolUpdates();
+
+                // Mark any remaining in-progress plan steps as complete
+                const plan = chatInterfaceStore.getExecutionPlan();
+                if (plan) {
+                  for (const step of plan.steps) {
+                    if (step.status === "in-progress" || step.status === "pending") {
+                      chatInterfaceStore.updatePlanStepStatus(step.step_number, "complete");
+                    }
+                  }
+                }
                 
                 Logger.log("Messages AFTER setting:", chatInterfaceStore.getMessages());
                 Logger.log("GeoData AFTER setting:", chatInterfaceStore.getGeoDataList());
@@ -535,6 +561,7 @@ export function useNaLaMapAgent(apiUrl: string) {
     chatInterfaceStore.setIsStreaming(false);
     chatInterfaceStore.clearStreamingMessage();
     chatInterfaceStore.clearToolUpdates();
+    chatInterfaceStore.clearExecutionPlan();
     
     // Reset references
     abortController = null;

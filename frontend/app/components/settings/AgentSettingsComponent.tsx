@@ -27,6 +27,9 @@ export default function AgentSettingsComponent() {
   const setEnableSmartCrs = useInitializedSettingsStore(
     (s) => s.setEnableSmartCrs,
   );
+  const setEnablePlanning = useInitializedSettingsStore(
+    (s) => s.setEnablePlanning,
+  );
 
   const toolStrategies = [
     { value: "all", label: "All Tools", description: "Provide all available tools (default behavior)" },
@@ -272,6 +275,32 @@ export default function AgentSettingsComponent() {
                     </p>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Enable Multi-step Planning */}
+          <div className="col-span-2">
+            <div className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                id="enable-planning"
+                checked={modelSettings.enable_planning ?? false}
+                onChange={(e) => setEnablePlanning(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-primary-300 dark:border-primary-700 text-tertiary-600 focus:ring-tertiary-500"
+              />
+              <div className="flex-1">
+                <label
+                  htmlFor="enable-planning"
+                  className="text-sm font-medium text-primary-900 dark:text-primary-300 cursor-pointer"
+                >
+                  Enable Multi-step Planning
+                </label>
+                <p className="text-xs text-primary-700 dark:text-primary-400 mt-1">
+                  Analyzes complex queries and creates a structured execution plan before processing.
+                  The plan is displayed in the chat interface showing progress through each step.
+                  Adds a small overhead per query for plan generation. Best for multi-tool workflows.
+                </p>
               </div>
             </div>
           </div>

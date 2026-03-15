@@ -22,7 +22,7 @@ from models.geodata import DataOrigin, DataType, GeoDataObject
 from models.states import GeoDataAgentState
 from services.ai.llm_config import get_llm, get_llm_for_provider
 from services.storage.file_management import store_file
-from services.tools.utils import match_layer_names
+from services.tools.utils import get_all_available_layers, match_layer_names
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -1239,11 +1239,11 @@ def aggregate_attributes_across_layers(
 
     for layer_name in layer_names:
         # Find and load the layer
-        matching_layers = match_layer_names(state.get("geodata_layers", []), [layer_name])
+        matching_layers = match_layer_names(get_all_available_layers(state), [layer_name])
         if not matching_layers:
             aggregated_results[layer_name] = {
                 "error": f"Layer '{layer_name}' not found",
-                "available_layers": [layer.name for layer in state.get("geodata_layers", [])],
+                "available_layers": [layer.name for layer in get_all_available_layers(state)],
             }
             continue
 
@@ -1450,7 +1450,7 @@ def attribute_tool(
     - If result_handling='chat', replies with a ToolMessage summary.
     - If result_handling='layer', saves a new GeoJSON to uploads and appends to geodata_results.
     """
-    layers = state.get("geodata_layers") or []
+    layers = get_all_available_layers(state)
     messages = state.get("messages") or []
     if not layers:
         return Command(
@@ -1744,6 +1744,7 @@ def attribute_tool(
                         )
                     ],
                     "geodata_results": new_results,
+                    "geodata_last_results": [obj],
                 }
             )
 
@@ -1821,6 +1822,7 @@ def attribute_tool(
                         )
                     ],
                     "geodata_results": new_results,
+                    "geodata_last_results": [obj],
                 }
             )
 
@@ -1865,6 +1867,7 @@ def attribute_tool(
                         )
                     ],
                     "geodata_results": new_results,
+                    "geodata_last_results": [obj],
                 }
             )
 

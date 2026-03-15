@@ -240,7 +240,7 @@ class TestGeodataObjectCreation:
         """Test successful GeoDataObject creation"""
         nominatim_data = mock_nominatim_geojson_response[0]
 
-        with patch("services.tools.geocoding.store_file") as mock_store:
+        with patch("services.tools._geocoding_legacy.store_file") as mock_store:
             test_url = "http://test.com/file.json"
             test_uuid = "test-uuid-123"
             mock_store.return_value = (test_url, test_uuid)
@@ -282,7 +282,7 @@ class TestGeodataObjectCreation:
         del nominatim_data["boundingbox"]
 
         # We need to patch the geocoding function to handle missing boundingbox
-        with patch("services.tools.geocoding.store_file") as mock_store:
+        with patch("services.tools._geocoding_legacy.store_file") as mock_store:
             test_url = "http://test.com/file.json"
             test_uuid = "test-uuid-123"
             mock_store.return_value = (test_url, test_uuid)
@@ -486,7 +486,7 @@ class TestGeodataObjectGeoJSONStructure:
         """Test that created GeoJSON includes required 'properties' field"""
         nominatim_data = mock_nominatim_geojson_response[0]
 
-        with patch("services.tools.geocoding.store_file") as mock_store:
+        with patch("services.tools._geocoding_legacy.store_file") as mock_store:
             test_url = "http://test.com/file.json"
             test_uuid = "test-uuid-123"
             mock_store.return_value = (test_url, test_uuid)
@@ -523,7 +523,7 @@ class TestGeodataObjectGeoJSONStructure:
 
         nominatim_data = mock_nominatim_geojson_response[0]
 
-        with patch("services.tools.geocoding.store_file") as mock_store:
+        with patch("services.tools._geocoding_legacy.store_file") as mock_store:
             test_url = "http://test.com/file.json"
             test_uuid = "test-uuid-123"
             mock_store.return_value = (test_url, test_uuid)

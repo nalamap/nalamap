@@ -12,7 +12,7 @@ interface ToolProgressIndicatorProps {
  * Format tool input parameters for display
  * Extracts user-friendly information from complex objects
  */
-function formatToolInput(input: any): string | null {
+export function formatToolInput(input: any): string | null {
   if (!input || typeof input !== "object") {
     return null;
   }
@@ -241,7 +241,7 @@ const ToolProgressIndicator: React.FC<ToolProgressIndicatorProps> = ({
   );
 };
 
-function formatToolName(name: string): string {
+export function formatToolName(name: string): string {
   // Convert snake_case or camelCase to Title Case
   return name
     .replace(/_/g, " ")

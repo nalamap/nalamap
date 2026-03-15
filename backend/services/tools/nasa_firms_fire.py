@@ -331,6 +331,7 @@ def get_nasa_fire_data(
         "Minimum confidence level to include: 'low', 'nominal' (default), 'high'. "
         "Higher confidence means more certain fire detection.",
     ] = "nominal",
+    add_to_results: bool = True,
     state: Annotated[GeoDataAgentState, InjectedState] = None,
     tool_call_id: Annotated[str, InjectedToolCallId] = None,
 ) -> Command[Any]:
@@ -552,12 +553,13 @@ def get_nasa_fire_data(
 
         response_text = "\n".join(response_lines)
 
-        return Command(
-            update={
-                "geodata_results": [geo_obj],
-                "messages": [ToolMessage(content=response_text, tool_call_id=tool_call_id)],
-            }
-        )
+        state_update = {
+            "geodata_last_results": [geo_obj],
+            "messages": [ToolMessage(content=response_text, tool_call_id=tool_call_id)],
+        }
+        if add_to_results:
+            state_update["geodata_results"] = [geo_obj]
+        return Command(update=state_update)
 
     except Exception as e:
         logger.exception(f"Error in NASA FIRMS fire data tool: {e}")

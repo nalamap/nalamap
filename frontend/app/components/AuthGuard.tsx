@@ -4,7 +4,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "../context/AuthContext";
 
 export default function AuthGuard({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
+  const { user, authDisabled } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -12,18 +12,18 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
   const isTestEnv = process.env.NEXT_PUBLIC_TEST;
 
   useEffect(() => {
-    // Skip auth redirect in test environment
-    if (isTestEnv) return;
+    // Skip auth redirect in test environment or when auth is disabled
+    if (isTestEnv || authDisabled) return;
     
     // If we've determined the user is not authenticated, redirect to login
     // Note: user === undefined means the auth status is still loading
     if (user === null && !['/login', '/signup'].includes(pathname)) {
       router.push('/login');
     }
-  }, [user, router, pathname, isTestEnv]);
+  }, [user, router, pathname, isTestEnv, authDisabled]);
 
-  // Skip auth guard in test environment
-  if (isTestEnv) {
+  // Skip auth guard in test environment or when backend auth is disabled
+  if (isTestEnv || authDisabled) {
     return <>{children}</>;
   }
 

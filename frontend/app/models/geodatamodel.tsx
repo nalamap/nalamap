@@ -13,11 +13,21 @@ export interface ProcessingMetadata {
   auto_selected: boolean; // true if auto-selected, false if user-specified
   selection_reason?: string; // e.g., "Local extent - UTM zone 33N"
   origin_layers?: string[]; // Names of input layers used to generate this result
+  projection_property?: string; // e.g., "conformal", "equal-area"
+  expected_error?: number; // Expected error percentage for the projection
   // Optional fields for custom WKT projections
   authority?: string; // "WKT" when a custom projection is used
   wkt?: string; // Full WKT definition
   wkt_hash?: string; // Short hash for identification
   wkt_params?: Record<string, any>; // Parameter dictionary
+  // Geocoding query construction (optional, only populated for Overpass results)
+  query_intent?: string;
+  query_location?: string;
+  resolution_method?: string; // "direct_match"|"llm_expansion"|"semantic"|"fuzzy"
+  resolution_detail?: string;
+  osm_tags_used?: string[];
+  osm_tags_excluded?: { tag: string; reason: string }[];
+  overpass_query?: string;
 }
 
 export interface LayerStyle {
