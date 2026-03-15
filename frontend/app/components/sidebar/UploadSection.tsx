@@ -395,11 +395,11 @@ export default function UploadSection({
               </p>
             )}
             {currentFileName && (
-              <p className="text-xs text-neutral-500 mt-1 truncate max-w-xs">
+              <p className="text-xs text-neutral-700 dark:text-neutral-300 mt-1 truncate max-w-xs">
                 {currentFileName}
               </p>
             )}
-            <p className="text-xs text-neutral-400 mt-1 text-center italic">
+            <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1 text-center italic">
               {funnyMessage ||
                 (uploadProgress < 70
                   ? "Uploading..."
@@ -419,13 +419,13 @@ export default function UploadSection({
           </div>
         ) : (
           <>
-            <p className="text-sm text-neutral-500">
+            <p className="text-sm text-neutral-700 dark:text-neutral-300">
               Drag & drop or click to upload GeoJSON files
             </p>
-            <p className="text-xs text-neutral-400 mt-1">
+            <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
               Supports multiple files • Max size: {MAX_FILE_SIZE_FORMATTED}
             </p>
-            <p className="text-xs text-neutral-400">Format: .geojson only</p>
+            <p className="text-xs text-neutral-600 dark:text-neutral-400">Format: .geojson only</p>
           </>
         )}
       </div>

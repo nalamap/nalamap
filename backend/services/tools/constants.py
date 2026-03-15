@@ -448,4 +448,234 @@ AMENITY_MAPPING = {
     "rest areas": "highway=rest_area",
     "services": "highway=services",
     "motorway services": "highway=services",
+    # Natural features (wildcard - matches all natural features)
+    "natural": "natural=*",
+    "natural feature": "natural=*",
+    "natural features": "natural=*",
+    "nature": "natural=*",
+    "geographic feature": "natural=*",
+    "geographic features": "natural=*",
+    "landform": "natural=*",
+    "landforms": "natural=*",
+    # Waterways (wildcard - matches all waterway types)
+    "waterway": "waterway=*",
+    "waterways": "waterway=*",
+    "water": "waterway=*",
+    "river": "waterway=river",
+    "rivers": "waterway=river",
+    "stream": "waterway=stream",
+    "streams": "waterway=stream",
+    "canal": "waterway=canal",
+    "canals": "waterway=canal",
+    "drain": "waterway=drain",
+    "drains": "waterway=drain",
+    # Buildings (wildcard - matches all building types)
+    "building": "building=*",
+    "buildings": "building=*",
+    "structure": "building=*",
+    "structures": "building=*",
+    "construction": "building=*",
+    # Places (wildcard - matches all place types)
+    "place": "place=*",
+    "places": "place=*",
+    "location": "place=*",
+    "locations": "place=*",
+    "settlement": "place=*",
+    "settlements": "place=*",
+    # Generic name search
+    "name": "name=*",
+    "named": "name=*",
+    "named feature": "name=*",
+    "named features": "name=*",
+    # Boundaries and administrative areas
+    "boundary": "boundary=*",
+    "boundaries": "boundary=*",
+    "border": "boundary=*",
+    "borders": "boundary=*",
+    "administrative": "boundary=administrative",
+    "admin": "boundary=administrative",
+    # Landuse (wildcard - matches all landuse types)
+    "landuse": "landuse=*",
+    "land use": "landuse=*",
+    "area": "landuse=*",
+    "zone": "landuse=*",
+    "zones": "landuse=*",
+    # Railway infrastructure
+    "railway": "railway=*",
+    "railways": "railway=*",
+    "rail": "railway=*",
+    # Generic highway/road/infrastructure queries (wildcard)
+    "highway": "highway=*",
+    "highways": "highway=*",
+    "road": "highway=*",
+    "roads": "highway=*",
+    "street": "highway=*",
+    "streets": "highway=*",
+    "infrastructure": "highway=*",
+    "transport infrastructure": "highway=*",
+    "transportation": "highway=*",
+    "route": "highway=*",
+    "routes": "highway=*",
+    # Generic military queries (wildcard)
+    "military": "military=*",
+    "defense": "military=*",
+    "defence": "military=*",
+    "military infrastructure": "military=*",
+    "military facility": "military=*",
+    "military facilities": "military=*",
+    "military installation": "military=*",
+    "military installations": "military=*",
+    "armed forces": "military=*",
+    "defense facility": "military=*",
+    "defense facilities": "military=*",
+    # Generic aeroway queries (wildcard)
+    "aeroway": "aeroway=*",
+    "aviation": "aeroway=*",
+    "aviation infrastructure": "aeroway=*",
+    "air transport": "aeroway=*",
 }
+
+# Geometry preferences for OSM keys
+# Defines which geometry types (node, way, relation) should be included/excluded
+# for different OSM tag keys to match user expectations
+OSM_GEOMETRY_PREFERENCES = {
+    "highway": {
+        "preferred_geometries": ["way", "relation"],
+        "exclude_geometries": ["node"],
+        "exclude_values": {
+            "bus_stop",
+            "traffic_signals",
+            "crossing",
+            "stop",
+            "give_way",
+            "mini_roundabout",
+            "motorway_junction",
+        },
+        "description": "Roads are linear features (ways), not point infrastructure",
+    },
+    "railway": {
+        "preferred_geometries": ["way", "relation"],
+        "exclude_geometries": ["node"],
+        "exclude_values": {"station", "signal", "switch", "level_crossing"},
+        "description": "Railway tracks are linear features, stations are points",
+    },
+    "waterway": {
+        "preferred_geometries": ["way", "relation"],
+        "exclude_geometries": ["node"],
+        "exclude_values": {"weir", "lock", "dam", "waterfall"},
+        "description": "Waterways are linear features (rivers, streams), not point features",
+    },
+    "aeroway": {
+        "preferred_geometries": ["way", "relation"],
+        "exclude_geometries": ["node"],
+        "exclude_values": {"gate"},
+        "description": "Aeroways are linear features (runways, taxiways), gates are points",
+    },
+    "power": {
+        "preferred_geometries": ["way", "relation"],
+        "exclude_geometries": ["node"],
+        "exclude_values": {"tower", "pole", "substation", "generator"},
+        "description": "Power lines are linear features, infrastructure is points",
+    },
+}
+
+# Aeroway values that represent point or area features (not linear).
+# These should be queried like amenities (include nodes + relations),
+# NOT like highways/railways (ways-only). Examples: aerodromes are stored
+# as nodes (small airports) or relations (large airports with boundaries).
+AEROWAY_POINT_VALUES: frozenset = frozenset(
+    {"aerodrome", "helipad", "heliport", "terminal", "hangar", "windsock"}
+)
+
+# User-friendly display labels for geometry types per OSM feature category.
+# Maps (osm_key, collection_type) to (display_label, description_hint).
+# collection_type is "Points", "Areas", or "Lines".
+# Falls back to generic labels when a specific key is not configured.
+GEOMETRY_DISPLAY_LABELS = {
+    # Amenities (hospitals, schools, restaurants, etc.)
+    ("amenity", "Points"): ("locations", "markers showing where each one is"),
+    ("amenity", "Areas"): ("buildings & grounds", "outlines of the actual buildings or grounds"),
+    ("amenity", "Lines"): ("connections", "linear features connecting amenities"),
+    # Leisure (parks, playgrounds, sports centres)
+    ("leisure", "Points"): ("locations", "markers showing where each one is"),
+    ("leisure", "Areas"): ("boundaries", "outlines showing the area and extent"),
+    ("leisure", "Lines"): ("paths", "linear features like tracks or trails"),
+    # Tourism (museums, hotels, attractions)
+    ("tourism", "Points"): ("locations", "markers showing where each one is"),
+    ("tourism", "Areas"): ("sites", "outlines of the grounds or premises"),
+    ("tourism", "Lines"): ("routes", "linear tourism features"),
+    # Shops
+    ("shop", "Points"): ("locations", "markers showing where each shop is"),
+    ("shop", "Areas"): ("buildings", "outlines of the shop buildings"),
+    ("shop", "Lines"): ("frontages", "linear shop features"),
+    # Highway / roads
+    ("highway", "Points"): ("infrastructure points", "point features like junctions"),
+    ("highway", "Areas"): ("road areas", "areas like roundabouts or pedestrian zones"),
+    ("highway", "Lines"): ("road network", "the actual road and path lines"),
+    # Railway
+    ("railway", "Points"): ("stations & stops", "point features like stations"),
+    ("railway", "Areas"): ("railway areas", "areas like station buildings or yards"),
+    ("railway", "Lines"): ("rail network", "the actual railway lines and tracks"),
+    # Waterway
+    ("waterway", "Points"): ("water features", "point features like weirs or locks"),
+    ("waterway", "Areas"): ("water surfaces", "areas like wide river sections or lakes"),
+    ("waterway", "Lines"): ("waterway paths", "river, stream, and canal lines"),
+    # Natural
+    ("natural", "Points"): ("natural features", "point features like peaks or springs"),
+    ("natural", "Areas"): ("natural areas", "areas like forests, lakes, or wetlands"),
+    ("natural", "Lines"): ("natural lines", "linear features like coastlines or ridges"),
+    # Building
+    ("building", "Points"): ("building locations", "markers for each building"),
+    ("building", "Areas"): ("building footprints", "outlines of the buildings"),
+    ("building", "Lines"): ("building outlines", "linear building features"),
+    # Boundary
+    ("boundary", "Points"): ("boundary markers", "point markers on boundaries"),
+    ("boundary", "Areas"): ("administrative boundaries", "outlines of administrative areas"),
+    ("boundary", "Lines"): ("boundary lines", "the actual boundary lines"),
+    # Military
+    ("military", "Points"): ("facility locations", "markers for military facilities"),
+    ("military", "Areas"): ("military zones", "outlines of military areas"),
+    ("military", "Lines"): ("military lines", "linear military features"),
+    # Aeroway
+    ("aeroway", "Points"): ("aviation features", "point features like gates"),
+    ("aeroway", "Areas"): ("aviation areas", "areas like terminals or aprons"),
+    ("aeroway", "Lines"): ("runways & taxiways", "linear aviation features"),
+    # Landuse
+    ("landuse", "Points"): ("land use points", "markers for specific land use"),
+    ("landuse", "Areas"): ("land use zones", "areas showing different land uses"),
+    ("landuse", "Lines"): ("land use boundaries", "linear land use features"),
+    # Power
+    ("power", "Points"): ("power infrastructure", "point features like towers"),
+    ("power", "Areas"): ("power facilities", "areas like substations"),
+    ("power", "Lines"): ("power lines", "the actual power line routes"),
+    # Place
+    ("place", "Points"): ("place markers", "markers for named places"),
+    ("place", "Areas"): ("place boundaries", "outlines of named places"),
+    ("place", "Lines"): ("place features", "linear place features"),
+}
+
+# Generic fallback labels when OSM key is not in GEOMETRY_DISPLAY_LABELS
+GEOMETRY_DISPLAY_LABELS_FALLBACK = {
+    "Points": ("locations", "markers showing where each one is"),
+    "Areas": ("boundaries & outlines", "outlines showing the area and extent"),
+    "Lines": ("routes & paths", "linear features like roads or rivers"),
+}
+
+
+def get_geometry_display_label(osm_key: str, collection_type: str) -> tuple:
+    """
+    Get user-friendly display label for a geometry type.
+
+    Args:
+        osm_key: OSM tag key (e.g., "amenity", "highway")
+        collection_type: Collection type ("Points", "Areas", "Lines")
+
+    Returns:
+        Tuple of (display_label, description_hint)
+    """
+    key = (osm_key, collection_type)
+    if key in GEOMETRY_DISPLAY_LABELS:
+        return GEOMETRY_DISPLAY_LABELS[key]
+    return GEOMETRY_DISPLAY_LABELS_FALLBACK.get(
+        collection_type, ("features", "geographic features")
+    )

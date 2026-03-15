@@ -19,7 +19,7 @@ from services.ai.automatic_styling import (
     parse_color_scheme_request,
     parse_intelligent_color,
 )
-from services.tools.utils import match_layer_names
+from services.tools.utils import get_all_available_layers, match_layer_names
 
 logger = logging.getLogger(__name__)
 
@@ -135,8 +135,8 @@ def style_map_layers(
         dash_pattern: Line dash pattern like "5,5"
     """
 
-    # Get available layers from state
-    available_layers = state.get("geodata_layers", [])
+    # Combined pool: user's map layers + results from previous tool steps
+    available_layers = get_all_available_layers(state)
 
     if not available_layers:
         message = (
@@ -316,6 +316,7 @@ def style_map_layers(
                 ToolMessage(name="style_map_layers", content=message, tool_call_id=tool_call_id),
             ],
             "geodata_layers": updated_layers,
+            "geodata_last_results": updated_layers,
         }
     )
 
@@ -343,7 +344,8 @@ def auto_style_new_layers(
         layer_names: Specific layer names to auto-style (if None, styles all
                      layers needing styling)
     """
-    available_layers = state.get("geodata_layers", [])
+    # Combined pool: user's map layers + results from previous tool steps
+    available_layers = get_all_available_layers(state)
 
     if not available_layers:
         message = "No layers are currently available to auto-style."
@@ -479,6 +481,7 @@ def auto_style_new_layers(
                 ),
             ],
             "geodata_layers": updated_layers,
+            "geodata_last_results": updated_layers,
         }
     )
 
@@ -500,7 +503,8 @@ def check_and_auto_style_layers(
 
     Only use this tool proactively when detecting newly uploaded layers that need initial styling.
     """
-    available_layers = state.get("geodata_layers", [])
+    # Combined pool: user's map layers + results from previous tool steps
+    available_layers = get_all_available_layers(state)
 
     if not available_layers:
         return Command(
@@ -586,7 +590,8 @@ def apply_intelligent_color_scheme(
         scheme_request: Natural language color scheme request
         layer_names: Specific layers to style (if None, styles all layers)
     """
-    available_layers = state.get("geodata_layers", [])
+    # Combined pool: user's map layers + results from previous tool steps
+    available_layers = get_all_available_layers(state)
 
     if not available_layers:
         message = "No layers are currently available to apply color schemes to."
@@ -699,6 +704,7 @@ def apply_intelligent_color_scheme(
                 ),
             ],
             "geodata_layers": updated_layers,
+            "geodata_last_results": updated_layers,
         }
     )
 

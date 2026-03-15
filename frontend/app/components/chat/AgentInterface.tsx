@@ -1,16 +1,17 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import wellknown from "wellknown";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useNaLaMapAgent } from "../../hooks/useNaLaMapAgent";
 import { useLayerStore } from "../../stores/layerStore";
 import { useChatInterfaceStore } from "../../stores/chatInterfaceStore";
-import { GeoDataObject } from "../../models/geodatamodel";
+import type { GeoDataObject } from "../../models/geodatamodel";
 import { getApiBase } from "../../utils/apiBase";
 import ChatMessages from "./ChatMessages";
 import SearchResults from "./SearchResults";
 import ChatInput from "./ChatInput";
 import ToolProgressIndicator from "../ToolProgressIndicator";
+import PlanDisplay from "../PlanDisplay";
+import ReactMarkdown from "react-markdown";
 
 export default function AgentInterface() {
   const API_BASE_URL = getApiBase();
@@ -21,6 +22,7 @@ export default function AgentInterface() {
   // Refs for smart scrolling
   const agentActivityRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollEndRef = useRef<HTMLDivElement>(null);
   const [scrollLocked, setScrollLocked] = useState(false);
   
   // Use hook for functions only
@@ -39,6 +41,7 @@ export default function AgentInterface() {
 
   // Get streaming state from store
   const toolUpdates = useChatInterfaceStore((s) => s.toolUpdates);
+  const executionPlan = useChatInterfaceStore((s) => s.executionPlan);
   const streamingMessage = useChatInterfaceStore((s) => s.streamingMessage);
   const isStreaming = useChatInterfaceStore((s) => s.isStreaming);
   const includeSelectedLayersInPrompt = useChatInterfaceStore(
@@ -56,23 +59,47 @@ export default function AgentInterface() {
   
   const showToolMessages = false; // TODO: Move to settings
 
+    // When a plan exists and streaming is done, separate the final AI result
+  // message so it renders BELOW the plan instead of above it.
+  const { mainConversation, resultMessage } = useMemo(() => {
+    if (executionPlan && !isStreaming && conversation.length > 0) {
+      const lastMsg = conversation[conversation.length - 1];
+      if (
+        lastMsg.type === "ai" &&
+        !lastMsg.additional_kwargs?.tool_calls?.length
+      ) {
+        return {
+          mainConversation: conversation.slice(0, -1),
+          resultMessage: lastMsg,
+        };
+      }
+    }
+    return { mainConversation: conversation, resultMessage: null };
+  }, [conversation, executionPlan, isStreaming]);
+
+  // Scroll-to-bottom callback for ChatMessages and post-streaming
+  const doScrollToBottom = useCallback(() => {
+    scrollEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
+
   // Smart scrolling: Lock view on Agent Activity when streaming starts
   useEffect(() => {
-    if (isStreaming && toolUpdates.length > 0 && agentActivityRef.current) {
-      // Lock scroll on Agent Activity
+    if (isStreaming && (toolUpdates.length > 0 || executionPlan) && agentActivityRef.current) {
+      // Lock scroll on Agent Activity / Plan
       setScrollLocked(true);
       agentActivityRef.current.scrollIntoView({ 
         behavior: "smooth", 
         block: "start" 
       });
     } else if (!isStreaming && scrollLocked) {
-      // Unlock after streaming completes (after a short delay)
+      // Unlock after streaming completes and scroll to final result
       const timer = setTimeout(() => {
         setScrollLocked(false);
-      }, 500);
+        doScrollToBottom();
+      }, 300);
       return () => clearTimeout(timer);
     }
-  }, [isStreaming, toolUpdates.length, scrollLocked]);
+  }, [isStreaming, toolUpdates.length, executionPlan, scrollLocked, doScrollToBottom]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,19 +137,26 @@ export default function AgentInterface() {
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
       >
-        {/* Chat Messages */}
+         {/* Chat Messages (excludes final AI result when plan exists) */}
         <ChatMessages
-          conversation={conversation}
+          conversation={mainConversation}
           loading={loading}
           showToolMessages={showToolMessages}
           expandedToolMessage={expandedToolMessage}
           onToggleToolMessage={handleToggleToolMessage}
           disableAutoScroll={scrollLocked}
+          scrollToBottom={doScrollToBottom}
         />
 
-        {/* Tool Progress Indicator - shows during streaming, BELOW user message */}
-        {/* This is the "Agent Activity" section that we lock the view on */}
-        {isStreaming && toolUpdates.length > 0 && (
+         {/* Execution Plan - shows the agent's multi-step plan with integrated tool details */}
+        {executionPlan && (
+          <div ref={agentActivityRef} className="scroll-mt-4">
+            <PlanDisplay plan={executionPlan} toolUpdates={toolUpdates} />
+          </div>
+        )}
+
+        {/* Standalone Tool Progress - only when there is NO execution plan */}
+        {isStreaming && toolUpdates.length > 0 && !executionPlan && (
           <div ref={agentActivityRef} className="scroll-mt-4">
             <ToolProgressIndicator toolUpdates={toolUpdates} />
           </div>
@@ -146,12 +180,33 @@ export default function AgentInterface() {
           </div>
         )}
 
+        {/* Final AI result - rendered BELOW plan when plan execution completed */}
+        {resultMessage && (
+          <div className="mb-3">
+            <div className="flex justify-start">
+              <div className="max-w-[80%] px-4 py-2 rounded-lg bg-neutral-50 rounded-tl-none border border-primary-200">
+                <div className="text-sm break-words chat-markdown text-primary-900">
+                  <ReactMarkdown>
+                    {typeof resultMessage.content === "string"
+                      ? resultMessage.content
+                      : String(resultMessage.content)}
+                  </ReactMarkdown>
+                </div>
+                <div className="text-xs text-primary-500 mt-1">Agent</div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Search Results - visible below, but view stays locked on Agent Activity */}
         <SearchResults
           results={geoDataList}
           loading={loading}
           onSelectLayer={handleLayerSelect}
         />
+
+        {/* Scroll target at very bottom of all content */}
+        <div ref={scrollEndRef} />
       </div>
 
       <hr className="my-4 flex-shrink-0" />

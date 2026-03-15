@@ -70,8 +70,11 @@ async def run_migrations_online():
     """Run migrations in 'online' mode using an AsyncEngine."""
     url = config.get_main_option("sqlalchemy.url")
     # support postgis:// scheme
-    if url and url.startswith("postgis://"):
-        url = url.replace("postgis://", "postgresql+psycopg://", 1)
+    if url:
+        if url.startswith("postgis://"):
+            url = url.replace("postgis://", "postgresql+psycopg://", 1)
+        elif url.startswith("postgresql://"):
+            url = url.replace("postgresql://", "postgresql+psycopg://", 1)
 
     connectable = create_async_engine(url, poolclass=pool.NullPool)
 

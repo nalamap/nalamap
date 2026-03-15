@@ -1,8 +1,12 @@
+import asyncio
 import json
 import logging
+<<<<<<< HEAD
 import re
+=======
+import uuid
+>>>>>>> b92b57b70225b5e623b267f05d5ad8ead929c0f7
 from typing import Any, Dict, List, Optional
-import asyncio
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from langchain_core.messages import (
@@ -277,7 +281,6 @@ def normalize_messages(raw: Optional[List[BaseMessage]]) -> List[BaseMessage]:
             normalized.append(SystemMessage(content=content, **extra))
 
         elif t == "tool":
-            continue  # TODO: Fix required tool call missing
             # Your existing ToolMessage logic
             kwargs = {"content": content}
             if getattr(m, "name", None):
@@ -289,7 +292,6 @@ def normalize_messages(raw: Optional[List[BaseMessage]]) -> List[BaseMessage]:
             normalized.append(ToolMessage(**kwargs))
 
         elif t == "function":
-            continue
             normalized.append(
                 FunctionMessage(
                     name=getattr(m, "name", "unknown_function"),
@@ -353,7 +355,8 @@ async def _prepare_chat_context(
     """Prepare shared context for both chat and streaming endpoints.
 
     Normalizes messages, resolves session_id, manages message history
-    (via pruning or summarization), and creates the agent + initial state.
+    (via pruning or summarization), creates an execution plan for complex
+    queries, and creates the agent + initial state.
 
     Args:
         request: The NaLaMap chat request
@@ -361,11 +364,13 @@ async def _prepare_chat_context(
         metrics: Performance metrics tracker
 
     Returns:
-        Tuple of (state, single_agent, options, perf_callback, session_id, stream_id)
+        Tuple of (state, single_agent, options, perf_callback, session_id, stream_id, plan)
     """
     from services.single_agent import create_geo_agent, prepare_messages
+    from services.planner import create_execution_plan, build_plan_system_addendum
     from utility.performance_metrics import PerformanceCallbackHandler
 
+<<<<<<< HEAD
     clean_query, explicit_layer_refs = _split_query_and_explicit_layer_refs(request.query)
     query_for_model = clean_query or (request.query or "")
     if explicit_layer_refs:
@@ -375,6 +380,9 @@ async def _prepare_chat_context(
             f"Selected existing map layers: {refs_preview}.\n"
             "These are already loaded layers in state; do not geocode these names."
         ).strip()
+=======
+    logger.info(f"[CHAT] query={request.query[:120]!r}")
+>>>>>>> b92b57b70225b5e623b267f05d5ad8ead929c0f7
 
     # Normalize incoming messages and append user query
     messages: List[BaseMessage] = normalize_messages(request.messages)
@@ -396,7 +404,10 @@ async def _prepare_chat_context(
         else:
             logger.warning("No session_id provided in options or cookies")
 
-    session_id = getattr(options, "session_id", None) or "unknown"
+    session_id = getattr(options, "session_id", None)
+    if not session_id:
+        session_id = str(uuid.uuid4())
+        logger.warning(f"Generated fallback session_id: {session_id}")
 
     # Get message window size from model settings or environment
     message_window_size = getattr(options.model_settings, "message_window_size", None)
@@ -443,6 +454,57 @@ async def _prepare_chat_context(
     metrics.record("message_count_after", len(messages))
     metrics.record("message_reduction", metrics.metrics["message_count_before"] - len(messages))
 
+    # --- Multi-step Planning ---
+    # Analyze the query to determine if it requires a multi-step plan.
+    # If so, the plan is injected into the agent's prompt so it follows
+    # the structured steps, and streamed to the frontend for visibility.
+    enable_planning = getattr(options.model_settings, "enable_planning", False)
+    execution_plan = None
+
+    if enable_planning:
+        try:
+            # Build layer context for the planner
+            existing_layers = None
+            if request.geodata_layers:
+                existing_layers = [
+                    {
+                        "title": getattr(layer, "title", None) or getattr(layer, "name", ""),
+                        "name": getattr(layer, "name", ""),
+                    }
+                    for layer in request.geodata_layers
+                ]
+
+            metrics.start_timer("planning")
+            execution_plan = await create_execution_plan(
+                query=request.query,
+                llm=llm,
+                messages=messages,
+                existing_layers=existing_layers,
+            )
+            metrics.end_timer("planning")
+
+            if execution_plan:
+                logger.info(
+                    f"Execution plan created with {len(execution_plan.steps)} steps "
+                    f"for query: {request.query[:80]}"
+                )
+                metrics.record("plan_steps", len(execution_plan.steps))
+
+                # Inject plan into agent by rebuilding with augmented prompt
+                plan_addendum = build_plan_system_addendum(execution_plan)
+                single_agent, llm = await create_geo_agent(
+                    model_settings=options.model_settings,
+                    selected_tools=options.tools,
+                    enable_parallel_tools=enable_parallel_tools,
+                    query=request.query,
+                    session_id=options.session_id,
+                    mcp_servers=mcp_servers if mcp_servers else None,
+                    system_prompt_addendum=plan_addendum,
+                )
+        except Exception as e:
+            logger.warning(f"Planning failed, proceeding without plan: {e}")
+            execution_plan = None
+
     # Create initial state
     state: GeoDataAgentState = GeoDataAgentState(
         messages=messages,
@@ -453,6 +515,7 @@ async def _prepare_chat_context(
         geodata_results=[],
         options=options,
         remaining_steps=10,
+        execution_plan=execution_plan,
     )
 
     # Create performance callback handler
@@ -461,7 +524,7 @@ async def _prepare_chat_context(
     # Also extract stream_id for cancellation tracking (streaming only)
     stream_id = options_orig.get("stream_id") or session_id
 
-    return state, single_agent, options, perf_callback, session_id, stream_id
+    return state, single_agent, options, perf_callback, session_id, stream_id, execution_plan
 
 
 @router.post("/chatmock", tags=["nalamap"], response_model=NaLaMapResponse)
@@ -533,7 +596,7 @@ async def ask_nalamap_agent(request: NaLaMapRequest, raw_request: Request):
     metrics = PerformanceMetrics()
 
     # Prepare shared context (messages, agent, state)
-    state, single_agent, options, perf_callback, session_id, _ = await _prepare_chat_context(
+    state, single_agent, options, perf_callback, session_id, _, _plan = await _prepare_chat_context(
         request, raw_request, metrics
     )
 
@@ -585,13 +648,13 @@ async def ask_nalamap_agent(request: NaLaMapRequest, raw_request: Request):
         final_metrics = metrics.finalize()
 
         # Store metrics in global storage if enabled
-        session_id = getattr(options, "session_id", None) or "unknown"
+        metrics_session_id = getattr(options, "session_id", None) or session_id
         enable_performance_metrics = getattr(
             options.model_settings, "enable_performance_metrics", False
         )
         if enable_performance_metrics:
             storage = get_metrics_storage()
-            storage.store(session_id=session_id, metrics=final_metrics)
+            storage.store(session_id=metrics_session_id, metrics=final_metrics)
 
         logger.info(
             "Agent execution completed",
@@ -696,8 +759,13 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
         extract_token_usage_from_messages,
     )
     from utility.metrics_storage import get_metrics_storage
+    from services.planner import match_tool_to_plan_step, update_plan_step_status
+    import asyncio
     import json
     import openai
+
+    # Keepalive interval for SSE (seconds) - prevents proxy idle timeouts
+    SSE_KEEPALIVE_INTERVAL = 30
 
     async def event_generator():
         """Generate SSE events from agent execution."""
@@ -748,30 +816,30 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                 perf_callback,
                 session_id,
                 stream_id,
+                execution_plan,
             ) = await _prepare_chat_context(request, raw_request, metrics)
+
+            # If we have an execution plan, stream it to the frontend
+            if execution_plan:
+                plan_data = execution_plan.model_dump()
+                yield "event: plan\n"
+                yield f"data: {json.dumps(plan_data)}\n\n"
 
             # Start timing
             metrics.start_timer("agent_execution")
 
-            # Stream events using astream_events v2
-            async for event in single_agent.astream_events(
-                state, version="v2", config={"callbacks": [perf_callback]}
-            ):
-                # Check for cancellation before processing each event (use stream_id)
-                if await is_cancelled(stream_id):
-                    logger.warning(
-                        f"🛑 Cancellation detected for stream: {stream_id} at event loop"
-                    )
-                    yield "event: cancelled\n"
-                    yield f"data: {json.dumps({'message': 'Request cancelled by user'})}\n\n"
-                    yield "event: done\n"
-                    yield f"data: {json.dumps({'status': 'cancelled'})}\n\n"
-                    return
+            # Track which plan step is currently active
+            current_active_step = None  # step_number of the in-progress step
+            # Map tool invocation run_id → step_number (to reuse on tool_end)
+            tool_step_map = {}
 
-                event_type = event.get("event")
-                event_name = event.get("name", "")
-                event_data = event.get("data", {})
+            # Plan continuation: if the agent ends with pending steps, re-invoke
+            MAX_PLAN_CONTINUATIONS = 3
+            continuation_count = 0
+            current_state = state
+            final_agent_output = None
 
+<<<<<<< HEAD
                 # Debug logging for cancellation checking
                 if event_type in [
                     "on_tool_start",
@@ -902,34 +970,53 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                         session_id = getattr(options, "session_id", None) or "unknown"
                         enable_performance_metrics = getattr(
                             options.model_settings, "enable_performance_metrics", False
-                        )
-                        if enable_performance_metrics:
-                            storage = get_metrics_storage()
-                            storage.store(session_id=session_id, metrics=final_metrics)
+=======
+            while True:  # Outer loop: plan continuation
+                aiter = single_agent.astream_events(
+                    current_state, version="v2", config={"callbacks": [perf_callback]}
+                ).__aiter__()
 
+                while True:  # Inner loop: event processing
+                    try:
+                        event = await asyncio.wait_for(
+                            aiter.__anext__(), timeout=SSE_KEEPALIVE_INTERVAL
+>>>>>>> b92b57b70225b5e623b267f05d5ad8ead929c0f7
+                        )
+                    except StopAsyncIteration:
+                        break
+                    except asyncio.TimeoutError:
+                        # Emit SSE comment as keepalive to prevent proxy idle timeout
+                        yield ": keepalive\n\n"
+                        continue
+
+                    # Check for cancellation before processing each event
+                    if await is_cancelled(stream_id):
+                        logger.warning(
+                            f"🛑 Cancellation detected for stream: {stream_id} at event loop"
+                        )
+                        yield "event: cancelled\n"
+                        yield (f"data: {json.dumps({'message': 'Request cancelled by user'})}\n\n")
+                        yield "event: done\n"
+                        yield f"data: {json.dumps({'status': 'cancelled'})}\n\n"
+                        return
+
+                    event_type = event.get("event")
+                    event_name = event.get("name", "")
+                    event_data = event.get("data", {})
+
+                    # Debug logging for cancellation checking
+                    if event_type in ["on_tool_start", "on_tool_end", "on_chain_start"]:
                         logger.info(
-                            "Agent execution completed (streaming)",
-                            extra={
-                                "performance_metrics": final_metrics,
-                                "session_id": session_id,
-                            },
+                            f"Event: {event_type} | name: {event_name} | "
+                            f"stream: {stream_id} | "
+                            f"cancelled: {await is_cancelled(stream_id)}"
                         )
 
-                        # Send final result
-                        # Convert messages to serializable format
-                        serializable_messages = []
-                        for msg in result_messages:
-                            if isinstance(msg, HumanMessage):
-                                serializable_messages.append(
-                                    {"type": "human", "content": msg.content}
-                                )
-                            elif isinstance(msg, AIMessage):
-                                serializable_messages.append({"type": "ai", "content": msg.content})
-                            elif isinstance(msg, SystemMessage):
-                                serializable_messages.append(
-                                    {"type": "system", "content": msg.content}
-                                )
+                    # Debug logging for all events
+                    if event_type in ["on_chain_start", "on_chain_end"]:
+                        logger.info(f"Chain event: type={event_type}, name={event_name}")
 
+<<<<<<< HEAD
                         # Serialize geodata objects
                         serialized_results = [
                             r.model_dump() if hasattr(r, "model_dump") else r
@@ -954,6 +1041,242 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                             "ogcapi_job_results_urls": ogcapi_result_urls,
                         }
                         yield f"data: {json.dumps(result_data)}\n\n"
+=======
+                    # Handle tool events
+                    if event_type == "on_tool_start":
+                        tool_name = event_name
+                        tool_input = event_data.get("input", {})
+                        run_id = event.get("run_id")
+                        serializable_input = make_json_serializable(tool_input)
+
+                        # Track plan step progress
+                        matched_step = None
+                        if execution_plan:
+                            matched_step = match_tool_to_plan_step(
+                                tool_name, execution_plan, current_active_step
+                            )
+                            if matched_step:
+                                if run_id:
+                                    tool_step_map[run_id] = matched_step
+
+                                if (
+                                    current_active_step is not None
+                                    and matched_step != current_active_step
+                                ):
+                                    update_plan_step_status(
+                                        execution_plan, current_active_step, "complete"
+                                    )
+                                    yield "event: plan_step_update\n"
+                                    step_data = {
+                                        "step_number": current_active_step,
+                                        "status": "complete",
+                                    }
+                                    yield f"data: {json.dumps(step_data)}\n\n"
+
+                                current_active_step = matched_step
+                                update_plan_step_status(execution_plan, matched_step, "in-progress")
+                                yield "event: plan_step_update\n"
+                                step_update = {
+                                    "step_number": matched_step,
+                                    "status": "in-progress",
+                                    "tool": tool_name,
+                                }
+                                yield f"data: {json.dumps(step_update)}\n\n"
+
+                        yield "event: tool_start\n"
+                        data = json.dumps(
+                            {
+                                "tool": tool_name,
+                                "input": serializable_input,
+                                "plan_step": matched_step,
+                            }
+                        )
+                        yield f"data: {data}\n\n"
+
+                    elif event_type == "on_tool_end":
+                        tool_name = event_name
+                        run_id = event.get("run_id")
+                        tool_output = event_data.get("output", {})
+                        serializable_output = make_json_serializable(tool_output)
+
+                        is_state_update = isinstance(serializable_output, dict) and (
+                            "messages" in serializable_output
+                            or "geodata_results" in serializable_output
+                            or "geodata_layers" in serializable_output
+                        )
+
+                        matched_step = None
+                        if execution_plan and run_id:
+                            matched_step = tool_step_map.pop(run_id, None)
+
+                        if is_state_update:
+                            msg_count = len(serializable_output.get("messages", []))
+                            output_preview = f"State update with {msg_count} messages"
+                            output_data = {
+                                "tool": tool_name,
+                                "output_preview": output_preview,
+                                "is_state_update": True,
+                                "output_type": "state",
+                                "plan_step": matched_step,
+                            }
+                        else:
+                            output_str = str(serializable_output)
+                            ellipsis = "..." if len(output_str) > 200 else ""
+                            output_data = {
+                                "tool": tool_name,
+                                "output": serializable_output,
+                                "output_preview": output_str[:200] + ellipsis,
+                                "is_state_update": False,
+                                "output_type": type(serializable_output).__name__,
+                                "plan_step": matched_step,
+                            }
+
+                        yield "event: tool_end\n"
+                        data = json.dumps(output_data)
+                        yield f"data: {data}\n\n"
+
+                    # Handle LLM streaming tokens
+                    elif event_type == "on_chat_model_stream":
+                        chunk = event_data.get("chunk", {})
+                        if hasattr(chunk, "content") and chunk.content:
+                            yield "event: llm_token\n"
+                            yield f"data: {json.dumps({'token': chunk.content})}\n\n"
+
+                    # Handle chain/agent completion — capture output
+                    elif event_type == "on_chain_end":
+                        if event_name in ["LangGraph", "GeoAgent"]:
+                            final_agent_output = event_data.get("output", {})
+
+                # Inner loop ended. Check for plan continuation.
+                if execution_plan and final_agent_output:
+                    pending_steps = [s for s in execution_plan.steps if s.status == "pending"]
+                    if pending_steps and continuation_count < MAX_PLAN_CONTINUATIONS:
+                        continuation_count += 1
+
+                        # Mark current in-progress step as complete
+                        if current_active_step is not None:
+                            update_plan_step_status(execution_plan, current_active_step, "complete")
+                            yield "event: plan_step_update\n"
+                            step_data = {
+                                "step_number": current_active_step,
+                                "status": "complete",
+                            }
+                            yield f"data: {json.dumps(step_data)}\n\n"
+                            current_active_step = None
+
+                        next_step = pending_steps[0]
+                        logger.info(
+                            f"Plan continuation {continuation_count}/"
+                            f"{MAX_PLAN_CONTINUATIONS}: "
+                            f"step {next_step.step_number} ({next_step.title})"
+                        )
+
+                        # Build continuation state from agent output
+                        cont_messages = list(final_agent_output.get("messages", []))
+                        cont_messages.append(
+                            HumanMessage(
+                                content=(
+                                    f"Continue with the next step of the plan. "
+                                    f"Step {next_step.step_number}: "
+                                    f"{next_step.title} — {next_step.description}"
+                                )
+                            )
+                        )
+                        current_state = GeoDataAgentState(
+                            messages=cont_messages,
+                            geodata_layers=final_agent_output.get("geodata_layers", []),
+                            geodata_results=final_agent_output.get("geodata_results", []),
+                            geodata_last_results=final_agent_output.get("geodata_last_results", []),
+                            results_title=final_agent_output.get("results_title", ""),
+                            options=options,
+                            remaining_steps=10,
+                            execution_plan=execution_plan,
+                        )
+                        final_agent_output = None
+                        continue  # Re-invoke agent for next step
+                # No continuation needed — break outer loop
+                break
+
+            # All agent invocations done — emit final result
+            metrics.end_timer("agent_execution")
+
+            if final_agent_output:
+                result_messages = final_agent_output.get("messages", [])
+                results_title = final_agent_output.get("results_title", "")
+                geodata_results = final_agent_output.get("geodata_results", [])
+                geodata_layers = final_agent_output.get("geodata_layers", [])
+
+                # Collect metrics
+                callback_metrics = perf_callback.get_metrics()
+                metrics.metrics.update(callback_metrics)
+
+                if callback_metrics["token_usage"]["total"] == 0:
+                    token_usage = extract_token_usage_from_messages(result_messages)
+                    metrics.metrics["token_usage"] = token_usage
+
+                metrics.record("geodata_layers_count", len(geodata_layers))
+                metrics.record("geodata_results_count", len(geodata_results))
+                metrics.record("message_count_final", len(result_messages))
+                if continuation_count > 0:
+                    metrics.record("plan_continuations", continuation_count)
+
+                final_metrics = metrics.finalize()
+                metrics_session_id = getattr(options, "session_id", None) or session_id
+                enable_performance_metrics = getattr(
+                    options.model_settings, "enable_performance_metrics", False
+                )
+                if enable_performance_metrics:
+                    storage = get_metrics_storage()
+                    storage.store(session_id=metrics_session_id, metrics=final_metrics)
+
+                logger.info(
+                    "Agent execution completed (streaming)",
+                    extra={
+                        "performance_metrics": final_metrics,
+                        "session_id": session_id,
+                    },
+                )
+
+                # Convert messages to serializable format
+                serializable_messages = []
+                for msg in result_messages:
+                    if isinstance(msg, HumanMessage):
+                        serializable_messages.append({"type": "human", "content": msg.content})
+                    elif isinstance(msg, AIMessage):
+                        serializable_messages.append({"type": "ai", "content": msg.content})
+                    elif isinstance(msg, SystemMessage):
+                        serializable_messages.append({"type": "system", "content": msg.content})
+
+                serialized_results = [
+                    r.model_dump() if hasattr(r, "model_dump") else r for r in geodata_results
+                ]
+                serialized_layers = [
+                    layer.model_dump() if hasattr(layer, "model_dump") else layer
+                    for layer in geodata_layers
+                ]
+
+                # Mark any remaining plan steps as complete
+                if execution_plan:
+                    for step in execution_plan.steps:
+                        if step.status in ("pending", "in-progress"):
+                            update_plan_step_status(execution_plan, step.step_number, "complete")
+                            yield "event: plan_step_update\n"
+                            step_data = {
+                                "step_number": step.step_number,
+                                "status": "complete",
+                            }
+                            yield f"data: {json.dumps(step_data)}\n\n"
+
+                yield "event: result\n"
+                result_data = {
+                    "messages": serializable_messages,
+                    "results_title": results_title,
+                    "geodata_results": serialized_results,
+                    "geodata_layers": serialized_layers,
+                    "metrics": final_metrics,
+                }
+                yield f"data: {json.dumps(result_data)}\n\n"
+>>>>>>> b92b57b70225b5e623b267f05d5ad8ead929c0f7
 
             # Ensure every emitted tool_start has a corresponding tool_end.
             async for chunk in _emit_pending_tool_end_events(

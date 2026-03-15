@@ -280,6 +280,7 @@ def get_nasa_gibs_layer(
         "Filter layers by category: 'fire', 'imagery', 'weather', 'temperature', 'ocean', "
         "'cryosphere', 'vegetation', 'atmosphere', 'night', 'geostationary', or 'all'",
     ] = "all",
+    add_to_results: bool = True,
     state: Annotated[GeoDataAgentState, InjectedState] = None,
     tool_call_id: Annotated[str, InjectedToolCallId] = None,
 ) -> Command[Any]:
@@ -449,12 +450,13 @@ def get_nasa_gibs_layer(
         ]
 
         result_msg = ToolMessage(content="\n".join(response_lines), tool_call_id=tool_call_id)
-        return Command(
-            update={
-                "geodata_results": [geo_obj],
-                "messages": [result_msg],
-            }
-        )
+        state_update = {
+            "geodata_last_results": [geo_obj],
+            "messages": [result_msg],
+        }
+        if add_to_results:
+            state_update["geodata_results"] = [geo_obj]
+        return Command(update=state_update)
 
     except Exception as e:
         logger.exception(f"Error in NASA GIBS layer tool: {e}")
