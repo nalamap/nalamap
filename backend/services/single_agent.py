@@ -275,11 +275,8 @@ async def create_geo_agent(
     query: Optional[str] = None,
     session_id: Optional[str] = None,
     mcp_servers: Optional[List] = None,  # List of MCPServer objects
-<<<<<<< HEAD
     ogcapi_servers: Optional[List] = None,  # List of OGCAPIServer objects
-=======
     system_prompt_addendum: Optional[str] = None,
->>>>>>> b92b57b70225b5e623b267f05d5ad8ead929c0f7
 ) -> Tuple[CompiledStateGraph, Any]:
     """Create a geo agent with specified model and tools.
 
@@ -293,12 +290,9 @@ async def create_geo_agent(
             (used for conversation summarization)
         mcp_servers: List of MCPServer objects to load external tools from
             (optional, supports authentication via api_key and headers fields)
-<<<<<<< HEAD
         ogcapi_servers: List of OGC API server configs to enable OGC API tools
-=======
         system_prompt_addendum: Optional text to append to the system prompt
             (used by the planner to inject execution plan instructions)
->>>>>>> b92b57b70225b5e623b267f05d5ad8ead929c0f7
 
     Returns:
         Tuple of (CompiledStateGraph, llm) - the agent graph and the LLM instance.
@@ -509,16 +503,14 @@ async def create_geo_agent(
                 "falling back to sequential execution"
             )
 
-<<<<<<< HEAD
-    tool_names = [getattr(tool, "name", str(tool)) for tool in tools]
-    logger.info("Agent runtime tools (%s): %s", len(tool_names), tool_names)
-    bound_model = llm.bind_tools(tools, parallel_tool_calls=parallel_tool_calls)
-=======
     # Append planning addendum to system prompt if provided
     if system_prompt_addendum:
         system_prompt = system_prompt + system_prompt_addendum
         logger.info("Appended execution plan to system prompt")
->>>>>>> b92b57b70225b5e623b267f05d5ad8ead929c0f7
+
+    tool_names = [getattr(tool, "name", str(tool)) for tool in tools]
+    logger.info("Agent runtime tools (%s): %s", len(tool_names), tool_names)
+    bound_model = llm.bind_tools(tools, parallel_tool_calls=parallel_tool_calls)
 
     agent = create_react_agent(
         name="GeoAgent",

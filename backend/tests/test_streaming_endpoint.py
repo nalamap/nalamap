@@ -6,7 +6,7 @@ import pytest
 import json
 from httpx import AsyncClient
 from httpx_sse import aconnect_sse
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, ToolMessage
 
 
 def get_test_payload(query: str, tools: list = None):
@@ -153,6 +153,75 @@ async def test_streaming_endpoint_performance_metrics(async_client: AsyncClient)
     assert "token_usage" in metrics
     # Note: token_usage might be 0 if using a mock/test model
     assert "total_tokens" in metrics["token_usage"]
+
+
+@pytest.mark.asyncio
+async def test_streaming_result_includes_ogcapi_job_results(async_client: AsyncClient, monkeypatch):
+    """Result payload should expose OGC API job result URLs for frontend consumption."""
+    from api import nalamap as nalamap_api
+    from types import SimpleNamespace
+
+    job_url = "http://localhost:8081/v1/processes/vector-buffer/jobs/job-1/results"
+
+    class MockPerfCallback:
+        def get_metrics(self):
+            return {"token_usage": {"total": 0, "prompt": 0, "completion": 0}}
+
+    class MockAgent:
+        async def astream_events(self, state, version="v2", config=None):
+            yield {
+                "event": "on_chain_end",
+                "name": "GeoAgent",
+                "data": {
+                    "output": {
+                        "messages": [
+                            AIMessage(content="Done."),
+                            ToolMessage(
+                                content=json.dumps({"status": "ok", "job_results_url": job_url}),
+                                tool_call_id="tool-1",
+                                name="process_geodata",
+                            ),
+                        ],
+                        "results_title": "",
+                        "geodata_results": [{"data_link": job_url}],
+                        "geodata_layers": [],
+                    }
+                },
+            }
+
+    async def mock_prepare_chat_context(request, raw_request, metrics):
+        options = SimpleNamespace(
+            model_settings=SimpleNamespace(enable_performance_metrics=False),
+            session_id="test-streaming-session",
+        )
+        return (
+            {},
+            MockAgent(),
+            options,
+            MockPerfCallback(),
+            "test-streaming-session",
+            "test-streaming-session",
+        )
+
+    monkeypatch.setattr(nalamap_api, "_prepare_chat_context", mock_prepare_chat_context)
+
+    payload = get_test_payload("buffer this")
+    result_data = None
+
+    async with aconnect_sse(
+        async_client, "POST", "/api/chat/stream", json=payload, timeout=30.0
+    ) as event_source:
+        async for sse in event_source.aiter_sse():
+            event_type = sse.event or "message"
+            data = json.loads(sse.data)
+            if event_type == "result":
+                result_data = data
+            elif event_type == "done":
+                break
+
+    assert result_data is not None
+    assert result_data["ogcapi_job_results"] == [job_url]
+    assert result_data["ogcapi_job_results_urls"] == [job_url]
 
 
 @pytest.mark.asyncio

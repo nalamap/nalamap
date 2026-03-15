@@ -2,10 +2,11 @@
 "use client";
 
 import React from "react";
-import { ExecutionPlan, PlanStep } from "../stores/chatInterfaceStore";
+import { ExecutionPlan, PlanStep, ToolUpdate } from "../stores/chatInterfaceStore";
 
 interface PlanDisplayProps {
   plan: ExecutionPlan;
+  toolUpdates: ToolUpdate[];
 }
 
 /**

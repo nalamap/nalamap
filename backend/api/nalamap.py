@@ -1,11 +1,8 @@
 import asyncio
 import json
 import logging
-<<<<<<< HEAD
 import re
-=======
 import uuid
->>>>>>> b92b57b70225b5e623b267f05d5ad8ead929c0f7
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -370,7 +367,6 @@ async def _prepare_chat_context(
     from services.planner import create_execution_plan, build_plan_system_addendum
     from utility.performance_metrics import PerformanceCallbackHandler
 
-<<<<<<< HEAD
     clean_query, explicit_layer_refs = _split_query_and_explicit_layer_refs(request.query)
     query_for_model = clean_query or (request.query or "")
     if explicit_layer_refs:
@@ -380,9 +376,7 @@ async def _prepare_chat_context(
             f"Selected existing map layers: {refs_preview}.\n"
             "These are already loaded layers in state; do not geocode these names."
         ).strip()
-=======
-    logger.info(f"[CHAT] query={request.query[:120]!r}")
->>>>>>> b92b57b70225b5e623b267f05d5ad8ead929c0f7
+    logger.info(f"[CHAT] query={query_for_model[:120]!r}")
 
     # Normalize incoming messages and append user query
     messages: List[BaseMessage] = normalize_messages(request.messages)
@@ -496,9 +490,10 @@ async def _prepare_chat_context(
                     model_settings=options.model_settings,
                     selected_tools=options.tools,
                     enable_parallel_tools=enable_parallel_tools,
-                    query=request.query,
+                    query=query_for_model,
                     session_id=options.session_id,
                     mcp_servers=mcp_servers if mcp_servers else None,
+                    ogcapi_servers=ogcapi_servers_arg,
                     system_prompt_addendum=plan_addendum,
                 )
         except Exception as e:
@@ -809,15 +804,31 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
             metrics = PerformanceMetrics()
 
             # Prepare shared context (messages, agent, state)
-            (
-                state,
-                single_agent,
-                options,
-                perf_callback,
-                session_id,
-                stream_id,
-                execution_plan,
-            ) = await _prepare_chat_context(request, raw_request, metrics)
+            chat_context = await _prepare_chat_context(request, raw_request, metrics)
+            if len(chat_context) == 7:
+                (
+                    state,
+                    single_agent,
+                    options,
+                    perf_callback,
+                    session_id,
+                    stream_id,
+                    execution_plan,
+                ) = chat_context
+            elif len(chat_context) == 6:
+                (
+                    state,
+                    single_agent,
+                    options,
+                    perf_callback,
+                    session_id,
+                    stream_id,
+                ) = chat_context
+                execution_plan = None
+            else:
+                raise ValueError(
+                    f"_prepare_chat_context returned unexpected tuple size: {len(chat_context)}"
+                )
 
             # If we have an execution plan, stream it to the frontend
             if execution_plan:
@@ -839,138 +850,6 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
             current_state = state
             final_agent_output = None
 
-<<<<<<< HEAD
-                # Debug logging for cancellation checking
-                if event_type in [
-                    "on_tool_start",
-                    "on_tool_end",
-                    "on_tool_error",
-                    "on_chain_start",
-                ]:
-                    logger.info(
-                        f"Event: {event_type} | name: {event_name} | "
-                        f"stream: {stream_id} | cancelled: {await is_cancelled(stream_id)}"
-                    )
-
-                # Debug logging for all events
-                if event_type in ["on_chain_start", "on_chain_end"]:
-                    logger.info(f"Chain event: type={event_type}, name={event_name}")
-
-                # Handle tool events
-                if event_type == "on_tool_start":
-                    tool_name = event_name
-                    tool_input = event_data.get("input", {})
-                    _track_tool_start(tool_name=tool_name, run_id=event.get("run_id"))
-                    # Make tool_input JSON serializable (may contain LangChain messages)
-                    serializable_input = make_json_serializable(tool_input)
-                    yield "event: tool_start\n"
-                    data = json.dumps({"tool": tool_name, "input": serializable_input})
-                    yield f"data: {data}\n\n"
-
-                elif event_type == "on_tool_end":
-                    tool_name = event_name
-                    _track_tool_end(tool_name=tool_name, run_id=event.get("run_id"))
-                    tool_output = event_data.get("output", {})
-                    # Make tool_output JSON serializable
-                    serializable_output = make_json_serializable(tool_output)
-
-                    # Check if output is a state update (dict with messages, etc.)
-                    # vs actual tool result (string, dict with data, etc.)
-                    is_state_update = isinstance(serializable_output, dict) and (
-                        "messages" in serializable_output
-                        or "geodata_results" in serializable_output
-                        or "geodata_layers" in serializable_output
-                    )
-
-                    # For state updates, only send summary
-                    # For actual results, send full output
-                    if is_state_update:
-                        msg_count = len(serializable_output.get("messages", []))
-                        output_preview = f"State update with {msg_count} messages"
-                        output_data = {
-                            "tool": tool_name,
-                            "output_preview": output_preview,
-                            "is_state_update": True,
-                            "output_type": "state",
-                        }
-                    else:
-                        # Send full result but also include a preview
-                        output_str = str(serializable_output)
-                        ellipsis = "..." if len(output_str) > 200 else ""
-                        output_data = {
-                            "tool": tool_name,
-                            "output": serializable_output,
-                            "output_preview": output_str[:200] + ellipsis,
-                            "is_state_update": False,
-                            "output_type": type(serializable_output).__name__,
-                        }
-
-                    yield "event: tool_end\n"
-                    data = json.dumps(output_data)
-                    yield f"data: {data}\n\n"
-
-                elif event_type == "on_tool_error":
-                    tool_name = event_name
-                    _track_tool_end(tool_name=tool_name, run_id=event.get("run_id"))
-                    tool_error = event_data.get("error", event_data)
-                    serializable_error = make_json_serializable(tool_error)
-                    error_text = str(serializable_error)
-                    ellipsis = "..." if len(error_text) > 200 else ""
-
-                    # Emit tool_end shape for tool failures so the frontend/test
-                    # stream can treat tool execution lifecycle consistently.
-                    output_data = {
-                        "tool": tool_name,
-                        "output": {"error": serializable_error},
-                        "output_preview": f"Tool error: {error_text[:200]}{ellipsis}",
-                        "is_state_update": False,
-                        "output_type": "dict",
-                    }
-                    yield "event: tool_end\n"
-                    data = json.dumps(output_data)
-                    yield f"data: {data}\n\n"
-
-                # Handle LLM streaming tokens
-                elif event_type == "on_chat_model_stream":
-                    chunk = event_data.get("chunk", {})
-                    if hasattr(chunk, "content") and chunk.content:
-                        yield "event: llm_token\n"
-                        yield f"data: {json.dumps({'token': chunk.content})}\n\n"
-
-                # Handle chain/agent state updates
-                elif event_type == "on_chain_end":
-                    # Check for both "LangGraph" (older) and "GeoAgent" (current name)
-                    if event_name in ["LangGraph", "GeoAgent"]:
-                        # Agent execution complete - get final state
-                        output = event_data.get("output", {})
-                        result_messages = output.get("messages", [])
-                        results_title = output.get("results_title", "")
-                        geodata_results = output.get("geodata_results", [])
-                        geodata_layers = output.get("geodata_layers", [])
-
-                        # End timing
-                        metrics.end_timer("agent_execution")
-
-                        # Collect metrics
-                        callback_metrics = perf_callback.get_metrics()
-                        metrics.metrics.update(callback_metrics)
-
-                        # Extract token usage if needed
-                        if callback_metrics["token_usage"]["total"] == 0:
-                            token_usage = extract_token_usage_from_messages(result_messages)
-                            metrics.metrics["token_usage"] = token_usage
-
-                        # Track state metrics
-                        metrics.record("geodata_layers_count", len(geodata_layers))
-                        metrics.record("geodata_results_count", len(geodata_results))
-                        metrics.record("message_count_final", len(result_messages))
-
-                        # Finalize and store metrics
-                        final_metrics = metrics.finalize()
-                        session_id = getattr(options, "session_id", None) or "unknown"
-                        enable_performance_metrics = getattr(
-                            options.model_settings, "enable_performance_metrics", False
-=======
             while True:  # Outer loop: plan continuation
                 aiter = single_agent.astream_events(
                     current_state, version="v2", config={"callbacks": [perf_callback]}
@@ -980,7 +859,6 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                     try:
                         event = await asyncio.wait_for(
                             aiter.__anext__(), timeout=SSE_KEEPALIVE_INTERVAL
->>>>>>> b92b57b70225b5e623b267f05d5ad8ead929c0f7
                         )
                     except StopAsyncIteration:
                         break
@@ -1005,7 +883,12 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                     event_data = event.get("data", {})
 
                     # Debug logging for cancellation checking
-                    if event_type in ["on_tool_start", "on_tool_end", "on_chain_start"]:
+                    if event_type in [
+                        "on_tool_start",
+                        "on_tool_end",
+                        "on_tool_error",
+                        "on_chain_start",
+                    ]:
                         logger.info(
                             f"Event: {event_type} | name: {event_name} | "
                             f"stream: {stream_id} | "
@@ -1016,37 +899,12 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                     if event_type in ["on_chain_start", "on_chain_end"]:
                         logger.info(f"Chain event: type={event_type}, name={event_name}")
 
-<<<<<<< HEAD
-                        # Serialize geodata objects
-                        serialized_results = [
-                            r.model_dump() if hasattr(r, "model_dump") else r
-                            for r in geodata_results
-                        ]
-                        serialized_layers = [
-                            layer.model_dump() if hasattr(layer, "model_dump") else layer
-                            for layer in geodata_layers
-                        ]
-                        ogcapi_result_urls = _extract_ogcapi_result_urls(
-                            messages=result_messages,
-                            geodata_results=serialized_results,
-                        )
-
-                        yield "event: result\n"
-                        result_data = {
-                            "messages": serializable_messages,
-                            "results_title": results_title,
-                            "geodata_results": serialized_results,
-                            "geodata_layers": serialized_layers,
-                            "metrics": final_metrics,
-                            "ogcapi_job_results_urls": ogcapi_result_urls,
-                        }
-                        yield f"data: {json.dumps(result_data)}\n\n"
-=======
                     # Handle tool events
                     if event_type == "on_tool_start":
                         tool_name = event_name
                         tool_input = event_data.get("input", {})
                         run_id = event.get("run_id")
+                        _track_tool_start(tool_name=tool_name, run_id=run_id)
                         serializable_input = make_json_serializable(tool_input)
 
                         # Track plan step progress
@@ -1096,6 +954,7 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                     elif event_type == "on_tool_end":
                         tool_name = event_name
                         run_id = event.get("run_id")
+                        _track_tool_end(tool_name=tool_name, run_id=run_id)
                         tool_output = event_data.get("output", {})
                         serializable_output = make_json_serializable(tool_output)
 
@@ -1131,6 +990,31 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                                 "plan_step": matched_step,
                             }
 
+                        yield "event: tool_end\n"
+                        data = json.dumps(output_data)
+                        yield f"data: {data}\n\n"
+
+                    elif event_type == "on_tool_error":
+                        tool_name = event_name
+                        run_id = event.get("run_id")
+                        _track_tool_end(tool_name=tool_name, run_id=run_id)
+                        tool_error = event_data.get("error", event_data)
+                        serializable_error = make_json_serializable(tool_error)
+                        error_text = str(serializable_error)
+                        ellipsis = "..." if len(error_text) > 200 else ""
+
+                        matched_step = None
+                        if execution_plan and run_id:
+                            matched_step = tool_step_map.pop(run_id, None)
+
+                        output_data = {
+                            "tool": tool_name,
+                            "output": {"error": serializable_error},
+                            "output_preview": f"Tool error: {error_text[:200]}{ellipsis}",
+                            "is_state_update": False,
+                            "output_type": "dict",
+                            "plan_step": matched_step,
+                        }
                         yield "event: tool_end\n"
                         data = json.dumps(output_data)
                         yield f"data: {data}\n\n"
@@ -1268,15 +1152,20 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                             yield f"data: {json.dumps(step_data)}\n\n"
 
                 yield "event: result\n"
+                ogcapi_result_urls = _extract_ogcapi_result_urls(
+                    messages=result_messages,
+                    geodata_results=serialized_results,
+                )
                 result_data = {
                     "messages": serializable_messages,
                     "results_title": results_title,
                     "geodata_results": serialized_results,
                     "geodata_layers": serialized_layers,
                     "metrics": final_metrics,
+                    "ogcapi_job_results": ogcapi_result_urls,
+                    "ogcapi_job_results_urls": ogcapi_result_urls,
                 }
                 yield f"data: {json.dumps(result_data)}\n\n"
->>>>>>> b92b57b70225b5e623b267f05d5ad8ead929c0f7
 
             # Ensure every emitted tool_start has a corresponding tool_end.
             async for chunk in _emit_pending_tool_end_events(

@@ -3,11 +3,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from langchain_core.messages import HumanMessage
 from langgraph.graph import MessagesState
-<<<<<<< HEAD
-from pydantic import Field
-=======
 from pydantic import BaseModel, Field
->>>>>>> b92b57b70225b5e623b267f05d5ad8ead929c0f7
 from typing_extensions import Annotated, NotRequired
 
 from models.settings_model import SettingsSnapshot
