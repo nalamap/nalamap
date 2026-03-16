@@ -10,7 +10,7 @@ services:
       - FRONTEND_PROTOCOL=http
       - FRONTEND_URL=frontend:3000
       - AZURE_BLOB_DOMAIN=${AZURE_BLOB_DOMAIN:-}
-      - DNS_RESOLVER=${DNS_RESOLVER:-8.8.8.8}
+      - DNS_RESOLVER=${DNS_RESOLVER:-127.0.0.11}
     ports:
       - "80:80"
 
@@ -30,6 +30,9 @@ services:
       - AZURE_CONN_STRING=${AZURE_CONN_STRING:-}
       - AZURE_CONTAINER=${AZURE_CONTAINER:-data}
       - AZURE_SAS_EXPIRY_HOURS=${AZURE_SAS_EXPIRY_HOURS:-24}
+      - USE_OGCAPI_STORAGE=${USE_OGCAPI_STORAGE:-false}
+      - OGCAPI_BASE_URL=${OGCAPI_BASE_URL:-}
+      - OGCAPI_TIMEOUT_SECONDS=${OGCAPI_TIMEOUT_SECONDS:-30}
       - FRONTEND_BASE_URL=${FRONTEND_BASE_URL}
       - BASE_URL=${BASE_URL}
       - OIDC_PROVIDERS=${OIDC_PROVIDERS}
@@ -39,9 +42,12 @@ services:
       - OIDC_NEPHELE_ISSUER=${OIDC_NEPHELE_ISSUER}
       - OIDC_NEPHELE_CLIENT_ID=${OIDC_NEPHELE_CLIENT_ID}
       - OIDC_NEPHELE_CLIENT_SECRET=${OIDC_NEPHELE_CLIENT_SECRET}
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "8000:8000"
-  
+
   frontend:
     build:
       context: ./frontend
@@ -59,9 +65,15 @@ services:
       POSTGRES_DB: app
       POSTGRES_USER: app
       POSTGRES_PASSWORD: app
-    ports: ["5432:5432"]
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d app"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
     volumes:
       - postgres-data:/var/lib/postgresql/data
-volumes:
-    postgres-data:
 
+volumes:
+  postgres-data:
