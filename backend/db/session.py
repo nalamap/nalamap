@@ -73,8 +73,7 @@ async def init_db(max_retries: int = 5, retry_delay: float = 3.0) -> None:
         except Exception as exc:
             if attempt < max_retries:
                 logger.warning(
-                    "Database init attempt %d/%d failed (%s), "
-                    "retrying in %.0fs...",
+                    "Database init attempt %d/%d failed (%s), " "retrying in %.0fs...",
                     attempt,
                     max_retries,
                     exc,
@@ -127,9 +126,7 @@ async def ensure_tables() -> None:
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     """Async generator yielding a database session for dependency injection."""
     if AsyncSessionLocal is None:
-        raise RuntimeError(
-            "Database session factory is not configured; set DATABASE_URL first."
-        )
+        raise RuntimeError("Database session factory is not configured; set DATABASE_URL first.")
     await ensure_tables()
     async with AsyncSessionLocal() as session:
         yield session
