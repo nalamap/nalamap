@@ -5,14 +5,15 @@ Tests tool selection accuracy, multi-language support, different strategies,
 and edge cases.
 """
 
-import pytest
 from unittest.mock import AsyncMock
+
+import pytest
 from langchain_core.tools import BaseTool
 
 from services.tool_selector import (
+    TOOL_METADATA,
     DynamicToolSelector,
     SelectionStrategy,
-    TOOL_METADATA,
     create_tool_selector,
 )
 

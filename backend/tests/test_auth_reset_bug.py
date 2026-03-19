@@ -10,15 +10,15 @@ Root cause: Missing validation in /auth/me endpoint for null user_id,
 and improper UUID validation that causes database errors instead of 401.
 """
 
+from datetime import datetime, timedelta
+
 import pytest
 from fastapi.testclient import TestClient
 from jose import jwt
-from datetime import datetime, timedelta
 
-from main import app
 from core.config import SECRET_KEY
 from db.session import AsyncSessionLocal, get_session
-
+from main import app
 
 # Check if database is configured
 DATABASE_CONFIGURED = AsyncSessionLocal is not None

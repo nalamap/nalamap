@@ -5,8 +5,8 @@ import geopandas as gpd
 from shapely.ops import unary_union
 
 from services.tools.geoprocessing.projection_utils import (
-    prepare_gdf_for_operation,
     OperationType,
+    prepare_gdf_for_operation,
 )
 
 logger = logging.getLogger(__name__)

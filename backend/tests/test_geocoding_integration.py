@@ -9,8 +9,9 @@ NOTE: geocoding.py is loaded as ``services.tools._geocoding_legacy`` by the
       package __init__.py, so patch targets must use that module path.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from services.tools.geocoding.tag_resolver import TagResolution
 

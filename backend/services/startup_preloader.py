@@ -11,9 +11,13 @@ can be shared across all user sessions.
 
 import asyncio
 import logging
+
 from models.deployment_config import DeploymentGeoServerBackend
 from models.settings_model import GeoServerBackend
-from services.deployment_config_loader import get_preload_backends, load_and_validate_config
+from services.deployment_config_loader import (
+    get_preload_backends,
+    load_and_validate_config,
+)
 from services.tools.geoserver.custom_geoserver import preload_backend_layers_with_state
 from services.tools.geoserver.vector_store import (
     GLOBAL_PRELOAD_SESSION_ID,

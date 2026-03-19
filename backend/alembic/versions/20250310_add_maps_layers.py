@@ -1,9 +1,9 @@
 """Add maps, layers, and map_layers tables."""
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "20250310_add_maps_layers"

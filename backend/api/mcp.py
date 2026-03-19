@@ -1,6 +1,7 @@
 """MCP API endpoints for HTTP transport."""
 
 import logging
+
 from fastapi import APIRouter, HTTPException, Request
 
 from services.mcp.server import MCPServer

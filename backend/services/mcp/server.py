@@ -31,13 +31,13 @@ class MCPServer:
 
     def _initialize_tools(self):
         """Register all available NaLaMap tools in MCP format."""
+        from services.tools.attribute_tools import attribute_tool
         from services.tools.geocoding import (
             geocode_using_nominatim_to_geostate,
             geocode_using_overpass_to_geostate,
         )
         from services.tools.geoprocess_tools import geoprocess_tool
         from services.tools.styling_tools import style_map_layers
-        from services.tools.attribute_tools import attribute_tool
 
         # Geocoding tools
         self._register_langchain_tool(

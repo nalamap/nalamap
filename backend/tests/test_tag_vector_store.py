@@ -2,7 +2,6 @@ import pytest
 
 from services.tools.geocoding.tag_vector_store import TagVectorStore, _tag_to_text
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

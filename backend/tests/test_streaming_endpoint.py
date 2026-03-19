@@ -2,8 +2,9 @@
 Tests for the /api/chat/stream SSE endpoint.
 """
 
-import pytest
 import json
+
+import pytest
 from httpx import AsyncClient
 from httpx_sse import aconnect_sse
 

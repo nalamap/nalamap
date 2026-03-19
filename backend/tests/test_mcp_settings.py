@@ -3,6 +3,7 @@ Tests for MCP server integration with settings and agent.
 """
 
 import pytest
+
 from models.settings_model import MCPServer, SettingsSnapshot
 
 
@@ -89,8 +90,8 @@ def test_mcp_server_serialization():
 @pytest.mark.asyncio
 async def test_create_geo_agent_with_mcp_servers(monkeypatch):
     """Test that create_geo_agent accepts and processes MCP servers."""
-    from services.single_agent import create_geo_agent
     from models.settings_model import MCPServer
+    from services.single_agent import create_geo_agent
 
     # Mock the MCP integration to avoid actual server connections
     mcp_tools_loaded = []

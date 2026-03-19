@@ -13,9 +13,8 @@ from db.models.map_layer import MapLayer
 from db.models.user import User
 from db.session import get_session
 from models.layer import LayerRead
-from models.map_layer import MapLayerItem, MapLayerRead
 from models.map import MapCreate, MapRead, MapUpdate
-
+from models.map_layer import MapLayerItem, MapLayerRead
 
 router = APIRouter(prefix="/maps", tags=["maps"])
 

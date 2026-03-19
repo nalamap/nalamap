@@ -7,6 +7,7 @@ These tests specifically target the bugs found in buffer.py:
 """
 
 import pytest
+
 from services.tools.geoprocessing.ops.buffer import op_buffer
 
 

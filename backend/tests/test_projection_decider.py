@@ -11,14 +11,15 @@ Tests various scenarios including:
 """
 
 import pytest
+
 from services.tools.geoprocessing.projection_utils import (
-    decide_projection,
+    OperationType,
+    ProjectionProperty,
     compute_bbox_metrics,
     compute_utm_zone,
     compute_zone_span,
+    decide_projection,
     is_antimeridian_crossing,
-    OperationType,
-    ProjectionProperty,
 )
 
 

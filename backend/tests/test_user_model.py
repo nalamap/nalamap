@@ -1,8 +1,8 @@
 """Tests for the User ORM model definition."""
 
 import pytest
-
-from sqlalchemy.dialects.postgresql import UUID as PG_UUID, TEXT, TIMESTAMP
+from sqlalchemy.dialects.postgresql import TEXT, TIMESTAMP
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
 from db.models.user import User
 

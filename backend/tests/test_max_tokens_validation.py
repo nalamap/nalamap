@@ -1,7 +1,9 @@
 """Tests for max_tokens validation in LLM configuration."""
 
 import os
+
 import pytest
+
 from services.ai.llm_config import _validate_max_tokens, get_llm_for_provider
 
 

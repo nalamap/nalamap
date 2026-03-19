@@ -5,10 +5,12 @@ Tests the ability to cancel ongoing streaming requests via the /chat/cancel endp
 """
 
 import asyncio
+
 import pytest
 from fastapi.testclient import TestClient
+
+from api.nalamap import _cancellation_flags, clear_cancellation, is_cancelled
 from main import app
-from api.nalamap import is_cancelled, clear_cancellation, _cancellation_flags
 
 
 @pytest.fixture

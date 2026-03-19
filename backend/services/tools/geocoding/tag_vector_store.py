@@ -104,8 +104,7 @@ class TagVectorStore:
         """Create the tag embeddings table and vec0 virtual table if they don't exist."""
         dim = self._get_embedding_dim()
 
-        conn.execute(
-            f"""
+        conn.execute(f"""
             CREATE TABLE IF NOT EXISTS {OSM_TAG_VECTOR_TABLE} (
                 key TEXT NOT NULL,
                 value TEXT NOT NULL,
@@ -118,8 +117,7 @@ class TagVectorStore:
                 text TEXT NOT NULL,
                 updated_at TEXT DEFAULT (datetime('now'))
             )
-            """
-        )
+            """)
 
         # Check if existing vec table has a different dimension
         existing_dim = self._get_existing_vec_dim(conn)
@@ -133,12 +131,10 @@ class TagVectorStore:
             conn.execute(f"DROP TABLE IF EXISTS {OSM_TAG_VECTOR_TABLE}_vec")
             conn.execute(f"DELETE FROM {OSM_TAG_VECTOR_TABLE}")
 
-        conn.execute(
-            f"""
+        conn.execute(f"""
             CREATE VIRTUAL TABLE IF NOT EXISTS {OSM_TAG_VECTOR_TABLE}_vec
             USING vec0(embedding float[{dim}])
-            """
-        )
+            """)
 
     # ------------------------------------------------------------------
     # Embedding provider

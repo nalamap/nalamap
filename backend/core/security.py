@@ -6,7 +6,7 @@ from uuid import uuid4
 from jose import jwt  # , JWTError
 from passlib.context import CryptContext
 
-from core.config import SECRET_KEY, ACCESS_TOKEN_EXPIRE_MINUTES
+from core.config import ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY
 
 # Password hashing context using bcrypt
 pwd_context = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
