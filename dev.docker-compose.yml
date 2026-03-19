@@ -11,13 +11,37 @@ services:
       - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
       - AZURE_OPENAI_DEPLOYMENT=${AZURE_OPENAI_DEPLOYMENT}
       - AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION}
+      - AZURE_MODELS_CONFIG=${AZURE_MODELS_CONFIG:-}
       - LLM_PROVIDER=${LLM_PROVIDER}
+      - DEFAULT_LLM_PROVIDER=${DEFAULT_LLM_PROVIDER:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      - GOOGLE_MODEL=${GOOGLE_MODEL:-}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY:-}
+      - MISTRAL_MODEL=${MISTRAL_MODEL:-}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - MOONSHOT_API_KEY=${MOONSHOT_API_KEY:-}
+      - XAI_API_KEY=${XAI_API_KEY:-}
+      - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-hashing}
+      - OPENAI_EMBEDDING_MODEL=${OPENAI_EMBEDDING_MODEL:-}
+      - AZURE_EMBEDDING_DEPLOYMENT=${AZURE_EMBEDDING_DEPLOYMENT:-}
+      - AZURE_EMBEDDING_MODEL=${AZURE_EMBEDDING_MODEL:-}
       - USE_AZURE_STORAGE=${USE_AZURE_STORAGE:-false}
       - AZURE_CONN_STRING=${AZURE_CONN_STRING:-}
       - AZURE_CONTAINER=${AZURE_CONTAINER:-data}
       - AZURE_SAS_EXPIRY_HOURS=${AZURE_SAS_EXPIRY_HOURS:-24}
+      - AUTH_ENABLED=${AUTH_ENABLED:-true}
+      - SECRET_KEY=${SECRET_KEY:-}
+      - MESSAGE_WINDOW_SIZE=${MESSAGE_WINDOW_SIZE:-20}
+      - MESSAGE_MANAGEMENT_MODE=${MESSAGE_MANAGEMENT_MODE:-summarize}
+      - MCP_ENABLED=${MCP_ENABLED:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - ALLOWED_CORS_ORIGINS=http://localhost:3000,http://frontend:3000
       - COOKIE_SECURE=false
+    volumes:
+      - backend-data:/app/data
+      - backend-uploads:/app/uploads
     command: /app/.venv/bin/uvicorn main:app --reload --host 0.0.0.0 --port 8000 # auto-reload enabled
 
   frontend:
@@ -38,3 +62,7 @@ services:
     command: yarn dev # starts Next.js in dev mode with hot reloading
     depends_on:
       - backend
+
+volumes:
+  backend-data:
+  backend-uploads:
