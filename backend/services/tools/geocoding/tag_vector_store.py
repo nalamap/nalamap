@@ -101,9 +101,12 @@ class TagVectorStore:
         return self._embedding_dim
 
     def _ensure_table(self, conn: sqlite3.Connection) -> None:
-        """Create the tag embeddings table and vec0 virtual table if they don't exist."""
-        dim = self._get_embedding_dim()
+        """Create the tag embeddings table and vec0 virtual table if they don't exist.
 
+        Avoids probing the embedding model when the vec table already exists
+        with its dimension recorded, so read-only / status calls never trigger
+        an external API request.
+        """
         conn.execute(f"""
             CREATE TABLE IF NOT EXISTS {OSM_TAG_VECTOR_TABLE} (
                 key TEXT NOT NULL,
@@ -119,18 +122,14 @@ class TagVectorStore:
             )
             """)
 
-        # Check if existing vec table has a different dimension
+        # If vec table already exists, accept its dimension without probing
         existing_dim = self._get_existing_vec_dim(conn)
-        if existing_dim is not None and existing_dim != dim:
-            logger.warning(
-                "Embedding dimension changed (%d -> %d). "
-                "Dropping existing vector table and clearing tag data.",
-                existing_dim,
-                dim,
-            )
-            conn.execute(f"DROP TABLE IF EXISTS {OSM_TAG_VECTOR_TABLE}_vec")
-            conn.execute(f"DELETE FROM {OSM_TAG_VECTOR_TABLE}")
+        if existing_dim is not None:
+            self._embedding_dim = existing_dim
+            return
 
+        # Vec table missing — probe the model to learn the dimension
+        dim = self._get_embedding_dim()
         conn.execute(f"""
             CREATE VIRTUAL TABLE IF NOT EXISTS {OSM_TAG_VECTOR_TABLE}_vec
             USING vec0(embedding float[{dim}])
@@ -147,6 +146,30 @@ class TagVectorStore:
 
             self._embeddings = _get_embedding_model()
         return self._embeddings
+
+    def _ensure_vec_ready(self, conn: sqlite3.Connection) -> None:
+        """Ensure the vec table exists and matches the current embedding model.
+
+        Called lazily before the first write/search — never during plain
+        status queries — so we only probe the embedding model when needed.
+        """
+        dim = self._get_embedding_dim()
+        existing_dim = self._get_existing_vec_dim(conn)
+
+        if existing_dim is not None and existing_dim != dim:
+            logger.warning(
+                "Embedding dimension changed (%d -> %d). "
+                "Dropping existing vector table and clearing tag data.",
+                existing_dim,
+                dim,
+            )
+            conn.execute(f"DROP TABLE IF EXISTS {OSM_TAG_VECTOR_TABLE}_vec")
+            conn.execute(f"DELETE FROM {OSM_TAG_VECTOR_TABLE}")
+
+        conn.execute(f"""
+            CREATE VIRTUAL TABLE IF NOT EXISTS {OSM_TAG_VECTOR_TABLE}_vec
+            USING vec0(embedding float[{dim}])
+            """)
 
     # ------------------------------------------------------------------
     # Write operations
@@ -166,6 +189,7 @@ class TagVectorStore:
         embeddings = self._get_embeddings().embed_documents(texts)
 
         conn = self._get_connection()
+        self._ensure_vec_ready(conn)
         stored = 0
         for tag, text, emb in zip(tags, texts, embeddings):
             key = tag.get("key", "")
@@ -220,12 +244,15 @@ class TagVectorStore:
         emb = self._get_embeddings().embed_query(query)
         emb_blob = _pack_vector(emb)
 
+        # Ensure vec table matches current model before querying
+        conn = self._get_connection()
+        self._ensure_vec_ready(conn)
+
         # Fetch more candidates from vec to allow for min_count post-filtering.
         # We request k * 10 candidates so that after the count filter there are
         # still (likely) k results.  Cap at a reasonable upper bound.
         fetch_k = min(k * 10, 5000)
 
-        conn = self._get_connection()
         # sqlite-vec KNN: ORDER BY distance is implicit for MATCH queries
         rows = conn.execute(
             f"""

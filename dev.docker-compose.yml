@@ -32,7 +32,7 @@ services:
       - AZURE_CONTAINER=${AZURE_CONTAINER:-data}
       - AZURE_SAS_EXPIRY_HOURS=${AZURE_SAS_EXPIRY_HOURS:-24}
       - AUTH_ENABLED=${AUTH_ENABLED:-true}
-      - SECRET_KEY=${SECRET_KEY:-}
+      # SECRET_KEY — omitted so the backend falls back to its built-in dev default
       - MESSAGE_WINDOW_SIZE=${MESSAGE_WINDOW_SIZE:-20}
       - MESSAGE_MANAGEMENT_MODE=${MESSAGE_MANAGEMENT_MODE:-summarize}
       - MCP_ENABLED=${MCP_ENABLED:-false}
