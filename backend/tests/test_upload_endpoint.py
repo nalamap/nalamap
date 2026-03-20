@@ -91,7 +91,7 @@ def test_oversize_upload_rejected(tmp_path, monkeypatch):
     resp = client.post("/api/upload", files=data)
     assert resp.status_code == 413
     body = resp.json()
-    assert "File" in body.get("detail", "")
+    assert body["detail"] == "File size (10 B) exceeds the limit of 5 B."
 
 
 def test_get_upload_meta_allows_nested_path(client):

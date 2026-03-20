@@ -8,6 +8,7 @@ from urllib.parse import urlparse, urlunparse
 
 import requests
 
+import core.config as core_config
 from core.config import (
     AZ_CONN,
     AZ_CONTAINER,
@@ -271,7 +272,7 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
 
             if str(exc) == "MAX_FILE_SIZE_EXCEEDED":
                 raise HTTPException(
-                    status_code=413, detail="File exceeds the 100MB limit."
+                    status_code=413, detail=core_config.max_file_size_exceeded_detail()
                 ) from exc
             raise HTTPException(status_code=502, detail=f"OGC API upload failed: {exc}") from exc
         except Exception as exc:
@@ -282,7 +283,9 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
             from fastapi import HTTPException
 
             if resp.status_code == 413 or "MAX_FILE_SIZE" in resp.text:
-                raise HTTPException(status_code=413, detail="File exceeds the 100MB limit.")
+                raise HTTPException(
+                    status_code=413, detail=core_config.max_file_size_exceeded_detail()
+                )
             raise HTTPException(
                 status_code=502,
                 detail=f"OGC API upload failed: {resp.status_code} {resp.text}",
@@ -362,7 +365,9 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
             if str(e) == "MAX_FILE_SIZE_EXCEEDED":
                 from fastapi import HTTPException
 
-                raise HTTPException(status_code=413, detail="File exceeds the 100MB limit.")
+                raise HTTPException(
+                    status_code=413, detail=core_config.max_file_size_exceeded_detail()
+                )
             raise
     else:
         dest_path = os.path.join(LOCAL_UPLOAD_DIR, unique_name)
@@ -388,5 +393,7 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
             if str(e) == "MAX_FILE_SIZE_EXCEEDED":
                 from fastapi import HTTPException
 
-                raise HTTPException(status_code=413, detail="File exceeds the 100MB limit.")
+                raise HTTPException(
+                    status_code=413, detail=core_config.max_file_size_exceeded_detail()
+                )
             raise

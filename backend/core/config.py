@@ -51,8 +51,27 @@ COOKIE_SECURE = os.getenv("COOKIE_SECURE", "true").lower() == "true"
 COOKIE_HTTPONLY = os.getenv("COOKIE_HTTPONLY", "true").lower() == "true"
 COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax")  # "lax", "strict", or "none"
 
-# File size limit (100MB)
-MAX_FILE_SIZE = 2000 * 1024 * 1024  # 100MB in bytes
+# File size limit (default: 2,000 MB)
+DEFAULT_MAX_FILE_SIZE = 2000 * 1024 * 1024
+MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE", str(DEFAULT_MAX_FILE_SIZE)))
+
+
+def format_file_size(bytes_size: int) -> str:
+    size = float(bytes_size)
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
+        if size < 1024 or unit == "TB":
+            if unit == "B":
+                return f"{int(size)} {unit}"
+            return f"{size:.2f} {unit}"
+        size /= 1024.0
+    return f"{int(bytes_size)} B"
+
+
+def max_file_size_exceeded_detail(actual_size: int | None = None) -> str:
+    limit = format_file_size(MAX_FILE_SIZE)
+    if actual_size is None:
+        return f"File size exceeds the limit of {limit}."
+    return f"File size ({format_file_size(actual_size)}) exceeds the limit of {limit}."
 
 
 # Database

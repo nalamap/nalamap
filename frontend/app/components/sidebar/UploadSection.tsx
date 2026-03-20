@@ -94,7 +94,7 @@ export default function UploadSection({
   const [currentFileName, setCurrentFileName] = useState<string>("");
   const [funnyMessage, setFunnyMessage] = useState<string>("");
 
-  const MAX_FILE_SIZE = 2000 * 1024 * 1024; // 100MB in bytes
+  const MAX_FILE_SIZE = 2000 * 1024 * 1024; // 2,000 MB in bytes
   const MAX_FILE_SIZE_FORMATTED = formatFileSize(MAX_FILE_SIZE);
 
   // Rotate funny messages during upload for entertainment

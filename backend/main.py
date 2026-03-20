@@ -27,6 +27,7 @@ from api import (
 )
 
 # from sqlalchemy.ext.asyncio import AsyncSession
+import core.config as core_config
 from core.config import ALLOWED_CORS_ORIGINS, LOCAL_UPLOAD_DIR, USE_OGCAPI_STORAGE
 from services.deployment_config_loader import load_and_validate_config
 from services.startup_preloader import schedule_startup_preload
@@ -209,7 +210,12 @@ async def validation_exception_handler_422(request: Request, exc: RequestValidat
 async def request_entity_too_large_handler(request: Request, exc):
     return JSONResponse(
         status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-        content={"detail": "File size exceeds the 100MB limit. Please upload a smaller file."},
+        content={
+            "detail": (
+                f"{core_config.max_file_size_exceeded_detail()} "
+                "Please upload a smaller file."
+            )
+        },
     )
 
 

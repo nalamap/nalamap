@@ -21,10 +21,10 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   
-  // Increase body size limit for server actions to match nginx (100MB)
+  // Keep the Next.js server-action parser aligned with the upload ceiling.
   experimental: {
     serverActions: {
-      bodySizeLimit: '100mb'
+      bodySizeLimit: '2000mb'
     }
   },
   
