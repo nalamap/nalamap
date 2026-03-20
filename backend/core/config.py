@@ -30,7 +30,7 @@ USE_OGCAPI_STORAGE = os.getenv("USE_OGCAPI_STORAGE", "false").lower() == "true"
 OGCAPI_BASE_URL = os.getenv("OGCAPI_BASE_URL", "").rstrip("/")
 # Public/browser-facing OGC API base URL. If unset, fall back to OGCAPI_BASE_URL.
 OGCAPI_PUBLIC_BASE_URL = os.getenv("OGCAPI_PUBLIC_BASE_URL", OGCAPI_BASE_URL).rstrip("/")
-OGCAPI_TIMEOUT_SECONDS = float(os.getenv("OGCAPI_TIMEOUT_SECONDS", "30"))
+OGCAPI_TIMEOUT_SECONDS = float(os.getenv("OGCAPI_TIMEOUT_SECONDS", "60"))
 OGCAPI_VECTOR_TILE_FEATURE_THRESHOLD = int(
     os.getenv("OGCAPI_VECTOR_TILE_FEATURE_THRESHOLD", "5000")
 )
@@ -52,7 +52,7 @@ COOKIE_HTTPONLY = os.getenv("COOKIE_HTTPONLY", "true").lower() == "true"
 COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax")  # "lax", "strict", or "none"
 
 # File size limit (100MB)
-MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB in bytes
+MAX_FILE_SIZE = 2000 * 1024 * 1024  # 100MB in bytes
 
 
 # Database
