@@ -3,15 +3,10 @@
 import asyncio
 import logging
 import time
-import asyncio
-import logging
-import os
-import sys
 from typing import AsyncGenerator, Optional
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.exc import OperationalError
 
 from core.config import DATABASE_URL
 from db.base import Base

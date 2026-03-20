@@ -349,10 +349,7 @@ def test_upload_response_exposes_items_and_tiles_for_ogc_collections(monkeypatch
     payload = asyncio.run(data_management.upload_file(upload))
     assert payload["ogc_collection_id"] == "points_simple_upload"
     assert payload["items_url"].endswith("/collections/points_simple_upload/items")
-    assert (
-        payload["tiles_url"]
-        .endswith("/collections/points_simple_upload/tiles/{z}/{x}/{y}.mvt")
-    )
+    assert payload["tiles_url"].endswith("/collections/points_simple_upload/tiles/{z}/{x}/{y}.mvt")
     assert payload["tiles_metadata_url"].endswith("/collections/points_simple_upload/tiles")
     assert payload["ogc_feature_count"] == 6000
     assert payload["ogc_recommended_render_mode"] == "tiles"

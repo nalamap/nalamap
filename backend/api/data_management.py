@@ -209,9 +209,7 @@ def _normalize_geojson_feature_properties_for_ogc(stream: Any) -> Tuple[Any, boo
     return io.BytesIO(normalized_bytes), True
 
 
-def _register_geojson_collection(
-    file: UploadFile, filename: str
-) -> Dict[str, Any] | None:
+def _register_geojson_collection(file: UploadFile, filename: str) -> Dict[str, Any] | None:
     runtime_base_url = _runtime_ogcapi_base_url()
     if not (runtime_base_url and _is_geojson_filename(filename)):
         return None
@@ -309,10 +307,7 @@ def _collection_items_url(file_url: str, collection_id: str) -> str:
 
 def _collection_tiles_url(file_url: str, collection_id: str) -> str:
     base_url = _collection_base_url(file_url)
-    return (
-        f"{base_url}/collections/{quote(collection_id, safe='')}/tiles/"
-        "{z}/{x}/{y}.mvt"
-    )
+    return f"{base_url}/collections/{quote(collection_id, safe='')}/tiles/" "{z}/{x}/{y}.mvt"
 
 
 def _collection_tiles_metadata_url(file_url: str, collection_id: str) -> str:
@@ -381,9 +376,7 @@ async def upload_file(file: UploadFile = File(...)) -> Dict[str, Any]:
             response["tiles_url"] = tiles_url
             response["tiles_metadata_url"] = tiles_metadata_url
             response["ogc_feature_count"] = feature_count
-            response["ogc_recommended_render_mode"] = _recommended_ogc_render_mode(
-                feature_count
-            )
+            response["ogc_recommended_render_mode"] = _recommended_ogc_render_mode(feature_count)
             response["ogc_render_mode"] = "auto"
         return response
     finally:
