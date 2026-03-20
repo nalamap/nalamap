@@ -3,6 +3,7 @@
 
 import {
   ChatMessage,
+  GeoDataObject,
   NaLaMapRequest,
   NaLaMapResponse,
 } from "../models/geodatamodel";

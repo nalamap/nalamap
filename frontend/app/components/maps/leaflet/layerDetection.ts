@@ -1,6 +1,11 @@
 import { GeoDataObject } from "../../../models/geodatamodel";
+import { shouldRenderLayerAsVectorTiles } from "../../../utils/ogcVectorTiles";
 
 export function isGeoJsonLikeLayer(layer: GeoDataObject): boolean {
+  if (shouldRenderLayerAsVectorTiles(layer)) {
+    return false;
+  }
+
   const layerType = (layer.layer_type || "").toUpperCase();
   const dataType = (layer.data_type || "").toUpperCase();
   const link = (layer.data_link || "").toLowerCase();

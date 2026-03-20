@@ -31,6 +31,9 @@ OGCAPI_BASE_URL = os.getenv("OGCAPI_BASE_URL", "").rstrip("/")
 # Public/browser-facing OGC API base URL. If unset, fall back to OGCAPI_BASE_URL.
 OGCAPI_PUBLIC_BASE_URL = os.getenv("OGCAPI_PUBLIC_BASE_URL", OGCAPI_BASE_URL).rstrip("/")
 OGCAPI_TIMEOUT_SECONDS = float(os.getenv("OGCAPI_TIMEOUT_SECONDS", "30"))
+OGCAPI_VECTOR_TILE_FEATURE_THRESHOLD = int(
+    os.getenv("OGCAPI_VECTOR_TILE_FEATURE_THRESHOLD", "5000")
+)
 
 # CORS configuration
 # Comma-separated list of allowed origins; if empty, allow all (not recommended with credentials)

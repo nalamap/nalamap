@@ -5,6 +5,7 @@ import {
 } from "./fixtures/geocoding-fixtures";
 import { brazilHospitalsOverpassResponse } from "./fixtures/overpass-fixtures";
 import {
+  ogcVectorTileLayerMetadata,
   wmsLayerMetadata,
   wfsLayerMetadata,
   wfsFeatureCollectionResponse,
@@ -14,6 +15,9 @@ import {
   singleGeometryResponse,
   geometryCollectionResponse,
 } from "./fixtures/ogc-services-fixtures";
+
+const SIMPLE_VECTOR_TILE_BASE64 =
+  "GjsKD3Rlc3RfY29sbGVjdGlvbhIPCAESAgAAGAEiBQmAIIAgGgRuYW1lIgwKClRlc3QgUG9pbnQogCB4Ag==";
 
 /**
  * Helper to setup API mocks for backend endpoints
@@ -420,6 +424,81 @@ test.describe("LeafletMapClient - OGC Services Tests", () => {
     // WCS layers are rendered as WMS (raster tiles)
     const tileLayers = await page.locator(".leaflet-tile-pane img").count();
     expect(tileLayers).toBeGreaterThan(0);
+  });
+
+  test("should render OGC vector tiles without fetching items", async ({ page }) => {
+    let tileRequestCount = 0;
+    let itemsRequestCount = 0;
+
+    await page.route("**/collections/test_collection/items", (route) => {
+      itemsRequestCount += 1;
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(wfsFeatureCollectionResponse),
+      });
+    });
+
+    await page.route("**/collections/test_collection/tiles/**", (route) => {
+      tileRequestCount += 1;
+      route.fulfill({
+        status: 200,
+        contentType: "application/vnd.mapbox-vector-tile",
+        body: Buffer.from(SIMPLE_VECTOR_TILE_BASE64, "base64"),
+      });
+    });
+
+    await addLayerViaStore(page, ogcVectorTileLayerMetadata);
+    await page.waitForTimeout(2500);
+
+    const visible = await isLayerVisible(page, "ogc-vector-layer-1");
+    expect(visible).toBe(true);
+    expect(tileRequestCount).toBeGreaterThan(0);
+    expect(itemsRequestCount).toBe(0);
+
+    const overlayCanvases = await page
+      .locator(".leaflet-overlay-pane canvas")
+      .count();
+    expect(overlayCanvases).toBeGreaterThan(0);
+  });
+
+  test("should show vector rendering selector for saved OGC items layers", async ({ page }) => {
+    await page.route("**/collections/test_collection/items**", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          type: "FeatureCollection",
+          features: [],
+          numberReturned: 0,
+          numberMatched: 0,
+          links: [],
+        }),
+      });
+    });
+
+    await addLayerViaStore(page, {
+      id: "saved-ogc-layer-1",
+      name: "Saved OGC Layer",
+      title: "Saved OGC Layer",
+      layer_type: "UPLOADED",
+      data_type: "uploaded",
+      data_link: "http://localhost:8081/v1/collections/test_collection/items",
+      visible: true,
+      data_source_id: "manual",
+      properties: {
+        ogc_collection_id: "test_collection",
+      },
+    });
+
+    await page.waitForTimeout(1000);
+    await page.getByTitle("Style Layer").first().click();
+
+    const stylePanel = page.locator("div").filter({
+      has: page.getByText("Style Options"),
+    });
+    await expect(stylePanel.getByText("Vector Rendering")).toBeVisible();
+    await expect(stylePanel.getByRole("combobox")).toHaveValue("auto");
   });
 });
 

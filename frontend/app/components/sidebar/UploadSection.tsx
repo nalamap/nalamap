@@ -176,10 +176,26 @@ export default function UploadSection({
         // Compute SHA-256 locally before upload for integrity verification
         const localSha256 = await sha256OfFile(file);
 
-        const { url, id, ogc_collection_id } = await new Promise<{
+        const {
+          url,
+          id,
+          ogc_collection_id,
+          items_url,
+          tiles_url,
+          tiles_metadata_url,
+          ogc_feature_count,
+          ogc_recommended_render_mode,
+          ogc_render_mode,
+        } = await new Promise<{
           url: string;
           id: string;
           ogc_collection_id?: string;
+          items_url?: string;
+          tiles_url?: string;
+          tiles_metadata_url?: string;
+          ogc_feature_count?: number;
+          ogc_recommended_render_mode?: "items" | "tiles";
+          ogc_render_mode?: "auto" | "items" | "tiles";
         }>(
           (resolve, reject) => {
             const xhr = new XMLHttpRequest();
@@ -263,18 +279,29 @@ export default function UploadSection({
             : new Error(String(verifyErr));
         }
 
+        const featureUrl = items_url || url;
         // Create the new layer
         const newLayer = {
           id: id,
           name: file.name,
           data_type: "uploaded",
-          data_link: url,
+          data_link: featureUrl,
           visible: true,
           data_source_id: "manual",
           data_origin: "uploaded",
           data_source: "user",
           layer_type: "UPLOADED",
-          properties: ogc_collection_id ? { ogc_collection_id } : {},
+          properties: ogc_collection_id
+            ? {
+                ogc_collection_id,
+                ogc_items_url: featureUrl,
+                ogc_tiles_url: tiles_url,
+                ogc_tiles_metadata_url: tiles_metadata_url,
+                ogc_feature_count,
+                ogc_recommended_render_mode,
+                ogc_render_mode: ogc_render_mode || "auto",
+              }
+            : {},
         };
 
         // Add to store

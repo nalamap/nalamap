@@ -3,6 +3,7 @@ import io
 import json
 import os
 import sys
+import asyncio
 from pathlib import Path
 from urllib.parse import quote
 
@@ -21,12 +22,16 @@ def build_minimal_app(tmp_path: Path) -> TestClient:
     uploads = tmp_path / "uploads"
     uploads.mkdir(parents=True, exist_ok=True)
     os.environ["LOCAL_UPLOAD_DIR"] = str(uploads)
+    os.environ["USE_OGCAPI_STORAGE"] = "false"
+    os.environ["USE_AZURE_STORAGE"] = "false"
 
     # Import after setting env, and reload to pick up overrides even if previously imported
     if "core.config" in sys.modules:
         importlib.reload(sys.modules["core.config"])  # type: ignore[arg-type]
     if "services.storage.file_management" in sys.modules:
         importlib.reload(sys.modules["services.storage.file_management"])  # type: ignore[arg-type]
+    if "api.data_management" in sys.modules:
+        importlib.reload(sys.modules["api.data_management"])  # type: ignore[arg-type]
 
     from api.data_management import router as upload_router  # noqa: E402
     from core.config import LOCAL_UPLOAD_DIR  # noqa: E402
@@ -162,10 +167,14 @@ def test_register_geojson_collection_returns_collection_id(monkeypatch):
         def __init__(self):
             self.file = io.BytesIO(b'{"type":"FeatureCollection","features":[]}')
 
-    collection_id = data_management._register_geojson_collection(
+    registration = data_management._register_geojson_collection(
         UploadStub(), "points_simple.geojson"
     )
-    assert collection_id == "points_simple_upload"
+    assert registration == {
+        "collection_id": "points_simple_upload",
+        "inserted": None,
+        "created_collection": False,
+    }
 
 
 def test_register_geojson_collection_flattens_nested_feature_properties(monkeypatch):
@@ -217,10 +226,14 @@ def test_register_geojson_collection_flattens_nested_feature_properties(monkeypa
                     }"""
             )
 
-    collection_id = data_management._register_geojson_collection(
+    registration = data_management._register_geojson_collection(
         UploadStub(), "points_simple.geojson"
     )
-    assert collection_id == "points_simple_upload"
+    assert registration == {
+        "collection_id": "points_simple_upload",
+        "inserted": None,
+        "created_collection": False,
+    }
     feature_props = captured_payload["geojson"]["features"][0]["properties"]
     assert feature_props == {"id": 1, "name": "a"}
 
@@ -248,10 +261,14 @@ def test_register_geojson_collection_works_when_storage_flag_disabled(monkeypatc
         def __init__(self):
             self.file = io.BytesIO(b'{"type":"FeatureCollection","features":[]}')
 
-    collection_id = data_management._register_geojson_collection(
+    registration = data_management._register_geojson_collection(
         UploadStub(), "points_simple.geojson"
     )
-    assert collection_id == "points_simple_upload"
+    assert registration == {
+        "collection_id": "points_simple_upload",
+        "inserted": None,
+        "created_collection": False,
+    }
 
 
 def test_collection_items_url_uses_file_url_host():
@@ -260,6 +277,17 @@ def test_collection_items_url_uses_file_url_host():
     file_url = "http://localhost:8081/v1/uploads/files/abc123_points_simple.geojson"
     items_url = data_management._collection_items_url(file_url, "points_simple_upload")
     assert items_url == "http://localhost:8081/v1/collections/points_simple_upload/items"
+
+
+def test_collection_tiles_url_uses_file_url_host():
+    import api.data_management as data_management
+
+    file_url = "http://localhost:8081/v1/uploads/files/abc123_points_simple.geojson"
+    tiles_url = data_management._collection_tiles_url(file_url, "points_simple_upload")
+    assert (
+        tiles_url
+        == "http://localhost:8081/v1/collections/points_simple_upload/tiles/{z}/{x}/{y}.mvt"
+    )
 
 
 def test_collection_items_url_rewrites_internal_ogc_host(monkeypatch):
@@ -284,6 +312,51 @@ def test_collection_items_url_uses_public_base_url_when_runtime_is_internal(monk
     file_url = "http://ogcapi:8000/v1/uploads/files/abc123_points_simple.geojson"
     items_url = data_management._collection_items_url(file_url, "points_simple_upload")
     assert items_url == "http://localhost:8081/v1/collections/points_simple_upload/items"
+
+
+def test_upload_response_exposes_items_and_tiles_for_ogc_collections(monkeypatch):
+    import api.data_management as data_management
+
+    monkeypatch.setattr(
+        data_management,
+        "store_file_stream",
+        lambda name, stream: (
+            "http://localhost:8081/v1/uploads/files/abc123_points_simple.geojson",
+            "abc123_points_simple.geojson",
+        ),
+    )
+    monkeypatch.setattr(
+        data_management,
+        "_register_geojson_collection",
+        lambda file, filename: {
+            "collection_id": "points_simple_upload",
+            "inserted": 6000,
+            "created_collection": True,
+        },
+    )
+
+    class UploadStub:
+        filename = "points_simple.geojson"
+        size = None
+
+        def __init__(self):
+            self.file = io.BytesIO(b'{"type":"FeatureCollection","features":[]}')
+
+        async def close(self):
+            self.file.close()
+
+    upload = UploadStub()
+    payload = asyncio.run(data_management.upload_file(upload))
+    assert payload["ogc_collection_id"] == "points_simple_upload"
+    assert payload["items_url"].endswith("/collections/points_simple_upload/items")
+    assert (
+        payload["tiles_url"]
+        .endswith("/collections/points_simple_upload/tiles/{z}/{x}/{y}.mvt")
+    )
+    assert payload["tiles_metadata_url"].endswith("/collections/points_simple_upload/tiles")
+    assert payload["ogc_feature_count"] == 6000
+    assert payload["ogc_recommended_render_mode"] == "tiles"
+    assert payload["ogc_render_mode"] == "auto"
 
 
 def test_register_geojson_collection_remaps_localhost_in_container(monkeypatch):
@@ -311,10 +384,14 @@ def test_register_geojson_collection_remaps_localhost_in_container(monkeypatch):
         def __init__(self):
             self.file = io.BytesIO(b'{"type":"FeatureCollection","features":[]}')
 
-    collection_id = data_management._register_geojson_collection(
+    registration = data_management._register_geojson_collection(
         UploadStub(), "points_simple.geojson"
     )
-    assert collection_id == "points_simple_upload"
+    assert registration == {
+        "collection_id": "points_simple_upload",
+        "inserted": None,
+        "created_collection": False,
+    }
 
 
 def test_store_file_rewrites_internal_ogc_url_to_public(monkeypatch):

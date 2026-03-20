@@ -83,7 +83,7 @@ export interface GeoDataObject {
   score?: number;
   bounding_box?: string | number[]; // Can be WKT POLYGON string or array [minX, minY, maxX, maxY]
   layer_type?: string;
-  properties?: Record<string, string>;
+  properties?: Record<string, any>;
 
   visible?: boolean;
   selected?: boolean; // <— new flag

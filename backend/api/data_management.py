@@ -5,7 +5,7 @@ import logging
 import os
 import re
 import uuid
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 from urllib.parse import quote, urlparse, urlunparse
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
@@ -209,7 +209,9 @@ def _normalize_geojson_feature_properties_for_ogc(stream: Any) -> Tuple[Any, boo
     return io.BytesIO(normalized_bytes), True
 
 
-def _register_geojson_collection(file: UploadFile, filename: str) -> str | None:
+def _register_geojson_collection(
+    file: UploadFile, filename: str
+) -> Dict[str, Any] | None:
     runtime_base_url = _runtime_ogcapi_base_url()
     if not (runtime_base_url and _is_geojson_filename(filename)):
         return None
@@ -262,13 +264,31 @@ def _register_geojson_collection(file: UploadFile, filename: str) -> str | None:
         logger.warning("OGC collection registration returned invalid JSON for %s", filename)
         return None
 
-    value = payload.get("collection_id") if isinstance(payload, dict) else None
-    if isinstance(value, str) and value.strip():
-        return value.strip()
-    return None
+    if not isinstance(payload, dict):
+        return None
+
+    value = payload.get("collection_id")
+    if not isinstance(value, str) or not value.strip():
+        return None
+
+    inserted_raw = payload.get("inserted")
+    inserted: Optional[int] = None
+    if isinstance(inserted_raw, int):
+        inserted = inserted_raw
+    elif isinstance(inserted_raw, str):
+        try:
+            inserted = int(inserted_raw)
+        except ValueError:
+            inserted = None
+
+    return {
+        "collection_id": value.strip(),
+        "inserted": inserted,
+        "created_collection": bool(payload.get("created_collection")),
+    }
 
 
-def _collection_items_url(file_url: str, collection_id: str) -> str:
+def _collection_base_url(file_url: str) -> str:
     public_file_url = _rewrite_ogcapi_url_to_public(file_url)
     parsed = urlparse(public_file_url)
     marker = "/uploads/files/"
@@ -276,11 +296,37 @@ def _collection_items_url(file_url: str, collection_id: str) -> str:
     if marker_index >= 0:
         base_path = (parsed.path or "")[:marker_index] or "/"
         base = parsed._replace(path=base_path, params="", query="", fragment="")
-        base_url = urlunparse(base).rstrip("/")
-        return f"{base_url}/collections/{quote(collection_id, safe='')}/items"
+        return urlunparse(base).rstrip("/")
+
     runtime_base_url = _runtime_ogcapi_base_url()
-    internal_url = f"{runtime_base_url}/collections/" f"{quote(collection_id, safe='')}/items"
-    return _rewrite_ogcapi_url_to_public(internal_url)
+    return _rewrite_ogcapi_url_to_public(runtime_base_url)
+
+
+def _collection_items_url(file_url: str, collection_id: str) -> str:
+    base_url = _collection_base_url(file_url)
+    return f"{base_url}/collections/{quote(collection_id, safe='')}/items"
+
+
+def _collection_tiles_url(file_url: str, collection_id: str) -> str:
+    base_url = _collection_base_url(file_url)
+    return (
+        f"{base_url}/collections/{quote(collection_id, safe='')}/tiles/"
+        "{z}/{x}/{y}.mvt"
+    )
+
+
+def _collection_tiles_metadata_url(file_url: str, collection_id: str) -> str:
+    base_url = _collection_base_url(file_url)
+    return f"{base_url}/collections/{quote(collection_id, safe='')}/tiles"
+
+
+def _recommended_ogc_render_mode(feature_count: Optional[int]) -> str:
+    if (
+        feature_count is not None
+        and feature_count >= core_config.OGCAPI_VECTOR_TILE_FEATURE_THRESHOLD
+    ):
+        return "tiles"
+    return "items"
 
 
 # Layer styling endpoint
@@ -320,11 +366,25 @@ async def upload_file(file: UploadFile = File(...)) -> Dict[str, Any]:
         safe_name = file.filename or "upload.bin"
         url, unique_name = store_file_stream(safe_name, file.file)
         response: Dict[str, Any] = {"url": url, "id": unique_name}
-        collection_id = _register_geojson_collection(file, safe_name)
-        if collection_id:
+        registration = _register_geojson_collection(file, safe_name)
+        if registration:
+            collection_id = registration["collection_id"]
+            items_url = _collection_items_url(url, collection_id)
+            tiles_url = _collection_tiles_url(url, collection_id)
+            tiles_metadata_url = _collection_tiles_metadata_url(url, collection_id)
+            feature_count = registration.get("inserted")
+
             response["ogc_collection_id"] = collection_id
             response["file_url"] = _rewrite_ogcapi_url_to_public(url)
-            response["url"] = _collection_items_url(url, collection_id)
+            response["url"] = items_url
+            response["items_url"] = items_url
+            response["tiles_url"] = tiles_url
+            response["tiles_metadata_url"] = tiles_metadata_url
+            response["ogc_feature_count"] = feature_count
+            response["ogc_recommended_render_mode"] = _recommended_ogc_render_mode(
+                feature_count
+            )
+            response["ogc_render_mode"] = "auto"
         return response
     finally:
         await file.close()

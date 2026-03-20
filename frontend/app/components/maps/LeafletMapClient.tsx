@@ -12,6 +12,7 @@ import { ZoomToSelected } from "./ZoomToLayer";
 import Logger from "../../utils/logger";
 
 import { LeafletGeoJSONLayer } from "./leaflet/LeafletGeoJSONLayer";
+import { LeafletVectorTileLayer } from "./leaflet/LeafletVectorTileLayer";
 import { Legend } from "./leaflet/Legend";
 import { geoJSONCache } from "./leaflet/geojsonCache";
 import { isGeoJsonLikeLayer } from "./leaflet/layerDetection";
@@ -24,6 +25,14 @@ import {
   pickWebMercatorMatrixSet,
 } from "./leaflet/layerParsers";
 import { CustomScaleControl, InvalidateMapOnResize } from "./leaflet/MapControls";
+import {
+  getConfiguredOgcRenderMode,
+  getEffectiveOgcRenderMode,
+  getOgcCollectionId,
+  getLayerFeatureUrl,
+  getOgcVectorTileUrlTemplate,
+  shouldRenderLayerAsVectorTiles,
+} from "../../utils/ogcVectorTiles";
 
 export default function LeafletMapComponent() {
   const basemap = useMapStore((state) => state.basemap);
@@ -232,6 +241,32 @@ export default function LeafletMapComponent() {
                 );
               }
 
+              if (shouldRenderLayerAsVectorTiles(layer)) {
+                const collectionId = getOgcCollectionId(layer);
+                const urlTemplate = getOgcVectorTileUrlTemplate(layer);
+                if (!collectionId || !urlTemplate) {
+                  Logger.warn(
+                    "Skipping vector-tile render for layer without OGC tile metadata:",
+                    layer.id,
+                  );
+                  return null;
+                }
+
+                const styleHash = layer.style
+                  ? `${layer.style.stroke_color}-${layer.style.fill_color}-${layer.style.stroke_weight}-${layer.style.fill_opacity}-${layer.style.radius}-${layer.style.stroke_opacity}-${layer.style.stroke_dash_array}`
+                  : "default";
+                const renderModeKey = `${getConfiguredOgcRenderMode(layer)}-${getEffectiveOgcRenderMode(layer)}`;
+
+                return (
+                  <LeafletVectorTileLayer
+                    key={`${layer.id}-${styleHash}-${renderModeKey}`}
+                    urlTemplate={urlTemplate}
+                    collectionId={collectionId}
+                    layerStyle={layer.style}
+                  />
+                );
+              }
+
               if (isGeoJsonLikeLayer(layer)) {
                 // Create a stable style hash for the key to force re-render when style changes
                 const styleHash = layer.style
@@ -240,7 +275,7 @@ export default function LeafletMapComponent() {
                 return (
                   <LeafletGeoJSONLayer
                     key={`${layer.id}-${styleHash}`}
-                    url={layer.data_link}
+                    url={getLayerFeatureUrl(layer)}
                     layerStyle={layer.style}
                   />
                 );

@@ -9,6 +9,10 @@ import Logger from "../../../utils/logger";
 import { geoJSONCache } from "./geojsonCache";
 import { fetchWithCorsProxy } from "./proxy";
 
+const JSON_ACCEPT_HEADER = "application/json, application/geo+json, */*;q=0.1";
+const OGC_ITEMS_PAGE_LIMIT = 1000;
+const OGC_ITEMS_MAX_PAGES = 250;
+
 // Memoized component to prevent unnecessary re-renders
 export const LeafletGeoJSONLayer = memo(function LeafletGeoJSONLayer({
   url,
@@ -177,6 +181,156 @@ export const LeafletGeoJSONLayer = memo(function LeafletGeoJSONLayer({
       }
     };
 
+    const parseJsonResponse = async (
+      requestUrl: string,
+      response: Response,
+    ): Promise<any> => {
+      if (!response.ok) {
+        throw new Error(`Request failed (${response.status}) for ${requestUrl}`);
+      }
+
+      const contentType = response.headers.get("content-type") || "";
+      const contentLengthHeader = response.headers.get("content-length");
+      if (
+        contentType.includes("application/json") ||
+        contentType.includes("geo+json")
+      ) {
+        return response.json();
+      }
+
+      const text = await response.text();
+      const expectedBytes = contentLengthHeader
+        ? parseInt(contentLengthHeader, 10)
+        : null;
+      const receivedBytes =
+        typeof TextEncoder !== "undefined"
+          ? new TextEncoder().encode(text).length
+          : text.length;
+
+      try {
+        return JSON.parse(text);
+      } catch (error) {
+        Logger.warn("Non-JSON WFS response, cannot render", {
+          url: requestUrl,
+          snippet: text.slice(0, 200),
+          expectedBytes,
+          receivedBytes,
+        });
+        if (expectedBytes !== null && receivedBytes < expectedBytes) {
+          throw new Error(
+            `GeoJSON response truncated (${receivedBytes}/${expectedBytes} bytes)`,
+          );
+        }
+        throw error;
+      }
+    };
+
+    const fetchJsonPayload = async (
+      primaryUrl: string,
+      fallbackUrl?: string,
+    ): Promise<any> => {
+      let response = await fetchWithCorsProxy(primaryUrl, {
+        headers: { Accept: JSON_ACCEPT_HEADER },
+      });
+
+      if (!response.ok && fallbackUrl && fallbackUrl !== primaryUrl) {
+        response = await fetchWithCorsProxy(fallbackUrl, {
+          headers: { Accept: JSON_ACCEPT_HEADER },
+        });
+      }
+
+      return parseJsonResponse(response.url || primaryUrl, response);
+    };
+
+    const isOgcItemsUrl = (candidate: string): boolean =>
+      /\/collections\/[^/?#]+\/items(?:[/?#]|$)/i.test(candidate);
+
+    const withOgcItemsPageLimit = (candidate: string): string => {
+      try {
+        const parsed = new URL(candidate);
+        if (!parsed.searchParams.has("limit")) {
+          parsed.searchParams.set("limit", String(OGC_ITEMS_PAGE_LIMIT));
+        }
+        return parsed.toString();
+      } catch {
+        return candidate;
+      }
+    };
+
+    const resolveNextOgcItemsUrl = (
+      currentUrl: string,
+      payload: any,
+    ): string | null => {
+      const nextLink = Array.isArray(payload?.links)
+        ? payload.links.find((link: any) => {
+            const rel =
+              typeof link?.rel === "string" ? link.rel.toLowerCase() : "";
+            return rel === "next" || rel.endsWith("/next");
+          })
+        : null;
+
+      if (typeof nextLink?.href !== "string" || !nextLink.href.trim()) {
+        return null;
+      }
+
+      try {
+        return new URL(nextLink.href, currentUrl).toString();
+      } catch {
+        return nextLink.href.trim();
+      }
+    };
+
+    const fetchOgcItemsFeatureCollection = async (
+      itemsUrl: string,
+    ): Promise<any> => {
+      const seenUrls = new Set<string>();
+      const mergedFeatures: any[] = [];
+      let mergedBbox: any;
+      let mergedCrs: any;
+      let nextUrl: string | null = withOgcItemsPageLimit(itemsUrl);
+
+      for (let pageIndex = 0; nextUrl && pageIndex < OGC_ITEMS_MAX_PAGES; pageIndex += 1) {
+        if (seenUrls.has(nextUrl)) {
+          Logger.warn("[LeafletGeoJSONLayer] Stopping OGC items pagination loop", {
+            url: nextUrl,
+          });
+          break;
+        }
+        seenUrls.add(nextUrl);
+
+        const pagePayload = await fetchJsonPayload(nextUrl);
+        const pageCollection = normalizeToFeatureCollection(pagePayload);
+        if (!pageCollection) {
+          return pagePayload;
+        }
+
+        if (!mergedBbox && pageCollection.bbox) {
+          mergedBbox = pageCollection.bbox;
+        }
+        if (!mergedCrs && pageCollection.crs) {
+          mergedCrs = pageCollection.crs;
+        }
+        if (Array.isArray(pageCollection.features)) {
+          mergedFeatures.push(...pageCollection.features);
+        }
+
+        const candidateNextUrl = resolveNextOgcItemsUrl(nextUrl, pagePayload);
+        nextUrl = candidateNextUrl ? withOgcItemsPageLimit(candidateNextUrl) : null;
+      }
+
+      const mergedCollection: any = {
+        type: "FeatureCollection",
+        features: mergedFeatures,
+      };
+      if (mergedBbox) {
+        mergedCollection.bbox = mergedBbox;
+      }
+      if (mergedCrs) {
+        mergedCollection.crs = mergedCrs;
+      }
+      return mergedCollection;
+    };
+
     (async () => {
       try {
         Logger.log("Fetching GeoJSON/WFS layer:", url);
@@ -196,54 +350,10 @@ export const LeafletGeoJSONLayer = memo(function LeafletGeoJSONLayer({
           /* ignore */
         }
 
-        // Use fetchWithCorsProxy to handle external URLs that may have CORS issues
-        let res = await fetchWithCorsProxy(requestUrl, {
-          headers: {
-            Accept: "application/json, application/geo+json, */*;q=0.1",
-          },
-        });
-        if (!res.ok && requestUrl !== url) {
-          // fallback to original URL if srsName caused failure
-          res = await fetchWithCorsProxy(url, {
-            headers: {
-              Accept: "application/json, application/geo+json, */*;q=0.1",
-            },
-          });
-        }
-        const contentType = res.headers.get("content-type") || "";
-        const contentLengthHeader = res.headers.get("content-length");
-        let json: any = null;
-        if (
-          contentType.includes("application/json") ||
-          contentType.includes("geo+json")
-        ) {
-          json = await res.json();
-        } else {
-          // Fallback: try to parse text if server mislabels
-          const text = await res.text();
-          const expectedBytes = contentLengthHeader
-            ? parseInt(contentLengthHeader, 10)
-            : null;
-          const receivedBytes =
-            typeof TextEncoder !== "undefined"
-              ? new TextEncoder().encode(text).length
-              : text.length;
-          try {
-            json = JSON.parse(text);
-          } catch (e) {
-            Logger.warn("Non-JSON WFS response, cannot render", {
-              url,
-              snippet: text.slice(0, 200),
-              expectedBytes,
-              receivedBytes,
-            });
-            if (expectedBytes !== null && receivedBytes < expectedBytes) {
-              throw new Error(
-                `GeoJSON response truncated (${receivedBytes}/${expectedBytes} bytes)`,
-              );
-            }
-          }
-        }
+        const json = isOgcItemsUrl(url)
+          ? await fetchOgcItemsFeatureCollection(url)
+          : await fetchJsonPayload(requestUrl, url);
+
         if (!cancelled) {
           const featureCollection = normalizeToFeatureCollection(json);
           if (featureCollection) {
