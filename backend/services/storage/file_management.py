@@ -1,9 +1,10 @@
 import gzip
+import hashlib
 import io
 import os
 import uuid
 from datetime import datetime, timedelta
-from typing import BinaryIO, Tuple
+from typing import Any, BinaryIO, Tuple
 from urllib.parse import urlparse, urlunparse
 
 import requests
@@ -150,6 +151,35 @@ def _generate_sas_url(blob_url: str, blob_name: str) -> str:
         return blob_url
 
 
+def _build_upload_result(
+    url: str,
+    file_id: str,
+    *,
+    sha256: str | None = None,
+    size: int | None = None,
+    filename: str | None = None,
+) -> dict[str, Any]:
+    result: dict[str, Any] = {"url": url, "id": file_id}
+    if isinstance(sha256, str) and sha256.strip():
+        result["sha256"] = sha256.strip()
+    if isinstance(size, int):
+        result["size"] = size
+    if isinstance(filename, str) and filename.strip():
+        result["filename"] = filename.strip()
+    return result
+
+
+def _normalize_upload_size(value: Any) -> int | None:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return None
+    return None
+
+
 def store_file(name: str, content: bytes) -> Tuple[str, str]:
     """Stores the given content in a file based on the name.
 
@@ -223,8 +253,8 @@ def store_file(name: str, content: bytes) -> Tuple[str, str]:
     return url, unique_name
 
 
-def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
-    """Store file by streaming from a file-like object without loading into memory.
+def store_file_stream_result(name: str, stream: BinaryIO) -> dict[str, Any]:
+    """Store a file stream and return public upload details.
 
     Respects MAX_FILE_SIZE from config. Streams directly to local disk or Azure Blob Storage.
     """
@@ -249,6 +279,7 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
                 self._s = base_stream
                 self._limit = limit
                 self._read = 0
+                self._sha256 = hashlib.sha256()
 
             def read(self, n: int = -1) -> bytes:
                 data = self._s.read(n)
@@ -257,7 +288,16 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
                 self._read += len(data)
                 if self._read > self._limit:
                     raise RuntimeError("MAX_FILE_SIZE_EXCEEDED")
+                self._sha256.update(data)
                 return data
+
+            @property
+            def bytes_read(self) -> int:
+                return self._read
+
+            @property
+            def sha256_hex(self) -> str:
+                return self._sha256.hexdigest()
 
         limiter = SizeLimitedReader(stream, MAX_FILE_SIZE)
         files = {"file": (safe_name, limiter, "application/octet-stream")}
@@ -292,7 +332,13 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
             )
         payload = resp.json()
         public_url = _rewrite_ogcapi_url_to_public(payload["url"])
-        return public_url, payload.get("id") or unique_name
+        return _build_upload_result(
+            public_url,
+            payload.get("id") or unique_name,
+            sha256=payload.get("sha256") or limiter.sha256_hex,
+            size=_normalize_upload_size(payload.get("size")) or limiter.bytes_read,
+            filename=payload.get("filename") or safe_name,
+        )
 
     if USE_AZURE:
         from azure.storage.blob import BlobServiceClient, ContentSettings
@@ -306,6 +352,7 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
                 self._s = base_stream
                 self._limit = limit
                 self._read = 0
+                self._sha256 = hashlib.sha256()
 
             def read(self, n: int = -1) -> bytes:
                 # Read in sub-chunks to enforce limit earlier when n=-1
@@ -315,7 +362,16 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
                 self._read += len(data)
                 if self._read > self._limit:
                     raise RuntimeError("MAX_FILE_SIZE_EXCEEDED")
+                self._sha256.update(data)
                 return data
+
+            @property
+            def bytes_read(self) -> int:
+                return self._read
+
+            @property
+            def sha256_hex(self) -> str:
+                return self._sha256.hexdigest()
 
         limiter = SizeLimitedReader(stream, MAX_FILE_SIZE)
         try:
@@ -327,6 +383,7 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
 
                 # Check actual size
                 actual_size = len(content)
+                sha256_hex = hashlib.sha256(content).hexdigest()
                 if _should_compress_for_azure(safe_name, actual_size):
                     # Compress
                     compressed_content = _compress_for_azure(content)
@@ -355,7 +412,13 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
             # Generate secure SAS URL instead of public URL
             blob_url = f"{container.url}/{unique_name}"
             url = _generate_sas_url(blob_url, unique_name)
-            return url, unique_name
+            return _build_upload_result(
+                url,
+                unique_name,
+                sha256=sha256_hex if "sha256_hex" in locals() else limiter.sha256_hex,
+                size=actual_size if "actual_size" in locals() else limiter.bytes_read,
+                filename=safe_name,
+            )
         except Exception as e:
             # Best-effort cleanup of partial blob
             try:
@@ -371,6 +434,7 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
             raise
     else:
         dest_path = os.path.join(LOCAL_UPLOAD_DIR, unique_name)
+        sha256 = hashlib.sha256()
         try:
             with open(dest_path, "wb") as out:
                 while True:
@@ -380,9 +444,16 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
                     total += len(data)
                     if total > MAX_FILE_SIZE:
                         raise RuntimeError("MAX_FILE_SIZE_EXCEEDED")
+                    sha256.update(data)
                     out.write(data)
             url = f"{BASE_URL}/api/stream/{unique_name}"
-            return url, unique_name
+            return _build_upload_result(
+                url,
+                unique_name,
+                sha256=sha256.hexdigest(),
+                size=total,
+                filename=safe_name,
+            )
         except Exception as e:
             # Remove partial file
             try:
@@ -397,3 +468,9 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
                     status_code=413, detail=core_config.max_file_size_exceeded_detail()
                 )
             raise
+
+
+def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
+    """Store file by streaming from a file-like object without loading into memory."""
+    result = store_file_stream_result(name, stream)
+    return result["url"], result["id"]

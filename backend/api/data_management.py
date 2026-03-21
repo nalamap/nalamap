@@ -12,7 +12,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
 import core.config as core_config
-from services.storage.file_management import store_file_stream
+from services.storage.file_management import store_file_stream_result
 import requests
 
 
@@ -337,8 +337,14 @@ async def upload_file(file: UploadFile = File(...)) -> Dict[str, Any]:
         # Stream to storage without loading into memory
         # UploadFile.file is a SpooledTemporaryFile (BinaryIO)
         safe_name = file.filename or "upload.bin"
-        url, unique_name = store_file_stream(safe_name, file.file)
+        stored = store_file_stream_result(safe_name, file.file)
+        url = stored["url"]
+        unique_name = stored["id"]
         response: Dict[str, Any] = {"url": url, "id": unique_name}
+        if isinstance(stored.get("sha256"), str):
+            response["sha256"] = stored["sha256"]
+        if isinstance(stored.get("size"), int):
+            response["size"] = stored["size"]
         registration = _register_geojson_collection(file, safe_name)
         if registration:
             collection_id = registration["collection_id"]

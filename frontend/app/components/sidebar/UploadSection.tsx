@@ -179,6 +179,8 @@ export default function UploadSection({
         const {
           url,
           id,
+          sha256,
+          size,
           ogc_collection_id,
           items_url,
           tiles_url,
@@ -189,6 +191,8 @@ export default function UploadSection({
         } = await new Promise<{
           url: string;
           id: string;
+          sha256?: string;
+          size?: number;
           ogc_collection_id?: string;
           items_url?: string;
           tiles_url?: string;
@@ -243,34 +247,60 @@ export default function UploadSection({
         const uploadCompleteProgress = baseProgress + 70 / files.length;
         setUploadProgress(Math.round(uploadCompleteProgress));
 
-        // Verify integrity against backend-reported hash/size
+        // Verify integrity against backend-reported hash/size.
+        // Fall back to the meta endpoint only if the upload response does not include them.
         try {
-          const metaRes = await fetch(
-            `${API_BASE_URL}/uploads/meta/${encodeURIComponent(id)}`,
-          );
-          if (metaRes.ok) {
-            const meta = await metaRes.json();
-            if (meta?.sha256 && typeof meta.sha256 === "string") {
-              if (meta.sha256.toLowerCase() !== localSha256.toLowerCase()) {
-                throw new Error(
-                  `Integrity check failed for ${file.name}. Expected ${localSha256.slice(0, 8)}…, got ${String(meta.sha256).slice(0, 8)}…`,
-                );
-              }
+          const responseSha256 =
+            typeof sha256 === "string" && sha256.trim() ? sha256.trim() : null;
+          const responseSize =
+            Number.isFinite(Number(size)) ? Number(size) : null;
+
+          if (responseSha256 || responseSize !== null) {
+            if (
+              responseSha256 &&
+              responseSha256.toLowerCase() !== localSha256.toLowerCase()
+            ) {
+              throw new Error(
+                `Integrity check failed for ${file.name}. Expected ${localSha256.slice(0, 8)}…, got ${responseSha256.slice(0, 8)}…`,
+              );
             }
-            if (meta?.size && Number.isFinite(Number(meta.size))) {
-              const serverSize = Number(meta.size);
-              if (serverSize !== file.size) {
-                throw new Error(
-                  `Size mismatch for ${file.name}. Local ${file.size} bytes vs server ${serverSize} bytes`,
-                );
-              }
+            if (responseSize !== null && responseSize !== file.size) {
+              throw new Error(
+                `Size mismatch for ${file.name}. Local ${file.size} bytes vs server ${responseSize} bytes`,
+              );
             }
           } else {
-            Logger.warn(
-              "Upload meta endpoint returned",
-              metaRes.status,
-              metaRes.statusText,
+            const metaRes = await fetch(
+              `${API_BASE_URL}/uploads/meta/${encodeURIComponent(id)}`,
             );
+            if (metaRes.ok) {
+              const meta = await metaRes.json();
+              if (meta?.sha256 && typeof meta.sha256 === "string") {
+                if (meta.sha256.toLowerCase() !== localSha256.toLowerCase()) {
+                  throw new Error(
+                    `Integrity check failed for ${file.name}. Expected ${localSha256.slice(0, 8)}…, got ${String(meta.sha256).slice(0, 8)}…`,
+                  );
+                }
+              }
+              if (
+                meta &&
+                meta.size !== undefined &&
+                Number.isFinite(Number(meta.size))
+              ) {
+                const serverSize = Number(meta.size);
+                if (serverSize !== file.size) {
+                  throw new Error(
+                    `Size mismatch for ${file.name}. Local ${file.size} bytes vs server ${serverSize} bytes`,
+                  );
+                }
+              }
+            } else {
+              Logger.warn(
+                "Upload meta endpoint returned",
+                metaRes.status,
+                metaRes.statusText,
+              );
+            }
           }
         } catch (verifyErr) {
           // Surface integrity failure to the user and abort processing this file

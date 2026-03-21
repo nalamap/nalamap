@@ -54,6 +54,8 @@ def test_small_file_upload_success(client, tmp_path):
     assert resp.status_code == 200, resp.text
     payload = resp.json()
     assert "url" in payload and "id" in payload
+    assert payload["sha256"] == "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
+    assert payload["size"] == 11
     # Verify file exists in the uploads dir
     # Use the reloaded config path rather than raw env to avoid stale constants
     from core.config import LOCAL_UPLOAD_DIR as CFG_UPLOADS  # type: ignore
@@ -319,11 +321,13 @@ def test_upload_response_exposes_items_and_tiles_for_ogc_collections(monkeypatch
 
     monkeypatch.setattr(
         data_management,
-        "store_file_stream",
-        lambda name, stream: (
-            "http://localhost:8081/v1/uploads/files/abc123_points_simple.geojson",
-            "abc123_points_simple.geojson",
-        ),
+        "store_file_stream_result",
+        lambda name, stream: {
+            "url": "http://localhost:8081/v1/uploads/files/abc123_points_simple.geojson",
+            "id": "abc123_points_simple.geojson",
+            "sha256": "abc123",
+            "size": 42,
+        },
     )
     monkeypatch.setattr(
         data_management,
@@ -347,6 +351,8 @@ def test_upload_response_exposes_items_and_tiles_for_ogc_collections(monkeypatch
 
     upload = UploadStub()
     payload = asyncio.run(data_management.upload_file(upload))
+    assert payload["sha256"] == "abc123"
+    assert payload["size"] == 42
     assert payload["ogc_collection_id"] == "points_simple_upload"
     assert payload["items_url"].endswith("/collections/points_simple_upload/items")
     assert payload["tiles_url"].endswith("/collections/points_simple_upload/tiles/{z}/{x}/{y}.mvt")
