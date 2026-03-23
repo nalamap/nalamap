@@ -462,6 +462,51 @@ test.describe("LeafletMapClient - OGC Services Tests", () => {
     expect(overlayCanvases).toBeGreaterThan(0);
   });
 
+  test("should show feature properties when clicking an OGC vector tile feature", async ({ page }) => {
+    await page.route("**/collections/test_collection/items", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(wfsFeatureCollectionResponse),
+      });
+    });
+
+    await page.route("**/collections/test_collection/tiles/**", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/vnd.mapbox-vector-tile",
+        body: Buffer.from(SIMPLE_VECTOR_TILE_BASE64, "base64"),
+      });
+    });
+
+    await addLayerViaStore(page, {
+      ...ogcVectorTileLayerMetadata,
+      style: {
+        radius: 20,
+        fill_opacity: 0.9,
+        stroke_weight: 2,
+      },
+    });
+
+    await page.waitForTimeout(2500);
+
+    const map = page.locator(".leaflet-container");
+    await expect(map).toBeVisible();
+
+    const box = await map.boundingBox();
+    expect(box).not.toBeNull();
+    if (!box) {
+      throw new Error("Leaflet map container did not expose a bounding box");
+    }
+
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+
+    const popup = page.locator(".leaflet-popup");
+    await expect(popup).toBeVisible({ timeout: 5000 });
+    await expect(page.locator(".leaflet-popup-content")).toContainText("Test Point");
+    await expect(page.locator(".leaflet-popup-content")).toContainText("name");
+  });
+
   test("should show vector rendering selector for saved OGC items layers", async ({ page }) => {
     await page.route("**/collections/test_collection/items**", (route) => {
       route.fulfill({

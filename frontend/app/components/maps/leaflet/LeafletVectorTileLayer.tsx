@@ -7,9 +7,24 @@ import { useMap } from "react-leaflet";
 
 import { LayerStyle } from "../../../models/geodatamodel";
 import Logger from "../../../utils/logger";
+import {
+  buildFeaturePropertiesPopupContent,
+  FEATURE_PROPERTIES_POPUP_OPTIONS,
+  getFeatureTooltipValue,
+} from "./featurePropertiesPopup";
 
 type LeafletVectorGridLayer = L.Layer & {
   setUrl?: (url: string, noRedraw?: boolean) => void;
+};
+
+type VectorTileFeatureEvent = L.LeafletMouseEvent & {
+  layer?: {
+    properties?: Record<string, unknown>;
+  };
+};
+
+type LeafletDomEventWithFakeStop = typeof L.DomEvent & {
+  fakeStop?: (event: Event | L.LeafletEvent) => typeof L.DomEvent;
 };
 
 type LeafletWithVectorGrid = typeof L & {
@@ -49,6 +64,23 @@ function toVectorTileStyle(layerStyle?: LayerStyle) {
   };
 }
 
+const domEventWithFakeStop = L.DomEvent as LeafletDomEventWithFakeStop;
+
+if (typeof domEventWithFakeStop.fakeStop !== "function") {
+  domEventWithFakeStop.fakeStop = (event: Event | L.LeafletEvent) => {
+    const originalEvent =
+      event && "originalEvent" in event && event.originalEvent
+        ? event.originalEvent
+        : event;
+
+    if (originalEvent && typeof originalEvent === "object") {
+      (originalEvent as Event & { _stopped?: boolean })._stopped = true;
+    }
+
+    return L.DomEvent.stopPropagation(event as any);
+  };
+}
+
 export function LeafletVectorTileLayer({
   urlTemplate,
   collectionId,
@@ -63,6 +95,21 @@ export function LeafletVectorTileLayer({
   useEffect(() => {
     let cancelled = false;
     let layer: LeafletVectorGridLayer | null = null;
+    let clickPopup: L.Popup | null = null;
+    let hoverTooltip: L.Tooltip | null = null;
+
+    const closeHoverTooltip = () => {
+      if (hoverTooltip) {
+        map.removeLayer(hoverTooltip);
+        hoverTooltip = null;
+      }
+    };
+
+    const handlePopupClose = (event: L.PopupEvent) => {
+      if (event.popup === clickPopup) {
+        clickPopup = null;
+      }
+    };
 
     try {
       const vectorGridLeaflet = L as LeafletWithVectorGrid;
@@ -81,6 +128,7 @@ export function LeafletVectorTileLayer({
         updateWhenIdle: false,
         updateWhenZooming: true,
         keepBuffer: 2,
+        interactive: true,
         opacity: 1,
         zIndex: 450,
         rendererFactory,
@@ -92,6 +140,53 @@ export function LeafletVectorTileLayer({
           "*": vectorTileStyle,
         },
       });
+
+      layer.on("click", (event: VectorTileFeatureEvent) => {
+        const popupContent = buildFeaturePropertiesPopupContent(
+          event.layer?.properties,
+        );
+        if (!popupContent) {
+          return;
+        }
+
+        closeHoverTooltip();
+        clickPopup = L.popup(FEATURE_PROPERTIES_POPUP_OPTIONS)
+          .setLatLng(event.latlng)
+          .setContent(popupContent);
+        clickPopup.openOn(map);
+      });
+
+      layer.on("mouseover", (event: VectorTileFeatureEvent) => {
+        map.getContainer().style.cursor = "pointer";
+
+        const tooltipValue = getFeatureTooltipValue(event.layer?.properties);
+        if (!tooltipValue || clickPopup?.isOpen()) {
+          return;
+        }
+
+        closeHoverTooltip();
+        hoverTooltip = L.tooltip({
+          sticky: true,
+          direction: "top",
+          opacity: 0.9,
+        })
+          .setLatLng(event.latlng)
+          .setContent(tooltipValue);
+        hoverTooltip.addTo(map);
+      });
+
+      layer.on("mousemove", (event: VectorTileFeatureEvent) => {
+        if (hoverTooltip && !clickPopup?.isOpen()) {
+          hoverTooltip.setLatLng(event.latlng);
+        }
+      });
+
+      layer.on("mouseout", () => {
+        map.getContainer().style.cursor = "";
+        closeHoverTooltip();
+      });
+
+      map.on("popupclose", handlePopupClose);
 
       if (!cancelled) {
         layer.addTo(map);
@@ -105,6 +200,13 @@ export function LeafletVectorTileLayer({
 
     return () => {
       cancelled = true;
+      map.off("popupclose", handlePopupClose);
+      map.getContainer().style.cursor = "";
+      closeHoverTooltip();
+      if (clickPopup) {
+        map.closePopup(clickPopup);
+        clickPopup = null;
+      }
       if (layer && map.hasLayer(layer)) {
         map.removeLayer(layer);
       }

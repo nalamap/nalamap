@@ -8,6 +8,11 @@ import { LayerStyle } from "../../../models/geodatamodel";
 import { useLayerStore } from "../../../stores/layerStore";
 import Logger from "../../../utils/logger";
 import { geoJSONCache } from "./geojsonCache";
+import {
+  buildFeaturePropertiesPopupContent,
+  FEATURE_PROPERTIES_POPUP_OPTIONS,
+  getFeatureTooltipValue,
+} from "./featurePropertiesPopup";
 import { fetchWithCorsProxy } from "./proxy";
 import { getOgcVectorTileFeatureThreshold } from "../../../utils/ogcVectorTiles";
 
@@ -778,37 +783,14 @@ export const LeafletGeoJSONLayer = memo(function LeafletGeoJSONLayer({
     const props = feature.properties;
     if (!props) return;
 
-    const firstValue = Object.values(props)[0];
-    const tooltip = layer.bindTooltip(`${firstValue}`, { sticky: true });
+    const tooltipValue = getFeatureTooltipValue(props);
+    const tooltip = tooltipValue
+      ? layer.bindTooltip(tooltipValue, { sticky: true })
+      : null;
+    const popupContent = buildFeaturePropertiesPopupContent(props);
+    if (!popupContent) return;
 
-    // HTML popup content with minimal table styling
-    const popupContent = `
-      <div style="padding: 4px; font-family: sans-serif;">
-        <table style="border-collapse: collapse; width: 100%;">
-          <tbody>
-            ${Object.entries(props)
-              .map(
-                ([key, value]) => `
-                <tr>
-                  <th style="text-align: left; padding: 4px; border-bottom: 1px solid #ccc;">${key}</th>
-                  <td style="padding: 4px; border-bottom: 1px solid #ccc;">${value}</td>
-                </tr>
-              `,
-              )
-              .join("")}
-          </tbody>
-        </table>
-      </div>
-    `;
-
-    // Bind popup with size constraints to prevent clipping
-    layer.bindPopup(popupContent, {
-      maxWidth: 600,  // Maximum popup width (will be further constrained by CSS)
-      maxHeight: 400, // Maximum popup height (will be further constrained by CSS)
-      autoPan: true,  // Automatically pan map to fit popup
-      autoPanPadding: [50, 50], // Padding from map edges
-      keepInView: true, // Keep popup in view when map is panned
-    });
+    layer.bindPopup(popupContent, FEATURE_PROPERTIES_POPUP_OPTIONS);
 
     // Remove tooltip while popup is open
     layer.on("popupopen", () => {
@@ -817,7 +799,9 @@ export const LeafletGeoJSONLayer = memo(function LeafletGeoJSONLayer({
 
     // Restore tooltip after closing popup
     layer.on("popupclose", () => {
-      tooltip?.bindTooltip(`${firstValue}`, { sticky: true });
+      if (tooltipValue) {
+        tooltip?.bindTooltip(tooltipValue, { sticky: true });
+      }
     });
 
     // Highlight on hover, only for non-marker layers
