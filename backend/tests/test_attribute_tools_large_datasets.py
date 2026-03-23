@@ -568,9 +568,15 @@ class TestGetAttributeValues:
         )
 
         assert "columns" in result
-        assert None in result["columns"]["NAME"]
-        assert None in result["columns"]["IUCN_CAT"]
-        assert None in result["columns"]["MANG_PLAN"]
+        # pandas may represent missing values as None or float NaN
+        import math
+
+        def _has_null(values):
+            return any(v is None or (isinstance(v, float) and math.isnan(v)) for v in values)
+
+        assert _has_null(result["columns"]["NAME"])
+        assert _has_null(result["columns"]["IUCN_CAT"])
+        assert _has_null(result["columns"]["MANG_PLAN"])
 
     def test_get_attribute_values_empty_columns_list(self, large_attribute_gdf):
         """Test error handling for empty columns list."""

@@ -4,12 +4,12 @@ In-memory metrics storage for performance monitoring.
 Provides storage, retrieval, and aggregation of historical performance metrics.
 """
 
-import time
 import logging
-from typing import Any, Dict, List, Optional, Union
+import statistics
+import time
 from collections import defaultdict
 from datetime import datetime
-import statistics
+from typing import Any, Dict, List, Optional, Union
 
 logger = logging.getLogger(__name__)
 

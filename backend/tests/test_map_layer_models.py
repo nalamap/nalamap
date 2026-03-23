@@ -1,7 +1,8 @@
 """Tests for Map, Layer, and MapLayer ORM model definitions."""
 
 import pytest
-from sqlalchemy.dialects.postgresql import BOOLEAN, INTEGER, JSONB, TEXT, UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import BOOLEAN, INTEGER, JSONB, TEXT
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
 from db.models.layer import Layer
 from db.models.map import Map

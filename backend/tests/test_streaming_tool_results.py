@@ -3,8 +3,9 @@ Tests for tool_end events with full results in the /api/chat/stream SSE endpoint
 Tests various scenarios: state updates, actual results, large results, empty results, error results.
 """
 
-import pytest
 import json
+
+import pytest
 from httpx import AsyncClient
 from httpx_sse import aconnect_sse
 

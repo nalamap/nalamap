@@ -8,9 +8,10 @@ This module tests the conversation summarization functionality, including:
 - Edge cases
 """
 
+from unittest.mock import AsyncMock, Mock
+
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from unittest.mock import AsyncMock, Mock
 
 from services.conversation_manager import ConversationManager
 

@@ -12,7 +12,6 @@ from db.models.user import User
 from db.session import get_session
 from models.layer import LayerCreate, LayerRead, LayerUpdate
 
-
 router = APIRouter(prefix="/layers", tags=["layers"])
 
 

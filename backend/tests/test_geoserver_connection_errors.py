@@ -1,7 +1,7 @@
 """Tests for GeoServer connection error handling and classification."""
 
-import ssl
 import socket
+import ssl
 from unittest.mock import Mock
 
 import pytest

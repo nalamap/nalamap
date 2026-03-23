@@ -14,8 +14,9 @@ import pytest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from services.ai.llm_config import get_llm  # noqa: E402
 from langchain_core.messages import HumanMessage, SystemMessage  # noqa: E402
+
+from services.ai.llm_config import get_llm  # noqa: E402
 
 
 @pytest.mark.asyncio

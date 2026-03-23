@@ -9,11 +9,11 @@ from typing import Any, Dict, List, Optional
 import geopandas as gpd
 from shapely.ops import unary_union
 
-from services.tools.geoprocessing.utils import flatten_features
 from services.tools.geoprocessing.projection_utils import (
-    prepare_gdf_for_operation,
     OperationType,
+    prepare_gdf_for_operation,
 )
+from services.tools.geoprocessing.utils import flatten_features
 
 logger = logging.getLogger(__name__)
 

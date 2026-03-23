@@ -6,10 +6,11 @@ This test suite verifies that:
 3. Both cookie-based and payload-based session IDs work correctly
 """
 
+from unittest.mock import MagicMock, patch
+from uuid import uuid4
+
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
-from uuid import uuid4
 
 from main import app
 from models.settings_model import GeoServerBackend

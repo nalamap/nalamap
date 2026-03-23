@@ -192,8 +192,8 @@ async def _prepare_chat_context(
     Returns:
         Tuple of (state, single_agent, options, perf_callback, session_id, stream_id, plan)
     """
+    from services.planner import build_plan_system_addendum, create_execution_plan
     from services.single_agent import create_geo_agent, prepare_messages
-    from services.planner import create_execution_plan, build_plan_system_addendum
     from utility.performance_metrics import PerformanceCallbackHandler
 
     logger.info(f"[CHAT] query={request.query[:120]!r}")
@@ -391,12 +391,13 @@ async def ask_nalamap_agent(request: NaLaMapRequest, raw_request: Request):
     """Ask a question to the NaLaMap Single Agent, which uses tools to respond
     and analyse geospatial information."""
     # Lazy import: only load heavy modules when chat endpoint is actually called
+    import openai
+
+    from utility.metrics_storage import get_metrics_storage
     from utility.performance_metrics import (
         PerformanceMetrics,
         extract_token_usage_from_messages,
     )
-    from utility.metrics_storage import get_metrics_storage
-    import openai
 
     # Initialize performance tracking
     metrics = PerformanceMetrics()
@@ -559,16 +560,18 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
     - error: Error occurred
     - done: Stream complete
     """
+    import asyncio
+    import json
+
+    import openai
     from fastapi.responses import StreamingResponse
+
+    from services.planner import match_tool_to_plan_step, update_plan_step_status
+    from utility.metrics_storage import get_metrics_storage
     from utility.performance_metrics import (
         PerformanceMetrics,
         extract_token_usage_from_messages,
     )
-    from utility.metrics_storage import get_metrics_storage
-    from services.planner import match_tool_to_plan_step, update_plan_step_status
-    import asyncio
-    import json
-    import openai
 
     # Keepalive interval for SSE (seconds) - prevents proxy idle timeouts
     SSE_KEEPALIVE_INTERVAL = 30

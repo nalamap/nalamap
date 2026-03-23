@@ -1,6 +1,6 @@
 import os
-from typing import Optional, Tuple
 from dataclasses import dataclass
+from typing import Optional, Tuple
 
 from dotenv import load_dotenv
 

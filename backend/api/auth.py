@@ -3,10 +3,12 @@
 from urllib.parse import urlparse
 from uuid import UUID as UUIDType
 
-from authlib.integrations.httpx_client import AsyncOAuth2Client
 import httpx
+from authlib.integrations.httpx_client import AsyncOAuth2Client
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import JSONResponse, RedirectResponse
+from jose import JWTError
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,11 +30,8 @@ from core.security import (
     get_password_hash,
     verify_password,
 )
-from jose import JWTError
 from db.models.user import User
 from db.session import get_session
-
-from pydantic import BaseModel
 
 router = APIRouter()
 

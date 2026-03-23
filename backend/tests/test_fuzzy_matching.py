@@ -1,7 +1,8 @@
 """Tests for fuzzy matching in SemanticTagResolver (F09)."""
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from services.tools.geocoding.tag_resolver import SemanticTagResolver, TagCandidate
 

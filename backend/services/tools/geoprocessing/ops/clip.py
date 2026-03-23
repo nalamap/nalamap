@@ -8,11 +8,11 @@ from typing import Any, Dict, List
 
 import geopandas as gpd
 
-from services.tools.geoprocessing.utils import flatten_features
 from services.tools.geoprocessing.projection_utils import (
-    prepare_gdf_for_operation,
     OperationType,
+    prepare_gdf_for_operation,
 )
+from services.tools.geoprocessing.utils import flatten_features
 
 logger = logging.getLogger(__name__)
 

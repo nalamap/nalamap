@@ -1,8 +1,9 @@
 """Tests for enable_smart_crs setting in ModelSettings and ProcessingMetadata."""
 
 import pytest
+
+from models.geodata import DataOrigin, DataType, GeoDataObject, ProcessingMetadata
 from models.settings_model import ModelSettings
-from models.geodata import ProcessingMetadata, GeoDataObject, DataType, DataOrigin
 
 
 @pytest.mark.unit

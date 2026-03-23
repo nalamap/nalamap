@@ -217,8 +217,9 @@ def detect_geometry_type(data_link: str) -> str:
     default_type = "Polygon"
 
     try:
-        import requests
         import json
+
+        import requests
 
         # Add a cache buster to avoid any potential caching issues
         cache_buster = f"?cb={hash(data_link) % 10000}"

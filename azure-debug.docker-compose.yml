@@ -32,16 +32,29 @@ services:
       - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
       - AZURE_OPENAI_DEPLOYMENT=${AZURE_OPENAI_DEPLOYMENT}
       - AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION}
+      - AZURE_MODELS_CONFIG=${AZURE_MODELS_CONFIG:-}
       - LLM_PROVIDER=${LLM_PROVIDER}
+      - DEFAULT_LLM_PROVIDER=${DEFAULT_LLM_PROVIDER:-}
+      - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-hashing}
+      - AZURE_EMBEDDING_DEPLOYMENT=${AZURE_EMBEDDING_DEPLOYMENT:-}
+      - AZURE_EMBEDDING_MODEL=${AZURE_EMBEDDING_MODEL:-}
       - USE_AZURE_STORAGE=${USE_AZURE_STORAGE:-false}
       - AZURE_CONN_STRING=${AZURE_CONN_STRING:-}
       - AZURE_CONTAINER=${AZURE_CONTAINER:-data}
       - AZURE_SAS_EXPIRY_HOURS=${AZURE_SAS_EXPIRY_HOURS:-24}
+      - AUTH_ENABLED=${AUTH_ENABLED:-true}
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY must be set}
+      - MESSAGE_WINDOW_SIZE=${MESSAGE_WINDOW_SIZE:-20}
+      - MESSAGE_MANAGEMENT_MODE=${MESSAGE_MANAGEMENT_MODE:-summarize}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
       # Cookie security: Backend receives HTTP from nginx (HTTPS termination at nginx)
       - COOKIE_SECURE=false
       - COOKIE_HTTPONLY=true
       - COOKIE_SAMESITE=lax
       # Backend runs on internal port 8000 (HTTP)
+    volumes:
+      - backend-data:/app/data
+      - backend-uploads:/app/uploads
     ports:
       - "8000:8000"
     healthcheck:
@@ -71,3 +84,5 @@ services:
 
 volumes:
   runtime-env-data:
+  backend-data:
+  backend-uploads:
