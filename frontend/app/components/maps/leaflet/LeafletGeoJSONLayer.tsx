@@ -1,13 +1,15 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GeoJSON, useMap } from "react-leaflet";
 import L from "leaflet";
 
 import { LayerStyle } from "../../../models/geodatamodel";
+import { useLayerStore } from "../../../stores/layerStore";
 import Logger from "../../../utils/logger";
 import { geoJSONCache } from "./geojsonCache";
 import { fetchWithCorsProxy } from "./proxy";
+import { getOgcVectorTileFeatureThreshold } from "../../../utils/ogcVectorTiles";
 
 const JSON_ACCEPT_HEADER = "application/json, application/geo+json, */*;q=0.1";
 const OGC_ITEMS_PAGE_LIMIT = 1000;
@@ -15,15 +17,46 @@ const OGC_ITEMS_MAX_PAGES = 250;
 
 // Memoized component to prevent unnecessary re-renders
 export const LeafletGeoJSONLayer = memo(function LeafletGeoJSONLayer({
+  layerId,
+  currentOgcFeatureCount,
+  currentOgcVectorTileFeatureThreshold,
+  currentOgcRenderMode,
+  supportsOgcVectorTiles = false,
   url,
   layerStyle,
 }: {
+  layerId?: string;
+  currentOgcFeatureCount?: unknown;
+  currentOgcVectorTileFeatureThreshold?: unknown;
+  currentOgcRenderMode?: unknown;
+  supportsOgcVectorTiles?: boolean;
   url: string;
   layerStyle?: LayerStyle;
 }) {
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const map = useMap();
+  const updateLayer = useLayerStore((state) => state.updateLayer);
+  const publishedFeatureCountRef = useRef<number | null>(null);
+  const isManualItemsModeRef = useRef<boolean>(currentOgcRenderMode === "items");
+  const ogcFeatureThresholdRef = useRef<number>(
+    getOgcVectorTileFeatureThreshold({
+      id: "threshold-probe",
+      data_source_id: "manual",
+      data_type: "uploaded",
+      data_origin: "uploaded",
+      data_source: "user",
+      data_link: url,
+      name: "threshold-probe",
+      properties:
+        currentOgcVectorTileFeatureThreshold !== undefined
+          ? {
+              ogc_vector_tile_feature_threshold:
+                currentOgcVectorTileFeatureThreshold,
+            }
+          : {},
+    } as any),
+  );
 
   // Debug: Check if map is available
   useEffect(() => {
@@ -44,16 +77,96 @@ export const LeafletGeoJSONLayer = memo(function LeafletGeoJSONLayer({
     return `${layerStyle.stroke_color || "default"}-${layerStyle.fill_color || "default"}-${layerStyle.stroke_weight || 2}`;
   }, [layerStyle]);
 
+  const toFiniteFeatureCount = useCallback((value: unknown): number | null => {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === "string") {
+      const parsed = Number(value);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+    return null;
+  }, []);
+
+  useEffect(() => {
+    publishedFeatureCountRef.current = toFiniteFeatureCount(currentOgcFeatureCount);
+  }, [currentOgcFeatureCount, toFiniteFeatureCount]);
+
+  useEffect(() => {
+    ogcFeatureThresholdRef.current = getOgcVectorTileFeatureThreshold({
+      id: "threshold-probe",
+      data_source_id: "manual",
+      data_type: "uploaded",
+      data_origin: "uploaded",
+      data_source: "user",
+      data_link: url,
+      name: "threshold-probe",
+      properties:
+        currentOgcVectorTileFeatureThreshold !== undefined
+          ? {
+              ogc_vector_tile_feature_threshold:
+                currentOgcVectorTileFeatureThreshold,
+            }
+          : {},
+    } as any);
+  }, [currentOgcVectorTileFeatureThreshold, url]);
+
+  useEffect(() => {
+    isManualItemsModeRef.current = currentOgcRenderMode === "items";
+  }, [currentOgcRenderMode]);
+
   useEffect(() => {
     let cancelled = false;
+    const isOgcItemsRequestUrl =
+      /\/collections\/[^/?#]+\/items(?:[/?#]|$)/i.test(url);
+    const ogcGeoJsonFeatureLimit = Math.max(1, ogcFeatureThresholdRef.current);
+
+    if (
+      isOgcItemsRequestUrl &&
+      !isManualItemsModeRef.current &&
+      supportsOgcVectorTiles &&
+      publishedFeatureCountRef.current !== null &&
+      publishedFeatureCountRef.current >= ogcGeoJsonFeatureLimit
+    ) {
+      geoJSONCache.delete(url);
+      setData(null);
+      setIsLoading(false);
+      Logger.log(
+        `[LeafletGeoJSONLayer] Skipping GeoJSON render for ${url}; vector tiles preferred for ${publishedFeatureCountRef.current} features`,
+      );
+      return;
+    }
     
     // Check cache first
     const cachedData = geoJSONCache.get(url);
     if (cachedData) {
-      Logger.log(`[LeafletGeoJSONLayer] Using cached data for ${url}`);
-      setData(cachedData);
-      setIsLoading(false);
-      return;
+      const cachedFeatureCount = Array.isArray(cachedData?.features)
+        ? cachedData.features.length
+        : null;
+      const shouldBypassCachedOgcItems =
+        isOgcItemsRequestUrl &&
+        (
+          (cachedFeatureCount !== null &&
+            cachedFeatureCount > ogcGeoJsonFeatureLimit) ||
+          (
+            !isManualItemsModeRef.current &&
+            supportsOgcVectorTiles &&
+            publishedFeatureCountRef.current !== null &&
+            publishedFeatureCountRef.current >= ogcGeoJsonFeatureLimit
+          ) ||
+          publishedFeatureCountRef.current === null
+        );
+
+      if (shouldBypassCachedOgcItems) {
+        geoJSONCache.delete(url);
+      } else {
+        Logger.log(`[LeafletGeoJSONLayer] Using cached data for ${url}`);
+        setData(cachedData);
+        setIsLoading(false);
+        return;
+      }
     }
     
     setIsLoading(true);
@@ -257,6 +370,41 @@ export const LeafletGeoJSONLayer = memo(function LeafletGeoJSONLayer({
       }
     };
 
+    const buildOffsetOgcItemsUrl = (
+      currentUrl: string,
+      payload: any,
+    ): string | null => {
+      try {
+        const parsed = new URL(currentUrl);
+        const rawReturned = toFiniteFeatureCount(payload?.numberReturned);
+        const rawMatched = toFiniteFeatureCount(
+          payload?.numberMatched ?? payload?.totalFeatures,
+        );
+
+        const currentOffset =
+          toFiniteFeatureCount(parsed.searchParams.get("offset")) ?? 0;
+        const requestedLimit =
+          toFiniteFeatureCount(parsed.searchParams.get("limit")) ??
+          OGC_ITEMS_PAGE_LIMIT;
+        const pageSize = rawReturned ?? requestedLimit;
+
+        if (pageSize <= 0 || rawMatched === null) {
+          return null;
+        }
+
+        const nextOffset = currentOffset + pageSize;
+        if (nextOffset >= rawMatched) {
+          return null;
+        }
+
+        parsed.searchParams.set("limit", String(pageSize));
+        parsed.searchParams.set("offset", String(nextOffset));
+        return parsed.toString();
+      } catch {
+        return null;
+      }
+    };
+
     const resolveNextOgcItemsUrl = (
       currentUrl: string,
       payload: any,
@@ -280,6 +428,25 @@ export const LeafletGeoJSONLayer = memo(function LeafletGeoJSONLayer({
       }
     };
 
+    const syncOgcFeatureCount = (pagePayload: any): number | null => {
+      const pageFeatureCount = toFiniteFeatureCount(
+        pagePayload?.numberMatched ?? pagePayload?.totalFeatures,
+      );
+      if (
+        layerId &&
+        pageFeatureCount !== null &&
+        pageFeatureCount !== publishedFeatureCountRef.current
+      ) {
+        publishedFeatureCountRef.current = pageFeatureCount;
+        updateLayer(layerId, {
+          properties: {
+            ogc_feature_count: pageFeatureCount,
+          },
+        });
+      }
+      return pageFeatureCount;
+    };
+
     const fetchOgcItemsFeatureCollection = async (
       itemsUrl: string,
     ): Promise<any> => {
@@ -299,6 +466,16 @@ export const LeafletGeoJSONLayer = memo(function LeafletGeoJSONLayer({
         seenUrls.add(nextUrl);
 
         const pagePayload = await fetchJsonPayload(nextUrl);
+        const pageFeatureCount = syncOgcFeatureCount(pagePayload);
+        if (
+          pageIndex === 0 &&
+          pageFeatureCount !== null &&
+          pageFeatureCount >= ogcGeoJsonFeatureLimit &&
+          !isManualItemsModeRef.current &&
+          supportsOgcVectorTiles
+        ) {
+          return null;
+        }
         const pageCollection = normalizeToFeatureCollection(pagePayload);
         if (!pageCollection) {
           return pagePayload;
@@ -311,11 +488,30 @@ export const LeafletGeoJSONLayer = memo(function LeafletGeoJSONLayer({
           mergedCrs = pageCollection.crs;
         }
         if (Array.isArray(pageCollection.features)) {
-          mergedFeatures.push(...pageCollection.features);
+          const remainingFeatures = ogcGeoJsonFeatureLimit - mergedFeatures.length;
+          if (remainingFeatures <= 0) {
+            break;
+          }
+          mergedFeatures.push(...pageCollection.features.slice(0, remainingFeatures));
+          if (
+            mergedFeatures.length >= ogcGeoJsonFeatureLimit ||
+            pageCollection.features.length > remainingFeatures
+          ) {
+            Logger.log(
+              `[LeafletGeoJSONLayer] Capped OGC items GeoJSON for ${itemsUrl} at ${ogcGeoJsonFeatureLimit} features`,
+            );
+            break;
+          }
         }
 
         const candidateNextUrl = resolveNextOgcItemsUrl(nextUrl, pagePayload);
-        nextUrl = candidateNextUrl ? withOgcItemsPageLimit(candidateNextUrl) : null;
+        const offsetNextUrl: string | null =
+          candidateNextUrl === null
+            ? buildOffsetOgcItemsUrl(nextUrl, pagePayload)
+            : null;
+        nextUrl = candidateNextUrl
+          ? withOgcItemsPageLimit(candidateNextUrl)
+          : offsetNextUrl;
       }
 
       const mergedCollection: any = {
@@ -568,7 +764,15 @@ export const LeafletGeoJSONLayer = memo(function LeafletGeoJSONLayer({
         delete (window as any).__leafletTimeoutId;
       }
     };
-  }, [url]); // Only re-fetch when URL changes
+  }, [
+    currentOgcVectorTileFeatureThreshold,
+    currentOgcRenderMode,
+    layerId,
+    supportsOgcVectorTiles,
+    toFiniteFeatureCount,
+    updateLayer,
+    url,
+  ]); // Only re-fetch when URL changes
 
   const onEachFeature = useCallback((feature: any, layer: L.Layer) => {
     const props = feature.properties;

@@ -31,6 +31,7 @@ import {
   getOgcCollectionId,
   getLayerFeatureUrl,
   getOgcVectorTileUrlTemplate,
+  supportsOgcVectorTiles,
   shouldRenderLayerAsVectorTiles,
 } from "../../utils/ogcVectorTiles";
 
@@ -275,6 +276,13 @@ export default function LeafletMapComponent() {
                 return (
                   <LeafletGeoJSONLayer
                     key={`${layer.id}-${styleHash}`}
+                    layerId={layer.id}
+                    currentOgcFeatureCount={(layer as any).properties?.ogc_feature_count}
+                    currentOgcVectorTileFeatureThreshold={
+                      (layer as any).properties?.ogc_vector_tile_feature_threshold
+                    }
+                    currentOgcRenderMode={(layer as any).properties?.ogc_render_mode}
+                    supportsOgcVectorTiles={supportsOgcVectorTiles(layer)}
                     url={getLayerFeatureUrl(layer)}
                     layerStyle={layer.style}
                   />

@@ -2,7 +2,7 @@ import { GeoDataObject } from "../models/geodatamodel";
 
 export type OGCVectorRenderMode = "auto" | "items" | "tiles";
 
-const FALLBACK_TILE_FEATURE_THRESHOLD = 5000;
+const MAX_OGC_GEOJSON_FEATURES = 2000;
 
 function getLayerProperties(layer: GeoDataObject): Record<string, any> {
   return layer.properties && typeof layer.properties === "object"
@@ -80,6 +80,28 @@ function deriveCollectionBaseUrl(itemsUrl: string): string | null {
 
 function hasOwnProperty(object: Record<string, any>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(object, key);
+}
+
+function toFiniteNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
+export function getOgcVectorTileFeatureThreshold(layer: GeoDataObject): number {
+  const properties = getLayerProperties(layer);
+  const threshold = toFiniteNumber(properties.ogc_vector_tile_feature_threshold);
+  if (threshold === null || threshold <= 0) {
+    return MAX_OGC_GEOJSON_FEATURES;
+  }
+  return Math.min(threshold, MAX_OGC_GEOJSON_FEATURES);
 }
 
 export function getOgcTilesMetadataUrl(layer: GeoDataObject): string | null {
@@ -196,23 +218,22 @@ export function getRecommendedOgcRenderMode(
 
   const properties = getLayerProperties(layer);
   const explicitMode = normalizeRenderMode(properties.ogc_recommended_render_mode);
-  if (explicitMode !== "auto") {
+  if (explicitMode === "tiles") {
     return explicitMode;
   }
 
-  const rawFeatureCount = properties.ogc_feature_count;
-  const numericFeatureCount =
-    typeof rawFeatureCount === "number"
-      ? rawFeatureCount
-      : typeof rawFeatureCount === "string"
-        ? Number(rawFeatureCount)
-        : NaN;
+  const numericFeatureCount = toFiniteNumber(properties.ogc_feature_count);
+  const threshold = getOgcVectorTileFeatureThreshold(layer);
 
   if (
-    Number.isFinite(numericFeatureCount) &&
-    numericFeatureCount >= FALLBACK_TILE_FEATURE_THRESHOLD
+    numericFeatureCount !== null &&
+    numericFeatureCount >= threshold
   ) {
     return "tiles";
+  }
+
+  if (explicitMode === "items") {
+    return "items";
   }
 
   return "items";

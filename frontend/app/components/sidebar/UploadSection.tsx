@@ -5,6 +5,7 @@ import { formatFileSize, isFileSizeValid } from "../../utils/fileUtils";
 import { getUploadUrl, getApiBase } from "../../utils/apiBase";
 import { sha256OfFile } from "../../utils/hashUtil";
 import Logger from "../../utils/logger";
+import { MAX_UPLOAD_SIZE_BYTES } from "../../../uploadConfig";
 
 // Funny geo and data-themed loading messages
 const FUNNY_UPLOAD_MESSAGES = [
@@ -94,8 +95,7 @@ export default function UploadSection({
   const [currentFileName, setCurrentFileName] = useState<string>("");
   const [funnyMessage, setFunnyMessage] = useState<string>("");
 
-  const MAX_FILE_SIZE = 2000 * 1024 * 1024; // 2,000 MB in bytes
-  const MAX_FILE_SIZE_FORMATTED = formatFileSize(MAX_FILE_SIZE);
+  const MAX_FILE_SIZE_FORMATTED = formatFileSize(MAX_UPLOAD_SIZE_BYTES);
 
   // Rotate funny messages during upload for entertainment
   useEffect(() => {
@@ -154,7 +154,7 @@ export default function UploadSection({
         setFunnyMessage(getRandomMessage(FUNNY_UPLOAD_MESSAGES));
 
         // Check file size limit
-        if (!isFileSizeValid(file, MAX_FILE_SIZE)) {
+        if (!isFileSizeValid(file, MAX_UPLOAD_SIZE_BYTES)) {
           throw new Error(
             `File ${file.name} size (${formatFileSize(file.size)}) exceeds the ${MAX_FILE_SIZE_FORMATTED} limit.`,
           );
@@ -186,6 +186,7 @@ export default function UploadSection({
           tiles_url,
           tiles_metadata_url,
           ogc_feature_count,
+          ogc_vector_tile_feature_threshold,
           ogc_recommended_render_mode,
           ogc_render_mode,
         } = await new Promise<{
@@ -198,6 +199,7 @@ export default function UploadSection({
           tiles_url?: string;
           tiles_metadata_url?: string;
           ogc_feature_count?: number;
+          ogc_vector_tile_feature_threshold?: number;
           ogc_recommended_render_mode?: "items" | "tiles";
           ogc_render_mode?: "auto" | "items" | "tiles";
         }>(
@@ -328,6 +330,7 @@ export default function UploadSection({
                 ogc_tiles_url: tiles_url,
                 ogc_tiles_metadata_url: tiles_metadata_url,
                 ogc_feature_count,
+                ogc_vector_tile_feature_threshold,
                 ogc_recommended_render_mode,
                 ogc_render_mode: ogc_render_mode || "auto",
               }

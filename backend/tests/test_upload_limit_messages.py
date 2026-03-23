@@ -10,9 +10,14 @@ from starlette.requests import Request
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BACKEND_ROOT))
 
-import core.config as core_config
-import main
-from services.storage.file_management import store_file_stream
+import core.config as core_config  # noqa: E402
+import main  # noqa: E402
+from services.storage.file_management import store_file_stream  # noqa: E402
+
+
+def test_default_max_file_size_is_250_mb():
+    assert core_config.DEFAULT_MAX_FILE_SIZE == 250 * 1024 * 1024
+    assert core_config.MAX_FILE_SIZE == core_config.DEFAULT_MAX_FILE_SIZE
 
 
 def test_store_file_stream_uses_configured_limit_in_413_detail(monkeypatch):

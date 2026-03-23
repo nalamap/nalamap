@@ -6,7 +6,7 @@ import os
 import re
 import uuid
 from typing import Any, Dict, Optional, Tuple
-from urllib.parse import quote, urlparse, urlunparse
+from urllib.parse import quote, urlencode, urlparse, urlunparse
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel
@@ -315,6 +315,45 @@ def _recommended_ogc_render_mode(feature_count: Optional[int]) -> str:
     return "items"
 
 
+def _fetch_ogc_collection_feature_count(collection_id: str) -> Optional[int]:
+    runtime_base_url = _runtime_ogcapi_base_url()
+    if not runtime_base_url:
+        return None
+
+    try:
+        response = requests.get(
+            f"{runtime_base_url}/collections/{quote(collection_id, safe='')}/items"
+            f"?{urlencode({'limit': 1})}",
+            timeout=core_config.OGCAPI_TIMEOUT_SECONDS,
+        )
+        if response.status_code >= 400:
+            logger.warning(
+                "OGC collection feature-count request failed for %s: %s %s",
+                collection_id,
+                response.status_code,
+                response.text,
+            )
+            return None
+        payload = response.json()
+    except Exception as exc:
+        logger.warning("Failed to fetch OGC feature count for %s: %s", collection_id, exc)
+        return None
+
+    if not isinstance(payload, dict):
+        return None
+
+    for key in ("numberMatched", "totalFeatures", "numberReturned"):
+        raw_value = payload.get(key)
+        if isinstance(raw_value, int):
+            return raw_value
+        if isinstance(raw_value, str):
+            try:
+                return int(raw_value)
+            except ValueError:
+                continue
+    return None
+
+
 # Layer styling endpoint
 @router.put("/layers/{layer_id}/style")
 async def update_layer_style_endpoint(layer_id: str, style_data: Dict[str, Any]) -> Dict[str, str]:
@@ -352,6 +391,8 @@ async def upload_file(file: UploadFile = File(...)) -> Dict[str, Any]:
             tiles_url = _collection_tiles_url(url, collection_id)
             tiles_metadata_url = _collection_tiles_metadata_url(url, collection_id)
             feature_count = registration.get("inserted")
+            if feature_count is None:
+                feature_count = _fetch_ogc_collection_feature_count(collection_id)
 
             response["ogc_collection_id"] = collection_id
             response["file_url"] = _rewrite_ogcapi_url_to_public(url)
@@ -359,8 +400,14 @@ async def upload_file(file: UploadFile = File(...)) -> Dict[str, Any]:
             response["items_url"] = items_url
             response["tiles_url"] = tiles_url
             response["tiles_metadata_url"] = tiles_metadata_url
-            response["ogc_feature_count"] = feature_count
-            response["ogc_recommended_render_mode"] = _recommended_ogc_render_mode(feature_count)
+            response["ogc_vector_tile_feature_threshold"] = (
+                core_config.OGCAPI_VECTOR_TILE_FEATURE_THRESHOLD
+            )
+            if feature_count is not None:
+                response["ogc_feature_count"] = feature_count
+                response["ogc_recommended_render_mode"] = _recommended_ogc_render_mode(
+                    feature_count
+                )
             response["ogc_render_mode"] = "auto"
         return response
     finally:

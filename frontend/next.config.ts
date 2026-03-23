@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { NEXT_BODY_SIZE_LIMIT } from "./uploadConfig";
 
 const nextConfig: NextConfig = {
   /* config options here */
@@ -24,8 +25,8 @@ const nextConfig: NextConfig = {
   // Keep the Next.js server-action parser aligned with the upload ceiling.
   experimental: {
     serverActions: {
-      bodySizeLimit: '2000mb'
-    }
+      bodySizeLimit: NEXT_BODY_SIZE_LIMIT,
+    },
   },
   
   // Rewrite /map to root page (nginx serves loading page at /, redirects to /map when ready)

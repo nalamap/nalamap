@@ -357,7 +357,50 @@ def test_upload_response_exposes_items_and_tiles_for_ogc_collections(monkeypatch
     assert payload["items_url"].endswith("/collections/points_simple_upload/items")
     assert payload["tiles_url"].endswith("/collections/points_simple_upload/tiles/{z}/{x}/{y}.mvt")
     assert payload["tiles_metadata_url"].endswith("/collections/points_simple_upload/tiles")
+    assert payload["ogc_vector_tile_feature_threshold"] == 2000
     assert payload["ogc_feature_count"] == 6000
+    assert payload["ogc_recommended_render_mode"] == "tiles"
+    assert payload["ogc_render_mode"] == "auto"
+
+
+def test_upload_response_uses_items_feature_count_when_inserted_missing(monkeypatch):
+    import api.data_management as data_management
+
+    monkeypatch.setattr(data_management.core_config, "OGCAPI_VECTOR_TILE_FEATURE_THRESHOLD", 2000)
+    monkeypatch.setattr(
+        data_management,
+        "store_file_stream_result",
+        lambda name, stream: {
+            "url": "http://localhost:8081/v1/uploads/files/abc123_points_simple.geojson",
+            "id": "abc123_points_simple.geojson",
+            "sha256": "abc123",
+            "size": 42,
+        },
+    )
+    monkeypatch.setattr(
+        data_management,
+        "_register_geojson_collection",
+        lambda file, filename: {
+            "collection_id": "points_simple_upload",
+            "inserted": None,
+            "created_collection": True,
+        },
+    )
+    monkeypatch.setattr(data_management, "_fetch_ogc_collection_feature_count", lambda _: 3873)
+
+    class UploadStub:
+        filename = "points_simple.geojson"
+        size = None
+
+        def __init__(self):
+            self.file = io.BytesIO(b'{"type":"FeatureCollection","features":[]}')
+
+        async def close(self):
+            self.file.close()
+
+    payload = asyncio.run(data_management.upload_file(UploadStub()))
+    assert payload["ogc_vector_tile_feature_threshold"] == 2000
+    assert payload["ogc_feature_count"] == 3873
     assert payload["ogc_recommended_render_mode"] == "tiles"
     assert payload["ogc_render_mode"] == "auto"
 

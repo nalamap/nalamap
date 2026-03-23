@@ -32,7 +32,7 @@ OGCAPI_BASE_URL = os.getenv("OGCAPI_BASE_URL", "").rstrip("/")
 OGCAPI_PUBLIC_BASE_URL = os.getenv("OGCAPI_PUBLIC_BASE_URL", OGCAPI_BASE_URL).rstrip("/")
 OGCAPI_TIMEOUT_SECONDS = float(os.getenv("OGCAPI_TIMEOUT_SECONDS", "60"))
 OGCAPI_VECTOR_TILE_FEATURE_THRESHOLD = int(
-    os.getenv("OGCAPI_VECTOR_TILE_FEATURE_THRESHOLD", "5000")
+    os.getenv("OGCAPI_VECTOR_TILE_FEATURE_THRESHOLD", "2000")
 )
 
 # CORS configuration
@@ -51,8 +51,8 @@ COOKIE_SECURE = os.getenv("COOKIE_SECURE", "true").lower() == "true"
 COOKIE_HTTPONLY = os.getenv("COOKIE_HTTPONLY", "true").lower() == "true"
 COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax")  # "lax", "strict", or "none"
 
-# File size limit (default: 2,000 MB)
-DEFAULT_MAX_FILE_SIZE = 2000 * 1024 * 1024
+# File size limit (default: 250 MB)
+DEFAULT_MAX_FILE_SIZE = 250 * 1024 * 1024
 MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE", str(DEFAULT_MAX_FILE_SIZE)))
 
 
