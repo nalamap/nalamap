@@ -139,11 +139,13 @@ All notable changes since version 0.1.0-beta.1 (350+ commits from October 2025).
 
 ---
 
-## 📋 Detailed Changelog
+## 📋 Detailed Changelogs
+
+For the complete detailed changelog for v0.3.0, see: [`docs/changelog/CHANGELOG_v0.3.0_DETAILED.md`](docs/changelog/CHANGELOG_v0.3.0_DETAILED.md)
 
 For the complete detailed changelog for v0.2.0-iucn, see: [`docs/changelog/CHANGELOG_v0.2.0-iucn_DETAILED.md`](docs/changelog/CHANGELOG_v0.2.0-iucn_DETAILED.md)
 
-This detailed version includes:
+These detailed versions include:
 - Complete breakdown by Frontend, Backend, Agent, Tools, and Infrastructure
 - All bug fixes, improvements, and technical details
 - Full contributor information and commit statistics
