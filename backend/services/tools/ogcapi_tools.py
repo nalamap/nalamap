@@ -2144,9 +2144,7 @@ def build_ogcapi_tools(
 
         idempotency_key = hashlib.sha256(
             f"""{session_id}:{resolved_process_id}:
-            {json.dumps(working_inputs, sort_keys=True, default=str)}""".encode(
-                "utf-8"
-            )
+            {json.dumps(working_inputs, sort_keys=True, default=str)}""".encode("utf-8")
         ).hexdigest()[:32]
         execute_url = _endpoint_url(server_cache, f"/processes/{resolved_process_id}/jobs")
         execute_response, execute_payload = _request_json(

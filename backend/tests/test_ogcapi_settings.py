@@ -149,10 +149,7 @@ def test_env_preconfigured_ogcapi_server_helper(monkeypatch):
 def test_split_query_and_explicit_layer_refs():
     import api.nalamap as nalamap_api
 
-    clean_query, refs = nalamap_api._split_query_and_explicit_layer_refs(
-        (
-            "buffer with 4km\n\n"
-            """
+    clean_query, refs = nalamap_api._split_query_and_explicit_layer_refs(("buffer with 4km\n\n" """
             [EXPLICIT_LAYER_REFS_JSON]
             {
                 "layer_refs":
@@ -165,9 +162,7 @@ def test_split_query_and_explicit_layer_refs():
                     ]
             }
             [/EXPLICIT_LAYER_REFS_JSON]
-            """
-        )
-    )
+            """))
 
     assert clean_query == "buffer with 4km"
     assert "points_simple.geojson" in refs
@@ -179,9 +174,7 @@ def test_split_query_and_explicit_layer_refs_normalizes_prefixed_names():
     import api.nalamap as nalamap_api
 
     clean_query, refs = nalamap_api._split_query_and_explicit_layer_refs(
-        (
-            "buffer with 4km\n\n"
-            """[EXPLICIT_LAYER_REFS_JSON]
+        ("buffer with 4km\n\n" """[EXPLICIT_LAYER_REFS_JSON]
             {
                 "layer_refs":
                     [
@@ -192,8 +185,7 @@ def test_split_query_and_explicit_layer_refs_normalizes_prefixed_names():
                         }
                     ]
             }
-            [/EXPLICIT_LAYER_REFS_JSON]"""
-        )
+            [/EXPLICIT_LAYER_REFS_JSON]""")
     )
 
     assert clean_query == "buffer with 4km"

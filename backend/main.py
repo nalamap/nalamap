@@ -21,7 +21,6 @@ from api import (
     geocoding_settings,
     layers,
     maps,
-    mcp,
     nalamap,
     proxy,
     settings,
@@ -169,14 +168,6 @@ app.include_router(proxy.router, prefix="/api/proxy")  # CORS proxy for external
 app.include_router(maps.router, prefix="/api")
 app.include_router(layers.router, prefix="/api")
 
-# MCP router is optional (module removed in slim deployments)
-try:
-    from api import mcp as mcp_router
-
-    app.include_router(mcp_router.router, prefix="/api")  # MCP server endpoint
-except Exception:
-    logger.info("MCP router not available; skipping /api/mcp endpoints")
-
 
 @app.get("/")
 async def root():
@@ -213,8 +204,7 @@ async def request_entity_too_large_handler(request: Request, exc):
         status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
         content={
             "detail": (
-                f"{core_config.max_file_size_exceeded_detail()} "
-                "Please upload a smaller file."
+                f"{core_config.max_file_size_exceeded_detail()} " "Please upload a smaller file."
             )
         },
     )

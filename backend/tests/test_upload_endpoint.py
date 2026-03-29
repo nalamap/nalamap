@@ -208,8 +208,7 @@ def test_register_geojson_collection_flattens_nested_feature_properties(monkeypa
 
     class UploadStub:
         def __init__(self):
-            self.file = io.BytesIO(
-                b"""{
+            self.file = io.BytesIO(b"""{
                     "type":"FeatureCollection",
                     "features":[
                         {"type":"Feature",
@@ -225,8 +224,7 @@ def test_register_geojson_collection_flattens_nested_feature_properties(monkeypa
                             }
                             }
                         ]
-                    }"""
-            )
+                    }""")
 
     registration = data_management._register_geojson_collection(
         UploadStub(), "points_simple.geojson"
