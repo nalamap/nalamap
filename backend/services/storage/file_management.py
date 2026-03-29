@@ -429,7 +429,8 @@ def store_file_stream_result(name: str, stream: BinaryIO) -> dict[str, Any]:
                 from fastapi import HTTPException
 
                 raise HTTPException(
-                    status_code=413, detail=core_config.max_file_size_exceeded_detail()
+                    status_code=413,
+                    detail=core_config.max_file_size_exceeded_detail(total),
                 )
             raise
     else:
@@ -465,7 +466,8 @@ def store_file_stream_result(name: str, stream: BinaryIO) -> dict[str, Any]:
                 from fastapi import HTTPException
 
                 raise HTTPException(
-                    status_code=413, detail=core_config.max_file_size_exceeded_detail()
+                    status_code=413,
+                    detail=core_config.max_file_size_exceeded_detail(total),
                 )
             raise
 
