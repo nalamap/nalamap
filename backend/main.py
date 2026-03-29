@@ -21,6 +21,7 @@ from api import (
     geocoding_settings,
     layers,
     maps,
+    mcp,
     nalamap,
     proxy,
     settings,
@@ -74,7 +75,7 @@ tags_metadata = [
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """FastAPI lifespan context manager for startup/shutdown events."""
-    from db.session import init_db, engine
+    from db.session import engine, init_db
 
     running_in_pytest = "pytest" in sys.modules or "PYTEST_CURRENT_TEST" in os.environ
 

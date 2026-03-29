@@ -51,7 +51,11 @@ del _legacy_path, _legacy_name, _spec, _legacy_mod, _name
 # ---------------------------------------------------------------------------
 from .tag_resolver import SemanticTagResolver, TagCandidate, TagResolution  # noqa: E402
 from .tag_vector_store import TagVectorStore  # noqa: E402
-from .taginfo_fetcher import TagInfoEntry, TagInfoFetchError, fetch_popular_tags  # noqa: E402
+from .taginfo_fetcher import (  # noqa: E402
+    TagInfoEntry,
+    TagInfoFetchError,
+    fetch_popular_tags,
+)
 
 __all__ = [
     # new exports

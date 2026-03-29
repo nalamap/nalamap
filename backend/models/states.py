@@ -10,7 +10,6 @@ from models.settings_model import SettingsSnapshot
 
 from .geodata import GeoDataObject, mock_geodata_objects
 
-
 # =============================================================================
 # EXECUTION PLAN MODEL
 # =============================================================================

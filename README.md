@@ -8,7 +8,9 @@ NaLaMap is an open-source platform that helps users find and analyze geospatial 
 * Geocode Locations using OSM and GeoNames (e.g. hospitals, schools, roads, railways). Intelligent geometry filtering ensures queries return the correct feature types (e.g., road segments instead of bus stops). See [OSM Geometry Filtering Documentation](docs/geocoding-osm-geometry-filtering.md).
 * Find and integrate data from existing Open Data Portals or own databases.
 * Chat with AI-agent to retrieve information on data content and quality.
-* **Multi-Provider LLM Support**: Choose from OpenAI, Azure OpenAI, Google Gemini, Mistral AI, or DeepSeek.
+* **Multi-Provider LLM Support**: Choose from OpenAI, Azure OpenAI, Google Gemini, Mistral AI, DeepSeek, Anthropic, Moonshot (Kimi), or xAI (Grok).
+* **Semantic OSM Geocoding**: Optional embedding-powered tag search for improved geocoding accuracy. Supports offline hashing embeddings (default), OpenAI, or Azure embedding models.
+* **MCP Support**: Experimental Model Context Protocol integration for extending the AI agent with external tools.
 * AI-assisted map and layer styling. 
 * Automated Geoprocessing using natural language (e.g buffer, centroids, intersections).
 * Create and share GIS-AI-Applications for people without geodata expertise based on custom use-cases, processing logic and data-sources.
@@ -95,7 +97,8 @@ cp .env.example .env
 **Configure your environment variables:**
 Edit the `.env` file to include your configuration. The environment file contains several categories of settings:
 
-- **AI Provider Configuration**: Choose between OpenAI, Azure OpenAI, Google AI, Mistral AI, or DeepSeek and provide the corresponding API keys
+- **AI Provider Configuration**: Choose between OpenAI, Azure OpenAI, Google AI, Mistral AI, DeepSeek, Anthropic, Moonshot, or xAI and provide the corresponding API keys
+- **Embedding Configuration**: Choose between lightweight offline hashing (default), OpenAI, or Azure AI embeddings
 - **Database Settings**: PostgreSQL connection details (a demo database is pre-configured)
 - **API Endpoints**: Backend API base URL configuration
 - **Optional Services**: LangSmith tracing for monitoring AI interactions
@@ -127,6 +130,9 @@ You can only use **ONE AI provider at a time**. The active provider is determine
 | Google AI | `google` | `gemini-1.5-pro-latest` | `GOOGLE_MODEL` | `GOOGLE_API_KEY` |
 | Mistral AI | `mistral` | `mistral-large-latest` | `MISTRAL_MODEL` | `MISTRAL_API_KEY` |
 | DeepSeek | `deepseek` | `deepseek-chat` | `DEEPSEEK_MODEL` | `DEEPSEEK_API_KEY` |
+| Anthropic | `anthropic` | `claude-4.5-sonnet` | — | `ANTHROPIC_API_KEY` |
+| Moonshot | `moonshot` | `kimi-k2.5` | — | `MOONSHOT_API_KEY` |
+| xAI | `xai` | `grok-2-latest` | — | `XAI_API_KEY` |
 
 **Example configuration:**
 ```bash

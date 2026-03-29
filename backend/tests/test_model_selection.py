@@ -225,8 +225,9 @@ class TestConversationSummarization:
     @patch("services.single_agent.create_react_agent")
     async def test_prepare_messages_prune_mode(self, mock_create_react):
         """Test that prepare_messages uses pruning in 'prune' mode."""
-        from services.single_agent import prepare_messages
         from langchain_core.messages import HumanMessage
+
+        from services.single_agent import prepare_messages
 
         messages = [HumanMessage(content=f"msg-{i}") for i in range(30)]
 
@@ -244,8 +245,9 @@ class TestConversationSummarization:
     @patch("services.single_agent.create_react_agent")
     async def test_prepare_messages_summarize_mode_without_session(self, mock_create_react):
         """Test that summarization falls back to pruning without session_id."""
-        from services.single_agent import prepare_messages
         from langchain_core.messages import HumanMessage
+
+        from services.single_agent import prepare_messages
 
         messages = [HumanMessage(content=f"msg-{i}") for i in range(30)]
 
@@ -264,6 +266,7 @@ class TestConversationSummarization:
     async def test_session_cleanup_on_ttl(self, mock_create_react):
         """Test that expired sessions are cleaned up."""
         import time
+
         from services.single_agent import SESSION_TTL, conversation_managers
 
         mock_agent = MagicMock()
@@ -309,8 +312,9 @@ class TestConversationSummarization:
     @patch("services.single_agent.create_react_agent")
     async def test_prepare_messages_with_settings_mode(self, mock_create_react):
         """Test that prepare_messages respects settings_mode parameter over env var."""
-        from services.single_agent import prepare_messages
         from langchain_core.messages import HumanMessage
+
+        from services.single_agent import prepare_messages
 
         messages = [HumanMessage(content=f"msg-{i}") for i in range(30)]
 
@@ -330,8 +334,9 @@ class TestConversationSummarization:
     @patch("services.single_agent.create_react_agent")
     async def test_prepare_messages_settings_mode_fallback_to_env(self, mock_create_react):
         """Test that prepare_messages falls back to env var when settings_mode is None."""
-        from services.single_agent import prepare_messages
         from langchain_core.messages import HumanMessage
+
+        from services.single_agent import prepare_messages
 
         messages = [HumanMessage(content=f"msg-{i}") for i in range(30)]
 

@@ -1,12 +1,12 @@
-import pytest
 import geopandas as gpd
+import pytest
 from shapely.geometry import Point
 
 from services.tools.geoprocessing.projection_utils import (
-    get_optimal_crs_for_bbox,
     OperationType,
-    validate_crs,
+    get_optimal_crs_for_bbox,
     prepare_gdf_for_operation,
+    validate_crs,
 )
 
 

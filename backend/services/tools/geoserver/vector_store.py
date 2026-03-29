@@ -308,8 +308,9 @@ class _AzureEmbeddings(Embeddings):
         # Try to initialize Azure embeddings
         if self._should_use_azure():
             try:
-                from langchain_openai import AzureOpenAIEmbeddings
                 from os import getenv
+
+                from langchain_openai import AzureOpenAIEmbeddings
 
                 self._azure_embeddings = AzureOpenAIEmbeddings(
                     azure_deployment=AZURE_EMBEDDING_DEPLOYMENT,

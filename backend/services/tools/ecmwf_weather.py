@@ -39,9 +39,9 @@ logger = logging.getLogger(__name__)
 
 # Check if ECMWF packages are available for enhanced functionality
 try:
-    from ecmwf.opendata import Client as ECMWFClient  # noqa: F401
-    import xarray  # noqa: F401
     import cfgrib  # noqa: F401
+    import xarray  # noqa: F401
+    from ecmwf.opendata import Client as ECMWFClient  # noqa: F401
 
     ECMWF_AVAILABLE = True
 except ImportError:

@@ -41,8 +41,12 @@ from services.tools.geoserver.vector_store import (
     is_fully_encoded,
 )
 from services.tools.geoserver.vector_store import list_layers as vector_list_layers
-from services.tools.geoserver.vector_store import similarity_search as vector_similarity_search
-from services.tools.geoserver.vector_store import store_layers
+from services.tools.geoserver.vector_store import (
+    similarity_search as vector_similarity_search,
+)
+from services.tools.geoserver.vector_store import (
+    store_layers,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -668,8 +672,9 @@ def fetch_all_service_capabilities_with_status(
     service_errors: Dict[str, Dict[str, str]] = {}
 
     # Configure SSL verification for OWSLib
-    import urllib3
     import ssl
+
+    import urllib3
 
     # Store original values for restoration
     original_ssl_context = None
@@ -696,6 +701,7 @@ def fetch_all_service_capabilities_with_status(
         try:
             # First, reload owslib.util to get a fresh module state
             import importlib
+
             import owslib.util
 
             importlib.reload(owslib.util)
@@ -746,6 +752,7 @@ def fetch_all_service_capabilities_with_status(
     if allow_insecure:
         # Force reload of OWSLib modules to pick up the patched openURL
         import importlib
+
         import owslib.wcs
         import owslib.wfs
         import owslib.wms
@@ -756,20 +763,20 @@ def fetch_all_service_capabilities_with_status(
         importlib.reload(owslib.wms)
         importlib.reload(owslib.wmts)
 
+        from owslib.util import Authentication  # Import after reload!
         from owslib.wcs import WebCoverageService as WCS_Local
         from owslib.wfs import WebFeatureService as WFS_Local
         from owslib.wms import WebMapService as WMS_Local
         from owslib.wmts import WebMapTileService as WMTS_Local
-        from owslib.util import Authentication  # Import after reload!
 
         logger.info("Reloaded OWSLib modules after patching")
     else:
         # Import normally when not bypassing SSL
+        from owslib.util import Authentication
         from owslib.wcs import WebCoverageService as WCS_Local
         from owslib.wfs import WebFeatureService as WFS_Local
         from owslib.wms import WebMapService as WMS_Local
         from owslib.wmts import WebMapTileService as WMTS_Local
-        from owslib.util import Authentication
 
     # Ensure base_url ends with / for proper urljoin behavior
     # Without trailing slash:

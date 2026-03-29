@@ -1,15 +1,14 @@
 import pytest
-
 from shapely.geometry import Point, Polygon, mapping
 
 # Import operations
 from services.tools.geoprocessing.ops.buffer import op_buffer
-from services.tools.geoprocessing.ops.overlay import op_overlay
 from services.tools.geoprocessing.ops.clip import op_clip
 from services.tools.geoprocessing.ops.dissolve import op_dissolve
-from services.tools.geoprocessing.ops.sjoin_nearest import op_sjoin_nearest
-from services.tools.geoprocessing.ops.sjoin import op_sjoin
+from services.tools.geoprocessing.ops.overlay import op_overlay
 from services.tools.geoprocessing.ops.simplify import op_simplify
+from services.tools.geoprocessing.ops.sjoin import op_sjoin
+from services.tools.geoprocessing.ops.sjoin_nearest import op_sjoin_nearest
 
 
 def make_feature(geom, props=None):

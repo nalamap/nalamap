@@ -1,7 +1,7 @@
 """ORM model for the users table."""
 
 from sqlalchemy import Column, UniqueConstraint, text
-from sqlalchemy.dialects.postgresql import UUID, TEXT, TIMESTAMP
+from sqlalchemy.dialects.postgresql import TEXT, TIMESTAMP, UUID
 
 from db.base import Base
 

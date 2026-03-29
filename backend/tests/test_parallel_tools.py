@@ -5,13 +5,15 @@ These tests verify that parallel tool execution (when enabled) does not cause
 state corruption or race conditions when multiple tools modify the same state fields.
 """
 
-import pytest
 from unittest.mock import patch
-from models.states import GeoDataAgentState
-from models.geodata import GeoDataObject, DataType, DataOrigin, LayerStyle
-from services.single_agent import create_geo_agent
-from models.settings_model import ModelSettings
+
+import pytest
 from langchain_core.messages import HumanMessage
+
+from models.geodata import DataOrigin, DataType, GeoDataObject, LayerStyle
+from models.settings_model import ModelSettings
+from models.states import GeoDataAgentState
+from services.single_agent import create_geo_agent
 
 
 @pytest.fixture
@@ -55,8 +57,9 @@ async def test_create_agent_default_parallel_disabled(mock_model_settings):
 @patch("services.ai.llm_config.get_llm_for_provider")
 async def test_create_agent_parallel_enabled_supported_model(mock_get_llm, mock_model_settings):
     """Test that parallel tools can be enabled for supported models."""
-    from services.ai.llm_config import ModelCapabilities
     from unittest.mock import MagicMock
+
+    from services.ai.llm_config import ModelCapabilities
 
     # Mock LLM and capabilities
     mock_llm = MagicMock()
@@ -85,8 +88,9 @@ async def test_create_agent_parallel_enabled_supported_model(mock_get_llm, mock_
 @patch("services.ai.llm_config.get_llm_for_provider")
 async def test_create_agent_parallel_enabled_unsupported_model(mock_get_llm, mock_model_settings):
     """Test that parallel tools remain disabled for unsupported models."""
-    from services.ai.llm_config import ModelCapabilities
     from unittest.mock import MagicMock
+
+    from services.ai.llm_config import ModelCapabilities
 
     # Mock LLM with no parallel support
     mock_llm = MagicMock()

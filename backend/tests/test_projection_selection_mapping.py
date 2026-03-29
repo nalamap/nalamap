@@ -1,8 +1,8 @@
 import pytest
 
 from services.tools.geoprocessing.projection_utils import (
-    get_optimal_crs_for_bbox,
     OperationType,
+    get_optimal_crs_for_bbox,
     validate_crs,
 )
 

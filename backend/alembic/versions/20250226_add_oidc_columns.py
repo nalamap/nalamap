@@ -1,8 +1,8 @@
 """Add OIDC identity columns and allow passwordless users."""
 
-from alembic import op
 import sqlalchemy as sa
 
+from alembic import op
 
 # revision identifiers, used by Alembic.
 revision = "20250226_add_oidc_columns"

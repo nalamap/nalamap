@@ -311,7 +311,8 @@ def realistic_layer_collection():
 @pytest_asyncio.fixture(scope="function")
 async def async_client():
     """Create an async HTTP client for testing API endpoints."""
-    from httpx import AsyncClient, ASGITransport  # noqa: F401
+    from httpx import ASGITransport, AsyncClient  # noqa: F401
+
     from main import app
 
     transport = ASGITransport(app=app)

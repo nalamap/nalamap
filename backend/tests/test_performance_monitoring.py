@@ -7,11 +7,12 @@ to ensure proper metric collection and timing.
 
 import time
 from unittest.mock import Mock
+
 from langchain_core.messages import AIMessage, HumanMessage
 
 from utility.performance_metrics import (
-    PerformanceMetrics,
     PerformanceCallbackHandler,
+    PerformanceMetrics,
     extract_token_usage_from_messages,
 )
 
