@@ -28,7 +28,7 @@ def test_store_file_stream_uses_configured_limit_in_413_detail(monkeypatch):
         store_file_stream("big.bin", io.BytesIO(b"0123456789"))
 
     assert exc_info.value.status_code == 413
-    assert exc_info.value.detail == "File size exceeds the limit of 5 B."
+    assert exc_info.value.detail == "File size (10 B) exceeds the limit of 5 B."
 
 
 @pytest.mark.asyncio
