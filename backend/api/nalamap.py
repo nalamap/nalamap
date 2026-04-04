@@ -15,6 +15,7 @@ from langchain_core.messages import (
     ToolMessage,
 )
 
+from api.ogc_payloads import normalize_ogc_geodata_payloads
 from models.geodata import GeoDataObject, mock_geodata_objects
 from models.messages.chat_messages import NaLaMapRequest, NaLaMapResponse
 from models.settings_model import OGCAPIServer, SettingsSnapshot
@@ -726,8 +727,8 @@ async def ask_nalamap_agent(request: NaLaMapRequest, raw_request: Request):
     response: NaLaMapResponse = NaLaMapResponse(
         messages=result_messages,
         results_title=results_title,
-        geodata_results=geodata_results,
-        geodata_layers=geodata_layers,
+        geodata_results=normalize_ogc_geodata_payloads(geodata_results),
+        geodata_layers=normalize_ogc_geodata_payloads(geodata_layers),
         # global_geodata=global_geodata,
         options=result_options,
     )
@@ -1134,13 +1135,8 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                     elif isinstance(msg, SystemMessage):
                         serializable_messages.append({"type": "system", "content": msg.content})
 
-                serialized_results = [
-                    r.model_dump() if hasattr(r, "model_dump") else r for r in geodata_results
-                ]
-                serialized_layers = [
-                    layer.model_dump() if hasattr(layer, "model_dump") else layer
-                    for layer in geodata_layers
-                ]
+                serialized_results = normalize_ogc_geodata_payloads(geodata_results)
+                serialized_layers = normalize_ogc_geodata_payloads(geodata_layers)
 
                 # Mark any remaining plan steps as complete
                 if execution_plan:

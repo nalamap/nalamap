@@ -1,11 +1,13 @@
 import gzip
 import hashlib
 import io
+import json
 import os
+import re
 import uuid
 from datetime import datetime, timedelta
 from typing import Any, BinaryIO, Tuple
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import quote, urlparse, urlunparse
 
 import requests
 
@@ -26,6 +28,16 @@ from utility.string_methods import sanitize_filename
 
 # Minimum file size for compression (1MB)
 MIN_COMPRESS_SIZE = 1024 * 1024
+SAFE_COLLECTION_ID = re.compile(r"^[A-Za-z0-9._-]+$")
+GEOJSON_GEOMETRY_TYPES = {
+    "Point",
+    "MultiPoint",
+    "LineString",
+    "MultiLineString",
+    "Polygon",
+    "MultiPolygon",
+    "GeometryCollection",
+}
 
 
 def _is_container_runtime() -> bool:
@@ -95,6 +107,112 @@ def _should_compress_for_azure(filename: str, size: int) -> bool:
     """
     # Only compress GeoJSON files larger than 1MB
     return filename.lower().endswith(".geojson") and size > MIN_COMPRESS_SIZE
+
+
+def _build_collection_id(filename: str) -> str:
+    stem = os.path.splitext(os.path.basename(filename))[0]
+    safe_stem = re.sub(r"[^A-Za-z0-9._-]+", "-", stem).strip("-.")
+    if not safe_stem:
+        safe_stem = "upload"
+    safe_stem = safe_stem[:40]
+    candidate = f"upload_{safe_stem}_{uuid.uuid4().hex[:8]}"
+    if SAFE_COLLECTION_ID.match(candidate):
+        return candidate
+    return f"upload_{uuid.uuid4().hex[:12]}"
+
+
+def _normalize_geojson_bytes_for_collection(content: bytes) -> bytes | None:
+    try:
+        payload = json.loads(content)
+    except (TypeError, ValueError, UnicodeDecodeError):
+        return None
+
+    feature_collection: dict[str, Any] | None = None
+
+    if isinstance(payload, dict):
+        payload_type = payload.get("type")
+        if payload_type == "FeatureCollection" and isinstance(payload.get("features"), list):
+            feature_collection = payload
+        elif payload_type == "Feature" and isinstance(payload.get("geometry"), dict):
+            feature_collection = {
+                "type": "FeatureCollection",
+                "features": [payload],
+            }
+        elif payload_type in GEOJSON_GEOMETRY_TYPES:
+            feature_collection = {
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "geometry": payload,
+                        "properties": payload.get("properties")
+                        if isinstance(payload.get("properties"), dict)
+                        else {},
+                    }
+                ],
+            }
+
+    if feature_collection is None:
+        return None
+
+    return json.dumps(
+        feature_collection,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+
+def _collection_items_url(collection_id: str) -> str:
+    public_base = (OGCAPI_PUBLIC_BASE_URL or OGCAPI_BASE_URL or "").rstrip("/")
+    if not public_base:
+        public_base = _rewrite_ogcapi_url_to_public(_runtime_ogcapi_base_url())
+    return f"{public_base}/collections/{quote(collection_id, safe='')}/items"
+
+
+def _upload_geojson_collection(name: str, content: bytes) -> dict[str, Any] | None:
+    runtime_base_url = _runtime_ogcapi_base_url()
+    if not runtime_base_url:
+        return None
+
+    normalized_geojson = _normalize_geojson_bytes_for_collection(content)
+    if normalized_geojson is None:
+        return None
+
+    safe_name = sanitize_filename(name)
+    base_name, extension = os.path.splitext(safe_name)
+    upload_name = safe_name if extension.lower() == ".geojson" else f"{base_name}.geojson"
+    collection_id = _build_collection_id(upload_name)
+    collection_title = base_name.strip() or collection_id
+
+    try:
+        response = requests.post(
+            f"{runtime_base_url}/uploads/vector",
+            data={
+                "new_collection_id": collection_id,
+                "new_collection_title": collection_title,
+            },
+            files={"file": (upload_name, io.BytesIO(normalized_geojson), "application/geo+json")},
+            timeout=core_config.ogcapi_upload_timeout(),
+        )
+    except requests.RequestException:
+        return None
+
+    if response.status_code >= 400:
+        return None
+
+    try:
+        payload = response.json()
+    except ValueError:
+        return None
+
+    response_collection_id = payload.get("collection_id") if isinstance(payload, dict) else None
+    if not isinstance(response_collection_id, str) or not response_collection_id.strip():
+        return None
+
+    return {
+        "url": _collection_items_url(response_collection_id.strip()),
+        "id": response_collection_id.strip(),
+    }
 
 
 def _compress_for_azure(content: bytes) -> bytes:
@@ -191,12 +309,16 @@ def store_file(name: str, content: bytes) -> Tuple[str, str]:
     unique_name = f"{uuid.uuid4().hex}_{safe_name}"
 
     if USE_OGCAPI_STORAGE and OGCAPI_BASE_URL:
+        geojson_collection = _upload_geojson_collection(safe_name, content)
+        if geojson_collection is not None:
+            return geojson_collection["url"], geojson_collection["id"]
+
         runtime_base_url = _runtime_ogcapi_base_url()
         files = {"file": (safe_name, io.BytesIO(content), "application/octet-stream")}
         resp = requests.post(
             f"{runtime_base_url}/uploads/file",
             files=files,
-            timeout=OGCAPI_TIMEOUT_SECONDS,
+            timeout=core_config.ogcapi_upload_timeout(),
         )
         if resp.status_code >= 400:
             from fastapi import HTTPException
@@ -305,7 +427,7 @@ def store_file_stream_result(name: str, stream: BinaryIO) -> dict[str, Any]:
             resp = requests.post(
                 f"{runtime_base_url}/uploads/file",
                 files=files,
-                timeout=OGCAPI_TIMEOUT_SECONDS,
+                timeout=core_config.ogcapi_upload_timeout(),
             )
         except RuntimeError as exc:
             from fastapi import HTTPException
