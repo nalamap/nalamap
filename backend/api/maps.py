@@ -7,6 +7,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.deps import get_current_user
+from api.ogc_payloads import inject_ogc_vector_tile_threshold
 from db.models.layer import Layer
 from db.models.map import Map
 from db.models.map_layer import MapLayer
@@ -132,7 +133,7 @@ async def list_map_layers(
 
     records: list[MapLayerRead] = []
     for map_layer, layer in result.all():
-        base = LayerRead.model_validate(layer).model_dump()
+        base = inject_ogc_vector_tile_threshold(LayerRead.model_validate(layer).model_dump())
         records.append(
             MapLayerRead.model_validate(
                 {

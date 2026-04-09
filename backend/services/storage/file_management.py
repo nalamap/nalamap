@@ -1,21 +1,98 @@
 import gzip
+import hashlib
+import io
+import json
 import os
+import re
 import uuid
 from datetime import datetime, timedelta
-from typing import BinaryIO, Tuple
+from typing import Any, BinaryIO, Tuple
+from urllib.parse import quote, urlparse, urlunparse
 
+import requests
+
+import core.config as core_config
 from core.config import (
     AZ_CONN,
     AZ_CONTAINER,
     AZURE_SAS_EXPIRY_HOURS,
     BASE_URL,
     LOCAL_UPLOAD_DIR,
+    OGCAPI_BASE_URL,
+    OGCAPI_PUBLIC_BASE_URL,
+    OGCAPI_TIMEOUT_SECONDS,
     USE_AZURE,
+    USE_OGCAPI_STORAGE,
 )
 from utility.string_methods import sanitize_filename
 
 # Minimum file size for compression (1MB)
 MIN_COMPRESS_SIZE = 1024 * 1024
+SAFE_COLLECTION_ID = re.compile(r"^[A-Za-z0-9._-]+$")
+GEOJSON_GEOMETRY_TYPES = {
+    "Point",
+    "MultiPoint",
+    "LineString",
+    "MultiLineString",
+    "Polygon",
+    "MultiPolygon",
+    "GeometryCollection",
+}
+
+
+def _is_container_runtime() -> bool:
+    return os.path.exists("/.dockerenv")
+
+
+def _runtime_ogcapi_base_url() -> str:
+    base = (OGCAPI_BASE_URL or "").rstrip("/")
+    if not base:
+        return base
+    parsed = urlparse(base)
+    hostname = (parsed.hostname or "").lower()
+    if hostname not in {"localhost", "127.0.0.1", "::1"} or not _is_container_runtime():
+        return base
+    remapped = parsed._replace(
+        scheme=parsed.scheme or "http",
+        netloc="ogcapi:8000",
+    )
+    return urlunparse(remapped).rstrip("/")
+
+
+def _rewrite_ogcapi_url_to_public(url: str) -> str:
+    if not isinstance(url, str) or not url.strip():
+        return url
+    public_base = (OGCAPI_PUBLIC_BASE_URL or OGCAPI_BASE_URL or "").rstrip("/")
+    runtime_base = _runtime_ogcapi_base_url()
+    if not public_base:
+        return url
+
+    public_parsed = urlparse(public_base)
+    runtime_parsed = urlparse(runtime_base) if runtime_base else None
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"}:
+        return url
+
+    hostname = (parsed.hostname or "").lower()
+    runtime_hostname = (runtime_parsed.hostname or "").lower() if runtime_parsed else ""
+    if hostname not in {"ogcapi", runtime_hostname} and parsed.netloc != (
+        runtime_parsed.netloc if runtime_parsed else ""
+    ):
+        return url
+
+    new_path = parsed.path or ""
+    public_prefix = (public_parsed.path or "").rstrip("/")
+    if public_prefix and not new_path.startswith(public_prefix + "/") and new_path != public_prefix:
+        if not new_path.startswith("/"):
+            new_path = "/" + new_path
+        new_path = f"{public_prefix}{new_path}"
+
+    rewritten = parsed._replace(
+        scheme=public_parsed.scheme or parsed.scheme,
+        netloc=public_parsed.netloc or parsed.netloc,
+        path=new_path,
+    )
+    return urlunparse(rewritten)
 
 
 def _should_compress_for_azure(filename: str, size: int) -> bool:
@@ -30,6 +107,112 @@ def _should_compress_for_azure(filename: str, size: int) -> bool:
     """
     # Only compress GeoJSON files larger than 1MB
     return filename.lower().endswith(".geojson") and size > MIN_COMPRESS_SIZE
+
+
+def _build_collection_id(filename: str) -> str:
+    stem = os.path.splitext(os.path.basename(filename))[0]
+    safe_stem = re.sub(r"[^A-Za-z0-9._-]+", "-", stem).strip("-.")
+    if not safe_stem:
+        safe_stem = "upload"
+    safe_stem = safe_stem[:40]
+    candidate = f"upload_{safe_stem}_{uuid.uuid4().hex[:8]}"
+    if SAFE_COLLECTION_ID.match(candidate):
+        return candidate
+    return f"upload_{uuid.uuid4().hex[:12]}"
+
+
+def _normalize_geojson_bytes_for_collection(content: bytes) -> bytes | None:
+    try:
+        payload = json.loads(content)
+    except (TypeError, ValueError, UnicodeDecodeError):
+        return None
+
+    feature_collection: dict[str, Any] | None = None
+
+    if isinstance(payload, dict):
+        payload_type = payload.get("type")
+        if payload_type == "FeatureCollection" and isinstance(payload.get("features"), list):
+            feature_collection = payload
+        elif payload_type == "Feature" and isinstance(payload.get("geometry"), dict):
+            feature_collection = {
+                "type": "FeatureCollection",
+                "features": [payload],
+            }
+        elif payload_type in GEOJSON_GEOMETRY_TYPES:
+            feature_collection = {
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "geometry": payload,
+                        "properties": payload.get("properties")
+                        if isinstance(payload.get("properties"), dict)
+                        else {},
+                    }
+                ],
+            }
+
+    if feature_collection is None:
+        return None
+
+    return json.dumps(
+        feature_collection,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+
+def _collection_items_url(collection_id: str) -> str:
+    public_base = (OGCAPI_PUBLIC_BASE_URL or OGCAPI_BASE_URL or "").rstrip("/")
+    if not public_base:
+        public_base = _rewrite_ogcapi_url_to_public(_runtime_ogcapi_base_url())
+    return f"{public_base}/collections/{quote(collection_id, safe='')}/items"
+
+
+def _upload_geojson_collection(name: str, content: bytes) -> dict[str, Any] | None:
+    runtime_base_url = _runtime_ogcapi_base_url()
+    if not runtime_base_url:
+        return None
+
+    normalized_geojson = _normalize_geojson_bytes_for_collection(content)
+    if normalized_geojson is None:
+        return None
+
+    safe_name = sanitize_filename(name)
+    base_name, extension = os.path.splitext(safe_name)
+    upload_name = safe_name if extension.lower() == ".geojson" else f"{base_name}.geojson"
+    collection_id = _build_collection_id(upload_name)
+    collection_title = base_name.strip() or collection_id
+
+    try:
+        response = requests.post(
+            f"{runtime_base_url}/uploads/vector",
+            data={
+                "new_collection_id": collection_id,
+                "new_collection_title": collection_title,
+            },
+            files={"file": (upload_name, io.BytesIO(normalized_geojson), "application/geo+json")},
+            timeout=core_config.ogcapi_upload_timeout(),
+        )
+    except requests.RequestException:
+        return None
+
+    if response.status_code >= 400:
+        return None
+
+    try:
+        payload = response.json()
+    except ValueError:
+        return None
+
+    response_collection_id = payload.get("collection_id") if isinstance(payload, dict) else None
+    if not isinstance(response_collection_id, str) or not response_collection_id.strip():
+        return None
+
+    return {
+        "url": _collection_items_url(response_collection_id.strip()),
+        "id": response_collection_id.strip(),
+    }
 
 
 def _compress_for_azure(content: bytes) -> bytes:
@@ -86,6 +269,35 @@ def _generate_sas_url(blob_url: str, blob_name: str) -> str:
         return blob_url
 
 
+def _build_upload_result(
+    url: str,
+    file_id: str,
+    *,
+    sha256: str | None = None,
+    size: int | None = None,
+    filename: str | None = None,
+) -> dict[str, Any]:
+    result: dict[str, Any] = {"url": url, "id": file_id}
+    if isinstance(sha256, str) and sha256.strip():
+        result["sha256"] = sha256.strip()
+    if isinstance(size, int):
+        result["size"] = size
+    if isinstance(filename, str) and filename.strip():
+        result["filename"] = filename.strip()
+    return result
+
+
+def _normalize_upload_size(value: Any) -> int | None:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return None
+    return None
+
+
 def store_file(name: str, content: bytes) -> Tuple[str, str]:
     """Stores the given content in a file based on the name.
 
@@ -95,6 +307,29 @@ def store_file(name: str, content: bytes) -> Tuple[str, str]:
     # Generate unique file name
     safe_name = sanitize_filename(name)
     unique_name = f"{uuid.uuid4().hex}_{safe_name}"
+
+    if USE_OGCAPI_STORAGE and OGCAPI_BASE_URL:
+        geojson_collection = _upload_geojson_collection(safe_name, content)
+        if geojson_collection is not None:
+            return geojson_collection["url"], geojson_collection["id"]
+
+        runtime_base_url = _runtime_ogcapi_base_url()
+        files = {"file": (safe_name, io.BytesIO(content), "application/octet-stream")}
+        resp = requests.post(
+            f"{runtime_base_url}/uploads/file",
+            files=files,
+            timeout=core_config.ogcapi_upload_timeout(),
+        )
+        if resp.status_code >= 400:
+            from fastapi import HTTPException
+
+            raise HTTPException(
+                status_code=502,
+                detail=f"OGC API upload failed: {resp.status_code} {resp.text}",
+            )
+        payload = resp.json()
+        public_url = _rewrite_ogcapi_url_to_public(payload["url"])
+        return public_url, payload.get("id") or unique_name
 
     if USE_AZURE:
         from azure.storage.blob import BlobServiceClient, ContentSettings
@@ -140,8 +375,8 @@ def store_file(name: str, content: bytes) -> Tuple[str, str]:
     return url, unique_name
 
 
-def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
-    """Store file by streaming from a file-like object without loading into memory.
+def store_file_stream_result(name: str, stream: BinaryIO) -> dict[str, Any]:
+    """Store a file stream and return public upload details.
 
     Respects MAX_FILE_SIZE from config. Streams directly to local disk or Azure Blob Storage.
     """
@@ -158,6 +393,75 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
     total = 0
     chunk_size = 1024 * 1024  # 1 MiB chunks
 
+    if USE_OGCAPI_STORAGE and OGCAPI_BASE_URL:
+        runtime_base_url = _runtime_ogcapi_base_url()
+
+        class SizeLimitedReader:
+            def __init__(self, base_stream: BinaryIO, limit: int):
+                self._s = base_stream
+                self._limit = limit
+                self._read = 0
+                self._sha256 = hashlib.sha256()
+
+            def read(self, n: int = -1) -> bytes:
+                data = self._s.read(n)
+                if not data:
+                    return data
+                self._read += len(data)
+                if self._read > self._limit:
+                    raise RuntimeError("MAX_FILE_SIZE_EXCEEDED")
+                self._sha256.update(data)
+                return data
+
+            @property
+            def bytes_read(self) -> int:
+                return self._read
+
+            @property
+            def sha256_hex(self) -> str:
+                return self._sha256.hexdigest()
+
+        limiter = SizeLimitedReader(stream, MAX_FILE_SIZE)
+        files = {"file": (safe_name, limiter, "application/octet-stream")}
+        try:
+            resp = requests.post(
+                f"{runtime_base_url}/uploads/file",
+                files=files,
+                timeout=core_config.ogcapi_upload_timeout(),
+            )
+        except RuntimeError as exc:
+            from fastapi import HTTPException
+
+            if str(exc) == "MAX_FILE_SIZE_EXCEEDED":
+                raise HTTPException(
+                    status_code=413, detail=core_config.max_file_size_exceeded_detail()
+                ) from exc
+            raise HTTPException(status_code=502, detail=f"OGC API upload failed: {exc}") from exc
+        except Exception as exc:
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=502, detail=f"OGC API upload failed: {exc}") from exc
+        if resp.status_code >= 400:
+            from fastapi import HTTPException
+
+            if resp.status_code == 413 or "MAX_FILE_SIZE" in resp.text:
+                raise HTTPException(
+                    status_code=413, detail=core_config.max_file_size_exceeded_detail()
+                )
+            raise HTTPException(
+                status_code=502,
+                detail=f"OGC API upload failed: {resp.status_code} {resp.text}",
+            )
+        payload = resp.json()
+        public_url = _rewrite_ogcapi_url_to_public(payload["url"])
+        return _build_upload_result(
+            public_url,
+            payload.get("id") or unique_name,
+            sha256=payload.get("sha256") or limiter.sha256_hex,
+            size=_normalize_upload_size(payload.get("size")) or limiter.bytes_read,
+            filename=payload.get("filename") or safe_name,
+        )
+
     if USE_AZURE:
         from azure.storage.blob import BlobServiceClient, ContentSettings
 
@@ -170,6 +474,7 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
                 self._s = base_stream
                 self._limit = limit
                 self._read = 0
+                self._sha256 = hashlib.sha256()
 
             def read(self, n: int = -1) -> bytes:
                 # Read in sub-chunks to enforce limit earlier when n=-1
@@ -179,7 +484,16 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
                 self._read += len(data)
                 if self._read > self._limit:
                     raise RuntimeError("MAX_FILE_SIZE_EXCEEDED")
+                self._sha256.update(data)
                 return data
+
+            @property
+            def bytes_read(self) -> int:
+                return self._read
+
+            @property
+            def sha256_hex(self) -> str:
+                return self._sha256.hexdigest()
 
         limiter = SizeLimitedReader(stream, MAX_FILE_SIZE)
         try:
@@ -191,6 +505,7 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
 
                 # Check actual size
                 actual_size = len(content)
+                sha256_hex = hashlib.sha256(content).hexdigest()
                 if _should_compress_for_azure(safe_name, actual_size):
                     # Compress
                     compressed_content = _compress_for_azure(content)
@@ -219,7 +534,13 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
             # Generate secure SAS URL instead of public URL
             blob_url = f"{container.url}/{unique_name}"
             url = _generate_sas_url(blob_url, unique_name)
-            return url, unique_name
+            return _build_upload_result(
+                url,
+                unique_name,
+                sha256=sha256_hex if "sha256_hex" in locals() else limiter.sha256_hex,
+                size=actual_size if "actual_size" in locals() else limiter.bytes_read,
+                filename=safe_name,
+            )
         except Exception as e:
             # Best-effort cleanup of partial blob
             try:
@@ -229,10 +550,14 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
             if str(e) == "MAX_FILE_SIZE_EXCEEDED":
                 from fastapi import HTTPException
 
-                raise HTTPException(status_code=413, detail="File exceeds the 100MB limit.")
+                raise HTTPException(
+                    status_code=413,
+                    detail=core_config.max_file_size_exceeded_detail(total),
+                )
             raise
     else:
         dest_path = os.path.join(LOCAL_UPLOAD_DIR, unique_name)
+        sha256 = hashlib.sha256()
         try:
             with open(dest_path, "wb") as out:
                 while True:
@@ -242,9 +567,16 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
                     total += len(data)
                     if total > MAX_FILE_SIZE:
                         raise RuntimeError("MAX_FILE_SIZE_EXCEEDED")
+                    sha256.update(data)
                     out.write(data)
             url = f"{BASE_URL}/api/stream/{unique_name}"
-            return url, unique_name
+            return _build_upload_result(
+                url,
+                unique_name,
+                sha256=sha256.hexdigest(),
+                size=total,
+                filename=safe_name,
+            )
         except Exception as e:
             # Remove partial file
             try:
@@ -255,5 +587,14 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
             if str(e) == "MAX_FILE_SIZE_EXCEEDED":
                 from fastapi import HTTPException
 
-                raise HTTPException(status_code=413, detail="File exceeds the 100MB limit.")
+                raise HTTPException(
+                    status_code=413,
+                    detail=core_config.max_file_size_exceeded_detail(total),
+                )
             raise
+
+
+def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
+    """Store file by streaming from a file-like object without loading into memory."""
+    result = store_file_stream_result(name, stream)
+    return result["url"], result["id"]

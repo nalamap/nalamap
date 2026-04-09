@@ -1,0 +1,179 @@
+services:
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    environment:
+      - BACKEND_PROTOCOL=http
+      - BACKEND_URL=backend:8000
+      - FRONTEND_PROTOCOL=http
+      - FRONTEND_URL=frontend:3000
+      - AZURE_BLOB_DOMAIN=${AZURE_BLOB_DOMAIN:-}
+      - DNS_RESOLVER=${DNS_RESOLVER:-127.0.0.11}
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_started
+      frontend:
+        condition: service_started
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgis://app:app@db:5432/app}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT:-}
+      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY:-}
+      - AZURE_OPENAI_DEPLOYMENT=${AZURE_OPENAI_DEPLOYMENT:-}
+      - AZURE_OPENAI_API_VERSION=${AZURE_OPENAI_API_VERSION:-}
+      - LLM_PROVIDER=${LLM_PROVIDER:-openai}
+      - USE_AZURE_STORAGE=${USE_AZURE_STORAGE:-false}
+      - AZURE_CONN_STRING=${AZURE_CONN_STRING:-}
+      - AZURE_CONTAINER=${AZURE_CONTAINER:-data}
+      - AZURE_SAS_EXPIRY_HOURS=${AZURE_SAS_EXPIRY_HOURS:-24}
+      - USE_OGCAPI_STORAGE=${USE_OGCAPI_STORAGE:-true}
+      - OGCAPI_BASE_URL=${OGCAPI_BASE_URL:-http://ogcapi:8000/v1}
+      - OGCAPI_PUBLIC_BASE_URL=${OGCAPI_PUBLIC_BASE_URL:-http://localhost:8081/v1}
+      - OGCAPI_TIMEOUT_SECONDS=${OGCAPI_TIMEOUT_SECONDS:-30}
+      - ALLOWED_CORS_ORIGINS=${ALLOWED_CORS_ORIGINS:-http://localhost:3000,http://frontend:3000,http://localhost}
+      - COOKIE_SECURE=false
+      - COOKIE_HTTPONLY=true
+      - COOKIE_SAMESITE=lax
+      - BASE_URL=${BASE_URL:-http://localhost:8000}
+      - FRONTEND_BASE_URL=${FRONTEND_BASE_URL:-http://localhost:3000}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      ogcapi:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    environment:
+      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000/api}
+      - NEXT_PUBLIC_API_UPLOAD_URL=${NEXT_PUBLIC_API_UPLOAD_URL:-http://localhost:8000/api/upload}
+      - NEXT_PUBLIC_BACKEND_URL=${NEXT_PUBLIC_BACKEND_URL:-http://backend:8000}
+      - RUNTIME_ENV_PATH=/app/runtime-env/runtime-env.js
+      - BACKEND_PROTOCOL=http
+      - BACKEND_URL=backend:8000
+    volumes:
+      - runtime-env-data:/app/runtime-env
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_started
+
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: app
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d app"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  ogcapi-redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  ogcapi:
+    build:
+      context: ../nala-ogcapi-server
+      dockerfile: Dockerfile
+    environment:
+      - DB_DSN=${OGCAPI_DB_DSN:-postgresql://postgres:postgres@ogcapi-postgis:5432/nalamap}
+      - PUBLIC_BASE_URL=${OGCAPI_PUBLIC_URL:-http://localhost:8081}
+      - API_PREFIX=/v1
+      - UPLOADS_DIR=/data/uploads
+      - RESULTS_DIR=/data/results
+      - S3_ENDPOINT_URL=${S3_ENDPOINT_URL:-http://minio:9000}
+      - S3_ACCESS_KEY=${S3_ACCESS_KEY:-minio}
+      - S3_SECRET_KEY=${S3_SECRET_KEY:-minio123}
+      - S3_BUCKET=${S3_BUCKET:-cogs}
+      - S3_PUBLIC_URL=${S3_PUBLIC_URL:-http://localhost:9000/cogs}
+      - REDIS_URL=${OGCAPI_REDIS_URL:-redis://ogcapi-redis:6379/0}
+    volumes:
+      - ogcapi-data:/data
+    ports:
+      - "8081:8000"
+    depends_on:
+      ogcapi-postgis:
+        condition: service_healthy
+      ogcapi-redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+
+  ogcapi-postgis:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: nalamap
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - ogcapi-postgis-data:/var/lib/postgresql/data
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - minio-data:/data
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "mc alias set local http://minio:9000 minio minio123 &&
+       mc mb -p local/cogs || true &&
+       mc anonymous set download local/cogs || true"
+
+volumes:
+  postgres-data:
+  runtime-env-data:
+  ogcapi-postgis-data:
+  ogcapi-data:
+  minio-data:

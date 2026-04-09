@@ -42,6 +42,7 @@ export type ChatInterfaceState = {
   toolUpdates: ToolUpdate[];
   streamingMessage: string;
   isStreaming: boolean;
+  includeSelectedLayersInPrompt: boolean;
 
   // execution plan state
   executionPlan: ExecutionPlan | null;
@@ -55,6 +56,7 @@ export type ChatInterfaceState = {
   getToolUpdates: () => ToolUpdate[];
   getStreamingMessage: () => string;
   getIsStreaming: () => boolean;
+  getIncludeSelectedLayersInPrompt: () => boolean;
   getExecutionPlan: () => ExecutionPlan | null;
 
   // setters / mutators
@@ -84,6 +86,7 @@ export type ChatInterfaceState = {
   clearStreamingMessage: () => void;
   clearToolUpdates: () => void;
   setIsStreaming: (flag: boolean) => void;
+  setIncludeSelectedLayersInPrompt: (flag: boolean) => void;
 
   // plan actions
   setExecutionPlan: (plan: ExecutionPlan) => void;
@@ -107,6 +110,7 @@ export const useChatInterfaceStore = create<ChatInterfaceState>((set, get) => ({
   toolUpdates: [],
   streamingMessage: "",
   isStreaming: false,
+  includeSelectedLayersInPrompt: true,
 
   // plan state
   executionPlan: null,
@@ -120,6 +124,7 @@ export const useChatInterfaceStore = create<ChatInterfaceState>((set, get) => ({
   getToolUpdates: () => get().toolUpdates,
   getStreamingMessage: () => get().streamingMessage,
   getIsStreaming: () => get().isStreaming,
+  getIncludeSelectedLayersInPrompt: () => get().includeSelectedLayersInPrompt,
   getExecutionPlan: () => get().executionPlan,
 
   // mutators
@@ -177,6 +182,8 @@ export const useChatInterfaceStore = create<ChatInterfaceState>((set, get) => ({
   clearToolUpdates: () => set({ toolUpdates: [] }),
 
   setIsStreaming: (flag) => set({ isStreaming: flag }),
+  setIncludeSelectedLayersInPrompt: (flag) =>
+    set({ includeSelectedLayersInPrompt: flag }),
 
   // plan actions
   setExecutionPlan: (plan) => set({ executionPlan: plan }),

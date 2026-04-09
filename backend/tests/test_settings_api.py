@@ -161,6 +161,32 @@ def test_options_endpoint_returns_example_mcp_servers(api_client):
     assert len(data["example_mcp_servers"]) >= 0
 
 
+def test_options_endpoint_returns_example_ogcapi_servers(api_client):
+    """Test that the /settings/options endpoint returns example OGC API servers."""
+    response = api_client.get("/settings/options")
+    assert response.status_code == 200
+    data = response.json()
+    assert "example_ogcapi_servers" in data
+    assert isinstance(data["example_ogcapi_servers"], list)
+    # Example list can be empty (users add their own custom servers)
+    assert len(data["example_ogcapi_servers"]) >= 0
+
+
+def test_options_endpoint_exposes_only_user_toggleable_ogc_tools(api_client):
+    """OGC execution tools should be user-toggleable; prepare tool stays internal."""
+    response = api_client.get("/settings/options")
+    assert response.status_code == 200
+    data = response.json()
+
+    tool_options = data["tool_options"]
+    assert "filter_geodata" in tool_options
+    assert "process_geodata" in tool_options
+    assert "prepare_geospatial_context" not in tool_options
+
+    assert tool_options["filter_geodata"]["category"] == "ogcapi"
+    assert tool_options["process_geodata"]["category"] == "ogcapi"
+
+
 # ============================================================================
 # Deployment Config Integration Tests
 # ============================================================================

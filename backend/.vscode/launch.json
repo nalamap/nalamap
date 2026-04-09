@@ -15,6 +15,19 @@
                 "--reload"
             ],
             "jinja": true
+        },
+        {
+            "name": "Python Debugger: FastAPI (8001)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": [
+                "main:app",
+                "--reload",
+                "--port",
+                "8001"
+            ],
+            "jinja": true
         }
     ]
 }

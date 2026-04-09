@@ -41,13 +41,25 @@ export default function AgentInterface() {
 
   // Get streaming state from store
   const toolUpdates = useChatInterfaceStore((s) => s.toolUpdates);
+  const executionPlan = useChatInterfaceStore((s) => s.executionPlan);
   const streamingMessage = useChatInterfaceStore((s) => s.streamingMessage);
   const isStreaming = useChatInterfaceStore((s) => s.isStreaming);
-  const executionPlan = useChatInterfaceStore((s) => s.executionPlan);
+  const includeSelectedLayersInPrompt = useChatInterfaceStore(
+    (s) => s.includeSelectedLayersInPrompt,
+  );
+  const setIncludeSelectedLayersInPrompt = useChatInterfaceStore(
+    (s) => s.setIncludeSelectedLayersInPrompt,
+  );
+  const layers = useLayerStore((s) => s.layers);
+  const toggleLayerSelection = useLayerStore((s) => s.toggleLayerSelection);
+  const setSelectedLayerIds = useLayerStore((s) => s.setSelectedLayerIds);
+  const selectedLayerCount = useLayerStore(
+    (s) => s.layers.filter((layer) => layer.selected).length,
+  );
   
   const showToolMessages = false; // TODO: Move to settings
 
-  // When a plan exists and streaming is done, separate the final AI result
+    // When a plan exists and streaming is done, separate the final AI result
   // message so it renders BELOW the plan instead of above it.
   const { mainConversation, resultMessage } = useMemo(() => {
     if (executionPlan && !isStreaming && conversation.length > 0) {
@@ -125,7 +137,7 @@ export default function AgentInterface() {
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
       >
-        {/* Chat Messages (excludes final AI result when plan exists) */}
+         {/* Chat Messages (excludes final AI result when plan exists) */}
         <ChatMessages
           conversation={mainConversation}
           loading={loading}
@@ -136,7 +148,7 @@ export default function AgentInterface() {
           scrollToBottom={doScrollToBottom}
         />
 
-        {/* Execution Plan - shows the agent's multi-step plan with integrated tool details */}
+         {/* Execution Plan - shows the agent's multi-step plan with integrated tool details */}
         {executionPlan && (
           <div ref={agentActivityRef} className="scroll-mt-4">
             <PlanDisplay plan={executionPlan} toolUpdates={toolUpdates} />
@@ -201,6 +213,65 @@ export default function AgentInterface() {
 
       {/* Chat Input */}
       <div className="flex-shrink-0">
+        <div className="mb-2 flex items-center justify-between text-xs text-primary-700">
+          <label className="inline-flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={includeSelectedLayersInPrompt}
+              onChange={(e) =>
+                setIncludeSelectedLayersInPrompt(e.target.checked)
+              }
+              className="h-4 w-4 rounded border-primary-300 text-secondary-600 focus:ring-secondary-300"
+            />
+            Include selected layers explicitly
+          </label>
+          <span>{selectedLayerCount} selected</span>
+        </div>
+        {includeSelectedLayersInPrompt && (
+          <div className="mb-2 rounded border border-primary-200 bg-white p-2">
+            <div className="mb-2 flex items-center justify-between text-xs text-primary-700">
+              <span className="font-medium">Layers to include</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedLayerIds(layers.map((layer) => layer.id))}
+                  className="rounded border border-primary-200 px-2 py-0.5 hover:bg-primary-50"
+                >
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedLayerIds([])}
+                  className="rounded border border-primary-200 px-2 py-0.5 hover:bg-primary-50"
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+            {layers.length === 0 ? (
+              <p className="text-xs text-primary-500">No layers available.</p>
+            ) : (
+              <div className="max-h-28 space-y-1 overflow-y-auto pr-1">
+                {layers.map((layer) => (
+                  <label
+                    key={layer.id}
+                    className="flex cursor-pointer items-center gap-2 text-xs text-primary-800"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={Boolean(layer.selected)}
+                      onChange={() => toggleLayerSelection(layer.id)}
+                      className="h-4 w-4 rounded border-primary-300 text-secondary-600 focus:ring-secondary-300"
+                    />
+                    <span className="truncate">
+                      {layer.title || layer.name || String(layer.id)}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <ChatInput
           value={input}
           onChange={setInput}

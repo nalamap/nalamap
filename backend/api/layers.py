@@ -7,12 +7,19 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.deps import get_current_user
+from api.ogc_payloads import inject_ogc_vector_tile_threshold
 from db.models.layer import Layer
 from db.models.user import User
 from db.session import get_session
 from models.layer import LayerCreate, LayerRead, LayerUpdate
 
 router = APIRouter(prefix="/layers", tags=["layers"])
+
+
+def _serialize_layer(layer_obj: Layer) -> LayerRead:
+    return LayerRead.model_validate(
+        inject_ogc_vector_tile_threshold(LayerRead.model_validate(layer_obj).model_dump())
+    )
 
 
 @router.post("/", response_model=LayerRead, status_code=status.HTTP_201_CREATED)
@@ -35,7 +42,7 @@ async def create_layer(
     db.add(layer_obj)
     await db.commit()
     await db.refresh(layer_obj)
-    return LayerRead.model_validate(layer_obj)
+    return _serialize_layer(layer_obj)
 
 
 @router.get("/", response_model=list[LayerRead])
@@ -53,7 +60,7 @@ async def list_layers(
         .limit(limit)
         .offset(offset)
     )
-    return [LayerRead.model_validate(item) for item in result.scalars().all()]
+    return [_serialize_layer(item) for item in result.scalars().all()]
 
 
 @router.get("/{layer_id}", response_model=LayerRead)
@@ -69,7 +76,7 @@ async def get_layer(
     layer_obj = result.scalars().first()
     if not layer_obj:
         raise HTTPException(status_code=404, detail="Layer not found")
-    return LayerRead.model_validate(layer_obj)
+    return _serialize_layer(layer_obj)
 
 
 @router.patch("/{layer_id}", response_model=LayerRead)
@@ -104,7 +111,7 @@ async def update_layer(
 
     await db.commit()
     await db.refresh(layer_obj)
-    return LayerRead.model_validate(layer_obj)
+    return _serialize_layer(layer_obj)
 
 
 @router.delete("/{layer_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -5,6 +5,7 @@ import { formatFileSize, isFileSizeValid } from "../../utils/fileUtils";
 import { getUploadUrl, getApiBase } from "../../utils/apiBase";
 import { sha256OfFile } from "../../utils/hashUtil";
 import Logger from "../../utils/logger";
+import { MAX_UPLOAD_SIZE_BYTES } from "../../../uploadConfig";
 
 // Funny geo and data-themed loading messages
 const FUNNY_UPLOAD_MESSAGES = [
@@ -94,8 +95,7 @@ export default function UploadSection({
   const [currentFileName, setCurrentFileName] = useState<string>("");
   const [funnyMessage, setFunnyMessage] = useState<string>("");
 
-  const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB in bytes
-  const MAX_FILE_SIZE_FORMATTED = formatFileSize(MAX_FILE_SIZE);
+  const MAX_FILE_SIZE_FORMATTED = formatFileSize(MAX_UPLOAD_SIZE_BYTES);
 
   // Rotate funny messages during upload for entertainment
   useEffect(() => {
@@ -154,7 +154,7 @@ export default function UploadSection({
         setFunnyMessage(getRandomMessage(FUNNY_UPLOAD_MESSAGES));
 
         // Check file size limit
-        if (!isFileSizeValid(file, MAX_FILE_SIZE)) {
+        if (!isFileSizeValid(file, MAX_UPLOAD_SIZE_BYTES)) {
           throw new Error(
             `File ${file.name} size (${formatFileSize(file.size)}) exceeds the ${MAX_FILE_SIZE_FORMATTED} limit.`,
           );
@@ -176,7 +176,33 @@ export default function UploadSection({
         // Compute SHA-256 locally before upload for integrity verification
         const localSha256 = await sha256OfFile(file);
 
-        const { url, id } = await new Promise<{ url: string; id: string }>(
+        const {
+          url,
+          id,
+          sha256,
+          size,
+          ogc_collection_id,
+          items_url,
+          tiles_url,
+          tiles_metadata_url,
+          ogc_feature_count,
+          ogc_vector_tile_feature_threshold,
+          ogc_recommended_render_mode,
+          ogc_render_mode,
+        } = await new Promise<{
+          url: string;
+          id: string;
+          sha256?: string;
+          size?: number;
+          ogc_collection_id?: string;
+          items_url?: string;
+          tiles_url?: string;
+          tiles_metadata_url?: string;
+          ogc_feature_count?: number;
+          ogc_vector_tile_feature_threshold?: number;
+          ogc_recommended_render_mode?: "items" | "tiles";
+          ogc_render_mode?: "auto" | "items" | "tiles";
+        }>(
           (resolve, reject) => {
             const xhr = new XMLHttpRequest();
             xhrRef.current = xhr;
@@ -223,34 +249,60 @@ export default function UploadSection({
         const uploadCompleteProgress = baseProgress + 70 / files.length;
         setUploadProgress(Math.round(uploadCompleteProgress));
 
-        // Verify integrity against backend-reported hash/size
+        // Verify integrity against backend-reported hash/size.
+        // Fall back to the meta endpoint only if the upload response does not include them.
         try {
-          const metaRes = await fetch(
-            `${API_BASE_URL}/uploads/meta/${encodeURIComponent(id)}`,
-          );
-          if (metaRes.ok) {
-            const meta = await metaRes.json();
-            if (meta?.sha256 && typeof meta.sha256 === "string") {
-              if (meta.sha256.toLowerCase() !== localSha256.toLowerCase()) {
-                throw new Error(
-                  `Integrity check failed for ${file.name}. Expected ${localSha256.slice(0, 8)}…, got ${String(meta.sha256).slice(0, 8)}…`,
-                );
-              }
+          const responseSha256 =
+            typeof sha256 === "string" && sha256.trim() ? sha256.trim() : null;
+          const responseSize =
+            Number.isFinite(Number(size)) ? Number(size) : null;
+
+          if (responseSha256 || responseSize !== null) {
+            if (
+              responseSha256 &&
+              responseSha256.toLowerCase() !== localSha256.toLowerCase()
+            ) {
+              throw new Error(
+                `Integrity check failed for ${file.name}. Expected ${localSha256.slice(0, 8)}…, got ${responseSha256.slice(0, 8)}…`,
+              );
             }
-            if (meta?.size && Number.isFinite(Number(meta.size))) {
-              const serverSize = Number(meta.size);
-              if (serverSize !== file.size) {
-                throw new Error(
-                  `Size mismatch for ${file.name}. Local ${file.size} bytes vs server ${serverSize} bytes`,
-                );
-              }
+            if (responseSize !== null && responseSize !== file.size) {
+              throw new Error(
+                `Size mismatch for ${file.name}. Local ${file.size} bytes vs server ${responseSize} bytes`,
+              );
             }
           } else {
-            Logger.warn(
-              "Upload meta endpoint returned",
-              metaRes.status,
-              metaRes.statusText,
+            const metaRes = await fetch(
+              `${API_BASE_URL}/uploads/meta/${encodeURIComponent(id)}`,
             );
+            if (metaRes.ok) {
+              const meta = await metaRes.json();
+              if (meta?.sha256 && typeof meta.sha256 === "string") {
+                if (meta.sha256.toLowerCase() !== localSha256.toLowerCase()) {
+                  throw new Error(
+                    `Integrity check failed for ${file.name}. Expected ${localSha256.slice(0, 8)}…, got ${String(meta.sha256).slice(0, 8)}…`,
+                  );
+                }
+              }
+              if (
+                meta &&
+                meta.size !== undefined &&
+                Number.isFinite(Number(meta.size))
+              ) {
+                const serverSize = Number(meta.size);
+                if (serverSize !== file.size) {
+                  throw new Error(
+                    `Size mismatch for ${file.name}. Local ${file.size} bytes vs server ${serverSize} bytes`,
+                  );
+                }
+              }
+            } else {
+              Logger.warn(
+                "Upload meta endpoint returned",
+                metaRes.status,
+                metaRes.statusText,
+              );
+            }
           }
         } catch (verifyErr) {
           // Surface integrity failure to the user and abort processing this file
@@ -259,17 +311,30 @@ export default function UploadSection({
             : new Error(String(verifyErr));
         }
 
+        const featureUrl = items_url || url;
         // Create the new layer
         const newLayer = {
           id: id,
           name: file.name,
           data_type: "uploaded",
-          data_link: url,
+          data_link: featureUrl,
           visible: true,
           data_source_id: "manual",
           data_origin: "uploaded",
           data_source: "user",
           layer_type: "UPLOADED",
+          properties: ogc_collection_id
+            ? {
+                ogc_collection_id,
+                ogc_items_url: featureUrl,
+                ogc_tiles_url: tiles_url,
+                ogc_tiles_metadata_url: tiles_metadata_url,
+                ogc_feature_count,
+                ogc_vector_tile_feature_threshold,
+                ogc_recommended_render_mode,
+                ogc_render_mode: ogc_render_mode || "auto",
+              }
+            : {},
         };
 
         // Add to store
@@ -290,7 +355,7 @@ export default function UploadSection({
           // Set a funny styling message
           setFunnyMessage(getRandomMessage(FUNNY_STYLING_MESSAGES));
 
-          const styleResponse = await fetch(`${API_BASE_URL}/ai-style`, {
+          const styleResponse = await fetch(`${API_BASE_URL}/auto-style`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",

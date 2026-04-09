@@ -15,6 +15,13 @@ import {
 } from "lucide-react";
 import { getApiBase } from "../../utils/apiBase";
 import Logger from "../../utils/logger";
+import {
+  getConfiguredOgcRenderMode,
+  getEffectiveOgcRenderMode,
+  getLayerFeatureUrl,
+  getRecommendedOgcRenderMode,
+  supportsOgcVectorTiles,
+} from "../../utils/ogcVectorTiles";
 import WorldBankChart, { ChartDataItem, ChartByCategory } from "../charts/WorldBankChart";
 
 // Dynamic drag handle component - simple fixed size with responsive spacing
@@ -155,6 +162,7 @@ interface LayerListProps {
   toggleLayerVisibility: (layerId: string) => void;
   removeLayer: (layerId: string) => void;
   reorderLayers: (fromIndex: number, toIndex: number) => void;
+  updateLayer: (layerId: string, updates: any) => void;
   updateLayerStyle: (layerId: string, style: any) => void;
   setZoomTo: (layerId: string) => void;
 }
@@ -192,6 +200,7 @@ export default function LayerList({
   toggleLayerVisibility,
   removeLayer,
   reorderLayers,
+  updateLayer,
   updateLayerStyle,
   setZoomTo,
 }: LayerListProps) {
@@ -253,7 +262,8 @@ export default function LayerList({
   const downloadLayer = async (layer: any) => {
     try {
       const apiBase = getApiBase();
-      const response = await fetch(layer.data_link.startsWith('http') ? layer.data_link : `${apiBase}${layer.data_link}`);
+      const featureUrl = getLayerFeatureUrl(layer);
+      const response = await fetch(featureUrl.startsWith('http') ? featureUrl : `${apiBase}${featureUrl}`);
       
       if (!response.ok) {
         throw new Error(`Failed to download layer: ${response.statusText}`);
@@ -281,7 +291,8 @@ export default function LayerList({
   const handleDownloadDragStart = async (e: React.DragEvent, layer: any) => {
     try {
       const apiBase = getApiBase();
-      const response = await fetch(layer.data_link.startsWith('http') ? layer.data_link : `${apiBase}${layer.data_link}`);
+      const featureUrl = getLayerFeatureUrl(layer);
+      const response = await fetch(featureUrl.startsWith('http') ? featureUrl : `${apiBase}${featureUrl}`);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch layer: ${response.statusText}`);
@@ -600,6 +611,34 @@ export default function LayerList({
                       <h4 className="font-semibold text-sm mb-2">
                         Style Options
                       </h4>
+                      {supportsOgcVectorTiles(layer) && (
+                        <div className="mb-3">
+                          <label className="block text-xs font-medium text-neutral-700 mb-1">
+                            Vector Rendering
+                          </label>
+                          <select
+                            value={getConfiguredOgcRenderMode(layer)}
+                            onChange={(e) =>
+                              updateLayer(layer.id, {
+                                properties: {
+                                  ...(layer.properties || {}),
+                                  ogc_render_mode: e.target.value,
+                                },
+                              })
+                            }
+                            className="w-full border rounded px-2 py-1 text-xs"
+                          >
+                            <option value="auto">
+                              Auto ({getRecommendedOgcRenderMode(layer)})
+                            </option>
+                            <option value="items">Items</option>
+                            <option value="tiles">Tiles</option>
+                          </select>
+                          <p className="mt-1 text-[11px] text-neutral-500">
+                            Active mode: {getEffectiveOgcRenderMode(layer)}
+                          </p>
+                        </div>
+                      )}
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         {/* Stroke Color */}
                         <div>

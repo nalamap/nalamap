@@ -5,6 +5,10 @@ import L from "leaflet";
 import { GeoDataObject } from "../../models/geodatamodel";
 import { useLayerStore } from "../../stores/layerStore";
 import Logger from "../../utils/logger";
+import {
+  getLayerFeatureUrl,
+  supportsOgcVectorTiles,
+} from "../../utils/ogcVectorTiles";
 
 function parseBoundingBoxWKT(wkt: string): L.LatLngBounds | null {
   if (!wkt) return null;
@@ -105,11 +109,15 @@ export function ZoomToSelected() {
     } else if (
       layer.layer_type?.toUpperCase() === "WFS" ||
       layer.layer_type?.toUpperCase() === "UPLOADED" ||
-      layer.data_link.toLowerCase().includes("json")
+      layer.layer_type?.toUpperCase() === "GEOJSON" ||
+      layer.data_type?.toUpperCase() === "GEOJSON" ||
+      getLayerFeatureUrl(layer).toLowerCase().includes("json") ||
+      supportsOgcVectorTiles(layer) ||
+      /\/processes\/[^/]+\/jobs\/[^/]+\/results(?:[/?#]|$)/i.test(layer.data_link)
     ) {
       // For GeoJSON layers, fetch the data to get the bounds
       Logger.log("Attempting to fetch GeoJSON data to get bounds");
-      fetch(layer.data_link)
+      fetch(getLayerFeatureUrl(layer))
         .then((res) => res.json())
         .then((data) => {
           try {

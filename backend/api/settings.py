@@ -25,6 +25,27 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 
 logger = logging.getLogger(__name__)
 
+OGCAPI_VISIBLE_TOOL_OPTIONS: Dict[str, Dict[str, Any]] = {
+    "filter_geodata": {
+        "display_name": "OGC API Filter Geodata",
+        "category": "ogcapi",
+        "enabled": True,
+        "default_prompt": (
+            "Filter a collection from a configured OGC API server and return a reusable "
+            "reference or preview."
+        ),
+    },
+    "process_geodata": {
+        "display_name": "OGC API Process Geodata",
+        "category": "ogcapi",
+        "enabled": True,
+        "default_prompt": (
+            "Execute a process on a configured OGC API server using explicit inputs and/or "
+            "filtered references."
+        ),
+    },
+}
+
 
 def validate_session_id(session_id: str) -> bool:
     """Validate that session_id is safe to use in cookies.
@@ -133,6 +154,12 @@ class ExampleMCPServer(BaseModel):
     description: str
 
 
+class ExampleOGCAPIServer(BaseModel):
+    url: str
+    name: str
+    description: str
+
+
 class ColorScale(BaseModel):
     """Represents a color scale with 11 shades (50-950)"""
 
@@ -170,12 +197,14 @@ class SettingsOptions(BaseModel):
     tool_options: Dict[str, ToolOption]  # per-tool settings
     example_geoserver_backends: List[ExampleGeoServer]
     example_mcp_servers: List[ExampleMCPServer]  # example MCP servers
+    example_ogcapi_servers: List[ExampleOGCAPIServer]  # example OGC API servers
     model_options: Dict[str, List[ModelOption]]  # per-provider model list
     session_id: str
     color_settings: ColorSettings  # default color settings
     # Custom deployment config fields
     preconfigured_geoserver_backends: List[ExampleGeoServer] = []  # From deployment config
     preconfigured_mcp_servers: List[ExampleMCPServer] = []  # From deployment config
+    preconfigured_ogcapi_servers: List[ExampleOGCAPIServer] = []  # From deployment config
     deployment_config_name: Optional[str] = None  # Name of active deployment config
 
 
@@ -192,6 +221,24 @@ class GeoServerPreloadResponse(BaseModel):
     total_layers: int
     service_status: Dict[str, bool]
     service_counts: Dict[str, int]
+
+
+def _env_preconfigured_ogcapi_server() -> Optional[ExampleOGCAPIServer]:
+    """Create a preconfigured OGC API server entry from env vars when enabled."""
+    if not core_config.USE_OGCAPI_STORAGE:
+        return None
+
+    fallback_url = (core_config.OGCAPI_PUBLIC_BASE_URL or core_config.OGCAPI_BASE_URL or "").rstrip(
+        "/"
+    )
+    if not fallback_url:
+        return None
+
+    return ExampleOGCAPIServer(
+        url=fallback_url,
+        name="Default OGC API (Environment)",
+        description="Auto-configured from OGCAPI_PUBLIC_BASE_URL/OGCAPI_BASE_URL.",
+    )
 
 
 @router.get("/options", response_model=SettingsOptions)
@@ -219,6 +266,19 @@ async def get_settings_options(request: Request, response: Response):
             group=metadata.get("group"),
             display_name=metadata.get("display_name", available_tool_name),
             category=metadata.get("category", "other"),
+        )
+
+    # Add OGC API execution tools to UI settings so users can enable/disable them.
+    # The context bootstrap tool (`prepare_geospatial_context`) intentionally stays
+    # hidden and is managed internally in agent construction.
+    for tool_name, tool_meta in OGCAPI_VISIBLE_TOOL_OPTIONS.items():
+        tool_options[tool_name] = ToolOption(
+            default_prompt=tool_meta["default_prompt"],
+            settings={},
+            enabled=bool(tool_meta.get("enabled", True)),
+            group=None,
+            display_name=tool_meta.get("display_name", tool_name),
+            category=tool_meta.get("category", "ogcapi"),
         )
 
     # Default example GeoServer backends (always available as suggestions)
@@ -275,6 +335,9 @@ async def get_settings_options(request: Request, response: Response):
     # Example MCP servers - empty by default
     example_mcp_servers: List[ExampleMCPServer] = []
 
+    # Example OGC API servers - empty by default
+    example_ogcapi_servers: List[ExampleOGCAPIServer] = []
+
     # Pre-configured MCP servers from deployment config
     preconfigured_mcp_servers: List[ExampleMCPServer] = []
     if deployment_config and deployment_config.mcp_servers:
@@ -286,6 +349,25 @@ async def get_settings_options(request: Request, response: Response):
                     description=server.description or "Pre-configured MCP server",
                 )
             )
+
+    # Pre-configured OGC API servers from deployment config (optional forward-compatible field)
+    preconfigured_ogcapi_servers: List[ExampleOGCAPIServer] = []
+    for server in getattr(deployment_config, "ogcapi_servers", []) or []:
+        if isinstance(server, dict):
+            preconfigured_ogcapi_servers.append(
+                ExampleOGCAPIServer(
+                    url=server.get("url", ""),
+                    name=server.get("name") or "Configured OGC API Server",
+                    description=server.get("description") or "Pre-configured OGC API server",
+                )
+            )
+
+    env_ogc_server = _env_preconfigured_ogcapi_server()
+    if env_ogc_server and not any(
+        existing.url.rstrip("/") == env_ogc_server.url.rstrip("/")
+        for existing in preconfigured_ogcapi_servers
+    ):
+        preconfigured_ogcapi_servers.append(env_ogc_server)
 
     # Dynamically discover available LLM providers and models
     from services.ai.provider_interface import get_all_providers
@@ -548,11 +630,13 @@ async def get_settings_options(request: Request, response: Response):
         tool_options=tool_options,
         example_geoserver_backends=example_geoserver_backends,
         example_mcp_servers=example_mcp_servers,
+        example_ogcapi_servers=example_ogcapi_servers,
         model_options=model_options,
         session_id=session_id,
         color_settings=final_color_settings,
         preconfigured_geoserver_backends=preconfigured_geoserver_backends,
         preconfigured_mcp_servers=preconfigured_mcp_servers,
+        preconfigured_ogcapi_servers=preconfigured_ogcapi_servers,
         deployment_config_name=deployment_config_name,
     )
 

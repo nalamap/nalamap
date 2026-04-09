@@ -8,6 +8,7 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 
 from models.settings_model import ModelSettings, ToolConfig
+from core import config as core_config
 from models.states import GeoDataAgentState, get_minimal_debug_state
 from services.ai.llm_config import get_llm
 from services.conversation_manager import ConversationManager
@@ -23,6 +24,7 @@ from services.tools.geocoding import (
 )
 from services.tools.geoprocess_tools import geoprocess_tool
 from services.tools.geostate_management import describe_geodata_object, metadata_search
+from services.tools.ogcapi_tools import build_ogcapi_tools
 from services.tools.styling_tools import (
     apply_intelligent_color_scheme,
     auto_style_new_layers,
@@ -57,6 +59,28 @@ tools: List[BaseTool] = [
     attribute_tool,
     attribute_tool2,  # Simplified attribute tool for better agent usability
 ]
+
+
+def _fallback_ogcapi_servers_from_env(force: bool = False):
+    if not core_config.USE_OGCAPI_STORAGE and not force:
+        return []
+    fallback_url = (core_config.OGCAPI_PUBLIC_BASE_URL or core_config.OGCAPI_BASE_URL or "").rstrip(
+        "/"
+    )
+    if not fallback_url:
+        return []
+
+    # Lightweight runtime config object that matches OGCAPIServer attributes used downstream.
+    class EnvOGCServer:
+        def __init__(self, url: str):
+            self.url = url
+            self.name = "Default OGC API (Environment)"
+            self.description = "Auto-configured from OGCAPI_PUBLIC_BASE_URL/OGCAPI_BASE_URL."
+            self.enabled = True
+            self.api_key = None
+            self.headers = None
+
+    return [EnvOGCServer(fallback_url)]
 
 
 def prune_messages(
@@ -254,6 +278,7 @@ async def create_geo_agent(
     query: Optional[str] = None,
     session_id: Optional[str] = None,
     mcp_servers: Optional[List] = None,  # List of MCPServer objects
+    ogcapi_servers: Optional[List] = None,  # List of OGCAPIServer objects
     system_prompt_addendum: Optional[str] = None,
 ) -> Tuple[CompiledStateGraph, Any]:
     """Create a geo agent with specified model and tools.
@@ -268,6 +293,7 @@ async def create_geo_agent(
             (used for conversation summarization)
         mcp_servers: List of MCPServer objects to load external tools from
             (optional, supports authentication via api_key and headers fields)
+        ogcapi_servers: List of OGC API server configs to enable OGC API tools
         system_prompt_addendum: Optional text to append to the system prompt
             (used by the planner to inject execution plan instructions)
 
@@ -289,6 +315,10 @@ async def create_geo_agent(
 
         MCP server integration allows loading external tools from Model Context Protocol
         servers, enabling NaLaMap to use third-party tools seamlessly.
+
+        OGC API server integration injects OGC tools. `prepare_geospatial_context`
+        remains internal, while `filter_geodata` and `process_geodata` can be
+        toggled by user tool settings.
     """
 
     # Use model_settings if provided, otherwise use env defaults
@@ -372,25 +402,87 @@ async def create_geo_agent(
         logger.info(f"[AGENT] tools_active={sorted(t.name for t in tools)}")
 
     # Load external MCP tools if configured
-    if mcp_servers:
+    # if mcp_servers:
+    #    try:
+    #        from services.mcp.integration import load_mcp_tools
+    #
+    #        for mcp_server in mcp_servers:
+    #            try:
+    #                server_url = mcp_server.url
+    #                api_key = getattr(mcp_server, "api_key", None)
+    #                headers = getattr(mcp_server, "headers", None)
+    #
+    #                logger.info(f"Loading tools from MCP server: {server_url}")
+    #                mcp_tools = await load_mcp_tools(server_url, api_key=api_key, headers=headers)
+    #                tools.extend(mcp_tools)
+    #                logger.info(f"Loaded {len(mcp_tools)} tools from MCP server: {server_url}")
+    #            except Exception as e:
+    #                logger.error(f"Failed to load tools from MCP server {mcp_server.url}: {e}")
+    #                # Continue with other servers even if one fails
+    #    except Exception as e:
+    #        logger.error(f"Failed to import MCP integration: {e}")
+
+    selected_map = {cfg.name: cfg.enabled for cfg in (selected_tools or [])}
+    ogc_filter_enabled = selected_map.get("filter_geodata", True)
+    ogc_process_enabled = selected_map.get("process_geodata", True)
+    ogc_prepare_enabled = ogc_filter_enabled or ogc_process_enabled
+
+    runtime_ogcapi_servers = ogcapi_servers
+    should_try_env_fallback = runtime_ogcapi_servers is None or (
+        isinstance(runtime_ogcapi_servers, list)
+        and len(runtime_ogcapi_servers) == 0
+        and ogc_prepare_enabled
+    )
+    if should_try_env_fallback:
+        runtime_ogcapi_servers = _fallback_ogcapi_servers_from_env(force=ogc_prepare_enabled)
+        if runtime_ogcapi_servers:
+            logger.info(
+                "Using fallback OGC API server in agent creation: %s", runtime_ogcapi_servers[0].url
+            )
+
+    # Inject OGC API tools when OGC API servers are configured.
+    # The internal context-preparation tool remains hidden from UI and is only
+    # loaded if at least one visible OGC execution tool is enabled.
+    if runtime_ogcapi_servers:
         try:
-            from services.mcp.integration import load_mcp_tools
-
-            for mcp_server in mcp_servers:
-                try:
-                    server_url = mcp_server.url
-                    api_key = getattr(mcp_server, "api_key", None)
-                    headers = getattr(mcp_server, "headers", None)
-
-                    logger.info(f"Loading tools from MCP server: {server_url}")
-                    mcp_tools = await load_mcp_tools(server_url, api_key=api_key, headers=headers)
-                    tools.extend(mcp_tools)
-                    logger.info(f"Loaded {len(mcp_tools)} tools from MCP server: {server_url}")
-                except Exception as e:
-                    logger.error(f"Failed to load tools from MCP server {mcp_server.url}: {e}")
-                    # Continue with other servers even if one fails
+            ogc_tools = build_ogcapi_tools(
+                ogcapi_servers=runtime_ogcapi_servers,
+                default_session_id=session_id,
+                include_prepare=ogc_prepare_enabled,
+                include_filter=ogc_filter_enabled,
+                include_process=ogc_process_enabled,
+            )
+            tools.extend(ogc_tools)
+            if ogc_process_enabled:
+                # Prefer OGC server-side geoprocessing over the legacy local geoprocess tool
+                # to avoid ambiguous tool planning when both are available.
+                before = len(tools)
+                tools = [tool for tool in tools if getattr(tool, "name", "") != "geoprocess_tool"]
+                removed = before - len(tools)
+                if removed > 0:
+                    logger.info(
+                        "Removed legacy geoprocess_tool because OGC process_geodata is enabled"
+                    )
+            logger.info(
+                "Loaded %s OGC API tools (prepare=%s, filter=%s, process=%s)",
+                len(ogc_tools),
+                ogc_prepare_enabled,
+                ogc_filter_enabled,
+                ogc_process_enabled,
+            )
         except Exception as e:
-            logger.error(f"Failed to import MCP integration: {e}")
+            logger.error(f"Failed to load OGC API tools: {e}")
+    else:
+        logger.info(
+            "No active OGC API servers configured; OGC API tools not loaded "
+            "(USE_OGCAPI_STORAGE=%s, OGCAPI_PUBLIC_BASE_URL=%s, OGCAPI_BASE_URL=%s, "
+            "ogc_filter_enabled=%s, ogc_process_enabled=%s)",
+            core_config.USE_OGCAPI_STORAGE,
+            bool(core_config.OGCAPI_PUBLIC_BASE_URL),
+            bool(core_config.OGCAPI_BASE_URL),
+            ogc_filter_enabled,
+            ogc_process_enabled,
+        )
 
     # Enable langgraph debug logging when global log level is DEBUG
     debug_enabled = logger.isEnabledFor(logging.DEBUG)
@@ -419,11 +511,15 @@ async def create_geo_agent(
         system_prompt = system_prompt + system_prompt_addendum
         logger.info("Appended execution plan to system prompt")
 
+    tool_names = [getattr(tool, "name", str(tool)) for tool in tools]
+    logger.info("Agent runtime tools (%s): %s", len(tool_names), tool_names)
+    bound_model = llm.bind_tools(tools, parallel_tool_calls=parallel_tool_calls)
+
     agent = create_react_agent(
         name="GeoAgent",
         state_schema=GeoDataAgentState,
         tools=tools,
-        model=llm.bind_tools(tools, parallel_tool_calls=parallel_tool_calls),
+        model=bound_model,
         prompt=system_prompt,
         debug=debug_enabled,
         # config_schema=GeoData,
