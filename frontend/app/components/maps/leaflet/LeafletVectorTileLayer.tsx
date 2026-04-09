@@ -39,6 +39,9 @@ type LeafletWithVectorGrid = typeof L & {
   };
 };
 
+const VECTOR_TILE_PANE = "ogcVectorTilePane";
+const VECTOR_TILE_PANE_Z_INDEX = 350;
+
 function toVectorTileStyle(layerStyle?: LayerStyle) {
   return {
     color: layerStyle?.stroke_color || "#3388ff",
@@ -115,6 +118,12 @@ export function LeafletVectorTileLayer({
       const vectorGridLeaflet = L as LeafletWithVectorGrid;
       const createVectorGrid = vectorGridLeaflet.vectorGrid?.protobuf;
       const rendererFactory = vectorGridLeaflet.canvas?.tile;
+      let vectorTilePane = map.getPane(VECTOR_TILE_PANE);
+
+      if (!vectorTilePane) {
+        vectorTilePane = map.createPane(VECTOR_TILE_PANE);
+      }
+      vectorTilePane.style.zIndex = String(VECTOR_TILE_PANE_Z_INDEX);
 
       if (!createVectorGrid || !rendererFactory) {
         throw new Error(
@@ -124,7 +133,7 @@ export function LeafletVectorTileLayer({
 
       const vectorTileStyle = toVectorTileStyle(layerStyle);
       layer = createVectorGrid(urlTemplate, {
-        pane: "overlayPane",
+        pane: VECTOR_TILE_PANE,
         updateWhenIdle: false,
         updateWhenZooming: true,
         keepBuffer: 2,

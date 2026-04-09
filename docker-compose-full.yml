@@ -40,30 +40,12 @@ services:
       - OGCAPI_BASE_URL=${OGCAPI_BASE_URL:-http://ogcapi:8000/v1}
       - OGCAPI_PUBLIC_BASE_URL=${OGCAPI_PUBLIC_BASE_URL:-http://localhost:8081/v1}
       - OGCAPI_TIMEOUT_SECONDS=${OGCAPI_TIMEOUT_SECONDS:-30}
-      - OGCAPI_UPLOAD_TIMEOUT_SECONDS=${OGCAPI_UPLOAD_TIMEOUT_SECONDS:-600}
       - ALLOWED_CORS_ORIGINS=${ALLOWED_CORS_ORIGINS:-http://localhost:3000,http://frontend:3000,http://localhost}
       - COOKIE_SECURE=false
       - COOKIE_HTTPONLY=true
       - COOKIE_SAMESITE=lax
       - BASE_URL=${BASE_URL:-http://localhost:8000}
       - FRONTEND_BASE_URL=${FRONTEND_BASE_URL:-http://localhost:3000}
-      - PYTHONPATH=/workspace/backend
-    working_dir: /workspace/backend
-    command:
-      [
-        "/app/.venv/bin/uvicorn",
-        "main:app",
-        "--reload",
-        "--host",
-        "0.0.0.0",
-        "--port",
-        "8000",
-        "--reload-dir",
-        "/workspace/backend",
-      ]
-    volumes:
-      - ./backend:/workspace/backend
-      - ./uploads:/workspace/backend/uploads
     ports:
       - "8000:8000"
     depends_on:
@@ -75,7 +57,7 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
     environment:
       - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000/api}
       - NEXT_PUBLIC_API_UPLOAD_URL=${NEXT_PUBLIC_API_UPLOAD_URL:-http://localhost:8000/api/upload}
@@ -84,8 +66,6 @@ services:
       - BACKEND_PROTOCOL=http
       - BACKEND_URL=backend:8000
     volumes:
-      - ./frontend:/app
-      - frontend-node_modules:/app/node_modules
       - runtime-env-data:/app/runtime-env
     ports:
       - "3000:3000"
@@ -123,8 +103,6 @@ services:
       dockerfile: Dockerfile
     environment:
       - DB_DSN=${OGCAPI_DB_DSN:-postgresql://postgres:postgres@ogcapi-postgis:5432/nalamap}
-      - DB_COMMAND_TIMEOUT=${OGCAPI_DB_COMMAND_TIMEOUT:-120}
-      - DB_PROCESS_TIMEOUT=${OGCAPI_DB_PROCESS_TIMEOUT:-600}
       - PUBLIC_BASE_URL=${OGCAPI_PUBLIC_URL:-http://localhost:8081}
       - API_PREFIX=/v1
       - UPLOADS_DIR=/data/uploads
@@ -135,22 +113,7 @@ services:
       - S3_BUCKET=${S3_BUCKET:-cogs}
       - S3_PUBLIC_URL=${S3_PUBLIC_URL:-http://localhost:9000/cogs}
       - REDIS_URL=${OGCAPI_REDIS_URL:-redis://ogcapi-redis:6379/0}
-      - PYTHONPATH=/workspace/ogcapi
-    working_dir: /workspace/ogcapi
-    command:
-      [
-        "uvicorn",
-        "app.main:app",
-        "--reload",
-        "--host",
-        "0.0.0.0",
-        "--port",
-        "8000",
-        "--reload-dir",
-        "/workspace/ogcapi/app",
-      ]
     volumes:
-      - ../nala-ogcapi-server:/workspace/ogcapi
       - ogcapi-data:/data
     ports:
       - "8081:8000"
@@ -210,7 +173,6 @@ services:
 
 volumes:
   postgres-data:
-  frontend-node_modules:
   runtime-env-data:
   ogcapi-postgis-data:
   ogcapi-data:

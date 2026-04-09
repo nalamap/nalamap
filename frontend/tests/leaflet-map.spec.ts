@@ -457,7 +457,7 @@ test.describe("LeafletMapClient - OGC Services Tests", () => {
     expect(itemsRequestCount).toBe(0);
 
     const overlayCanvases = await page
-      .locator(".leaflet-overlay-pane canvas")
+      .locator(".leaflet-container canvas")
       .count();
     expect(overlayCanvases).toBeGreaterThan(0);
   });
@@ -505,6 +505,67 @@ test.describe("LeafletMapClient - OGC Services Tests", () => {
     await expect(popup).toBeVisible({ timeout: 5000 });
     await expect(page.locator(".leaflet-popup-content")).toContainText("Test Point");
     await expect(page.locator(".leaflet-popup-content")).toContainText("name");
+  });
+
+  test("should keep GeoJSON process results clickable when vector tiles are visible", async ({
+    page,
+  }) => {
+    await page.route("**/v1/processes/buffer/jobs/test-job/results", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          type: "Feature",
+          properties: {
+            name: "Process Result Feature",
+            source: "process-result",
+          },
+          geometry: {
+            type: "Point",
+            coordinates: [10, 50],
+          },
+        }),
+      });
+    });
+
+    await page.route("**/collections/test_collection/tiles/**", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/vnd.mapbox-vector-tile",
+        body: Buffer.from(SIMPLE_VECTOR_TILE_BASE64, "base64"),
+      });
+    });
+
+    await addLayerViaStore(page, ogcVectorTileLayerMetadata);
+    await addLayerViaStore(page, {
+      id: "process-result-layer-1",
+      name: "Process Result",
+      title: "Process Result",
+      layer_type: "GEOJSON",
+      data_link: "http://localhost:8000/v1/processes/buffer/jobs/test-job/results",
+      visible: true,
+      data_source_id: "manual",
+    });
+
+    await page.waitForTimeout(2500);
+
+    await expect(page.locator(".leaflet-overlay-pane circle")).toHaveCount(1);
+    await expect(page.locator(".leaflet-container canvas")).toHaveCount(1);
+
+    const map = page.locator(".leaflet-container");
+    await expect(map).toBeVisible();
+
+    const box = await map.boundingBox();
+    expect(box).not.toBeNull();
+    if (!box) {
+      throw new Error("Leaflet map container did not expose a bounding box");
+    }
+
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+
+    const popupContent = page.locator(".leaflet-popup-content");
+    await expect(popupContent).toContainText("Process Result Feature");
+    await expect(popupContent).not.toContainText("Test Point");
   });
 
   test("should show vector rendering selector for saved OGC items layers", async ({ page }) => {
@@ -610,7 +671,7 @@ test.describe("LeafletMapClient - OGC Services Tests", () => {
     expect(tileRequestCount).toBeGreaterThan(0);
 
     const overlayCanvases = await page
-      .locator(".leaflet-overlay-pane canvas")
+      .locator(".leaflet-container canvas")
       .count();
     expect(overlayCanvases).toBeGreaterThan(0);
   });
@@ -837,7 +898,7 @@ test.describe("LeafletMapClient - OGC Services Tests", () => {
     expect(cachedFeatureCount === null || cachedFeatureCount <= 2000).toBe(true);
 
     const overlayCanvases = await page
-      .locator(".leaflet-overlay-pane canvas")
+      .locator(".leaflet-container canvas")
       .count();
     expect(overlayCanvases).toBeGreaterThan(0);
   });

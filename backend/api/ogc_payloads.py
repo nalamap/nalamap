@@ -119,3 +119,23 @@ def inject_ogc_vector_tile_threshold(layer_data: dict[str, Any]) -> dict[str, An
             },
         },
     }
+
+
+def normalize_ogc_geodata_payload(item: Any) -> Any:
+    if hasattr(item, "model_dump"):
+        layer_data = item.model_dump()
+    elif isinstance(item, dict):
+        layer_data = dict(item)
+    else:
+        return item
+
+    if "data_link" not in layer_data:
+        return layer_data
+
+    return inject_ogc_vector_tile_threshold(layer_data)
+
+
+def normalize_ogc_geodata_payloads(items: list[Any] | None) -> list[Any]:
+    if not items:
+        return []
+    return [normalize_ogc_geodata_payload(item) for item in items]

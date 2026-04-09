@@ -4,10 +4,14 @@ from typing import Optional
 
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-# Load .env.local first (for local development), then .env (fallback)
-load_dotenv(".env.local", override=True)  # Local development overrides
-load_dotenv()  # Load .env if exists (won't override existing vars)
+# Load dotenv files as fallbacks only.
+# Real environment variables from Docker/Compose/shell must win.
+# Order matters:
+# 1. existing process env
+# 2. .env.local
+# 3. .env
+load_dotenv(".env.local", override=False)
+load_dotenv(override=False)
 # General config in a central place
 
 
@@ -31,6 +35,14 @@ OGCAPI_BASE_URL = os.getenv("OGCAPI_BASE_URL", "").rstrip("/")
 # Public/browser-facing OGC API base URL. If unset, fall back to OGCAPI_BASE_URL.
 OGCAPI_PUBLIC_BASE_URL = os.getenv("OGCAPI_PUBLIC_BASE_URL", OGCAPI_BASE_URL).rstrip("/")
 OGCAPI_TIMEOUT_SECONDS = float(os.getenv("OGCAPI_TIMEOUT_SECONDS", "60"))
+DEFAULT_OGCAPI_UPLOAD_TIMEOUT_SECONDS = 600.0
+OGCAPI_UPLOAD_TIMEOUT_SECONDS = float(
+    os.getenv(
+        "OGCAPI_UPLOAD_TIMEOUT_SECONDS",
+        str(max(OGCAPI_TIMEOUT_SECONDS, DEFAULT_OGCAPI_UPLOAD_TIMEOUT_SECONDS)),
+    )
+)
+OGCAPI_CONNECT_TIMEOUT_SECONDS = float(os.getenv("OGCAPI_CONNECT_TIMEOUT_SECONDS", "10"))
 OGCAPI_VECTOR_TILE_FEATURE_THRESHOLD = int(
     os.getenv("OGCAPI_VECTOR_TILE_FEATURE_THRESHOLD", "2000")
 )
@@ -72,6 +84,20 @@ def max_file_size_exceeded_detail(actual_size: int | None = None) -> str:
     if actual_size is None:
         return f"File size exceeds the limit of {limit}."
     return f"File size ({format_file_size(actual_size)}) exceeds the limit of {limit}."
+
+
+def ogcapi_request_timeout() -> tuple[float, float]:
+    return (
+        max(1.0, OGCAPI_CONNECT_TIMEOUT_SECONDS),
+        max(1.0, OGCAPI_TIMEOUT_SECONDS),
+    )
+
+
+def ogcapi_upload_timeout() -> tuple[float, float]:
+    return (
+        max(1.0, OGCAPI_CONNECT_TIMEOUT_SECONDS),
+        max(1.0, OGCAPI_UPLOAD_TIMEOUT_SECONDS),
+    )
 
 
 # Database

@@ -27,6 +27,15 @@ logger = logging.getLogger(__name__)
 
 SAFE_SEGMENT = re.compile(r"^[A-Za-z0-9._-]+$")
 SAFE_COLLECTION_ID = re.compile(r"^[A-Za-z0-9._-]+$")
+GEOJSON_GEOMETRY_TYPES = {
+    "Point",
+    "MultiPoint",
+    "LineString",
+    "MultiLineString",
+    "Polygon",
+    "MultiPolygon",
+    "GeometryCollection",
+}
 
 
 def _resolve_upload_path(file_id: str) -> str:
@@ -170,14 +179,46 @@ def _normalize_geojson_feature_properties_for_ogc(stream: Any) -> Tuple[Any, boo
     except Exception:
         return io.BytesIO(raw_bytes), False
 
-    if not isinstance(payload, dict) or payload.get("type") != "FeatureCollection":
+    if not isinstance(payload, dict):
         return io.BytesIO(raw_bytes), False
 
-    features = payload.get("features")
+    payload_type = payload.get("type")
+    feature_collection: Dict[str, Any] | None = None
+    changed = False
+
+    if payload_type == "FeatureCollection":
+        features = payload.get("features")
+        if not isinstance(features, list):
+            return io.BytesIO(raw_bytes), False
+        feature_collection = payload
+    elif payload_type == "Feature" and isinstance(payload.get("geometry"), dict):
+        feature_collection = {
+            "type": "FeatureCollection",
+            "features": [payload],
+        }
+        features = feature_collection["features"]
+        changed = True
+    elif payload_type in GEOJSON_GEOMETRY_TYPES:
+        feature_collection = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": payload,
+                    "properties": payload.get("properties")
+                    if isinstance(payload.get("properties"), dict)
+                    else {},
+                }
+            ],
+        }
+        features = feature_collection["features"]
+        changed = True
+    else:
+        return io.BytesIO(raw_bytes), False
+
     if not isinstance(features, list):
         return io.BytesIO(raw_bytes), False
 
-    changed = False
     for feature in features:
         if not isinstance(feature, dict):
             continue
@@ -193,14 +234,16 @@ def _normalize_geojson_feature_properties_for_ogc(stream: Any) -> Tuple[Any, boo
         return io.BytesIO(raw_bytes), False
 
     normalized_bytes = json.dumps(
-        payload,
+        feature_collection,
         ensure_ascii=False,
         separators=(",", ":"),
     ).encode("utf-8")
     return io.BytesIO(normalized_bytes), True
 
 
-def _register_geojson_collection(file: UploadFile, filename: str) -> Dict[str, Any] | None:
+def _register_geojson_collection(
+    file: UploadFile, filename: str, *, require_success: bool = False
+) -> Dict[str, Any] | None:
     runtime_base_url = _runtime_ogcapi_base_url()
     if not (runtime_base_url and _is_geojson_filename(filename)):
         return None
@@ -221,7 +264,7 @@ def _register_geojson_collection(file: UploadFile, filename: str) -> Dict[str, A
                 "new_collection_title": collection_title,
             },
             files={"file": (filename, upload_stream, "application/geo+json")},
-            timeout=core_config.OGCAPI_TIMEOUT_SECONDS,
+            timeout=core_config.ogcapi_upload_timeout(),
         )
         if normalized:
             logger.info(
@@ -231,6 +274,11 @@ def _register_geojson_collection(file: UploadFile, filename: str) -> Dict[str, A
             )
     except Exception as exc:
         logger.warning("OGC collection registration failed for %s: %s", filename, exc)
+        if require_success:
+            raise HTTPException(
+                status_code=502,
+                detail=f"OGC collection registration failed for {filename}: {exc}",
+            ) from exc
         return None
     finally:
         try:
@@ -239,25 +287,41 @@ def _register_geojson_collection(file: UploadFile, filename: str) -> Dict[str, A
             pass
 
     if response.status_code >= 400:
-        logger.warning(
-            "OGC collection registration rejected for %s: %s %s",
-            filename,
-            response.status_code,
-            response.text,
+        detail = (
+            f"OGC collection registration rejected for {filename}: "
+            f"{response.status_code} {response.text}"
         )
+        logger.warning(detail)
+        if require_success:
+            raise HTTPException(status_code=502, detail=detail)
         return None
 
     try:
         payload = response.json()
     except ValueError:
         logger.warning("OGC collection registration returned invalid JSON for %s", filename)
+        if require_success:
+            raise HTTPException(
+                status_code=502,
+                detail=f"OGC collection registration returned invalid JSON for {filename}",
+            )
         return None
 
     if not isinstance(payload, dict):
+        if require_success:
+            raise HTTPException(
+                status_code=502,
+                detail=f"OGC collection registration returned an invalid payload for {filename}",
+            )
         return None
 
     value = payload.get("collection_id")
     if not isinstance(value, str) or not value.strip():
+        if require_success:
+            raise HTTPException(
+                status_code=502,
+                detail=f"OGC collection registration did not return a collection_id for {filename}",
+            )
         return None
 
     inserted_raw = payload.get("inserted")
@@ -277,31 +341,67 @@ def _register_geojson_collection(file: UploadFile, filename: str) -> Dict[str, A
     }
 
 
-def _collection_base_url(file_url: str) -> str:
-    public_file_url = _rewrite_ogcapi_url_to_public(file_url)
-    parsed = urlparse(public_file_url)
-    marker = "/uploads/files/"
-    marker_index = (parsed.path or "").find(marker)
-    if marker_index >= 0:
-        base_path = (parsed.path or "")[:marker_index] or "/"
-        base = parsed._replace(path=base_path, params="", query="", fragment="")
-        return urlunparse(base).rstrip("/")
+def _stream_sha256_and_size(stream: Any) -> Tuple[str, int]:
+    try:
+        stream.seek(0)
+    except Exception:
+        pass
+
+    sha256 = hashlib.sha256()
+    size = 0
+    chunk_size = 1024 * 1024
+
+    try:
+        while True:
+            chunk = stream.read(chunk_size)
+            if not chunk:
+                break
+            size += len(chunk)
+            if size > core_config.MAX_FILE_SIZE:
+                raise HTTPException(
+                    status_code=413,
+                    detail=core_config.max_file_size_exceeded_detail(size),
+                )
+            sha256.update(chunk)
+    finally:
+        try:
+            stream.seek(0)
+        except Exception:
+            pass
+
+    return sha256.hexdigest(), size
+
+
+def _collection_base_url(file_url: Optional[str] = None) -> str:
+    if isinstance(file_url, str) and file_url.strip():
+        public_file_url = _rewrite_ogcapi_url_to_public(file_url)
+        parsed = urlparse(public_file_url)
+        marker = "/uploads/files/"
+        marker_index = (parsed.path or "").find(marker)
+        if marker_index >= 0:
+            base_path = (parsed.path or "")[:marker_index] or "/"
+            base = parsed._replace(path=base_path, params="", query="", fragment="")
+            return urlunparse(base).rstrip("/")
+
+    public_base_url = _public_ogcapi_base_url()
+    if public_base_url:
+        return public_base_url
 
     runtime_base_url = _runtime_ogcapi_base_url()
     return _rewrite_ogcapi_url_to_public(runtime_base_url)
 
 
-def _collection_items_url(file_url: str, collection_id: str) -> str:
+def _collection_items_url(file_url: Optional[str], collection_id: str) -> str:
     base_url = _collection_base_url(file_url)
     return f"{base_url}/collections/{quote(collection_id, safe='')}/items"
 
 
-def _collection_tiles_url(file_url: str, collection_id: str) -> str:
+def _collection_tiles_url(file_url: Optional[str], collection_id: str) -> str:
     base_url = _collection_base_url(file_url)
     return f"{base_url}/collections/{quote(collection_id, safe='')}/tiles/" "{z}/{x}/{y}.mvt"
 
 
-def _collection_tiles_metadata_url(file_url: str, collection_id: str) -> str:
+def _collection_tiles_metadata_url(file_url: Optional[str], collection_id: str) -> str:
     base_url = _collection_base_url(file_url)
     return f"{base_url}/collections/{quote(collection_id, safe='')}/tiles"
 
@@ -376,6 +476,46 @@ async def upload_file(file: UploadFile = File(...)) -> Dict[str, Any]:
         # Stream to storage without loading into memory
         # UploadFile.file is a SpooledTemporaryFile (BinaryIO)
         safe_name = file.filename or "upload.bin"
+        if (
+            core_config.USE_OGCAPI_STORAGE
+            and core_config.OGCAPI_BASE_URL
+            and _is_geojson_filename(safe_name)
+        ):
+            sha256, size = _stream_sha256_and_size(file.file)
+            registration = _register_geojson_collection(
+                file,
+                safe_name,
+                require_success=True,
+            )
+            collection_id = registration["collection_id"]
+            items_url = _collection_items_url(None, collection_id)
+            tiles_url = _collection_tiles_url(None, collection_id)
+            tiles_metadata_url = _collection_tiles_metadata_url(None, collection_id)
+            feature_count = registration.get("inserted")
+            if feature_count is None:
+                feature_count = _fetch_ogc_collection_feature_count(collection_id)
+
+            response: Dict[str, Any] = {
+                "url": items_url,
+                "items_url": items_url,
+                "tiles_url": tiles_url,
+                "tiles_metadata_url": tiles_metadata_url,
+                "id": collection_id,
+                "sha256": sha256,
+                "size": size,
+                "ogc_collection_id": collection_id,
+                "ogc_vector_tile_feature_threshold": (
+                    core_config.OGCAPI_VECTOR_TILE_FEATURE_THRESHOLD
+                ),
+                "ogc_render_mode": "auto",
+            }
+            if feature_count is not None:
+                response["ogc_feature_count"] = feature_count
+                response["ogc_recommended_render_mode"] = _recommended_ogc_render_mode(
+                    feature_count
+                )
+            return response
+
         stored = store_file_stream_result(safe_name, file.file)
         url = stored["url"]
         unique_name = stored["id"]
