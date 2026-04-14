@@ -6,7 +6,6 @@ import {
   EyeOff,
   Trash2,
   Search,
-  GripVertical,
   Palette,
   Download,
   Info,
@@ -22,6 +21,7 @@ import {
   getRecommendedOgcRenderMode,
   supportsOgcVectorTiles,
 } from "../../utils/ogcVectorTiles";
+import { GeoDataObject, LayerStyle } from "../../models/geodatamodel";
 import WorldBankChart, { ChartDataItem, ChartByCategory } from "../charts/WorldBankChart";
 
 // Dynamic drag handle component - simple fixed size with responsive spacing
@@ -36,7 +36,7 @@ const DragHandle: React.FC<DragHandleProps> = ({ isStylePanelOpen }) => {
   
   return (
     <div 
-      className={`flex flex-col items-center text-neutral-400 cursor-grab flex-shrink-0 px-1 ${isStylePanelOpen ? 'justify-around py-2' : 'justify-center py-1'} gap-0.5`}
+      className={`layer-drag-handle flex flex-col items-center cursor-grab flex-shrink-0 px-1 ${isStylePanelOpen ? 'justify-around py-2' : 'justify-center py-1'} gap-0.5`}
       style={{ 
         minHeight: '32px',
         alignSelf: 'stretch'
@@ -63,13 +63,13 @@ const DragHandle: React.FC<DragHandleProps> = ({ isStylePanelOpen }) => {
 // Reusable component for quick action buttons
 interface QuickActionButton {
   label: string;
-  style: any;
+  style: LayerStyle;
   className?: string;
 }
 
 interface QuickActionsProps {
   layerId: string;
-  updateLayerStyle: (layerId: string, style: any) => void;
+  updateLayerStyle: (layerId: string, style: LayerStyle) => void;
   buttons: QuickActionButton[];
 }
 
@@ -85,7 +85,7 @@ const QuickActionsButtons: React.FC<QuickActionsProps> = ({
         onClick={() => updateLayerStyle(layerId, button.style)}
         className={
           button.className ||
-          "px-2 py-1 bg-neutral-500 text-neutral-50 text-xs rounded hover:bg-neutral-600 cursor-pointer transition-colors"
+          "layer-quick-action"
         }
       >
         {button.label}
@@ -112,7 +112,7 @@ const ADVANCED_QUICK_ACTIONS: QuickActionButton[] = [
       fill_opacity: 0.1,
     },
     className:
-      "px-2 py-1 bg-corporate-1-500 text-neutral-50 text-xs rounded hover:bg-corporate-1-600 cursor-pointer transition-colors",
+      "layer-quick-action layer-quick-action-danger",
   },
   {
     label: "Subtle Blue",
@@ -124,7 +124,7 @@ const ADVANCED_QUICK_ACTIONS: QuickActionButton[] = [
       fill_opacity: 0.15,
     },
     className:
-      "px-2 py-1 bg-corporate-2-500 text-neutral-50 text-xs rounded hover:bg-corporate-2-600 cursor-pointer transition-colors",
+      "layer-quick-action layer-quick-action-accent",
   },
   {
     label: "Green Outline",
@@ -136,7 +136,7 @@ const ADVANCED_QUICK_ACTIONS: QuickActionButton[] = [
       fill_opacity: 0.0,
     },
     className:
-      "px-2 py-1 bg-corporate-2-500 text-neutral-50 text-xs rounded hover:bg-corporate-2-600 cursor-pointer transition-colors",
+      "layer-quick-action layer-quick-action-accent",
   },
   {
     label: "Highlight Points",
@@ -148,7 +148,7 @@ const ADVANCED_QUICK_ACTIONS: QuickActionButton[] = [
       fill_opacity: 0.6,
     },
     className:
-      "px-2 py-1 bg-warning-500 text-neutral-50 text-xs rounded hover:bg-warning-600 cursor-pointer transition-colors",
+      "layer-quick-action layer-quick-action-warning",
   },
 ];
 
@@ -157,18 +157,22 @@ const SECONDARY_QUICK_ACTIONS: QuickActionButton[] = [
   { label: "Bold", style: { stroke_weight: 4, stroke_opacity: 1.0 } },
 ];
 
+type LayerListLayer = GeoDataObject & {
+  format?: string;
+};
+
 interface LayerListProps {
-  layers: any[];
+  layers: LayerListLayer[];
   toggleLayerVisibility: (layerId: string) => void;
   removeLayer: (layerId: string) => void;
   reorderLayers: (fromIndex: number, toIndex: number) => void;
-  updateLayer: (layerId: string, updates: any) => void;
-  updateLayerStyle: (layerId: string, style: any) => void;
+  updateLayer: (layerId: string, updates: Partial<LayerListLayer>) => void;
+  updateLayerStyle: (layerId: string, style: LayerStyle) => void;
   setZoomTo: (layerId: string) => void;
 }
 
 // Check if a layer is from World Bank and has chart data
-function isWorldBankLayer(layer: any): boolean {
+function isWorldBankLayer(layer: LayerListLayer): boolean {
   return (
     layer.data_source_id === "worldBankIndicators" ||
     layer.data_source === "World Bank"
@@ -176,7 +180,7 @@ function isWorldBankLayer(layer: any): boolean {
 }
 
 // Extract chart data from layer properties
-function getWorldBankChartData(layer: any): {
+function getWorldBankChartData(layer: LayerListLayer): {
   chartData: ChartDataItem[];
   chartByCategory: ChartByCategory;
   country: string;
@@ -259,7 +263,7 @@ export default function LayerList({
   }, [activeMetadataId, popupPosition]);
 
   // Download layer as GeoJSON
-  const downloadLayer = async (layer: any) => {
+  const downloadLayer = async (layer: LayerListLayer) => {
     try {
       const apiBase = getApiBase();
       const featureUrl = getLayerFeatureUrl(layer);
@@ -288,7 +292,7 @@ export default function LayerList({
   };
 
   // Handle drag start for download button - enables dragging to desktop/other apps
-  const handleDownloadDragStart = async (e: React.DragEvent, layer: any) => {
+  const handleDownloadDragStart = async (e: React.DragEvent, layer: LayerListLayer) => {
     try {
       const apiBase = getApiBase();
       const featureUrl = getLayerFeatureUrl(layer);
@@ -326,13 +330,13 @@ export default function LayerList({
   }, [recentlyMovedId]);
 
   return (
-    <div className="mb-4">
-      <h3 className="font-semibold mb-2">User Layers</h3>
+    <div className="layer-list mb-4">
+      <h3 className="layer-list-title">User Layers</h3>
       {layers.length === 0 ? (
-        <p className="text-sm text-gray-500">No layers added yet.</p>
+        <p className="layer-list-empty">No layers added yet.</p>
       ) : (
         <ul
-          className={`space-y-2 text-sm ${isDragging ? "cursor-grabbing" : ""}`}
+          className={`layer-list-items space-y-2 text-sm ${isDragging ? "cursor-grabbing" : ""}`}
           onDragOver={(e) => e.preventDefault()}
           onDrop={() => {
             // Reset all drag and drop state on any drop within container
@@ -381,12 +385,12 @@ export default function LayerList({
                       className="absolute w-full h-4 -top-4 flex items-center justify-center"
                       style={{ pointerEvents: "none" }}
                     >
-                      <div className="h-1.5 bg-info-600 w-full rounded-full animate-pulse"></div>
+                      <div className="layer-card-drop-indicator h-1.5 w-full rounded-full animate-pulse"></div>
                     </div>
                   )}
 
                   <div
-                    className={`bg-neutral-50 rounded shadow transition-all ${
+                    className={`layer-card-shell transition-all ${
                       isDropTarget ? "border-2 border-info-400" : ""
                     } ${isRecentlyMoved ? "highlight-animation" : ""}`}
                     draggable
@@ -488,7 +492,7 @@ export default function LayerList({
                       <div className="flex-1 min-w-0 flex flex-col gap-2 relative">
                         {/* Title row with info icon */}
                         <div className="flex items-center gap-2 min-w-0">
-                          <div className="flex-1 min-w-0 font-bold text-neutral-800 whitespace-normal break-words">
+                          <div className="layer-card-title flex-1 min-w-0 whitespace-normal break-words">
                             {layer.title || layer.name}
                           </div>
                           <button
@@ -533,7 +537,7 @@ export default function LayerList({
                               }
                             }}
                             title="View layer metadata"
-                            className="text-neutral-500 hover:text-info-600 p-1 hover:bg-neutral-100 rounded transition-colors cursor-pointer flex-shrink-0"
+                            className="layer-card-action cursor-pointer flex-shrink-0"
                           >
                             <Info size={16} />
                           </button>
@@ -544,14 +548,14 @@ export default function LayerList({
                           <button
                             onClick={() => setZoomTo(layer.id)}
                             title="Zoom to this layer"
-                            className="text-neutral-600 hover:text-info-600 p-1 hover:bg-neutral-100 rounded transition-colors cursor-pointer"
+                            className="layer-card-action cursor-pointer"
                           >
                             <Search size={16} />
                           </button>
                           <button
                             onClick={() => toggleLayerVisibility(layer.id)}
                             title="Toggle Visibility"
-                            className="text-neutral-600 hover:text-info-600 p-1 hover:bg-neutral-100 rounded transition-colors cursor-pointer"
+                            className="layer-card-action cursor-pointer"
                           >
                             {layer.visible ? (
                               <Eye size={16} />
@@ -566,7 +570,7 @@ export default function LayerList({
                               )
                             }
                             title="Style Layer"
-                            className={`p-1 rounded transition-colors cursor-pointer ${stylePanelOpen === layer.id ? "text-info-600 bg-info-100" : "text-neutral-600 hover:text-info-600 hover:bg-neutral-100"}`}
+                            className={`layer-card-action cursor-pointer ${stylePanelOpen === layer.id ? "layer-card-action-active" : ""}`}
                           >
                             <Palette size={16} />
                           </button>
@@ -579,7 +583,7 @@ export default function LayerList({
                                 setActiveChartId(activeChartId === layer.id ? null : layer.id);
                               }}
                               title="View World Bank Indicators Chart"
-                              className={`p-1 rounded transition-colors cursor-pointer ${activeChartId === layer.id ? "text-blue-600 bg-blue-100" : "text-neutral-600 hover:text-blue-600 hover:bg-neutral-100"}`}
+                              className={`layer-card-action cursor-pointer ${activeChartId === layer.id ? "layer-card-action-active" : ""}`}
                             >
                               <BarChart3 size={16} />
                             </button>
@@ -589,14 +593,14 @@ export default function LayerList({
                             draggable="true"
                             onDragStart={(e) => handleDownloadDragStart(e, layer)}
                             title="Download as GeoJSON (click or drag to desktop)"
-                            className="text-neutral-600 hover:text-success-600 p-1 hover:bg-neutral-100 rounded transition-colors cursor-grab active:cursor-grabbing"
+                            className="layer-card-action cursor-grab active:cursor-grabbing"
                           >
                             <Download size={16} />
                           </button>
                           <button
                             onClick={() => removeLayer(layer.id)}
                             title="Remove Layer"
-                            className="text-danger-500 hover:text-danger-700 p-1 hover:bg-danger-50 rounded transition-colors cursor-pointer"
+                            className="layer-card-action layer-card-action-danger cursor-pointer"
                           >
                             <Trash2 size={16} />
                           </button>
@@ -607,7 +611,7 @@ export default function LayerList({
 
                   {/* Style Panel */}
                   {stylePanelOpen === layer.id && (
-                    <div className="mt-2 p-3 bg-neutral-50 rounded border-l-4 border-info-400">
+                    <div className="layer-style-panel mt-2">
                       <h4 className="font-semibold text-sm mb-2">
                         Style Options
                       </h4>
@@ -1051,7 +1055,7 @@ export default function LayerList({
         return (
           <div 
             ref={popupRef}
-            className="fixed bg-white dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-lg shadow-xl p-3 text-sm z-[100] min-w-[300px] max-w-[400px] overflow-y-auto"
+            className="obsidian-floating-card layer-metadata-popup fixed text-sm z-[100] min-w-[300px] max-w-[400px] overflow-y-auto"
             style={{
               top: `${popupPosition.top}px`,
               left: `${popupPosition.left}px`,
@@ -1062,7 +1066,7 @@ export default function LayerList({
             {/* Close button */}
             <button
               onClick={() => setActiveMetadataId(null)}
-              className="absolute top-2 right-2 text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200"
+              className="obsidian-icon-button absolute top-2 right-2"
               aria-label="Close metadata"
             >
               <X size={16} />
@@ -1264,21 +1268,21 @@ export default function LayerList({
 
         return (
           <div
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200]"
+            className="obsidian-modal"
             onClick={() => setActiveChartId(null)}
           >
             <div
-              className="bg-white rounded-lg shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+              className="obsidian-modal-card max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Modal Header */}
-              <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between z-10">
-                <h2 className="text-lg font-bold text-gray-900">
+              <div className="obsidian-modal-header px-4 py-3 flex items-center justify-between z-10">
+                <h2 className="obsidian-heading text-lg">
                   📊 {layer.title || layer.name}
                 </h2>
                 <button
                   onClick={() => setActiveChartId(null)}
-                  className="text-neutral-400 hover:text-neutral-600 p-1 hover:bg-neutral-100 rounded"
+                  className="obsidian-icon-button"
                   aria-label="Close chart"
                 >
                   <X size={20} />
@@ -1303,13 +1307,25 @@ export default function LayerList({
       <style jsx global>{`
         @keyframes highlight {
           0% {
-            background-color: white;
+            background-color: color-mix(
+              in srgb,
+              var(--surface-container-high) 92%,
+              transparent
+            );
           }
           30% {
-            background-color: rgba(59, 130, 246, 0.2);
+            background-color: color-mix(
+              in srgb,
+              var(--second-primary-500) 20%,
+              var(--surface-container-high) 80%
+            );
           }
           100% {
-            background-color: white;
+            background-color: color-mix(
+              in srgb,
+              var(--surface-container-high) 92%,
+              transparent
+            );
           }
         }
 

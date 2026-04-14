@@ -5,6 +5,7 @@ import { formatFileSize, isFileSizeValid } from "../../utils/fileUtils";
 import { getUploadUrl, getApiBase } from "../../utils/apiBase";
 import { sha256OfFile } from "../../utils/hashUtil";
 import Logger from "../../utils/logger";
+import { GeoDataObject, LayerStyle } from "../../models/geodatamodel";
 import { MAX_UPLOAD_SIZE_BYTES } from "../../../uploadConfig";
 
 // Funny geo and data-themed loading messages
@@ -77,8 +78,8 @@ function getRandomMessage(messages: string[]): string {
 }
 
 interface UploadSectionProps {
-  addLayer: (layer: any) => void;
-  updateLayerStyle: (layerId: string, style: any) => void;
+  addLayer: (layer: GeoDataObject) => void;
+  updateLayerStyle: (layerId: string, style: LayerStyle) => void;
 }
 
 export default function UploadSection({
@@ -141,8 +142,6 @@ export default function UploadSection({
 
     const API_UPLOAD_URL = getUploadUrl();
     const API_BASE_URL = getApiBase();
-    const newLayers: any[] = [];
-
     try {
       // Process each file sequentially
       for (let i = 0; i < files.length; i++) {
@@ -224,14 +223,14 @@ export default function UploadSection({
                 try {
                   const data = JSON.parse(xhr.responseText);
                   resolve(data);
-                } catch (error) {
+                } catch {
                   reject(new Error("Invalid JSON response"));
                 }
               } else {
                 try {
                   const errorData = JSON.parse(xhr.responseText);
                   reject(new Error(errorData.detail || "Upload failed"));
-                } catch (e) {
+                } catch {
                   reject(new Error(`Upload failed: ${xhr.statusText}`));
                 }
               }
@@ -339,7 +338,6 @@ export default function UploadSection({
 
         // Add to store
         addLayer(newLayer);
-        newLayers.push(newLayer);
 
         // Styling phase (70-100% of total progress for this file)
         const stylingPhaseProgress = (percent: number) => {
@@ -425,10 +423,11 @@ export default function UploadSection({
   };
 
   return (
-    <div className="mb-4">
-      <h3 className="font-semibold mb-2">Upload Data</h3>
+    <div className="upload-section">
+      <p className="obsidian-kicker mb-2">Ingestion</p>
+      <h3 className="mb-3">Upload Data</h3>
       <div
-        className={`border border-dashed border-primary-400 p-4 rounded bg-primary-100 text-center cursor-pointer ${isUploading ? "opacity-75" : ""}`}
+        className={`upload-section-dropzone p-4 text-center ${isUploading ? "opacity-75" : ""}`}
         onClick={() => !isUploading && fileInputRef.current?.click()}
       >
         <input
@@ -442,24 +441,24 @@ export default function UploadSection({
         />
         {isUploading ? (
           <div className="flex flex-col items-center justify-center">
-            <div className="w-full max-w-xs bg-primary-200 rounded-full h-2.5 mb-2">
+            <div className="upload-progress-track h-2.5 mb-2">
               <div
-                className="bg-info-600 h-2.5 rounded-full transition-all duration-300"
+                className="upload-progress-fill h-2.5 transition-all duration-300"
                 style={{ width: `${uploadProgress}%` }}
               ></div>
             </div>
-            <p className="text-sm text-info-600">{uploadProgress}% Complete</p>
+            <p className="obsidian-strong text-sm">{uploadProgress}% Complete</p>
             {totalFiles > 1 && (
-              <p className="text-xs text-neutral-600">
+              <p className="obsidian-status-muted text-xs">
                 File {currentFileIndex} of {totalFiles}
               </p>
             )}
             {currentFileName && (
-              <p className="text-xs text-neutral-700 dark:text-neutral-300 mt-1 truncate max-w-xs">
+              <p className="obsidian-strong text-xs mt-1 truncate max-w-xs">
                 {currentFileName}
               </p>
             )}
-            <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1 text-center italic">
+            <p className="obsidian-status-muted text-xs mt-1 text-center italic">
               {funnyMessage ||
                 (uploadProgress < 70
                   ? "Uploading..."
@@ -472,25 +471,25 @@ export default function UploadSection({
                 e.stopPropagation(); // Prevent triggering the file input click
                 cancelUpload();
               }}
-              className="mt-2 px-3 py-1 bg-danger-100 text-danger-700 text-xs rounded hover:bg-danger-200 transition-colors"
+              className="obsidian-button-danger mt-3 px-3 py-2 text-xs"
             >
               Cancel Upload
             </button>
           </div>
         ) : (
           <>
-            <p className="text-sm text-neutral-700 dark:text-neutral-300">
+            <p className="obsidian-strong text-sm">
               Drag & drop or click to upload GeoJSON files
             </p>
-            <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
+            <p className="obsidian-status-muted text-xs mt-1">
               Supports multiple files • Max size: {MAX_FILE_SIZE_FORMATTED}
             </p>
-            <p className="text-xs text-neutral-600 dark:text-neutral-400">Format: .geojson only</p>
+            <p className="obsidian-status-muted text-xs">Format: .geojson only</p>
           </>
         )}
       </div>
       {uploadError && (
-        <div className="mt-2 p-2 bg-danger-100 border border-danger-400 text-danger-700 text-sm rounded">
+        <div className="obsidian-note obsidian-note-danger mt-3 text-sm">
           {uploadError}
         </div>
       )}

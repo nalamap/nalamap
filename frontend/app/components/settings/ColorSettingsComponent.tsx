@@ -1,71 +1,127 @@
 "use client";
 
-import { useState, memo } from "react";
-import { useSettingsStore } from "../../stores/settingsStore";
-import { ChevronDown, ChevronUp, RotateCcw, Info, Wand2 } from "lucide-react";
-import { ColorScale, ColorSettings } from "../../stores/settingsStore";
+import { memo, useState } from "react";
+import { ChevronDown, ChevronUp, Info, RotateCcw, Wand2 } from "lucide-react";
+import {
+  ColorScale,
+  ColorSettings,
+  useSettingsStore,
+} from "../../stores/settingsStore";
 import { generateColorScale } from "../../utils/colorGenerator";
 
 const COLOR_SCALE_LABELS: Record<keyof ColorScale, string> = {
-  shade_50: "50 - Lightest",
+  shade_50: "50",
   shade_100: "100",
   shade_200: "200",
   shade_300: "300",
   shade_400: "400",
-  shade_500: "500 - Base",
+  shade_500: "500",
   shade_600: "600",
   shade_700: "700",
   shade_800: "800",
   shade_900: "900",
-  shade_950: "950 - Darkest",
+  shade_950: "950",
 };
 
-// Organized color groups
 const COLOR_GROUPS = {
   core: {
-    title: "Core Colors",
-    description: "Primary UI colors for text, backgrounds, and main actions",
-    scales: ["primary", "second_primary", "secondary", "tertiary"] as (keyof ColorSettings)[],
+    title: "Core System",
+    description:
+      "Primary interaction, surface contrast, and key UI accents.",
+    scales: ["primary", "second_primary", "secondary", "tertiary"] as (
+      | keyof ColorSettings
+    )[],
   },
   semantic: {
-    title: "Semantic Colors",
-    description: "Status and feedback colors",
-    scales: ["danger", "warning", "info", "neutral"] as (keyof ColorSettings)[],
+    title: "Semantic Feedback",
+    description: "Status colors used for warnings, errors, and guidance.",
+    scales: ["danger", "warning", "info", "neutral"] as (
+      | keyof ColorSettings
+    )[],
   },
   corporate: {
-    title: "Corporate/Brand Colors",
-    description: "Your brand colors for layer styling and custom elements",
-    scales: ["corporate_1", "corporate_2", "corporate_3"] as (keyof ColorSettings)[],
+    title: "Brand Extensions",
+    description:
+      "Supporting palettes for layers, highlights, and project-specific branding.",
+    scales: ["corporate_1", "corporate_2", "corporate_3"] as (
+      | keyof ColorSettings
+    )[],
   },
-};
+} as const;
+
+const COLOR_GROUP_ORDER = ["core", "semantic", "corporate"] as const;
 
 const COLOR_SCALE_NAMES: Record<keyof ColorSettings, string> = {
-  primary: "Primary (Text & Borders)",
-  second_primary: "Second Primary (Actions)",
-  secondary: "Secondary (Accents)",
-  tertiary: "Tertiary (Success)",
-  danger: "Danger (Errors)",
+  primary: "Primary",
+  second_primary: "Action",
+  secondary: "Accent",
+  tertiary: "Success",
+  danger: "Danger",
   warning: "Warning",
   info: "Info",
-  neutral: "Neutral (White/Black)",
-  corporate_1: "Corporate 1 (Rose)",
-  corporate_2: "Corporate 2 (Sky)",
-  corporate_3: "Corporate 3 (Purple)",
+  neutral: "Neutral",
+  corporate_1: "Corporate 01",
+  corporate_2: "Corporate 02",
+  corporate_3: "Corporate 03",
 };
 
 const COLOR_USAGE_HINTS: Record<keyof ColorSettings, string> = {
-  primary: "Used for main text (900), backgrounds (50-100), borders (300), icons (600-700), and sidebar (800)",
-  second_primary: "Action buttons (600), hover states (700), user messages (200), progress bars (500)",
-  secondary: "Focus rings (300), waiting states (500-600), sidebar hover (800), badges (100)",
-  tertiary: "Success messages (600), completed states, checkboxes, export button (700)",
-  danger: "Error messages, delete/remove buttons (600), error backgrounds (100), hover (700)",
-  warning: "Warning messages and alerts (600), warning backgrounds (100-200)",
-  info: "Informational messages and hints (600), info backgrounds (100-200)",
-  neutral: "Pure white (50), pure black (950), overlay backgrounds, neutral grays",
-  corporate_1: "Your first brand color - used for layer type styling (rose/pink tones)",
-  corporate_2: "Your second brand color - used for layer type styling (sky/blue tones)",
-  corporate_3: "Your third brand color - used for layer type styling (purple tones)",
+  primary:
+    "Drives text hierarchy, layered surfaces, and resting states across the interface.",
+  second_primary:
+    "Powers primary actions, progress states, and high-attention controls.",
+  secondary:
+    "Used for focus, supporting accents, and subtle directional cues.",
+  tertiary:
+    "Reserved for completion states, success feedback, and positive actions.",
+  danger:
+    "Used for destructive actions, validation failures, and critical system states.",
+  warning:
+    "Highlights caution, recoverable issues, and operations that need review.",
+  info: "Supports helper content, guidance, and informational callouts.",
+  neutral:
+    "Anchors white, black, overlays, and grayscale utility values for contrast.",
+  corporate_1:
+    "Brand accent for thematic map layers and rose-leaning category highlights.",
+  corporate_2:
+    "Brand accent for thematic map layers and sky-leaning category highlights.",
+  corporate_3:
+    "Brand accent for thematic map layers and violet-leaning category highlights.",
 };
+
+function getShadeEntries(scale: ColorScale) {
+  return Object.entries(scale) as [keyof ColorScale, string][];
+}
+
+interface ShadeTokenProps {
+  shade: keyof ColorScale;
+  color: string;
+  onUpdate: (shade: keyof ColorScale, color: string) => void;
+}
+
+function ShadeToken({ shade, color, onUpdate }: ShadeTokenProps) {
+  return (
+    <label className="obsidian-color-token">
+      <input
+        type="color"
+        value={color}
+        onChange={(event) => onUpdate(shade, event.target.value)}
+        className="sr-only"
+        aria-label={`Set shade ${COLOR_SCALE_LABELS[shade]} color`}
+      />
+      <span
+        className="obsidian-color-token-preview"
+        style={{ backgroundColor: color }}
+      />
+      <span className="obsidian-overline mt-3 block">
+        {COLOR_SCALE_LABELS[shade]}
+      </span>
+      <span className="obsidian-strong mt-1 block font-mono text-xs">
+        {color.toUpperCase()}
+      </span>
+    </label>
+  );
+}
 
 interface ColorScaleEditorProps {
   scaleName: keyof ColorSettings;
@@ -74,8 +130,6 @@ interface ColorScaleEditorProps {
   onAutoGenerate: (baseColor: string) => void;
 }
 
-// Memoize the ColorScaleEditor to prevent re-renders when parent state changes
-// This ensures the expanded/collapsed state persists when colors are updated
 const ColorScaleEditor = memo(function ColorScaleEditor({
   scaleName,
   scale,
@@ -84,318 +138,298 @@ const ColorScaleEditor = memo(function ColorScaleEditor({
 }: ColorScaleEditorProps) {
   const [expanded, setExpanded] = useState(false);
   const [showQuickPicker, setShowQuickPicker] = useState(false);
-
-  const handleQuickColorChange = (color: string) => {
-    onAutoGenerate(color);
-    // Keep the quick picker open so users can try multiple colors
-  };
+  const shadeEntries = getShadeEntries(scale);
 
   return (
-    <div className="border border-primary-300 rounded p-3 bg-primary-100 dark:bg-primary-900">
-      <div
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between cursor-pointer"
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            setExpanded(!expanded);
-          }
-        }}
-      >
-        <div className="flex items-center space-x-3 flex-1">
-          {/* Gradient preview - clickable to select colors */}
-          <div className="flex space-x-0.5">
-            {Object.entries(scale).map(([shade, color]) => (
-              <div
-                key={shade}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!expanded) {
-                    setExpanded(true);
-                  }
-                  // Create a temporary color input to trigger color picker
-                  const input = document.createElement('input');
-                  input.type = 'color';
-                  input.value = color;
-                  input.style.position = 'absolute';
-                  input.style.opacity = '0';
-                  input.style.pointerEvents = 'none';
-                  document.body.appendChild(input);
-                  
-                  input.addEventListener('change', (event) => {
-                    const newColor = (event.target as HTMLInputElement).value;
-                    onUpdate(shade as keyof ColorScale, newColor);
-                    document.body.removeChild(input);
-                  });
-                  
-                  input.addEventListener('blur', () => {
-                    setTimeout(() => {
-                      if (document.body.contains(input)) {
-                        document.body.removeChild(input);
-                      }
-                    }, 100);
-                  });
-                  
-                  input.click();
-                }}
-                className="w-3 h-8 first:rounded-l last:rounded-r cursor-pointer hover:ring-2 hover:ring-secondary-500 hover:z-10 transition-all"
-                style={{ backgroundColor: color }}
-                title={`${shade}: ${color} - Click to change`}
-              />
+    <article className="obsidian-card space-y-4">
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1 space-y-3">
+          <button
+            type="button"
+            onClick={() => setExpanded((current) => !current)}
+            className="w-full text-left"
+            aria-expanded={expanded}
+          >
+            <div className="flex flex-wrap items-center gap-3">
+              <h4 className="obsidian-heading text-base">
+                {COLOR_SCALE_NAMES[scaleName]}
+              </h4>
+              <span className="obsidian-chip">{scale.shade_500.toUpperCase()}</span>
+            </div>
+            <p className="obsidian-muted mt-2 text-sm leading-6">
+              {COLOR_USAGE_HINTS[scaleName]}
+            </p>
+          </button>
+
+          <div className="obsidian-preview-strip">
+            {shadeEntries.map(([shade, color]) => (
+              <label key={shade} className="block">
+                <input
+                  type="color"
+                  value={color}
+                  onChange={(event) => onUpdate(shade, event.target.value)}
+                  className="sr-only"
+                  aria-label={`Edit ${COLOR_SCALE_NAMES[scaleName]} shade ${COLOR_SCALE_LABELS[shade]}`}
+                />
+                <span
+                  className="obsidian-preview-swatch"
+                  style={{ backgroundColor: color }}
+                  title={`${COLOR_SCALE_LABELS[shade]}: ${color.toUpperCase()}`}
+                />
+              </label>
             ))}
           </div>
-          <div className="flex-1">
-            <div className="font-medium text-primary-900 dark:text-primary-100 text-sm">
-              {COLOR_SCALE_NAMES[scaleName]}
-            </div>
-            <div className="text-xs text-primary-800 dark:text-primary-400 mt-0.5">
-              {COLOR_USAGE_HINTS[scaleName]}
-            </div>
-          </div>
         </div>
-        <div className="flex items-center space-x-2 flex-shrink-0">
-          {/* Quick Color Picker Button */}
+
+        <div className="flex shrink-0 gap-2">
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowQuickPicker(!showQuickPicker);
-            }}
-            className="p-1.5 bg-secondary-100 hover:bg-secondary-200 rounded transition-colors"
-            title="Quick set color (auto-generates all shades)"
+            type="button"
+            onClick={() => setShowQuickPicker((current) => !current)}
+            className="obsidian-icon-button"
+            aria-pressed={showQuickPicker}
+            aria-label={`Toggle quick generator for ${COLOR_SCALE_NAMES[scaleName]}`}
+            title="Generate a full tonal scale from one base color"
           >
-            <Wand2 className="w-4 h-4 text-secondary-700" />
+            <Wand2 className="h-4 w-4" />
           </button>
-          {expanded ? (
-            <ChevronUp className="w-4 h-4 text-primary-600 dark:text-primary-400" />
-          ) : (
-            <ChevronDown className="w-4 h-4 text-primary-600 dark:text-primary-400" />
-          )}
+          <button
+            type="button"
+            onClick={() => setExpanded((current) => !current)}
+            className="obsidian-icon-button"
+            aria-expanded={expanded}
+            aria-label={`${expanded ? "Collapse" : "Expand"} ${COLOR_SCALE_NAMES[scaleName]} editor`}
+          >
+            {expanded ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+          </button>
         </div>
       </div>
 
-      {/* Quick Color Picker */}
       {showQuickPicker && (
-        <div className="mt-3 p-3 bg-secondary-50 border border-secondary-200 rounded">
-          <div className="flex items-center space-x-3">
+        <div className="obsidian-note obsidian-note-info flex flex-col gap-4 sm:flex-row sm:items-center">
+          <label className="obsidian-color-well">
             <input
               type="color"
               value={scale.shade_500}
-              onChange={(e) => handleQuickColorChange(e.target.value)}
-              className="w-16 h-16 rounded cursor-pointer border-2 border-secondary-300"
-              title="Pick main color - all shades will be generated automatically"
+              onChange={(event) => onAutoGenerate(event.target.value)}
+              className="absolute inset-0 cursor-pointer opacity-0"
+              aria-label={`Pick a base color for ${COLOR_SCALE_NAMES[scaleName]}`}
             />
-            <div className="flex-1">
-              <p className="text-sm font-medium text-secondary-900 mb-1">
-                🪄 Quick Color Set
-              </p>
-              <p className="text-xs text-secondary-800">
-                Pick your main color and we'll automatically generate all 11 shades (lighter to darker).
-              </p>
+            <span
+              className="absolute inset-3 rounded-[0.8rem]"
+              style={{ backgroundColor: scale.shade_500 }}
+            />
+          </label>
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="obsidian-overline">Quick Generate</span>
+              <span className="obsidian-chip">
+                Base {scale.shade_500.toUpperCase()}
+              </span>
             </div>
+            <p className="obsidian-strong text-sm">
+              Pick one anchor tone and regenerate the full 11-step scale.
+            </p>
+            <p className="obsidian-muted text-sm leading-6">
+              This keeps the palette coherent and is a better starting point
+              than hand-editing every shade in isolation.
+            </p>
           </div>
         </div>
       )}
 
       {expanded && (
-        <div className="mt-3 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
-          {Object.entries(scale).map(([shade, color]) => (
-            <div key={shade} className="flex flex-col items-center space-y-1">
-              <input
-                type="color"
-                value={color}
-                onChange={(e) =>
-                  onUpdate(shade as keyof ColorScale, e.target.value)
-                }
-                className="w-12 h-12 rounded cursor-pointer border border-primary-300"
-                title={`Edit ${shade}`}
-              />
-              <span className="text-xs text-primary-700 font-mono">
-                {COLOR_SCALE_LABELS[shade as keyof ColorScale]}
-              </span>
-              <span className="text-[10px] text-primary-500 font-mono">
-                {color}
-              </span>
-            </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+          {shadeEntries.map(([shade, color]) => (
+            <ShadeToken
+              key={shade}
+              shade={shade}
+              color={color}
+              onUpdate={onUpdate}
+            />
           ))}
         </div>
       )}
-    </div>
+    </article>
   );
 });
 
 export default function ColorSettingsComponent() {
-  const [isOpen, setIsOpen] = useState(false); // Start collapsed by default
+  const [isOpen, setIsOpen] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const color_settings = useSettingsStore((state) => state.color_settings);
+  const colorSettings = useSettingsStore((state) => state.color_settings);
   const updateColorScale = useSettingsStore((state) => state.updateColorScale);
   const resetColorSettings = useSettingsStore((state) => state.resetColorSettings);
 
-  if (!color_settings) {
+  const handleAutoGenerate = (
+    scaleName: keyof ColorSettings,
+    baseColor: string,
+  ) => {
+    const generatedScale = generateColorScale(baseColor);
+
+    for (const [shade, color] of getShadeEntries(generatedScale)) {
+      updateColorScale(scaleName, shade, color);
+    }
+  };
+
+  if (!colorSettings) {
     return (
-      <div className="border border-primary-300 rounded p-4 bg-primary-100 dark:bg-primary-900">
-        <p className="text-primary-600">Loading color settings...</p>
-      </div>
+      <section className="obsidian-panel">
+        <div className="obsidian-panel-body pt-5">
+          <div className="obsidian-note">
+            <p className="obsidian-overline mb-2">Color System</p>
+            <p className="obsidian-strong text-sm">
+              Loading palette configuration.
+            </p>
+          </div>
+        </div>
+      </section>
     );
   }
 
-  const handleReset = () => {
-    resetColorSettings();
-    setShowResetConfirm(false);
-  };
-
-  const handleAutoGenerate = (scaleName: keyof ColorSettings, baseColor: string) => {
-    const generatedScale = generateColorScale(baseColor);
-    // Update all shades at once
-    Object.entries(generatedScale).forEach(([shade, color]) => {
-      updateColorScale(scaleName, shade as keyof ColorScale, color);
-    });
-  };
-
   return (
-    <div className="border border-primary-300 rounded bg-primary-50 dark:bg-neutral-900 overflow-hidden">
-      {/* Header */}
+    <section className="obsidian-panel">
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-4 py-3 bg-primary-100 hover:bg-primary-200 dark:bg-primary-900 dark:hover:bg-primary-800 transition-colors flex items-center justify-between"
+        type="button"
+        onClick={() => setIsOpen((current) => !current)}
+        className="obsidian-panel-header bg-transparent"
+        aria-expanded={isOpen}
       >
-        <div className="flex items-center space-x-2">
-          <h2 className="text-lg font-semibold text-primary-900 dark:text-primary-100">
-            Color Customization
-          </h2>
-          <span className="text-xs bg-secondary-100 dark:bg-secondary-900 text-secondary-800 dark:text-secondary-100 px-2 py-0.5 rounded-full font-medium">
-            Corporate Branding
-          </span>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="obsidian-heading text-xl">Color System</h2>
+            <span className="obsidian-chip">Brand and Theme</span>
+          </div>
+          <p className="obsidian-muted mt-3 max-w-3xl text-sm leading-6">
+            Tune the tonal hierarchy that drives surfaces, text contrast,
+            interaction states, and branded map accents.
+          </p>
         </div>
-        {isOpen ? (
-          <ChevronUp className="w-5 h-5 text-primary-700 dark:text-primary-300" />
-        ) : (
-          <ChevronDown className="w-5 h-5 text-primary-700 dark:text-primary-300" />
-        )}
+        <span className="obsidian-chip h-10 w-10 shrink-0 p-0">
+          {isOpen ? (
+            <ChevronUp className="h-4 w-4" />
+          ) : (
+            <ChevronDown className="h-4 w-4" />
+          )}
+        </span>
       </button>
 
       {isOpen && (
-        <div className="p-4 space-y-4">
-          {/* Info Box */}
-          <div className="bg-info-50 border border-info-200 rounded p-3 text-sm">
-            <div className="flex items-start space-x-2">
-              <Info className="w-4 h-4 text-info-600 mt-0.5 flex-shrink-0" />
-              <div className="text-info-900">
-                <p className="font-medium mb-1">
-                  Customize your app's color scheme
-                </p>
-                <ul className="text-xs space-y-1 text-info-800">
-                  <li>
-                    • Click the <strong>🪄 magic wand</strong> icon for quick color generation
-                  </li>
-                  <li>
-                    • Changes apply instantly across the entire application
-                  </li>
-                  <li>
-                    • Use <strong>Core Colors</strong> for main UI elements
-                  </li>
-                  <li>
-                    • <strong>Semantic Colors</strong> provide status feedback
-                  </li>
-                  <li>
-                    • <strong>Corporate Colors</strong> for layer styling and
-                    branding
-                  </li>
-                  <li>
-                    • Each color has 11 shades (50=lightest, 950=darkest)
-                  </li>
-                  <li>
-                    • Export your settings to save your custom color scheme
-                  </li>
-                </ul>
+        <div className="obsidian-panel-body space-y-6">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(17rem,0.75fr)]">
+            <div className="obsidian-note obsidian-note-info">
+              <div className="flex items-start gap-3">
+                <Info className="mt-0.5 h-4 w-4 shrink-0" />
+                <div className="space-y-3">
+                  <div>
+                    <p className="obsidian-overline mb-2">
+                      Design Direction
+                    </p>
+                    <p className="obsidian-strong text-sm">
+                      Keep the system tonal, layered, and restrained.
+                    </p>
+                  </div>
+                  <ul className="obsidian-muted list-disc space-y-2 pl-4 text-sm leading-6">
+                    <li>Use shade 50-300 for surfaces and shade 700-950 for text.</li>
+                    <li>Keep semantic colors recognizable instead of pushing them toward brand hues.</li>
+                    <li>Use corporate scales for map storytelling and branded accents, not core readability.</li>
+                  </ul>
+                </div>
               </div>
+            </div>
+
+            <div className="obsidian-note obsidian-note-warning">
+              <p className="obsidian-overline mb-2">Operational Notes</p>
+              <ul className="obsidian-muted list-disc space-y-2 pl-4 text-sm leading-6">
+                <li>Changes apply immediately across the application.</li>
+                <li>Quick Generate is the fastest way to keep a scale internally consistent.</li>
+                <li>Test high-contrast areas after changing primary or neutral values.</li>
+              </ul>
             </div>
           </div>
 
-          {/* Color Groups */}
-          {Object.entries(COLOR_GROUPS).map(([groupKey, group]) => (
-            <div key={groupKey} className="space-y-2">
-              <div className="border-b border-primary-200 pb-1">
-                <h3 className="text-sm font-semibold text-primary-900 dark:text-primary-300">
-                  {group.title}
-                </h3>
-                <p className="text-xs text-primary-800 dark:text-primary-300">{group.description}</p>
-              </div>
-              <div className="space-y-2">
-                {group.scales.map((scaleName) => (
-                  <ColorScaleEditor
-                    key={scaleName}
-                    scaleName={scaleName}
-                    scale={color_settings[scaleName]}
-                    onUpdate={(shade, color) =>
-                      updateColorScale(scaleName, shade, color)
-                    }
-                    onAutoGenerate={(baseColor) =>
-                      handleAutoGenerate(scaleName, baseColor)
-                    }
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
+          {COLOR_GROUP_ORDER.map((groupKey) => {
+            const group = COLOR_GROUPS[groupKey];
 
-          {/* Reset Button */}
-          <div className="pt-4 border-t border-primary-200">
-            {!showResetConfirm ? (
-              <button
-                onClick={() => setShowResetConfirm(true)}
-                className="flex items-center space-x-2 px-4 py-2 bg-primary-200 text-primary-700 rounded hover:bg-primary-300 transition-colors font-medium"
-              >
-                <RotateCcw className="w-4 h-4" />
-                <span>Reset</span>
-              </button>
-            ) : (
-              <div className="flex items-center space-x-2">
-                <p className="text-sm text-primary-700">
-                  Reset all colors to defaults?
+            return (
+              <section key={groupKey} className="space-y-4">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <p className="obsidian-overline mb-2">{group.title}</p>
+                    <p className="obsidian-muted max-w-3xl text-sm leading-6">
+                      {group.description}
+                    </p>
+                  </div>
+                  <span className="obsidian-chip">
+                    {group.scales.length} scales
+                  </span>
+                </div>
+
+                <div className="space-y-4">
+                  {group.scales.map((scaleName) => (
+                    <ColorScaleEditor
+                      key={scaleName}
+                      scaleName={scaleName}
+                      scale={colorSettings[scaleName]}
+                      onUpdate={(shade, color) =>
+                        updateColorScale(scaleName, shade, color)
+                      }
+                      onAutoGenerate={(baseColor) =>
+                        handleAutoGenerate(scaleName, baseColor)
+                      }
+                    />
+                  ))}
+                </div>
+              </section>
+            );
+          })}
+
+          {!showResetConfirm ? (
+            <button
+              type="button"
+              onClick={() => setShowResetConfirm(true)}
+              className="obsidian-button-ghost"
+            >
+              <RotateCcw className="h-4 w-4" />
+              Restore default palette
+            </button>
+          ) : (
+            <div className="obsidian-note obsidian-note-danger flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="obsidian-overline mb-2">Reset Palette</p>
+                <p className="obsidian-strong text-sm">
+                  Restore the original application colors.
                 </p>
+                <p className="obsidian-muted mt-2 text-sm leading-6">
+                  This replaces all current edits with the default tonal system.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
                 <button
-                  onClick={handleReset}
-                  className="px-3 py-1 bg-danger-600 text-neutral-50 rounded hover:bg-danger-700 transition-colors font-medium text-sm"
+                  type="button"
+                  onClick={() => {
+                    resetColorSettings();
+                    setShowResetConfirm(false);
+                  }}
+                  className="obsidian-button-danger"
                 >
-                  Confirm
+                  Confirm reset
                 </button>
                 <button
+                  type="button"
                   onClick={() => setShowResetConfirm(false)}
-                  className="px-3 py-1 bg-primary-300 text-primary-900 rounded hover:bg-primary-400 transition-colors font-medium text-sm"
+                  className="obsidian-button-ghost"
                 >
-                  Cancel
+                  Keep current palette
                 </button>
               </div>
-            )}
-          </div>
-
-          {/* Usage Tips */}
-          <div className="bg-warning-50 border border-warning-200 rounded p-3 text-xs text-warning-900">
-            <p className="font-medium mb-1">Tips for Color Selection:</p>
-            <ul className="space-y-1">
-              <li>
-                • Use lighter shades (50-300) for backgrounds, darker (700-950)
-                for text
-              </li>
-              <li>
-                • Maintain sufficient contrast for accessibility between text and background
-                colors
-              </li>
-              <li>
-                • Keep your brand colors consistent with corporate guidelines
-              </li>
-              <li>
-                • Test colors with color blindness simulators for accessibility
-              </li>
-              <li>
-                • Danger (red) should remain red-ish for universal recognition
-              </li>
-            </ul>
-          </div>
+            </div>
+          )}
         </div>
       )}
-    </div>
+    </section>
   );
 }

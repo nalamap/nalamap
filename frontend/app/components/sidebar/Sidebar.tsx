@@ -9,24 +9,35 @@ import { useChatInterfaceStore } from "../../stores/chatInterfaceStore";
 import { useLayerStore } from "../../stores/layerStore";
 import { useSettingsStore } from "../../stores/settingsStore";
 
+type BrowserFullscreenElement = HTMLElement & {
+  webkitRequestFullscreen?: () => Promise<void> | void;
+  msRequestFullscreen?: () => Promise<void> | void;
+};
+
+type BrowserFullscreenDocument = Document & {
+  webkitExitFullscreen?: () => Promise<void> | void;
+  msExitFullscreen?: () => Promise<void> | void;
+};
+
 const toggleFullscreen = () => {
-  const elem = document.documentElement;
+  const elem = document.documentElement as BrowserFullscreenElement;
+  const browserDocument = document as BrowserFullscreenDocument;
 
   if (!document.fullscreenElement) {
     if (elem.requestFullscreen) {
       elem.requestFullscreen();
-    } else if ((elem as any).webkitRequestFullscreen) {
-      (elem as any).webkitRequestFullscreen(); // Safari
-    } else if ((elem as any).msRequestFullscreen) {
-      (elem as any).msRequestFullscreen(); // IE11
+    } else if (elem.webkitRequestFullscreen) {
+      elem.webkitRequestFullscreen(); // Safari
+    } else if (elem.msRequestFullscreen) {
+      elem.msRequestFullscreen(); // IE11
     }
   } else {
     if (document.exitFullscreen) {
       document.exitFullscreen();
-    } else if ((document as any).webkitExitFullscreen) {
-      (document as any).webkitExitFullscreen(); // Safari
-    } else if ((document as any).msExitFullscreen) {
-      (document as any).msExitFullscreen(); // IE11
+    } else if (browserDocument.webkitExitFullscreen) {
+      browserDocument.webkitExitFullscreen(); // Safari
+    } else if (browserDocument.msExitFullscreen) {
+      browserDocument.msExitFullscreen(); // IE11
     }
   }
 };
@@ -73,7 +84,13 @@ const handleReset = () => {
   }
 };
 
-export default function Sidebar({ onLayerToggle }: { onLayerToggle?: () => void }) {
+export default function Sidebar({
+  onLayerToggle,
+  compact = false,
+}: {
+  onLayerToggle?: () => void;
+  compact?: boolean;
+}) {
   const router = useRouter();
   const { user, logout } = useAuth();
 
@@ -88,70 +105,76 @@ export default function Sidebar({ onLayerToggle }: { onLayerToggle?: () => void 
         <title>NaLaMapAI</title>
         <meta name="description" content="geospatial insights, with ease" />
       </Head>
-      {/* Top Icon Section */}
-      <div className="flex flex-col md:flex-col items-center justify-start md:py-4 py-2 md:space-y-4 space-y-3 h-full w-full bg-primary-800">
+      <div className={`obsidian-nav ${compact ? "obsidian-nav-compact" : ""}`}>
+        <div className="obsidian-nav-brand">
+          <span className="obsidian-kicker">{compact ? "NM" : "NaLaMap"}</span>
+          {!compact && <span className="obsidian-nav-brand-title">Command Rail</span>}
+          {!compact && user?.email && (
+            <span className="obsidian-nav-brand-copy">{user.email}</span>
+          )}
+        </div>
         {/* Home Icon */}
         <Link href="/map">
           <button
-            className="hover:bg-secondary-800 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
+            className="obsidian-nav-button"
             title="Home"
           >
-            <Home className="w-6 h-6 md:mr-0 mr-3" />
-            <span className="md:hidden text-base">Home</span>
+            <Home className="h-5 w-5 shrink-0" />
+            <span className="obsidian-nav-button-label">Home</span>
           </button>
         </Link>
         {/* Layer Management Icon */}
         {onLayerToggle && (
           <button
             onClick={onLayerToggle}
-            className="hover:bg-secondary-800 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
+            className="obsidian-nav-button"
             title="Layer Management"
           >
-            <Layers className="w-6 h-6 md:mr-0 mr-3" />
-            <span className="md:hidden text-base">Layer Management</span>
+            <Layers className="h-5 w-5 shrink-0" />
+            <span className="obsidian-nav-button-label">Layer Management</span>
           </button>
         )}
         {/* Sign out */}
         {user && (
           <button
             onClick={handleSignOut}
-            className="hover:bg-secondary-800 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
+            className="obsidian-nav-button"
             title={`Sign out ${user.email}`}
           >
-            <LogOut className="w-6 h-6 md:mr-0 mr-3" />
-            <span className="md:hidden text-base">Sign out</span>
+            <LogOut className="h-5 w-5 shrink-0" />
+            <span className="obsidian-nav-button-label">Sign out</span>
           </button>
         )}
 
         {/* Fullscreen Icon */}
         <button
           onClick={toggleFullscreen}
-          className="hover:bg-secondary-800 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
+          className="obsidian-nav-button"
           title="Fullscreen Mode"
         >
-          <Maximize className="w-6 h-6 md:mr-0 mr-3" />
-          <span className="md:hidden text-base">Fullscreen Mode</span>
+          <Maximize className="h-5 w-5 shrink-0" />
+          <span className="obsidian-nav-button-label">Fullscreen Mode</span>
         </button>
 
         {/* Reset Icon */}
         <button
           onClick={handleReset}
-          className="hover:bg-secondary-800 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
+          className="obsidian-nav-button"
           title="Reset App"
           data-testid="reset-button"
         >
-          <RefreshCcw className="w-6 h-6 md:mr-0 mr-3" />
-          <span className="md:hidden text-base">Reset App</span>
+          <RefreshCcw className="h-5 w-5 shrink-0" />
+          <span className="obsidian-nav-button-label">Reset App</span>
         </button>
 
         {/* Settings Icon */}
         <Link href="/settings">
           <button
-            className="hover:bg-secondary-800 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
+            className="obsidian-nav-button"
             title="Settings"
           >
-            <Settings className="w-6 h-6 md:mr-0 mr-3" />
-            <span className="md:hidden text-base">Settings</span>
+            <Settings className="h-5 w-5 shrink-0" />
+            <span className="obsidian-nav-button-label">Settings</span>
           </button>
         </Link>
       </div>

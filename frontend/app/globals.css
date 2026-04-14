@@ -2,8 +2,9 @@
 @tailwind utilities;
 
 @theme {
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-inter);
   --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-space-grotesk);
 
   /* Color scales - defining them in @theme makes them available as Tailwind utilities */
   --color-primary-50: #f7f7f8;
@@ -288,6 +289,19 @@
   --corporate-3-800: #6b21a8;
   --corporate-3-900: #581c87;
   --corporate-3-950: #3b0764;
+
+  /* Surface system */
+  --surface: color-mix(in srgb, var(--neutral-50) 88%, var(--primary-50) 12%);
+  --surface-container-low: color-mix(in srgb, var(--neutral-50) 80%, var(--primary-100) 20%);
+  --surface-container: color-mix(in srgb, var(--neutral-50) 62%, var(--primary-100) 38%);
+  --surface-container-high: color-mix(in srgb, var(--neutral-50) 48%, var(--primary-200) 52%);
+  --surface-container-highest: color-mix(in srgb, var(--neutral-50) 28%, var(--primary-300) 72%);
+  --surface-text-strong: var(--primary-950);
+  --surface-text: var(--primary-700);
+  --surface-text-muted: color-mix(in srgb, var(--primary-700) 78%, var(--neutral-100) 22%);
+  --surface-ghost-border: color-mix(in srgb, var(--primary-600) 16%, transparent);
+  --surface-shadow-tint: color-mix(in srgb, var(--second-primary-500) 12%, transparent);
+  --surface-focus: color-mix(in srgb, var(--second-primary-400) 52%, transparent);
 }
 
 /* Primary Color Utility Classes */
@@ -662,11 +676,25 @@
 /* Dark mode styles - applies when .dark class is on html element */
 .dark {
   color-scheme: dark;
+  --surface: color-mix(in srgb, var(--primary-950) 86%, #10141a 14%);
+  --surface-container-low: color-mix(in srgb, var(--primary-950) 76%, var(--primary-900) 24%);
+  --surface-container: color-mix(in srgb, var(--primary-900) 72%, var(--primary-800) 28%);
+  --surface-container-high: color-mix(in srgb, var(--primary-800) 62%, var(--primary-700) 38%);
+  --surface-container-highest: color-mix(in srgb, var(--primary-800) 38%, var(--primary-700) 62%);
+  --surface-text-strong: var(--neutral-50);
+  --surface-text: var(--neutral-200);
+  --surface-text-muted: color-mix(in srgb, var(--neutral-300) 74%, var(--primary-400) 26%);
+  --surface-ghost-border: color-mix(in srgb, var(--neutral-50) 12%, transparent);
+  --surface-shadow-tint: color-mix(in srgb, var(--second-primary-300) 14%, transparent);
+  --surface-focus: color-mix(in srgb, var(--second-primary-300) 68%, transparent);
 }
 
 .dark body {
-  color: var(--neutral-200);
-  background: var(--primary-950);
+  color: var(--surface-text);
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--second-primary-300) 18%, transparent) 0%, transparent 34%),
+    radial-gradient(circle at top right, color-mix(in srgb, var(--secondary-300) 14%, transparent) 0%, transparent 26%),
+    linear-gradient(180deg, var(--surface-container-low) 0%, var(--surface) 100%);
 }
 
 /* Dark mode utility overrides */
@@ -933,9 +961,1622 @@
 }
 
 body {
-  color: var(--primary-700);
-  background: var(--primary-100);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--surface-text);
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--second-primary-300) 18%, transparent) 0%, transparent 34%),
+    radial-gradient(circle at top right, color-mix(in srgb, var(--secondary-300) 14%, transparent) 0%, transparent 26%),
+    linear-gradient(180deg, var(--surface-container-low) 0%, var(--surface) 100%);
+  font-family: var(--font-sans), sans-serif;
+  min-height: 100vh;
+}
+
+.font-display {
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+  letter-spacing: -0.025em;
+}
+
+.obsidian-panel {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-container) 96%, transparent) 0%, color-mix(in srgb, var(--surface-container-low) 96%, transparent) 100%);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--neutral-50) 7%, transparent),
+    0 20px 48px rgba(0, 0, 0, 0.18),
+    0 16px 40px var(--surface-shadow-tint);
+}
+
+.obsidian-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--second-primary-300) 14%, transparent) 0%, transparent 40%),
+    linear-gradient(320deg, color-mix(in srgb, var(--secondary-300) 10%, transparent) 0%, transparent 46%);
+  opacity: 0.85;
+}
+
+.obsidian-panel-header {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 1.25rem 1rem;
+  border: 0;
+  font: inherit;
+  text-align: left;
+  transition:
+    background-color 140ms ease,
+    transform 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.obsidian-panel-header:hover {
+  background-color: color-mix(in srgb, var(--surface-container-high) 38%, transparent);
+}
+
+.obsidian-panel-body {
+  position: relative;
+  z-index: 1;
+  padding: 0 1.25rem 1.25rem;
+}
+
+.obsidian-heading {
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+  letter-spacing: -0.03em;
+  color: var(--surface-text-strong);
+}
+
+.obsidian-overline {
+  color: var(--surface-text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.obsidian-strong {
+  color: var(--surface-text-strong);
+}
+
+.obsidian-muted {
+  color: var(--surface-text-muted);
+}
+
+.obsidian-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  background: color-mix(in srgb, var(--surface-container-high) 84%, transparent);
+  box-shadow: inset 0 0 0 1px var(--surface-ghost-border);
+  color: var(--surface-text);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.obsidian-card {
+  border-radius: 0.95rem;
+  padding: 1rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-container-high) 92%, transparent) 0%, var(--surface-container) 100%);
+  box-shadow: inset 0 0 0 1px var(--surface-ghost-border);
+}
+
+.obsidian-note {
+  border-radius: 1rem;
+  padding: 1rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-container-highest) 58%, transparent) 0%, color-mix(in srgb, var(--surface-container) 96%, transparent) 100%);
+  box-shadow: inset 0 0 0 1px var(--surface-ghost-border);
+}
+
+.obsidian-note-info {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--info-500) 16%, var(--surface-container-high) 84%) 0%, var(--surface-container) 100%);
+}
+
+.obsidian-note-warning {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--warning-500) 15%, var(--surface-container-high) 85%) 0%, var(--surface-container) 100%);
+}
+
+.obsidian-note-danger {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--danger-500) 15%, var(--surface-container-high) 85%) 0%, var(--surface-container) 100%);
+}
+
+.obsidian-icon-button,
+.obsidian-button-primary,
+.obsidian-button-ghost,
+.obsidian-button-danger {
+  border: 0;
+  font: inherit;
+  transition:
+    transform 140ms ease,
+    box-shadow 160ms ease,
+    background-color 140ms ease,
+    opacity 140ms ease;
+}
+
+.obsidian-icon-button {
+  display: inline-flex;
+  height: 2.5rem;
+  width: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, var(--surface-container-high) 84%, transparent);
+  box-shadow: inset 0 0 0 1px var(--surface-ghost-border);
+  color: var(--surface-text);
+}
+
+.obsidian-icon-button:hover,
+.obsidian-button-primary:hover,
+.obsidian-button-ghost:hover,
+.obsidian-button-danger:hover {
+  transform: translateY(-1px);
+}
+
+.obsidian-icon-button:hover {
+  background: color-mix(in srgb, var(--surface-container-highest) 88%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--second-primary-300) 18%, transparent),
+    0 16px 36px var(--surface-shadow-tint);
+}
+
+.obsidian-button-primary,
+.obsidian-button-ghost,
+.obsidian-button-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.9rem;
+  padding: 0.8rem 1rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.obsidian-button-primary {
+  color: var(--neutral-50);
+  background:
+    linear-gradient(135deg, var(--second-primary-500) 0%, color-mix(in srgb, var(--second-primary-700) 56%, var(--primary-700) 44%) 100%);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--neutral-50) 22%, transparent),
+    0 18px 36px color-mix(in srgb, var(--second-primary-500) 28%, transparent);
+}
+
+.obsidian-button-primary:hover {
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--neutral-50) 26%, transparent),
+    0 24px 48px color-mix(in srgb, var(--second-primary-500) 36%, transparent);
+}
+
+.obsidian-button-ghost,
+.obsidian-button-danger {
+  color: var(--surface-text-strong);
+  background: color-mix(in srgb, var(--surface-container-high) 84%, transparent);
+  box-shadow: inset 0 0 0 1px var(--surface-ghost-border);
+}
+
+.obsidian-button-ghost:hover {
+  background: color-mix(in srgb, var(--surface-container-highest) 86%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--second-primary-300) 16%, transparent),
+    0 16px 34px var(--surface-shadow-tint);
+}
+
+.obsidian-button-danger {
+  color: color-mix(in srgb, var(--danger-100) 78%, var(--surface-text-strong) 22%);
+}
+
+.obsidian-button-danger:hover {
+  background: color-mix(in srgb, var(--danger-500) 18%, var(--surface-container-high) 82%);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--danger-300) 20%, transparent),
+    0 16px 34px color-mix(in srgb, var(--danger-500) 20%, transparent);
+}
+
+.obsidian-panel-header:focus-visible,
+.obsidian-nav-button:focus-visible,
+.obsidian-icon-button:focus-visible,
+.obsidian-button-primary:focus-visible,
+.obsidian-button-ghost:focus-visible,
+.obsidian-button-danger:focus-visible,
+.layer-card-action:focus-visible,
+.layer-quick-action:focus-visible,
+.obsidian-color-token:focus-within,
+.obsidian-color-well:focus-within {
+  outline: 2px solid var(--surface-focus);
+  outline-offset: 2px;
+}
+
+.obsidian-preview-strip label:focus-within .obsidian-preview-swatch {
+  outline: 2px solid var(--surface-focus);
+  outline-offset: 2px;
+}
+
+.obsidian-preview-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.obsidian-preview-swatch {
+  display: block;
+  width: 1.15rem;
+  height: 2.5rem;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--neutral-50) 14%, transparent),
+    0 10px 20px rgba(0, 0, 0, 0.12);
+  transition:
+    transform 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.obsidian-preview-swatch:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--neutral-50) 18%, transparent),
+    0 14px 28px var(--surface-shadow-tint);
+}
+
+.obsidian-color-token {
+  display: block;
+  border-radius: 0.95rem;
+  padding: 0.85rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-container-highest) 60%, transparent) 0%, var(--surface-container) 100%);
+  box-shadow: inset 0 0 0 1px var(--surface-ghost-border);
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    box-shadow 160ms ease;
+}
+
+.obsidian-color-token:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--second-primary-300) 16%, transparent),
+    0 16px 32px var(--surface-shadow-tint);
+}
+
+.obsidian-color-token-preview {
+  display: block;
+  aspect-ratio: 1 / 1;
+  width: 100%;
+  border-radius: 0.85rem;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--neutral-50) 16%, transparent);
+}
+
+.obsidian-color-well {
+  position: relative;
+  display: block;
+  height: 5rem;
+  width: 5rem;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 1rem;
+  background: var(--surface-container-high);
+  box-shadow:
+    inset 0 0 0 1px var(--surface-ghost-border),
+    0 18px 36px var(--surface-shadow-tint);
+}
+
+.obsidian-shell {
+  position: relative;
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.obsidian-rail {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-container-highest) 88%, transparent) 0%, color-mix(in srgb, var(--surface-container-high) 96%, transparent) 100%);
+  box-shadow:
+    inset -1px 0 0 color-mix(in srgb, var(--neutral-50) 10%, transparent),
+    0 20px 44px rgba(0, 0, 0, 0.18),
+    0 14px 34px var(--surface-shadow-tint);
+}
+
+.obsidian-rail::before,
+.obsidian-surface-panel::before,
+.obsidian-main-panel::before,
+.obsidian-drawer::before,
+.obsidian-auth-card::before,
+.obsidian-chat-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(140deg, color-mix(in srgb, var(--second-primary-300) 12%, transparent) 0%, transparent 42%),
+    linear-gradient(320deg, color-mix(in srgb, var(--secondary-300) 10%, transparent) 0%, transparent 50%);
+  opacity: 0.88;
+}
+
+.obsidian-main-panel,
+.obsidian-surface-panel {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-container-low) 96%, transparent) 0%, color-mix(in srgb, var(--surface) 96%, transparent) 100%);
+}
+
+.obsidian-main-panel {
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--neutral-50) 5%, transparent);
+}
+
+.obsidian-page-shell {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.obsidian-surface-panel {
+  box-shadow:
+    inset 0 0 0 1px var(--surface-ghost-border),
+    0 20px 44px rgba(0, 0, 0, 0.18);
+}
+
+.obsidian-map-stage {
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--second-primary-300) 10%, transparent) 0%, transparent 34%),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 76%, var(--primary-950) 24%) 0%, var(--surface) 100%);
+}
+
+.obsidian-page {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 1.5rem;
+  overflow: auto;
+  padding: clamp(1.25rem, 2vw, 2rem);
+}
+
+.obsidian-page-title {
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+  font-size: clamp(2rem, 2.8vw, 3.35rem);
+  font-weight: 600;
+  letter-spacing: -0.05em;
+  color: var(--surface-text-strong);
+}
+
+.obsidian-page-copy {
+  max-width: 48rem;
+  color: var(--surface-text-muted);
+  font-size: 0.96rem;
+  line-height: 1.75;
+}
+
+.obsidian-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.obsidian-mobile-trigger {
+  position: fixed;
+  z-index: 30;
+  display: inline-flex;
+  height: 3rem;
+  width: 3rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 0;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--surface-container-highest) 86%, transparent) 0%, color-mix(in srgb, var(--surface-container-high) 88%, transparent) 100%);
+  box-shadow:
+    inset 0 0 0 1px var(--surface-ghost-border),
+    0 18px 36px rgba(0, 0, 0, 0.2);
+  color: var(--surface-text-strong);
+  backdrop-filter: blur(18px);
+}
+
+@media (min-width: 768px) {
+  .obsidian-mobile-only {
+    display: none !important;
+  }
+}
+
+.obsidian-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  background: rgba(8, 11, 16, 0.56);
+  backdrop-filter: blur(10px);
+}
+
+.obsidian-drawer {
+  position: fixed;
+  inset: 0 0 0 auto;
+  z-index: 36;
+  display: flex;
+  width: min(24rem, calc(100vw - 1.5rem));
+  max-width: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-container-high) 92%, transparent) 0%, color-mix(in srgb, var(--surface-container) 96%, transparent) 100%);
+  box-shadow:
+    inset 0 0 0 1px var(--surface-ghost-border),
+    -24px 0 48px rgba(0, 0, 0, 0.26);
+  backdrop-filter: blur(18px);
+}
+
+.obsidian-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  width: 0.45rem;
+  cursor: ew-resize;
+  background:
+    linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--second-primary-400) 30%, transparent) 12%, color-mix(in srgb, var(--second-primary-400) 52%, transparent) 50%, color-mix(in srgb, var(--second-primary-400) 30%, transparent) 88%, transparent 100%);
+  opacity: 0.35;
+  transition:
+    opacity 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.obsidian-resize-handle:hover {
+  opacity: 0.95;
+  box-shadow: 0 0 18px color-mix(in srgb, var(--second-primary-400) 28%, transparent);
+}
+
+.obsidian-fab {
+  position: fixed;
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 0;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--surface-container-highest) 88%, transparent) 0%, color-mix(in srgb, var(--surface-container-high) 90%, transparent) 100%);
+  box-shadow:
+    inset 0 0 0 1px var(--surface-ghost-border),
+    0 22px 44px rgba(0, 0, 0, 0.24),
+    0 16px 36px var(--surface-shadow-tint);
+  color: var(--surface-text-strong);
+  backdrop-filter: blur(18px);
+}
+
+.obsidian-fab:hover {
+  transform: translateY(-1px);
+}
+
+.obsidian-divider {
+  height: 1px;
+  border: 0;
+  background:
+    linear-gradient(90deg, transparent 0%, var(--surface-ghost-border) 18%, var(--surface-ghost-border) 82%, transparent 100%);
+}
+
+.obsidian-kicker {
+  color: var(--surface-text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.obsidian-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.obsidian-form-label {
+  color: var(--surface-text-strong);
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.obsidian-form-hint {
+  color: var(--surface-text-muted);
+  font-size: 0.76rem;
+  line-height: 1.65;
+}
+
+.obsidian-input,
+.obsidian-select,
+.obsidian-textarea,
+.obsidian-auth-card :is(input:not([type="checkbox"]):not([type="color"]):not([type="range"]), select, textarea),
+.settings-panel-body :is(input:not([type="checkbox"]):not([type="color"]):not([type="range"]), select, textarea),
+.layer-panel :is(input:not([type="checkbox"]):not([type="color"]):not([type="range"]), select, textarea),
+.search-results :is(input:not([type="checkbox"]):not([type="color"]):not([type="range"]), select, textarea) {
+  width: 100%;
+  border: 0;
+  border-radius: 0.95rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-container-highest) 62%, transparent) 0%, color-mix(in srgb, var(--surface-container-high) 86%, transparent) 100%);
+  box-shadow: inset 0 0 0 1px var(--surface-ghost-border);
+  color: var(--surface-text-strong);
+  font: inherit;
+  padding: 0.8rem 0.95rem;
+}
+
+.obsidian-input::placeholder,
+.obsidian-textarea::placeholder,
+.obsidian-auth-card :is(input, textarea)::placeholder,
+.settings-panel-body :is(input, textarea)::placeholder,
+.layer-panel :is(input, textarea)::placeholder,
+.search-results :is(input, textarea)::placeholder {
+  color: var(--surface-text-muted);
+}
+
+.obsidian-input:focus-visible,
+.obsidian-select:focus-visible,
+.obsidian-textarea:focus-visible,
+.obsidian-auth-card :is(input, select, textarea):focus-visible,
+.settings-panel-body :is(input, select, textarea):focus-visible,
+.layer-panel :is(input, select, textarea):focus-visible,
+.search-results :is(input, select, textarea):focus-visible {
+  outline: 2px solid var(--surface-focus);
+  outline-offset: 2px;
+}
+
+.obsidian-textarea,
+.obsidian-auth-card textarea,
+.settings-panel-body textarea,
+.layer-panel textarea,
+.search-results textarea {
+  min-height: 7rem;
+  resize: vertical;
+}
+
+.obsidian-checkbox,
+.settings-panel-body input[type="checkbox"],
+.layer-panel input[type="checkbox"],
+.search-results input[type="checkbox"] {
+  accent-color: var(--tertiary-500);
+}
+
+.obsidian-link {
+  color: color-mix(in srgb, var(--second-primary-400) 70%, var(--surface-text-strong) 30%);
+  text-decoration: none;
+}
+
+.obsidian-link:hover {
+  color: color-mix(in srgb, var(--second-primary-300) 78%, var(--surface-text-strong) 22%);
+}
+
+.obsidian-status-error {
+  color: color-mix(in srgb, var(--danger-400) 74%, var(--surface-text-strong) 26%);
+}
+
+.obsidian-status-success {
+  color: color-mix(in srgb, var(--tertiary-400) 74%, var(--surface-text-strong) 26%);
+}
+
+.obsidian-status-muted {
+  color: var(--surface-text-muted);
+}
+
+.obsidian-auth-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+}
+
+.obsidian-auth-card {
+  position: relative;
+  width: min(100%, 32rem);
+  overflow: hidden;
+  border-radius: 1.25rem;
+  padding: 1.5rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-container-high) 92%, transparent) 0%, color-mix(in srgb, var(--surface-container) 96%, transparent) 100%);
+  box-shadow:
+    inset 0 0 0 1px var(--surface-ghost-border),
+    0 26px 52px rgba(0, 0, 0, 0.24),
+    0 18px 40px var(--surface-shadow-tint);
+}
+
+.obsidian-auth-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.obsidian-auth-title {
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+  font-size: clamp(2rem, 3vw, 2.6rem);
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  color: var(--surface-text-strong);
+}
+
+.obsidian-auth-copy {
+  color: var(--surface-text-muted);
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+.obsidian-chat-panel {
+  position: relative;
+  display: flex;
+  height: 100%;
+  width: 100%;
+  flex-direction: column;
+  gap: 1rem;
+  overflow: hidden;
+  padding: 1.25rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-container-low) 96%, transparent) 0%, color-mix(in srgb, var(--surface) 96%, transparent) 100%);
+  box-shadow:
+    inset 0 0 0 1px var(--surface-ghost-border),
+    -18px 0 36px rgba(0, 0, 0, 0.16);
+}
+
+.obsidian-chat-panel > * {
+  position: relative;
+  z-index: 1;
+}
+
+.obsidian-chat-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 0.2rem;
+}
+
+.obsidian-inline-panel {
+  border-radius: 1rem;
+  padding: 0.9rem 1rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-container-high) 88%, transparent) 0%, color-mix(in srgb, var(--surface-container) 100%, transparent) 100%);
+  box-shadow: inset 0 0 0 1px var(--surface-ghost-border);
+}
+
+.obsidian-message {
+  max-width: 80%;
+  padding: 0.9rem 1rem;
+  border-radius: 1rem;
+  box-shadow: inset 0 0 0 1px var(--surface-ghost-border);
+}
+
+.obsidian-message-human {
+  margin-left: auto;
+  border-top-right-radius: 0.2rem;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--second-primary-500) 88%, transparent) 0%, color-mix(in srgb, var(--second-primary-700) 72%, var(--primary-700) 28%) 100%);
+  color: var(--neutral-50);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--neutral-50) 18%, transparent),
+    0 14px 28px color-mix(in srgb, var(--second-primary-500) 24%, transparent);
+}
+
+.obsidian-message-ai {
+  border-top-left-radius: 0.2rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-container-highest) 58%, transparent) 0%, color-mix(in srgb, var(--surface-container-high) 92%, transparent) 100%);
+  color: var(--surface-text-strong);
+}
+
+.obsidian-message-meta {
+  margin-top: 0.5rem;
+  font-size: 0.72rem;
+  color: color-mix(in srgb, var(--surface-text-muted) 72%, var(--neutral-50) 28%);
+}
+
+.obsidian-message-human .obsidian-message-meta {
+  color: color-mix(in srgb, var(--neutral-50) 72%, transparent);
+}
+
+.obsidian-results-panel,
+.layer-panel-section,
+.upload-section,
+.basemap-selector {
+  border-radius: 1rem;
+  padding: 1rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-container-high) 88%, transparent) 0%, color-mix(in srgb, var(--surface-container) 100%, transparent) 100%);
+  box-shadow: inset 0 0 0 1px var(--surface-ghost-border);
+}
+
+.obsidian-floating-card {
+  border-radius: 1rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-container-high) 94%, transparent) 0%, color-mix(in srgb, var(--surface-container) 98%, transparent) 100%);
+  box-shadow:
+    inset 0 0 0 1px var(--surface-ghost-border),
+    0 22px 44px rgba(0, 0, 0, 0.26),
+    0 16px 34px var(--surface-shadow-tint);
+  backdrop-filter: blur(18px);
+}
+
+.obsidian-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 11, 16, 0.58);
+  backdrop-filter: blur(10px);
+}
+
+.obsidian-modal-card {
+  width: min(64rem, calc(100vw - 2rem));
+  max-height: 90vh;
+  overflow-y: auto;
+  border-radius: 1.2rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-container-high) 94%, transparent) 0%, color-mix(in srgb, var(--surface-container) 98%, transparent) 100%);
+  box-shadow:
+    inset 0 0 0 1px var(--surface-ghost-border),
+    0 30px 60px rgba(0, 0, 0, 0.3);
+}
+
+.obsidian-modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  backdrop-filter: blur(18px);
+  background: color-mix(in srgb, var(--surface-container-high) 88%, transparent);
+  box-shadow: inset 0 -1px 0 var(--surface-ghost-border);
+}
+
+.settings-panel {
+  position: relative;
+}
+
+.settings-panel-header {
+  background: transparent;
+}
+
+.settings-panel-body {
+  position: relative;
+  z-index: 1;
+}
+
+.settings-panel-body :is(h3, h4) {
+  color: var(--surface-text-strong);
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+  letter-spacing: -0.03em;
+}
+
+.settings-panel-body :is(p, li, span, label) {
+  color: inherit;
+}
+
+.settings-panel-body .border-b,
+.layer-panel .border-b,
+.search-results .border-b,
+.layer-panel .border-t,
+.search-results .border-t {
+  border-color: var(--surface-ghost-border) !important;
+}
+
+.settings-panel-body .bg-info-50,
+.settings-panel-body .bg-info-100,
+.search-results .bg-info-50,
+.search-results .bg-info-100 {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--info-500) 14%, var(--surface-container-high) 86%) 0%, var(--surface-container) 100%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--info-300) 12%, transparent);
+}
+
+.settings-panel-body .bg-warning-50,
+.settings-panel-body .bg-warning-100,
+.search-results .bg-blue-50,
+.search-results .bg-blue-900\/20 {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--warning-500) 14%, var(--surface-container-high) 86%) 0%, var(--surface-container) 100%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warning-300) 12%, transparent);
+}
+
+.settings-panel-body .bg-secondary-50,
+.settings-panel-body .bg-secondary-100,
+.search-results .bg-secondary-50 {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--secondary-500) 14%, var(--surface-container-high) 86%) 0%, var(--surface-container) 100%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--secondary-300) 12%, transparent);
+}
+
+.layer-panel {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  flex-direction: column;
+  gap: 1rem;
+  overflow: auto;
+  padding: 1rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-container-low) 96%, transparent) 0%, color-mix(in srgb, var(--surface) 96%, transparent) 100%);
+}
+
+.layer-panel-title,
+.search-results-title {
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+  font-size: 1.3rem;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  color: var(--surface-text-strong);
+}
+
+.layer-list,
+.search-results {
+  color: var(--surface-text);
+}
+
+.layer-list > h3,
+.upload-section > h3,
+.basemap-selector > h3 {
+  color: var(--surface-text-strong);
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.obsidian-toggle-card {
+  border-radius: 1rem;
+  padding: 1rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-container-high) 88%, transparent) 0%, color-mix(in srgb, var(--surface-container) 100%, transparent) 100%);
+  box-shadow: inset 0 0 0 1px var(--surface-ghost-border);
+  transition:
+    transform 140ms ease,
+    box-shadow 160ms ease,
+    background-color 140ms ease;
+}
+
+.obsidian-toggle-card:hover {
+  transform: translateY(-1px);
+}
+
+.obsidian-toggle-card-active {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--second-primary-300) 18%, transparent),
+    0 18px 36px var(--surface-shadow-tint);
+}
+
+.obsidian-nav {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 1.25rem 1rem;
+  color: var(--surface-text);
+}
+
+.obsidian-nav-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.45rem;
+  padding: 0.25rem 0.3rem 0.85rem;
+}
+
+.obsidian-nav-brand-title {
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+  font-size: 1.4rem;
+  font-weight: 600;
+  letter-spacing: -0.05em;
+  color: var(--surface-text-strong);
+}
+
+.obsidian-nav-brand-copy {
+  color: var(--surface-text-muted);
+  font-size: 0.8rem;
+  line-height: 1.55;
+  word-break: break-word;
+}
+
+.obsidian-nav a {
+  text-decoration: none;
+}
+
+.obsidian-nav-button {
+  display: inline-flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.75rem;
+  border: 0;
+  border-radius: 0.95rem;
+  padding: 0.9rem 0.95rem;
+  background: color-mix(in srgb, var(--surface-container-highest) 74%, transparent);
+  box-shadow: inset 0 0 0 1px transparent;
+  color: var(--surface-text-strong);
+  font: inherit;
+  text-align: left;
+  transition:
+    transform 140ms ease,
+    background-color 140ms ease,
+    box-shadow 160ms ease;
+}
+
+.obsidian-nav-button:hover {
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--surface-container-highest) 90%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--second-primary-300) 14%, transparent),
+    0 16px 34px var(--surface-shadow-tint);
+}
+
+.obsidian-nav-button-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.obsidian-nav-compact {
+  align-items: center;
+  gap: 0.8rem;
+  padding-inline: 0.55rem;
+}
+
+.obsidian-nav-compact .obsidian-nav-brand {
+  align-items: center;
+  margin-bottom: 0.25rem;
+  padding-inline: 0;
+}
+
+.obsidian-nav-compact .obsidian-nav-button {
+  justify-content: center;
+  gap: 0;
+  padding: 0.85rem;
+}
+
+.obsidian-nav-compact .obsidian-nav-button-label {
+  display: none;
+}
+
+.upload-section-dropzone {
+  border-radius: 1rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-container-high) 92%, transparent) 0%, color-mix(in srgb, var(--surface-container) 100%, transparent) 100%);
+  box-shadow: inset 0 0 0 1px var(--surface-ghost-border);
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    box-shadow 160ms ease,
+    opacity 140ms ease;
+}
+
+.upload-section-dropzone:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--second-primary-300) 16%, transparent),
+    0 16px 34px var(--surface-shadow-tint);
+}
+
+.upload-progress-track {
+  width: 100%;
+  max-width: 16rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-container-highest) 72%, transparent);
+  box-shadow: inset 0 0 0 1px var(--surface-ghost-border);
+}
+
+.upload-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background:
+    linear-gradient(90deg, var(--second-primary-500) 0%, var(--secondary-400) 100%);
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--second-primary-500) 24%, transparent);
+}
+
+.upload-section :is(h3, p) {
+  color: inherit;
+}
+
+.upload-section p:not(.obsidian-kicker) {
+  color: var(--surface-text-muted);
+}
+
+.metrics-page {
+  max-width: 80rem;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.metrics-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.metrics-toolbar-copy {
+  margin-left: auto;
+  font-size: 0.82rem;
+  color: var(--surface-text-muted);
+}
+
+.metrics-summary-grid,
+.metrics-stats-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.metrics-summary-grid {
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+}
+
+.metrics-stats-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.metrics-card,
+.metrics-section,
+.metrics-state-card {
+  border-radius: 1.1rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-container-high) 92%, transparent) 0%, color-mix(in srgb, var(--surface-container) 100%, transparent) 100%);
+  box-shadow:
+    inset 0 0 0 1px var(--surface-ghost-border),
+    0 18px 40px rgba(0, 0, 0, 0.18);
+}
+
+.metrics-card,
+.metrics-section {
+  padding: 1.1rem;
+}
+
+.metrics-card-header,
+.metrics-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.metrics-card-label,
+.metrics-stat-label,
+.metrics-row-copy {
+  color: var(--surface-text-muted);
+  font-size: 0.74rem;
+}
+
+.metrics-card-label,
+.metrics-stat-label {
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.metrics-card-value {
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+  font-size: clamp(1.8rem, 2.4vw, 2.6rem);
+  font-weight: 600;
+  letter-spacing: -0.05em;
+  color: var(--surface-text-strong);
+}
+
+.metrics-section-title,
+.metrics-state-title {
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+  color: var(--surface-text-strong);
+  letter-spacing: -0.04em;
+}
+
+.metrics-section-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.metrics-state {
+  display: grid;
+  min-height: 60vh;
+  place-items: center;
+  padding: 2rem 1rem;
+}
+
+.metrics-state-card {
+  max-width: 34rem;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+.metrics-state-title {
+  font-size: 1.75rem;
+  font-weight: 600;
+}
+
+.metrics-state-copy {
+  margin-top: 0.85rem;
+  color: var(--surface-text-muted);
+  line-height: 1.7;
+}
+
+.metrics-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-radius: 0.95rem;
+  padding: 0.95rem 1rem;
+  background: color-mix(in srgb, var(--surface-container-high) 74%, transparent);
+  box-shadow: inset 0 0 0 1px var(--surface-ghost-border);
+  transition:
+    transform 140ms ease,
+    background-color 140ms ease,
+    box-shadow 160ms ease;
+}
+
+.metrics-row:hover {
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--surface-container-highest) 76%, transparent);
+}
+
+.metrics-row-primary {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.metrics-rank {
+  width: 1.75rem;
+  flex-shrink: 0;
+  color: var(--surface-text-muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.metrics-row-title,
+.metrics-stat-value,
+.metrics-row-value {
+  color: var(--surface-text-strong);
+  font-weight: 600;
+}
+
+.metrics-row-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metrics-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+.metrics-row-metric {
+  min-width: 4.5rem;
+  text-align: right;
+}
+
+.metrics-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  border-radius: 1rem;
+  padding: 0.9rem 1rem;
+  color: var(--surface-text-strong);
+  box-shadow: inset 0 0 0 1px var(--surface-ghost-border);
+}
+
+.metrics-note-warning {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--warning-500) 16%, var(--surface-container-high) 84%) 0%, var(--surface-container) 100%);
+}
+
+.metrics-note-danger {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--danger-500) 16%, var(--surface-container-high) 84%) 0%, var(--surface-container) 100%);
+}
+
+.metrics-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.metrics-badge-success {
+  background: color-mix(in srgb, var(--tertiary-500) 18%, var(--surface-container-high) 82%);
+  color: color-mix(in srgb, var(--tertiary-100) 74%, var(--surface-text-strong) 26%);
+}
+
+.metrics-badge-info {
+  background: color-mix(in srgb, var(--info-500) 18%, var(--surface-container-high) 82%);
+  color: color-mix(in srgb, var(--info-100) 74%, var(--surface-text-strong) 26%);
+}
+
+.metrics-tone-success {
+  color: color-mix(in srgb, var(--tertiary-200) 68%, var(--surface-text-strong) 32%);
+}
+
+.metrics-tone-info {
+  color: color-mix(in srgb, var(--secondary-200) 68%, var(--surface-text-strong) 32%);
+}
+
+.metrics-tone-warning {
+  color: color-mix(in srgb, var(--warning-200) 70%, var(--surface-text-strong) 30%);
+}
+
+.metrics-tone-danger {
+  color: color-mix(in srgb, var(--danger-200) 68%, var(--surface-text-strong) 32%);
+}
+
+.search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.search-results-title {
+  padding: 0;
+}
+
+.search-result-group,
+.search-result-row {
+  border-radius: 1rem;
+  padding: 0.9rem;
+  background: color-mix(in srgb, var(--surface-container-high) 76%, transparent);
+  box-shadow: inset 0 0 0 1px var(--surface-ghost-border);
+  transition:
+    transform 140ms ease,
+    background-color 140ms ease,
+    box-shadow 160ms ease;
+}
+
+.search-result-group:hover,
+.search-result-row:hover {
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--surface-container-highest) 78%, transparent);
+}
+
+.search-result-title,
+.search-result-group-title,
+.search-results-popup :is(h4, h5) {
+  color: var(--surface-text-strong);
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+  letter-spacing: -0.03em;
+}
+
+.search-results-popup :is(p, span, li),
+.search-results-popup button,
+.search-result-group-copy,
+.search-result-copy,
+.search-result-meta,
+.search-result-hint,
+.search-result-example {
+  color: var(--surface-text-muted);
+}
+
+.search-results-popup strong {
+  color: var(--surface-text-strong);
+}
+
+.search-results-popup .border-t {
+  border-color: var(--surface-ghost-border) !important;
+}
+
+.search-results-popup .bg-blue-50,
+.search-results-popup .bg-blue-900\/20 {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--info-500) 14%, var(--surface-container-high) 86%) 0%, var(--surface-container) 100%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--info-300) 12%, transparent);
+}
+
+.search-results-popup .bg-neutral-200,
+.search-results-popup .dark\:bg-neutral-700 {
+  background: color-mix(in srgb, var(--surface-container-highest) 80%, transparent);
+  color: var(--surface-text-strong);
+  box-shadow: inset 0 0 0 1px var(--surface-ghost-border);
+}
+
+.layer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  color: var(--surface-text);
+}
+
+.layer-list-title {
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: var(--surface-text-strong);
+}
+
+.layer-list-empty {
+  color: var(--surface-text-muted);
+  font-size: 0.85rem;
+}
+
+.layer-card-shell,
+.layer-style-panel,
+.layer-metadata-popup {
+  border-radius: 1rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-container-high) 92%, transparent) 0%, color-mix(in srgb, var(--surface-container) 100%, transparent) 100%);
+  box-shadow:
+    inset 0 0 0 1px var(--surface-ghost-border),
+    0 18px 38px rgba(0, 0, 0, 0.16);
+}
+
+.layer-card-shell {
+  overflow: hidden;
+}
+
+.layer-card-title {
+  color: var(--surface-text-strong);
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.layer-drag-handle {
+  color: var(--surface-text-muted);
+}
+
+.layer-card-drop-indicator {
+  background:
+    linear-gradient(90deg, var(--second-primary-500) 0%, var(--secondary-400) 100%);
+  box-shadow: 0 10px 20px color-mix(in srgb, var(--second-primary-500) 24%, transparent);
+}
+
+.layer-card-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0.75rem;
+  padding: 0.35rem;
+  background: color-mix(in srgb, var(--surface-container-high) 74%, transparent);
+  box-shadow: inset 0 0 0 1px var(--surface-ghost-border);
+  color: var(--surface-text-muted);
+  transition:
+    transform 140ms ease,
+    background-color 140ms ease,
+    box-shadow 160ms ease,
+    color 140ms ease;
+}
+
+.layer-card-action:hover {
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--surface-container-highest) 82%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--second-primary-300) 16%, transparent),
+    0 14px 28px var(--surface-shadow-tint);
+  color: var(--surface-text-strong);
+}
+
+.layer-card-action-active {
+  color: color-mix(in srgb, var(--info-100) 72%, var(--surface-text-strong) 28%);
+  background: color-mix(in srgb, var(--info-500) 18%, var(--surface-container-high) 82%);
+}
+
+.layer-card-action-danger:hover {
+  color: color-mix(in srgb, var(--danger-100) 74%, var(--surface-text-strong) 26%);
+  background: color-mix(in srgb, var(--danger-500) 18%, var(--surface-container-high) 82%);
+}
+
+.layer-style-panel,
+.layer-metadata-popup {
+  padding: 1rem;
+  color: var(--surface-text);
+}
+
+.layer-style-panel :is(h4, label, p, span),
+.layer-metadata-popup :is(h4, label, p, span) {
+  color: inherit;
+}
+
+.layer-style-panel h4,
+.layer-metadata-popup h4 {
+  color: var(--surface-text-strong);
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+  letter-spacing: -0.03em;
+}
+
+.layer-metadata-popup :is(h4, span, strong, p) {
+  color: inherit;
+}
+
+.layer-metadata-popup :is(h4, strong) {
+  color: var(--surface-text-strong);
+}
+
+.layer-metadata-popup .border-t {
+  border-color: var(--surface-ghost-border) !important;
+}
+
+.layer-metadata-popup .bg-secondary-50,
+.layer-metadata-popup .dark\:bg-secondary-900 {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--secondary-500) 14%, var(--surface-container-high) 86%) 0%, var(--surface-container) 100%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--secondary-300) 12%, transparent);
+}
+
+.layer-metadata-popup .bg-info-50,
+.layer-metadata-popup .dark\:bg-info-900,
+.layer-metadata-popup .bg-blue-50,
+.layer-metadata-popup .dark\:bg-blue-900\/20 {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--info-500) 14%, var(--surface-container-high) 86%) 0%, var(--surface-container) 100%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--info-300) 12%, transparent);
+}
+
+.layer-metadata-popup .bg-neutral-200,
+.layer-metadata-popup .dark\:bg-neutral-700 {
+  background: color-mix(in srgb, var(--surface-container-highest) 80%, transparent);
+  color: var(--surface-text-strong);
+  box-shadow: inset 0 0 0 1px var(--surface-ghost-border);
+}
+
+.layer-list :is(input:not([type="checkbox"]):not([type="color"]), select),
+.layer-list textarea {
+  border-radius: 0.85rem;
+}
+
+.layer-list input[type="range"],
+.settings-panel-body input[type="range"] {
+  accent-color: var(--second-primary-500);
+}
+
+.layer-quick-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.4rem 0.75rem;
+  background: color-mix(in srgb, var(--surface-container-high) 74%, transparent);
+  box-shadow: inset 0 0 0 1px var(--surface-ghost-border);
+  color: var(--surface-text-strong);
+  font-size: 0.72rem;
+  font-weight: 600;
+  transition:
+    transform 140ms ease,
+    box-shadow 160ms ease,
+    background-color 140ms ease;
+}
+
+.layer-quick-action:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--second-primary-300) 16%, transparent),
+    0 12px 24px var(--surface-shadow-tint);
+}
+
+.layer-quick-action-accent {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--second-primary-500) 80%, transparent) 0%, color-mix(in srgb, var(--secondary-500) 56%, var(--surface-container-high) 44%) 100%);
+  color: var(--neutral-50);
+}
+
+.layer-quick-action-warning {
+  background: color-mix(in srgb, var(--warning-500) 20%, var(--surface-container-high) 80%);
+}
+
+.layer-quick-action-danger {
+  background: color-mix(in srgb, var(--danger-500) 20%, var(--surface-container-high) 80%);
+}
+
+@media (min-width: 768px) {
+  .metrics-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .metrics-summary-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.leaflet-container {
+  background: color-mix(in srgb, var(--surface) 88%, var(--primary-950) 12%);
+}
+
+.leaflet-control-scale,
+.leaflet-top .leaflet-control,
+.leaflet-bottom .leaflet-control,
+.leaflet-control-zoom a,
+.leaflet-control-attribution,
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  border: 0 !important;
+  box-shadow:
+    inset 0 0 0 1px var(--surface-ghost-border),
+    0 16px 36px rgba(0, 0, 0, 0.22) !important;
+  backdrop-filter: blur(14px);
+}
+
+.leaflet-control-scale,
+.leaflet-top .leaflet-control,
+.leaflet-bottom .leaflet-control,
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-container-high) 84%, transparent) 0%, color-mix(in srgb, var(--surface-container) 92%, transparent) 100%) !important;
+  color: var(--surface-text-strong) !important;
+}
+
+.leaflet-control-scale-line,
+.leaflet-control-attribution,
+.leaflet-control-zoom a {
+  border-color: var(--surface-ghost-border) !important;
+  color: var(--surface-text-strong) !important;
+}
+
+.leaflet-control-zoom a:hover {
+  background: color-mix(in srgb, var(--surface-container-highest) 76%, transparent) !important;
+}
+
+.tool-progress-container,
+.plan-display-container {
+  border-radius: 1rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-container-high) 92%, transparent) 0%, color-mix(in srgb, var(--surface-container) 100%, transparent) 100%);
+  box-shadow: inset 0 0 0 1px var(--surface-ghost-border);
+}
+
+.tool-progress-header,
+.plan-display-header {
+  background: transparent;
+  border-bottom: 0 !important;
+  box-shadow: inset 0 -1px 0 var(--surface-ghost-border);
+}
+
+.tool-progress-title,
+.plan-display-goal,
+.plan-step-title-text {
+  color: var(--surface-text-strong) !important;
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+}
+
+.tool-progress-params,
+.tool-progress-error,
+.plan-step-description,
+.plan-step-result,
+.plan-step-tool-params,
+.plan-step-tool-error-msg,
+.plan-display-progress-text {
+  color: var(--surface-text-muted) !important;
+}
+
+.plan-display-progress-bar {
+  background: color-mix(in srgb, var(--surface-container-highest) 70%, transparent) !important;
+}
+
+.plan-display-progress-fill {
+  background:
+    linear-gradient(90deg, var(--second-primary-500) 0%, var(--secondary-400) 100%) !important;
+}
+
+@media (max-width: 767px) {
+  .obsidian-page {
+    padding-top: 4.75rem;
+  }
 }
 
 /* Add custom styling for markdown chat content */

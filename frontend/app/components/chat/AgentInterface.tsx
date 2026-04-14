@@ -126,16 +126,17 @@ export default function AgentInterface() {
   };
 
   return (
-    <div className="h-full w-full bg-primary-50 p-4 flex flex-col overflow-hidden relative border-l border-primary-300">
+    <div className="obsidian-chat-panel">
       {/* Header */}
-      <h2 className="text-xl font-bold mb-4 text-primary-900 text-center flex-shrink-0">
-        Map Assistant
-      </h2>
+      <div className="flex-shrink-0">
+        <p className="obsidian-kicker mb-2">Geospatial Intelligence</p>
+        <h2 className="obsidian-heading text-2xl">Map Assistant</h2>
+      </div>
 
       {/* Scrollable content area */}
       <div 
         ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto overflow-x-hidden min-h-0"
+        className="obsidian-chat-scroll"
       >
          {/* Chat Messages (excludes final AI result when plan exists) */}
         <ChatMessages
@@ -167,14 +168,12 @@ export default function AgentInterface() {
         {isStreaming && streamingMessage && (
           <div className="mb-3">
             <div className="flex justify-start">
-              <div className="max-w-[80%] px-4 py-2 rounded-lg bg-neutral-50 rounded-tl-none border border-primary-200">
-                <div className="text-sm break-words chat-markdown text-primary-900 streaming-message">
+              <div className="obsidian-message obsidian-message-ai">
+                <div className="chat-markdown streaming-message text-sm break-words">
                   {streamingMessage}
                   <span className="inline-block w-2 h-4 ml-1 bg-second-primary-600 animate-pulse"></span>
                 </div>
-                <div className="text-xs text-primary-500 mt-1">
-                  Agent
-                </div>
+                <div className="obsidian-message-meta">Agent</div>
               </div>
             </div>
           </div>
@@ -184,15 +183,15 @@ export default function AgentInterface() {
         {resultMessage && (
           <div className="mb-3">
             <div className="flex justify-start">
-              <div className="max-w-[80%] px-4 py-2 rounded-lg bg-neutral-50 rounded-tl-none border border-primary-200">
-                <div className="text-sm break-words chat-markdown text-primary-900">
+              <div className="obsidian-message obsidian-message-ai">
+                <div className="chat-markdown text-sm break-words">
                   <ReactMarkdown>
                     {typeof resultMessage.content === "string"
                       ? resultMessage.content
                       : String(resultMessage.content)}
                   </ReactMarkdown>
                 </div>
-                <div className="text-xs text-primary-500 mt-1">Agent</div>
+                <div className="obsidian-message-meta">Agent</div>
               </div>
             </div>
           </div>
@@ -209,11 +208,11 @@ export default function AgentInterface() {
         <div ref={scrollEndRef} />
       </div>
 
-      <hr className="my-4 flex-shrink-0" />
+      <hr className="obsidian-divider flex-shrink-0" />
 
       {/* Chat Input */}
       <div className="flex-shrink-0">
-        <div className="mb-2 flex items-center justify-between text-xs text-primary-700">
+        <div className="mb-2 flex items-center justify-between text-xs obsidian-status-muted">
           <label className="inline-flex items-center gap-2">
             <input
               type="checkbox"
@@ -221,47 +220,47 @@ export default function AgentInterface() {
               onChange={(e) =>
                 setIncludeSelectedLayersInPrompt(e.target.checked)
               }
-              className="h-4 w-4 rounded border-primary-300 text-secondary-600 focus:ring-secondary-300"
+              className="obsidian-checkbox h-4 w-4"
             />
             Include selected layers explicitly
           </label>
           <span>{selectedLayerCount} selected</span>
         </div>
         {includeSelectedLayersInPrompt && (
-          <div className="mb-2 rounded border border-primary-200 bg-white p-2">
-            <div className="mb-2 flex items-center justify-between text-xs text-primary-700">
+          <div className="obsidian-inline-panel mb-3">
+            <div className="mb-2 flex items-center justify-between text-xs obsidian-status-muted">
               <span className="font-medium">Layers to include</span>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setSelectedLayerIds(layers.map((layer) => layer.id))}
-                  className="rounded border border-primary-200 px-2 py-0.5 hover:bg-primary-50"
+                  className="obsidian-button-ghost px-2 py-1 text-xs"
                 >
                   Select all
                 </button>
                 <button
                   type="button"
                   onClick={() => setSelectedLayerIds([])}
-                  className="rounded border border-primary-200 px-2 py-0.5 hover:bg-primary-50"
+                  className="obsidian-button-ghost px-2 py-1 text-xs"
                 >
                   Clear
                 </button>
               </div>
             </div>
             {layers.length === 0 ? (
-              <p className="text-xs text-primary-500">No layers available.</p>
+              <p className="text-xs obsidian-status-muted">No layers available.</p>
             ) : (
               <div className="max-h-28 space-y-1 overflow-y-auto pr-1">
                 {layers.map((layer) => (
                   <label
                     key={layer.id}
-                    className="flex cursor-pointer items-center gap-2 text-xs text-primary-800"
+                    className="flex cursor-pointer items-center gap-2 text-xs obsidian-strong"
                   >
                     <input
                       type="checkbox"
                       checked={Boolean(layer.selected)}
                       onChange={() => toggleLayerSelection(layer.id)}
-                      className="h-4 w-4 rounded border-primary-300 text-secondary-600 focus:ring-secondary-300"
+                      className="obsidian-checkbox h-4 w-4"
                     />
                     <span className="truncate">
                       {layer.title || layer.name || String(layer.id)}

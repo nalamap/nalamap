@@ -44,127 +44,84 @@ export default function ThemeToggleComponent() {
   }
 
   return (
-    <div className="border border-primary-300 rounded bg-primary-50 dark:bg-neutral-900 overflow-hidden">
-      {/* Header - Clickable to expand/collapse */}
+    <div className="obsidian-panel settings-panel">
       <button
+        type="button"
         onClick={() => setExpanded(!expanded)}
-        className="w-full px-4 py-3 bg-primary-100 hover:bg-primary-200 dark:bg-primary-900 dark:hover:bg-primary-800 transition-colors"
+        className="obsidian-panel-header settings-panel-header"
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <h2 className="text-lg font-semibold text-primary-900 dark:text-primary-100">
-              Theme Preference
-            </h2>
-            <span className="text-xs bg-info-100 dark:bg-info-900 text-info-800 dark:text-info-100 px-2 py-0.5 rounded-full font-medium">
-              {theme === "dark" ? "Dark Mode" : "Light Mode"}
-            </span>
-          </div>
-          {expanded ? (
-            <ChevronUp className="w-5 h-5 text-primary-600" />
-          ) : (
-            <ChevronDown className="w-5 h-5 text-primary-600" />
-          )}
+        <div className="flex items-center gap-3">
+          <h2 className="obsidian-heading text-lg">Theme Preference</h2>
+          <span className="obsidian-chip">
+            {theme === "dark" ? "Dark Mode" : "Light Mode"}
+          </span>
         </div>
+        {expanded ? (
+          <ChevronUp className="h-5 w-5" />
+        ) : (
+          <ChevronDown className="h-5 w-5" />
+        )}
       </button>
 
       {expanded && (
-        <div className="p-4 space-y-4">
-        {/* Theme Buttons */}
-        <div className="grid grid-cols-2 gap-3">
-          {/* Light Mode */}
-          <button
-            onClick={() => setTheme("light")}
-            className={`p-4 rounded-lg border-2 transition-all ${
-              theme === "light"
-                ? "border-secondary-500 bg-secondary-50"
-                : "border-primary-300 bg-primary-50 hover:border-primary-400"
-            }`}
-          >
-            <div className="flex flex-col items-center space-y-2">
-              <Sun
-                className={`w-8 h-8 ${
-                  theme === "light" ? "text-secondary-600" : "text-primary-600"
-                }`}
-              />
-              <div>
-                <div
-                  className={`text-sm font-medium ${
-                    theme === "light" ? "text-secondary-900" : "text-primary-900"
-                  }`}
-                >
-                  Light Mode
+        <div className="obsidian-panel-body settings-panel-body space-y-4">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => setTheme("light")}
+              className={`obsidian-toggle-card text-left ${
+                theme === "light" ? "obsidian-toggle-card-active" : ""
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-2">
+                  <Sun className="h-8 w-8 text-secondary-500" />
+                  <div>
+                    <div className="obsidian-heading text-base">Light Mode</div>
+                    <div className="obsidian-muted text-sm">
+                      Bright and clear for well-lit environments.
+                    </div>
+                  </div>
                 </div>
-                <div className="text-xs text-primary-600 mt-0.5">
-                  Bright and clear
-                </div>
+                {theme === "light" && <span className="obsidian-chip">Active</span>}
               </div>
-              {theme === "light" && (
-                <div className="text-xs bg-secondary-600 text-neutral-50 px-2 py-0.5 rounded font-medium">
-                  Active
-                </div>
-              )}
-            </div>
-          </button>
+            </button>
 
-          {/* Dark Mode */}
-          <button
-            onClick={() => setTheme("dark")}
-            className={`p-4 rounded-lg border-2 transition-all ${
-              theme === "dark"
-                ? "border-info-500 bg-info-50"
-                : "border-primary-300 bg-primary-50 hover:border-primary-400"
-            }`}
-          >
-            <div className="flex flex-col items-center space-y-2">
-              <Moon
-                className={`w-8 h-8 ${
-                  theme === "dark" ? "text-info-600" : "text-primary-600"
-                }`}
-              />
-              <div>
-                <div
-                  className={`text-sm font-medium ${
-                    theme === "dark" ? "text-info-900" : "text-primary-900"
-                  }`}
-                >
-                  Dark Mode
+            <button
+              type="button"
+              onClick={() => setTheme("dark")}
+              className={`obsidian-toggle-card text-left ${
+                theme === "dark" ? "obsidian-toggle-card-active" : ""
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-2">
+                  <Moon className="h-8 w-8 text-info-400" />
+                  <div>
+                    <div className="obsidian-heading text-base">Dark Mode</div>
+                    <div className="obsidian-muted text-sm">
+                      Lower glare and better map emphasis in dimmer settings.
+                    </div>
+                  </div>
                 </div>
-                <div className="text-xs text-primary-600 mt-0.5">
-                  Easy on the eyes
-                </div>
+                {theme === "dark" && <span className="obsidian-chip">Active</span>}
               </div>
-              {theme === "dark" && (
-                <div className="text-xs bg-info-600 text-neutral-50 px-2 py-0.5 rounded font-medium">
-                  Active
-                </div>
-              )}
-            </div>
-          </button>
-        </div>
+            </button>
+          </div>
 
-        {/* Info */}
-        <div className="bg-info-50 border border-info-200 rounded p-3 text-sm">
-          <div className="flex items-start space-x-2">
-            <Monitor className="w-4 h-4 text-info-600 mt-0.5 flex-shrink-0" />
-            <div className="text-info-900">
-              <p className="font-medium mb-1">Theme Settings</p>
-              <ul className="text-xs space-y-1 text-info-800">
-                <li>
-                  • <strong>Light Mode</strong>: Traditional bright interface, best for well-lit environments
-                </li>
-                <li>
-                  • <strong>Dark Mode</strong>: Reduces eye strain in low-light conditions
-                </li>
-                <li>
-                  • Map basemap will automatically switch to match your theme
-                </li>
-                <li>
-                  • Your preference is saved and persists across sessions
-                </li>
-              </ul>
+          <div className="obsidian-note obsidian-note-info text-sm">
+            <div className="flex items-start gap-3">
+              <Monitor className="mt-0.5 h-4 w-4 shrink-0" />
+              <div>
+                <p className="obsidian-strong mb-2">Theme Settings</p>
+                <ul className="obsidian-muted list-disc space-y-1 pl-4 text-xs leading-6">
+                  <li>Map basemaps switch automatically to match the active theme.</li>
+                  <li>Your preference is stored and restored across sessions.</li>
+                  <li>Dark mode aligns best with the current Obsidian Lens design system.</li>
+                </ul>
+              </div>
             </div>
           </div>
-        </div>
         </div>
       )}
     </div>

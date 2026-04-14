@@ -26,11 +26,9 @@ export default function Home() {
   const [layerCollapsed, setLayerCollapsed] = useState(false);
   const [chatCollapsed, setChatCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
 
   // Load persisted widths after mount to avoid hydration mismatch
   useEffect(() => {
-    setMounted(true);
     setWidths(getLayoutWidths());
   }, [getLayoutWidths]);
 
@@ -100,25 +98,28 @@ export default function Home() {
     <>
       {/* Mobile menu toggle - moved to top-right to avoid Leaflet controls */}
       <button
-        className="md:hidden fixed top-4 right-4 z-[25] p-3 bg-primary-800 rounded-md shadow-lg hover:bg-primary-700"
+        className="obsidian-mobile-trigger obsidian-mobile-only top-4 right-4"
         onClick={() => setMobileMenuOpen(true)}
         aria-label="Open menu"
       >
-        <Menu className="w-8 h-8 text-white" />
+        <Menu className="h-7 w-7" />
       </button>
       {mobileMenuOpen && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-[30]"
+          className="obsidian-overlay"
           onClick={() => setMobileMenuOpen(false)}
         >
           <div 
-            className="fixed top-0 right-0 bottom-0 w-full max-w-xs bg-primary-800 z-[31] text-white flex flex-col"
+            className="obsidian-drawer"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-4 border-b border-primary-700">
-              <h2 className="text-lg font-semibold">Menu</h2>
+            <div className="obsidian-panel-header">
+              <div>
+                <p className="obsidian-kicker mb-2">Navigation</p>
+                <h2 className="obsidian-heading text-lg">Menu</h2>
+              </div>
               <button
-                className="p-1 hover:bg-primary-700 rounded"
+                className="obsidian-icon-button"
                 onClick={() => setMobileMenuOpen(false)}
                 aria-label="Close menu"
               >
@@ -134,15 +135,15 @@ export default function Home() {
           </div>
         </div>
       )}
-      <div className="flex h-screen w-screen overflow-hidden">
+      <div className="obsidian-shell">
         {/* Sidebar / Menu */}
         <div
           style={{ flexBasis: `${widths[0]}%` }}
-          className="hidden md:flex flex-none relative bg-primary-800"
+          className="obsidian-rail hidden md:flex flex-none"
         >
-          <Sidebar onLayerToggle={() => setLayerCollapsed(!layerCollapsed)} />
+          <Sidebar compact onLayerToggle={() => setLayerCollapsed(!layerCollapsed)} />
           <div
-            className="absolute top-0 right-0 bottom-0 w-1 hover:bg-primary-400 cursor-ew-resize z-10"
+            className="obsidian-resize-handle"
             onMouseDown={(e) => onHandleMouseDown(e, 0)}
           />
         </div>
@@ -151,26 +152,26 @@ export default function Home() {
         {!layerCollapsed ? (
           <div
             style={{ flexBasis: `${widths[1]}%` }}
-            className="flex-none relative min-w-[200px] bg-primary-100"
+            className="obsidian-surface-panel flex-none min-w-[200px]"
           >
             <button
-              className="absolute top-2 right-2 p-1 bg-primary-200 rounded shadow z-10 hover:bg-primary-300"
+              className="obsidian-icon-button absolute top-3 right-3 z-10"
               onClick={() => {
                 setLayerCollapsed(true);
                 setLayerPanelCollapsed(true);
               }}
             >
-              <ChevronLeft className="w-4 h-4 text-primary-700" />
+              <ChevronLeft className="h-4 w-4" />
             </button>
             <LayerManagement />
             <div
-              className="absolute top-0 right-0 bottom-0 w-1 hover:bg-primary-400 cursor-ew-resize z-10"
+              className="obsidian-resize-handle"
               onMouseDown={(e) => onHandleMouseDown(e, 1)}
             />
           </div>
         ) : (
           <button
-            className="fixed bottom-4 p-3 bg-primary-800 rounded-full shadow-lg z-[25] hover:bg-primary-700 touch-manipulation"
+            className="obsidian-fab fixed bottom-4 p-3 touch-manipulation"
             style={{ left: `calc(1rem + ${sidebarWidth}vw)` }}
             onClick={() => {
               setLayerCollapsed(false);
@@ -178,18 +179,18 @@ export default function Home() {
             }}
             aria-label="Open layer management"
           >
-            <Layers className="w-9 h-9 text-white" />
+            <Layers className="h-8 w-8" />
           </button>
         )}
 
         {/* Map panel */}
         <div
-          className="flex-1 relative"
+          className="obsidian-main-panel obsidian-map-stage flex-1"
         >
           <MapComponent />
           {!chatCollapsed && (
             <div
-              className="absolute top-0 right-0 bottom-0 w-1 hover:bg-primary-400 cursor-ew-resize z-10"
+              className="obsidian-resize-handle"
               onMouseDown={(e) => onHandleMouseDown(e, 2)}
             />
           )}
@@ -199,23 +200,23 @@ export default function Home() {
         {!chatCollapsed ? (
           <div
             style={{ flexBasis: `${widths[3]}%` }}
-            className="flex-none relative min-w-[200px] bg-primary-50"
+            className="obsidian-surface-panel flex-none min-w-[200px]"
           >
             <button
-              className="absolute top-2 left-2 p-1 bg-primary-200 rounded shadow z-10 hover:bg-primary-300"
+              className="obsidian-icon-button absolute top-3 left-3 z-10"
               onClick={() => setChatCollapsed(true)}
             >
-              <ChevronRight className="w-4 h-4 text-primary-700" />
+              <ChevronRight className="h-4 w-4" />
             </button>
             <AgentInterface />
           </div>
         ) : (
           <button
-            className="fixed bottom-4 right-4 p-3 bg-primary-800 rounded-full shadow-lg z-[25] hover:bg-primary-700 touch-manipulation"
+            className="obsidian-fab fixed bottom-4 right-4 p-3 touch-manipulation"
             onClick={() => setChatCollapsed(false)}
             aria-label="Open chat"
           >
-            <MessageCircle className="w-9 h-9 text-white" />
+            <MessageCircle className="h-8 w-8" />
           </button>
         )}
       </div>

@@ -70,23 +70,24 @@ export default function GeoServerSettingsComponent({
   );
 
   return (
-    <div className="border border-primary-300 rounded bg-primary-50 dark:bg-neutral-900 overflow-hidden">
+    <div className="obsidian-panel settings-panel">
       <button
+        type="button"
         onClick={() => setCollapsed(!collapsed)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-primary-100 hover:bg-primary-200 dark:bg-primary-900 dark:hover:bg-primary-800 transition-colors"
+        className="obsidian-panel-header settings-panel-header"
       >
-        <h2 className="text-lg font-semibold text-primary-900 dark:text-primary-100">
+        <h2 className="obsidian-heading text-lg">
           GeoServer Backends
         </h2>
         {collapsed ? (
-          <ChevronDown className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+          <ChevronDown className="h-6 w-6" />
         ) : (
-          <ChevronUp className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+          <ChevronUp className="h-6 w-6" />
         )}
       </button>
 
       {!collapsed && (
-        <div className="p-4 pt-0 space-y-6">
+        <div className="obsidian-panel-body settings-panel-body space-y-6">
           {/* Example GeoServers Section */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-primary-900 dark:text-primary-100">
@@ -100,7 +101,7 @@ export default function GeoServerSettingsComponent({
               <select
                 value={selectedExampleGeoServer}
                 onChange={(e) => setSelectedExampleGeoServer(e.target.value)}
-                className="border border-primary-300 dark:border-primary-700 rounded p-2 flex-grow bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
+                className="obsidian-select flex-grow"
               >
                 <option value="" className="bg-primary-50 text-primary-900">Select an example GeoServer</option>
                 {availableExampleGeoServers.map((geoserver) => (
@@ -112,13 +113,7 @@ export default function GeoServerSettingsComponent({
               <button
                 onClick={handleAddExampleGeoServer}
                 disabled={!selectedExampleGeoServer || backendLoading}
-                className={`bg-second-primary-600 text-white px-4 py-2 rounded font-medium shadow-sm ${!selectedExampleGeoServer || backendLoading ? "opacity-50 cursor-not-allowed" : "hover:bg-second-primary-700 cursor-pointer"}`}
-                style={{
-                  backgroundColor:
-                    !selectedExampleGeoServer || backendLoading
-                      ? undefined
-                      : "var(--second-primary-600)",
-                }}
+                className={`obsidian-button-primary px-4 py-2 ${!selectedExampleGeoServer || backendLoading ? "opacity-50 cursor-not-allowed" : ""}`}
               >
                 {backendLoading ? "Adding..." : "Add Example GeoServer"}
               </button>
@@ -126,7 +121,7 @@ export default function GeoServerSettingsComponent({
             {availableExampleGeoServers.map((geoserver) => (
               <div
                 key={geoserver.url}
-                className="border border-primary-200 rounded p-4 bg-primary-50 dark:bg-neutral-800 space-y-2"
+                className="obsidian-card space-y-2"
               >
                 <h4 className="text-lg font-semibold text-primary-900 dark:text-primary-100">
                   {geoserver.name}
@@ -140,7 +135,7 @@ export default function GeoServerSettingsComponent({
           </div>
 
           {/* Custom Backend Section */}
-          <div className="space-y-4 border-t border-primary-200 pt-6">
+          <div className="space-y-4 pt-6">
             <h3 className="text-lg font-semibold text-primary-900 dark:text-primary-100">
               Add Custom Backend
             </h3>
@@ -151,7 +146,7 @@ export default function GeoServerSettingsComponent({
                   setNewBackend({ ...newBackend, url: e.target.value })
                 }
                 placeholder="GeoServer URL"
-                className="border border-primary-300 dark:border-primary-700 rounded p-2 w-full bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
+                className="obsidian-input"
               />
               <input
                 value={newBackend.name}
@@ -159,7 +154,7 @@ export default function GeoServerSettingsComponent({
                   setNewBackend({ ...newBackend, name: e.target.value })
                 }
                 placeholder="Name (optional)"
-                className="border border-primary-300 dark:border-primary-700 rounded p-2 w-full bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
+                className="obsidian-input"
               />
               <textarea
                 value={newBackend.description}
@@ -167,7 +162,7 @@ export default function GeoServerSettingsComponent({
                   setNewBackend({ ...newBackend, description: e.target.value })
                 }
                 placeholder="Description (optional)"
-                className="border border-primary-300 dark:border-primary-700 rounded p-2 w-full h-20 bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
+                className="obsidian-textarea h-20"
               />
               <input
                 value={newBackend.username}
@@ -175,7 +170,7 @@ export default function GeoServerSettingsComponent({
                   setNewBackend({ ...newBackend, username: e.target.value })
                 }
                 placeholder="Username (optional)"
-                className="border border-primary-300 dark:border-primary-700 rounded p-2 w-full bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
+                className="obsidian-input"
               />
               <input
                 type="password"
@@ -184,9 +179,9 @@ export default function GeoServerSettingsComponent({
                   setNewBackend({ ...newBackend, password: e.target.value })
                 }
                 placeholder="Password (optional)"
-                className="border border-primary-300 dark:border-primary-700 rounded p-2 w-full bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
+                className="obsidian-input"
               />
-              <label className="flex items-center space-x-2 p-3 bg-warning-50 dark:bg-warning-900/20 border border-warning-300 dark:border-warning-700 rounded">
+              <label className="obsidian-note obsidian-note-warning flex items-center space-x-2 p-3">
                 <input
                   type="checkbox"
                   checked={newBackend.allow_insecure || false}
@@ -208,27 +203,22 @@ export default function GeoServerSettingsComponent({
               <button
                 onClick={handleAddBackend}
                 disabled={backendLoading}
-                className={`bg-second-primary-600 text-white px-4 py-2 rounded font-medium shadow-sm ${backendLoading ? "opacity-50 cursor-not-allowed" : "hover:bg-second-primary-700 cursor-pointer"}`}
-                style={{
-                  backgroundColor: backendLoading
-                    ? undefined
-                    : "var(--second-primary-600)",
-                }}
+                className={`obsidian-button-primary px-4 py-2 ${backendLoading ? "opacity-50 cursor-not-allowed" : ""}`}
               >
                 {backendLoading ? "Checking…" : "Add Backend"}
               </button>
               {backendLoading && (
-                <div className="w-full mt-2 h-2 bg-primary-200 rounded">
-                  <div className="h-2 bg-second-primary-500 rounded animate-pulse w-full" />
+                <div className="upload-progress-track mt-2 h-2">
+                  <div className="upload-progress-fill h-2 animate-pulse w-full" />
                 </div>
               )}
               {backendError && (
-                <p className="text-red-600 text-sm font-medium">
+                <p className="obsidian-status-error text-sm font-medium">
                   {backendError}
                 </p>
               )}
               {backendSuccess && (
-                <p className="text-tertiary-600 text-sm font-medium">
+                <p className="obsidian-status-success text-sm font-medium">
                   {backendSuccess}
                 </p>
               )}
@@ -236,7 +226,7 @@ export default function GeoServerSettingsComponent({
           </div>
 
           {/* Backend List */}
-          <div className="space-y-3 border-t border-primary-200 pt-6">
+          <div className="space-y-3 pt-6">
             <h3 className="text-lg font-semibold text-primary-900 dark:text-primary-100">
               Configured Backends
             </h3>
@@ -244,7 +234,7 @@ export default function GeoServerSettingsComponent({
               {backends.map((b, i) => (
                 <li
                   key={i}
-                  className="flex justify-between items-center border border-primary-200 rounded p-4 bg-primary-50 dark:bg-neutral-800"
+                  className="obsidian-card flex justify-between items-center"
                 >
                   <label className="flex items-center space-x-2">
                     <input
@@ -404,7 +394,7 @@ export default function GeoServerSettingsComponent({
                               <div className="px-3 py-2 bg-error-200 dark:bg-error-800 border-t border-error-300 dark:border-error-600">
                                 <p className="text-xs text-gray-900 dark:text-error-100 flex items-start gap-1.5">
                                   <span className="text-base shrink-0">💡</span>
-                                  <span>Try enabling "Allow insecure connections" below</span>
+                                  <span>Try enabling &quot;Allow insecure connections&quot; below</span>
                                 </p>
                               </div>
                             )}
@@ -438,7 +428,7 @@ export default function GeoServerSettingsComponent({
                   </label>
                   <button
                     onClick={() => removeBackend(b.url)}
-                    className="text-red-600 hover:underline ml-2 font-medium"
+                    className="obsidian-button-danger ml-2 px-3 py-2 text-sm"
                   >
                     Remove
                   </button>

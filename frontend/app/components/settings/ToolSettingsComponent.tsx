@@ -48,28 +48,29 @@ export default function ToolSettingsComponent() {
   };
 
   return (
-    <div className="border border-primary-300 rounded bg-primary-50 dark:bg-neutral-900 overflow-hidden">
+    <div className="obsidian-panel settings-panel">
       <button
+        type="button"
         onClick={() => setCollapsed(!collapsed)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-primary-100 hover:bg-primary-200 dark:bg-primary-900 dark:hover:bg-primary-800 transition-colors"
+        className="obsidian-panel-header settings-panel-header"
       >
-        <h2 className="text-lg font-semibold text-primary-900 dark:text-primary-100">
+        <h2 className="obsidian-heading text-lg">
           Tools Configuration
         </h2>
         {collapsed ? (
-          <ChevronDown className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+          <ChevronDown className="h-6 w-6" />
         ) : (
-          <ChevronUp className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+          <ChevronUp className="h-6 w-6" />
         )}
       </button>
 
       {!collapsed && (
-        <div className="p-4 pt-0 space-y-4">
+        <div className="obsidian-panel-body settings-panel-body space-y-4">
           <div className="flex space-x-2">
             <select
               value={newToolName}
               onChange={(e) => setNewToolName(e.target.value)}
-              className="border border-primary-300 dark:border-primary-700 rounded p-2 flex-grow bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
+              className="obsidian-select flex-grow"
             >
               <option value="">Select tool to add</option>
               {availableTools.map((tool) => (
@@ -80,11 +81,12 @@ export default function ToolSettingsComponent() {
             </select>
             <button
               onClick={() => {
-                newToolName && addToolConfig(newToolName);
+                if (newToolName) {
+                  addToolConfig(newToolName);
+                }
                 setNewToolName("");
               }}
-              className="bg-second-primary-600 text-white px-4 py-2 rounded hover:bg-second-primary-700 font-medium shadow-sm cursor-pointer"
-              style={{ backgroundColor: 'var(--second-primary-600)' }}
+              className="obsidian-button-primary px-4 py-2"
             >
               Add Tool
             </button>
@@ -93,7 +95,7 @@ export default function ToolSettingsComponent() {
           {/* Display tools grouped by category */}
           {Object.entries(categorizedTools).map(([category, categoryTools]) => (
             <div key={category} className="space-y-2">
-              <h3 className="text-sm font-semibold text-primary-900 dark:text-primary-300 uppercase tracking-wide border-b border-primary-200 dark:border-primary-700 pb-1">
+              <h3 className="obsidian-kicker pb-1">
                 {categoryDisplayNames[category] || category}
               </h3>
               <ul className="space-y-3">
@@ -103,7 +105,7 @@ export default function ToolSettingsComponent() {
                   const group = toolMeta?.group;
                   
                   return (
-                    <li key={i} className="border border-primary-200 dark:border-primary-700 rounded p-4 space-y-2 bg-primary-50 dark:bg-primary-950">
+                    <li key={i} className="obsidian-card space-y-2">
                       <div className="flex justify-between items-center">
                         <label className="flex items-center space-x-2">
                           <input
@@ -133,13 +135,13 @@ export default function ToolSettingsComponent() {
                                 [t.name]: !prev[t.name],
                               }))
                             }
-                            className="text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-200 font-medium text-sm"
+                            className="obsidian-button-ghost px-3 py-2 text-sm"
                           >
                             {toolPromptVisibility[t.name] ? "Hide Prompt" : "Show Prompt"}
                           </button>
                           <button
                             onClick={() => removeToolConfig(t.name)}
-                            className="text-red-600 hover:underline font-medium"
+                            className="obsidian-button-danger px-3 py-2 text-sm"
                           >
                             Remove
                           </button>
@@ -152,7 +154,7 @@ export default function ToolSettingsComponent() {
                             setToolPromptOverride(t.name, e.target.value)
                           }
                           placeholder="Prompt Override (leave empty to use default)"
-                          className="border border-primary-300 dark:border-primary-700 rounded p-2 w-full h-20 bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
+                          className="obsidian-textarea h-20"
                         />
                       )}
                     </li>

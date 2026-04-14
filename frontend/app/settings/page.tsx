@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import Sidebar from "../components/sidebar/Sidebar";
 import { GeoServerBackend, SettingsSnapshot } from "../stores/settingsStore";
 import { useUIStore } from "../stores/uiStore";
@@ -59,19 +59,10 @@ export default function SettingsPage() {
   };
   
   // store hooks
-  const portals = useInitializedSettingsStore((s) => s.search_portals);
-  const addPortal = useInitializedSettingsStore((s) => s.addPortal);
-  const removePortal = useInitializedSettingsStore((s) => s.removePortal);
-  const togglePortal = useInitializedSettingsStore((s) => s.togglePortal);
-
   const backends = useInitializedSettingsStore((s) => s.geoserver_backends);
   const addBackend = useInitializedSettingsStore((s) => s.addBackend);
   const toggleBackendInsecure = useInitializedSettingsStore(
     (s) => s.toggleBackendInsecure,
-  );
-
-  const setAvailableExampleGeoServers = useInitializedSettingsStore(
-    (s) => s.setAvailableExampleGeoServers,
   );
 
   const setSessionId = useInitializedSettingsStore((s) => s.setSessionId);
@@ -90,7 +81,6 @@ export default function SettingsPage() {
   const [backendError, setBackendError] = useState<string | null>(null);
   const [backendSuccess, setBackendSuccess] = useState<string | null>(null);
   const [backendLoading, setBackendLoading] = useState(false);
-  const [importingBackends, setImportingBackends] = useState(false);
   const [embeddingStatus, setEmbeddingStatus] = useState<{
     [url: string]: {
       total: number;
@@ -256,7 +246,6 @@ export default function SettingsPage() {
     }
 
     setBackendLoading(true);
-    setImportingBackends(true);
     try {
       const failures: string[] = [];
       let successCount = 0;
@@ -287,7 +276,6 @@ export default function SettingsPage() {
       }
     } finally {
       setBackendLoading(false);
-      setImportingBackends(false);
     }
   };
 
@@ -296,7 +284,6 @@ export default function SettingsPage() {
     setBackendSuccess(null);
 
     setBackendLoading(true);
-    setImportingBackends(false);
     try {
       // Normalize and add backend to settings immediately
       const normalizedBackend = normalizeBackend({
@@ -370,7 +357,6 @@ export default function SettingsPage() {
     setBackendError(null);
     setBackendSuccess(null);
     setBackendLoading(true);
-    setImportingBackends(false);
 
     try {
       const normalizedBackend = normalizeBackend({
@@ -712,7 +698,7 @@ export default function SettingsPage() {
     <>
       {/* Mobile menu toggle */}
       <button
-        className="md:hidden fixed top-4 left-4 z-20 p-2 bg-primary-200 rounded-full hover:bg-primary-300"
+        className="obsidian-mobile-trigger obsidian-mobile-only top-4 left-4"
         onClick={() => {
           const menu = document.getElementById("mobile-settings-menu");
           if (menu) menu.classList.toggle("hidden");
@@ -734,11 +720,11 @@ export default function SettingsPage() {
       </button>
       <div
         id="mobile-settings-menu"
-        className="hidden fixed inset-0 bg-neutral-950 bg-opacity-50 z-20"
+        className="obsidian-overlay hidden"
       >
-        <div className="fixed top-0 left-0 bottom-0 w-64 bg-primary-800 z-30 text-neutral-50 p-4">
+        <div className="obsidian-drawer">
           <button
-            className="absolute top-4 right-4"
+            className="obsidian-icon-button absolute top-4 right-4"
             onClick={() => {
               const menu = document.getElementById("mobile-settings-menu");
               if (menu) menu.classList.add("hidden");
@@ -751,34 +737,39 @@ export default function SettingsPage() {
           <Sidebar />
         </div>
       </div>
-      <div className="flex h-screen w-screen overflow-hidden">
+      <div className="obsidian-shell">
         {/* Sidebar / Menu */}
         <div 
-          className="hidden md:flex flex-none relative bg-primary-800"
+          className="obsidian-rail hidden md:flex flex-none"
           style={{ flexBasis: `${sidebarWidth}%` }}
         >
-          <Sidebar />
+          <Sidebar compact />
           <div
-            className="absolute top-0 right-0 bottom-0 w-1 hover:bg-primary-400 cursor-ew-resize z-10"
+            className="obsidian-resize-handle"
             onMouseDown={onHandleMouseDown}
           />
         </div>
 
         {/* Main content */}
-        <main className="flex-1 overflow-auto p-6 space-y-8 scroll-smooth bg-primary-50">
-          <h1 className="text-3xl font-bold text-primary-900">Settings</h1>
+        <main className="obsidian-main-panel obsidian-page-shell">
+        <div className="obsidian-page scroll-smooth">
+          <div className="space-y-3">
+            <p className="obsidian-kicker">Configuration</p>
+            <h1 className="obsidian-page-title">Settings</h1>
+            <p className="obsidian-page-copy">
+              Configure models, tools, servers, branding, and operational defaults from a shared tonal control surface.
+            </p>
+          </div>
           {/* Export/Import Settings */}
-          <div className="flex space-x-4 mb-8">
+          <div className="obsidian-toolbar mb-2">
             <button
               onClick={exportSettings}
-              className="bg-tertiary-600 text-neutral-50 px-4 py-2 rounded hover:bg-tertiary-700 font-medium shadow-sm cursor-pointer"
-              style={{ backgroundColor: 'var(--tertiary-600)' }}
+              className="obsidian-button-primary"
             >
               Export Settings
             </button>
             <label 
-              className="bg-second-primary-600 text-neutral-50 px-4 py-2 rounded cursor-pointer hover:bg-second-primary-700 font-medium shadow-sm inline-block"
-              style={{ backgroundColor: 'var(--second-primary-600)' }}
+              className="obsidian-button-ghost inline-flex cursor-pointer"
             >
               Import Settings
               <input
@@ -847,6 +838,7 @@ export default function SettingsPage() {
           <section>
             <GeocodingSettingsComponent />
           </section>
+        </div>
         </main>
       </div>
     </>

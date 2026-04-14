@@ -73,7 +73,7 @@ export interface ModelOption {
 
 export interface ToolOption {
   default_prompt: string;
-  settings: Record<string, any>;
+  settings: Record<string, unknown>;
   enabled: boolean; // whether the tool is enabled by default
   group?: string | null; // tools in the same group are mutually exclusive
   display_name?: string | null; // user-friendly name for UI
@@ -238,6 +238,7 @@ export interface SettingsState extends SettingsSnapshot {
   setModelOptions: (opts: Record<string, ModelOption[]>) => void;
 
   // Color settings
+  default_color_settings?: ColorSettings;
   color_settings?: ColorSettings;
   setColorSettings: (colors: ColorSettings) => void;
   updateColorScale: (
@@ -325,6 +326,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
 
     // Initialize color settings if not already set
+    if (!get().default_color_settings && opts.color_settings) {
+      set({ default_color_settings: opts.color_settings });
+    }
+
     if (!color_settings && opts.color_settings) {
       setColorSettings(opts.color_settings);
     }
@@ -731,6 +736,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setModelOptions: (opts) => set({ model_options: opts }),
 
   // color settings
+  default_color_settings: undefined,
   color_settings: undefined,
   setColorSettings: (colors) => set({ color_settings: colors }),
   updateColorScale: (scaleName, shade, color) =>
@@ -746,7 +752,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         },
       };
     }),
-  resetColorSettings: () => set({ color_settings: undefined }),
+  resetColorSettings: () =>
+    set((state) => ({
+      color_settings: state.default_color_settings
+        ? structuredClone(state.default_color_settings)
+        : undefined,
+    })),
 
   // theme settings
   theme: (typeof window !== "undefined" && localStorage.getItem("theme") === "dark") ? "dark" : "light",
@@ -801,6 +812,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
 // Expose store to window for E2E testing
 if (typeof window !== "undefined") {
-  (window as any).useSettingsStore = useSettingsStore;
+  (
+    window as typeof window & {
+      useSettingsStore?: typeof useSettingsStore;
+    }
+  ).useSettingsStore = useSettingsStore;
   console.log("[SettingsStore] Exposed to window for testing");
 }

@@ -12,10 +12,11 @@ export default function BasemapSelector({
   };
 
   return (
-    <div>
-      <h3 className="font-semibold mb-2">Basemap</h3>
+    <div className="basemap-selector">
+      <p className="obsidian-kicker mb-2">Context Layer</p>
+      <h3 className="mb-3">Basemap</h3>
       <select
-        className="w-full p-2 border rounded"
+        className="obsidian-select"
         onChange={handleBasemapChange}
         defaultValue="carto-positron"
         data-testid="basemap-select"

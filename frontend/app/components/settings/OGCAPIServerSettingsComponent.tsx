@@ -72,23 +72,24 @@ export default function OGCAPIServerSettingsComponent() {
   };
 
   return (
-    <div className="border border-primary-300 rounded bg-primary-50 dark:bg-neutral-900 overflow-hidden">
+    <div className="obsidian-panel settings-panel">
       <button
+        type="button"
         onClick={() => setCollapsed(!collapsed)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-primary-100 hover:bg-primary-200 dark:bg-primary-900 dark:hover:bg-primary-800 transition-colors"
+        className="obsidian-panel-header settings-panel-header"
       >
-        <h2 className="text-lg font-semibold text-primary-900 dark:text-primary-100">
+        <h2 className="obsidian-heading text-lg">
           OGC API Servers
         </h2>
         {collapsed ? (
-          <ChevronDown className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+          <ChevronDown className="h-6 w-6" />
         ) : (
-          <ChevronUp className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+          <ChevronUp className="h-6 w-6" />
         )}
       </button>
 
       {!collapsed && (
-        <div className="p-4 pt-0 space-y-6">
+        <div className="obsidian-panel-body settings-panel-body space-y-6">
           {availableExamples && availableExamples.length > 0 && (
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-primary-900 dark:text-primary-100">
@@ -98,7 +99,7 @@ export default function OGCAPIServerSettingsComponent() {
                 <select
                   value={selectedExampleServer}
                   onChange={(e) => setSelectedExampleServer(e.target.value)}
-                  className="border border-primary-300 dark:border-primary-700 rounded p-2 flex-grow bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
+                  className="obsidian-select flex-grow"
                 >
                   <option value="">Select an example OGC API server</option>
                   {availableExamples.map((server) => (
@@ -110,12 +111,7 @@ export default function OGCAPIServerSettingsComponent() {
                 <button
                   onClick={handleAddExample}
                   disabled={!selectedExampleServer}
-                  className={`bg-second-primary-600 text-white px-4 py-2 rounded font-medium shadow-sm ${!selectedExampleServer ? "opacity-50 cursor-not-allowed" : "hover:bg-second-primary-700 cursor-pointer"}`}
-                  style={{
-                    backgroundColor: !selectedExampleServer
-                      ? undefined
-                      : "var(--second-primary-600)",
-                  }}
+                  className={`obsidian-button-primary px-4 py-2 ${!selectedExampleServer ? "opacity-50 cursor-not-allowed" : ""}`}
                 >
                   Add Example Server
                 </button>
@@ -124,7 +120,7 @@ export default function OGCAPIServerSettingsComponent() {
           )}
 
           <div
-            className={`space-y-4 ${availableExamples && availableExamples.length > 0 ? "border-t border-primary-200 pt-6" : ""}`}
+            className={`space-y-4 ${availableExamples && availableExamples.length > 0 ? "pt-6" : ""}`}
           >
             <h3 className="text-lg font-semibold text-primary-900 dark:text-primary-100">
               Add Custom OGC API Server
@@ -134,26 +130,26 @@ export default function OGCAPIServerSettingsComponent() {
                 value={newServer.url}
                 onChange={(e) => setNewServer({ ...newServer, url: e.target.value })}
                 placeholder="OGC API base URL (e.g., http://ogcapi:8000/v1 for Docker, http://localhost:8081/v1 locally)"
-                className="border border-primary-300 dark:border-primary-700 rounded p-2 w-full bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
+                className="obsidian-input"
               />
               <input
                 value={newServer.name}
                 onChange={(e) => setNewServer({ ...newServer, name: e.target.value })}
                 placeholder="Name (optional)"
-                className="border border-primary-300 dark:border-primary-700 rounded p-2 w-full bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
+                className="obsidian-input"
               />
               <textarea
                 value={newServer.description}
                 onChange={(e) => setNewServer({ ...newServer, description: e.target.value })}
                 placeholder="Description (optional)"
-                className="border border-primary-300 dark:border-primary-700 rounded p-2 w-full h-20 bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
+                className="obsidian-textarea h-20"
               />
               <input
                 type="password"
                 value={newServer.api_key || ""}
                 onChange={(e) => setNewServer({ ...newServer, api_key: e.target.value })}
                 placeholder="API Key (optional)"
-                className="border border-primary-300 dark:border-primary-700 rounded p-2 w-full bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
+                className="obsidian-input"
               />
 
               <div className="space-y-2">
@@ -165,7 +161,7 @@ export default function OGCAPIServerSettingsComponent() {
                     {Object.entries(newServer.headers).map(([key, value]) => (
                       <div
                         key={key}
-                        className="flex items-center justify-between bg-primary-100 dark:bg-primary-800 rounded px-3 py-2"
+                        className="obsidian-card flex items-center justify-between px-3 py-2"
                       >
                         <div className="flex-1 font-mono text-sm text-primary-900 dark:text-primary-100">
                           <span className="font-semibold">{key}:</span> {value}
@@ -187,22 +183,18 @@ export default function OGCAPIServerSettingsComponent() {
                     value={newHeaderKey}
                     onChange={(e) => setNewHeaderKey(e.target.value)}
                     placeholder="Header name"
-                    className="border border-primary-300 dark:border-primary-700 rounded p-2 flex-1 bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
+                    className="obsidian-input flex-1"
                   />
                   <input
                     value={newHeaderValue}
                     onChange={(e) => setNewHeaderValue(e.target.value)}
                     placeholder="Header value"
-                    className="border border-primary-300 dark:border-primary-700 rounded p-2 flex-1 bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
+                    className="obsidian-input flex-1"
                   />
                   <button
                     onClick={handleAddHeader}
                     disabled={!newHeaderKey.trim() || !newHeaderValue.trim()}
-                    className={`flex items-center space-x-1 px-3 py-2 rounded ${
-                      !newHeaderKey.trim() || !newHeaderValue.trim()
-                        ? "bg-primary-300 dark:bg-primary-700 text-primary-500 dark:text-primary-400 cursor-not-allowed"
-                        : "bg-tertiary-600 hover:bg-tertiary-700 text-white cursor-pointer"
-                    }`}
+                    className={`obsidian-button-primary px-3 py-2 ${!newHeaderKey.trim() || !newHeaderValue.trim() ? "opacity-50 cursor-not-allowed" : ""}`}
                     aria-label="Add header"
                   >
                     <Plus className="w-4 h-4" />
@@ -213,19 +205,14 @@ export default function OGCAPIServerSettingsComponent() {
               <button
                 onClick={handleAddCustom}
                 disabled={!newServer.url.trim()}
-                className={`bg-second-primary-600 text-white px-4 py-2 rounded font-medium shadow-sm ${!newServer.url.trim() ? "opacity-50 cursor-not-allowed" : "hover:bg-second-primary-700 cursor-pointer"}`}
-                style={{
-                  backgroundColor: !newServer.url.trim()
-                    ? undefined
-                    : "var(--second-primary-600)",
-                }}
+                className={`obsidian-button-primary px-4 py-2 ${!newServer.url.trim() ? "opacity-50 cursor-not-allowed" : ""}`}
               >
                 Add OGC API Server
               </button>
             </div>
           </div>
 
-          <div className="space-y-3 border-t border-primary-200 pt-6">
+          <div className="space-y-3 pt-6">
             <h3 className="text-lg font-semibold text-primary-900 dark:text-primary-100">
               Configured OGC API Servers
             </h3>
@@ -234,7 +221,7 @@ export default function OGCAPIServerSettingsComponent() {
                 {ogcapiServers.map((server, i) => (
                   <li
                     key={i}
-                    className="flex justify-between items-center border border-primary-200 rounded p-4 bg-primary-50 dark:bg-neutral-800"
+                    className="obsidian-card flex justify-between items-center"
                   >
                     <label className="flex items-center space-x-2">
                       <input
@@ -259,7 +246,7 @@ export default function OGCAPIServerSettingsComponent() {
                     </label>
                     <button
                       onClick={() => removeOGCAPIServer(server.url)}
-                      className="text-red-600 hover:underline font-medium"
+                      className="obsidian-button-danger px-3 py-2 text-sm"
                     >
                       Remove
                     </button>

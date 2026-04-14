@@ -39,23 +39,24 @@ export default function AgentSettingsComponent() {
   ];
 
   return (
-    <div className="border border-primary-300 dark:border-primary-700 rounded bg-primary-50 dark:bg-neutral-900 overflow-hidden">
+    <div className="obsidian-panel settings-panel">
       <button
+        type="button"
         onClick={() => setCollapsed(!collapsed)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-primary-100 hover:bg-primary-200 dark:bg-primary-900 dark:hover:bg-primary-800 transition-colors"
+        className="obsidian-panel-header settings-panel-header"
       >
-        <h2 className="text-lg font-semibold text-primary-900 dark:text-primary-100">
+        <h2 className="obsidian-heading text-lg">
           Agent Settings
         </h2>
         {collapsed ? (
-          <ChevronDown className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+          <ChevronDown className="h-6 w-6" />
         ) : (
-          <ChevronUp className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+          <ChevronUp className="h-6 w-6" />
         )}
       </button>
 
       {!collapsed && (
-        <div className="p-4 pt-0 space-y-4">
+        <div className="obsidian-panel-body settings-panel-body space-y-4">
           {/* System Prompt */}
           <div>
             <label className="block text-sm font-medium text-primary-900 dark:text-primary-300 mb-1">

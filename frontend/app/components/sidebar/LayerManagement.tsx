@@ -94,12 +94,13 @@ export default function LayerManagement() {
   };
 
   return (
-    <div className="w-full h-full bg-primary-50 p-4 border-r border-primary-300 overflow-auto">
-      <div className="mb-4 rounded border border-primary-200 bg-primary-100 p-3">
-        <h2 className="text-sm font-semibold text-primary-800 mb-2">Maps</h2>
+    <div className="layer-panel">
+      <div className="layer-panel-section">
+        <p className="obsidian-kicker mb-2">Workspace</p>
+        <h2 className="obsidian-heading text-lg">Maps</h2>
         <div className="flex items-center gap-2">
           <select
-            className="flex-1 rounded border border-primary-300 bg-white px-2 py-1 text-sm"
+            className="obsidian-select flex-1 text-sm"
             value={currentMapId ?? ""}
             onChange={(e) =>
               setCurrentMapId(e.target.value ? e.target.value : null)
@@ -115,14 +116,14 @@ export default function LayerManagement() {
           <button
             onClick={handleSaveMap}
             disabled={!currentMapId || isSaving}
-            className="rounded bg-secondary-700 px-3 py-1 text-sm text-white hover:bg-secondary-800 disabled:opacity-50"
+            className="obsidian-button-primary px-3 py-2 text-sm disabled:opacity-50"
           >
             {isSaving ? "Saving..." : "Save"}
           </button>
         </div>
         <div className="mt-2 flex items-center gap-2">
           <input
-            className="flex-1 rounded border border-primary-300 bg-white px-2 py-1 text-sm"
+            className="obsidian-input flex-1 text-sm"
             placeholder="New map name"
             value={newMapName}
             onChange={(e) => setNewMapName(e.target.value)}
@@ -130,20 +131,23 @@ export default function LayerManagement() {
           <button
             onClick={handleCreateMap}
             disabled={!newMapName.trim()}
-            className="rounded border border-primary-300 px-3 py-1 text-sm text-primary-800 hover:bg-primary-200 disabled:opacity-50"
+            className="obsidian-button-ghost px-3 py-2 text-sm disabled:opacity-50"
           >
             Create
           </button>
         </div>
         {saveMessage && (
-          <p className="mt-2 text-xs text-primary-700">{saveMessage}</p>
+          <p className="obsidian-status-success mt-2 text-xs">{saveMessage}</p>
         )}
       </div>
-      <h2 className="text-xl font-bold mb-4 text-center">Layer Management</h2>
+      <div>
+        <p className="obsidian-kicker mb-2">Map Workspace</p>
+        <h2 className="layer-panel-title">Layer Management</h2>
+      </div>
 
       <UploadSection addLayer={addLayer} updateLayerStyle={updateLayerStyle} />
 
-      <hr className="my-4" />
+      <hr className="obsidian-divider" />
 
       <LayerList
         layers={layers}
@@ -155,7 +159,7 @@ export default function LayerManagement() {
         setZoomTo={setZoomTo}
       />
 
-      <hr className="my-4" />
+      <hr className="obsidian-divider" />
 
       <BasemapSelector onBasemapChange={handleBasemapChange} />
     </div>

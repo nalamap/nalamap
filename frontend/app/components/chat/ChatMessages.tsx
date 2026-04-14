@@ -66,21 +66,21 @@ export default function ChatMessages({
 
             return (
               <div key={msgKey} className="flex justify-start">
-                <div className="max-w px-4 py-2 rounded-lg bg-primary-100 rounded-tl-none border border-primary-300">
-                  <div className="text-sm font-medium text-primary-900">
+                <div className="obsidian-message obsidian-message-ai">
+                  <div className="text-sm font-medium">
                     Using tool '{call.function.name}' with arguments '{" "}
                     {call.function.arguments}'
                   </div>
 
                   <button
-                    className="ml-2 px-2 py-1 bg-second-primary-600 text-white rounded text-xs hover:bg-second-primary-700"
+                    className="obsidian-button-primary ml-2 mt-2 px-2 py-1 text-xs"
                     onClick={() => onToggleToolMessage?.(idx)}
                   >
                     {isOpen ? "Hide result" : "Show result"}
                   </button>
 
                   {isOpen && conversation[idx + 1]?.type === "tool" && (
-                    <div className="mt-2 text-sm break-words whitespace-pre-wrap text-primary-800">
+                    <div className="mt-2 text-sm break-words whitespace-pre-wrap obsidian-muted">
                       {conversation[idx + 1].content}
                     </div>
                   )}
@@ -102,24 +102,22 @@ export default function ChatMessages({
               className={`flex ${isHuman ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={`max-w-[80%] px-4 py-2 rounded-lg ${
-                  isHuman
-                    ? "bg-second-primary-200 rounded-tr-none text-right border border-primary-300"
-                    : "bg-neutral-50 rounded-tl-none border border-primary-200"
+                className={`obsidian-message ${
+                  isHuman ? "obsidian-message-human text-right" : "obsidian-message-ai"
                 }`}
               >
                 {isHuman ? (
-                  <div className="text-sm break-words text-primary-900">
+                  <div className="text-sm break-words">
                     {extractTextContent(msg.content)}
                   </div>
                 ) : (
-                  <div className="text-sm break-words chat-markdown text-primary-900">
+                  <div className="chat-markdown text-sm break-words">
                     <ReactMarkdown>
                       {extractTextContent(msg.content)}
                     </ReactMarkdown>
                   </div>
                 )}
-                <div className="text-xs text-primary-500 mt-1">
+                <div className="obsidian-message-meta">
                   {isHuman ? "You" : msg.type === "ai" ? "Agent" : "Unknown"}
                 </div>
               </div>
@@ -129,9 +127,9 @@ export default function ChatMessages({
 
         {loading && (
           <div className="flex justify-start mb-2">
-            <div className="flex items-center space-x-2 max-w-[80%] px-4 py-2 rounded-lg bg-neutral-50 rounded-tl-none border border-primary-200">
+            <div className="obsidian-message obsidian-message-ai flex items-center space-x-2">
               <Loader2 size={16} className="animate-spin text-second-primary-600" />
-              <span className="text-sm text-primary-700">
+              <span className="text-sm">
                 NaLaMap Agent is working on your request...
               </span>
             </div>

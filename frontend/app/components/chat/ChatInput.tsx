@@ -43,7 +43,7 @@ export default function ChatInput({
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         disabled={disabled || isStreaming}
-        className="w-full border border-primary-300 bg-neutral-50 rounded-lg px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-secondary-300 resize-none overflow-hidden text-primary-900 text-base"
+        className="obsidian-textarea overflow-hidden pr-14 text-base"
         style={{ minHeight: "56px", maxHeight: "200px" }}
         rows={1}
       />
@@ -51,7 +51,7 @@ export default function ChatInput({
         <button
           type="submit"
           onClick={onCancel}
-          className="absolute right-3 bottom-3 p-2 bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors"
+          className="obsidian-button-danger absolute right-3 bottom-3 h-10 w-10 rounded-full p-0"
           title="Cancel request"
         >
           <X size={20} />
@@ -60,7 +60,7 @@ export default function ChatInput({
         <button
           type="submit"
           disabled={disabled || !value.trim()}
-          className="absolute right-3 bottom-3 p-2 bg-secondary-600 text-white rounded-full hover:bg-secondary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="obsidian-button-primary absolute right-3 bottom-3 h-10 w-10 rounded-full p-0 disabled:opacity-50 disabled:cursor-not-allowed"
           title="Send message"
         >
           <ArrowUp size={20} />
