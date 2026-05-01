@@ -22,6 +22,7 @@ from services.tools.styling_tools import (
     check_and_auto_style_layers,
     style_map_layers,
 )
+from services.tools.ogcapi_tools import search_ogcapi_layers
 from services.tools.world_bank_indicators import get_world_bank_data
 
 # Tool metadata for configuration and UI display
@@ -122,6 +123,12 @@ TOOL_METADATA = {
         "group": None,
         "enabled": True,
     },
+    "search_ogcapi_layers": {
+        "display_name": "OGC API Layer Search",
+        "category": "data_retrieval",
+        "group": None,
+        "enabled": True,
+    },
 }
 
 DEFAULT_SYSTEM_PROMPT: str = (
@@ -132,7 +139,8 @@ DEFAULT_SYSTEM_PROMPT: str = (
     "into appropriate map visualizations and spatial analyses.\n"
     "- You have tools for:\n"
     " - Geocoding (convert text to places or POIs)\n"
-    " - Data retrieval (discover datasets or fetch internal layers)\n"
+    " - Data retrieval (discover datasets or fetch internal layers, "
+    "including OGC API collections)\n"
     " - Attribute/table operations (inspect, filter, summarize existing layers)\n"
     " - Geoprocessing (buffer, intersect, clip, merge on existing layers/AOIs)\n"
     " - Styling (apply or adjust visual styles on demand)\n"
@@ -248,7 +256,11 @@ DEFAULT_SYSTEM_PROMPT: str = (
     "precision, access control, performance, or consistent schema matters.\n"
     " - Notes: Prefer this for authenticated or curated sources; use filters/bbox when "
     "available; avoid unbounded queries.\n\n"
-    # DISABLED for now
+    "- search_ogcapi_layers (OGC API standard backend)\n"
+    " - Use when: The user references an OGC API endpoint or asks to search a configured "
+    "OGC API server; when other data-discovery tools have not found relevant results.\n"
+    " - Notes: Queries collection title and description; falls back to client-side filtering "
+    "if the server does not support the q= parameter.\n\n"  # DISABLED for now
     # "- query_librarian_postgis (catalog/metadata search)\n"
     # " - Use when: The user asks to discover datasets by topic or theme (e.g., “Find "
     # "flood-risk data in Benin”) across indexed/public sources.\n"
@@ -257,6 +269,8 @@ DEFAULT_SYSTEM_PROMPT: str = (
     "- Overlap policy\n"
     " - Prefer get_custom_geoserver_data if an internal/custom backend likely holds the "
     "requested data.\n"
+    " - Use search_ogcapi_layers when the user asks about an OGC API endpoint or "
+    "standard-based catalogue search.\n"
     " - If an equivalent layer already exists in the current map or state, prefer "
     "attribute_tool to filter/display instead of rediscovering.\n"
     " - Parse user phrasing for source hints (“my database” vs “open data portal”); ask one "
@@ -424,5 +438,6 @@ DEFAULT_AVAILABLE_TOOLS: Dict[str, BaseTool] = {
     "nasa_fire_data": get_nasa_fire_data,  # OSINT: NASA FIRMS fire detection GeoJSON
     "nasa_gibs_layer": get_nasa_gibs_layer,  # OSINT: NASA GIBS satellite imagery
     "list_nasa_gibs_layers": list_nasa_gibs_layers,  # OSINT: List available GIBS layers
+    "search_ogcapi_layers": search_ogcapi_layers,  # OGC API collection search
 }
 DEFAULT_SELECTED_TOOLS = []
