@@ -260,7 +260,7 @@ DEFAULT_SYSTEM_PROMPT: str = (
     " - Use when: The user references an OGC API endpoint or asks to search a configured "
     "OGC API server; when other data-discovery tools have not found relevant results.\n"
     " - Notes: Queries collection title and description; falls back to client-side filtering "
-    "if the server does not support the q= parameter.\n\n"  # DISABLED for now
+    "if the server does not support the q= parameter.\n\n"
     # "- query_librarian_postgis (catalog/metadata search)\n"
     # " - Use when: The user asks to discover datasets by topic or theme (e.g., “Find "
     # "flood-risk data in Benin”) across indexed/public sources.\n"

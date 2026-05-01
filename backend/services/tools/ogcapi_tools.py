@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 import ssl
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.parse import urljoin, urlencode
 
 from langchain_core.messages import ToolMessage
@@ -33,6 +33,8 @@ logger = logging.getLogger(__name__)
 
 # Request timeout in seconds for each OGC API backend call
 _TIMEOUT = 15.0
+_FALLBACK_PAGE_SIZE = 100
+_FALLBACK_MAX_PAGES = 20
 
 
 def _build_http_client(allow_insecure: bool):
@@ -57,8 +59,8 @@ async def _fetch_collections(
     Fetch matching collections from a single OGC API backend.
 
     Tries ``GET /collections?q=<query>&limit=<max_results>`` first.
-    Falls back to ``GET /collections?limit=<max_results>`` and filters
-    client-side if the server responds with a 4xx status.
+    Falls back to paginated ``GET /collections`` and filters client-side if
+    the server responds with a 4xx status.
     """
     import httpx
 
@@ -73,25 +75,40 @@ async def _fetch_collections(
             if resp.status_code == 200:
                 data = resp.json()
                 return data.get("collections", [])
-            # Server does not support q= (400) or other 4xx → fallback
-            if resp.status_code >= 400:
+            # Server does not support q= or rejects query semantics (4xx) → fallback
+            if 400 <= resp.status_code < 500:
                 logger.debug(
                     "OGC API backend %s returned %s for q= search; "
                     "falling back to client-side filter",
                     base_url,
                     resp.status_code,
                 )
+            else:
+                resp.raise_for_status()
         except (httpx.TimeoutException, httpx.ConnectError, ssl.SSLError) as exc:
             logger.warning(
                 "OGC API backend %s connection error during q= search: %s", base_url, exc
             )
             raise
 
-        # Fallback: list all collections and filter client-side
-        params_fb = urlencode({"limit": max_results, "f": "json"})
-        resp_fb = await client.get(f"{collections_url}?{params_fb}", headers=headers)
-        resp_fb.raise_for_status()
-        all_collections: List[Dict[str, Any]] = resp_fb.json().get("collections", [])
+        # Fallback: paginate collections and filter client-side.
+        all_collections: List[Dict[str, Any]] = []
+        params_fb = urlencode({"limit": _FALLBACK_PAGE_SIZE, "f": "json"})
+        next_url = f"{collections_url}?{params_fb}"
+        page_count = 0
+
+        while next_url and page_count < _FALLBACK_MAX_PAGES:
+            page_count += 1
+            resp_fb = await client.get(next_url, headers=headers)
+            resp_fb.raise_for_status()
+            payload = resp_fb.json()
+            all_collections.extend(payload.get("collections", []))
+
+            next_url = None
+            for link in payload.get("links", []):
+                if link.get("rel") == "next" and link.get("href"):
+                    next_url = urljoin(base_url.rstrip("/") + "/", str(link["href"]))
+                    break
 
     q_lower = query.lower()
     return [
@@ -112,9 +129,19 @@ def _extract_access_url(collection: Dict[str, Any], base_url: str) -> str:
     for rel in ("items", "tiles", "self"):
         for link in links:
             if link.get("rel") == rel and link.get("href"):
-                return link["href"]
+                return urljoin(base_url.rstrip("/") + "/", str(link["href"]))
     col_id = collection.get("id", "")
     return urljoin(base_url.rstrip("/") + "/", f"collections/{col_id}/items")
+
+
+def _is_raster_collection(collection: Dict[str, Any]) -> bool:
+    dataset_type = str(
+        collection.get("datasetType") or collection.get("dataset_type") or ""
+    ).lower()
+    if dataset_type in {"coverage", "raster"}:
+        return True
+    links: List[Dict[str, Any]] = collection.get("links") or []
+    return any(str(link.get("rel", "")).lower() == "tiles" for link in links)
 
 
 def _extract_bbox(collection: Dict[str, Any]) -> Optional[str]:
@@ -137,8 +164,7 @@ def _collection_to_geodata(
     backend: OGCAPIBackend,
 ) -> GeoDataObject:
     """Map an OGC API collection dict to a GeoDataObject."""
-    dataset_type = collection.get("datasetType") or collection.get("dataset_type") or "vector"
-    data_type = DataType.LAYER if dataset_type in ("coverage", "raster") else DataType.LAYER
+    data_type = DataType.RASTER if _is_raster_collection(collection) else DataType.LAYER
 
     title = collection.get("title") or collection.get("id") or "Untitled"
     description = collection.get("description") or ""
@@ -149,7 +175,7 @@ def _collection_to_geodata(
         id=collection.get("id") or title,
         data_source_id=f"ogcapi:{backend.url.rstrip('/')}",
         data_type=data_type,
-        data_origin=DataOrigin.TOOL,
+        data_origin=DataOrigin.TOOL.value,
         data_source="ogcapi",
         data_link=access_url,
         name=title,
@@ -190,8 +216,9 @@ def _search_ogcapi_layers(
             tool_call_id=tool_call_id,
         )
 
-    async def _gather() -> List[GeoDataObject]:
+    async def _gather() -> Tuple[List[GeoDataObject], List[str]]:
         results: List[GeoDataObject] = []
+        backend_errors: List[str] = []
         for backend in enabled_backends:
             try:
                 collections = await _fetch_collections(
@@ -203,13 +230,15 @@ def _search_ogcapi_layers(
                 for col in collections:
                     results.append(_collection_to_geodata(col, backend))
             except Exception as exc:
+                backend_label = backend.name or backend.url
                 logger.warning(
                     "OGC API backend '%s' (%s) error during search: %s",
-                    backend.name or backend.url,
+                    backend_label,
                     backend.url,
                     exc,
                 )
-        return results
+                backend_errors.append(f"{backend_label}: {exc}")
+        return results, backend_errors
 
     try:
         import concurrent.futures
@@ -219,10 +248,10 @@ def _search_ogcapi_layers(
             # We are inside a running event loop (e.g. FastAPI); run in a thread
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 future = pool.submit(asyncio.run, _gather())
-                all_layers = future.result(timeout=60)
+                all_layers, backend_errors = future.result(timeout=60)
         except RuntimeError:
             # No running event loop – run directly (e.g. pytest, CLI)
-            all_layers = asyncio.run(_gather())
+            all_layers, backend_errors = asyncio.run(_gather())
     except Exception as exc:
         logger.exception("Unexpected error querying OGC API backends")
         return ToolMessage(
@@ -231,6 +260,14 @@ def _search_ogcapi_layers(
         )
 
     if not all_layers:
+        if backend_errors:
+            return ToolMessage(
+                content=(
+                    "No OGC API collections could be returned because one or more backends "
+                    f"failed: {'; '.join(backend_errors)}"
+                ),
+                tool_call_id=tool_call_id,
+            )
         return ToolMessage(
             content=f"No OGC API collections found matching '{query}'.",
             tool_call_id=tool_call_id,

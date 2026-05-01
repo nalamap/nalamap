@@ -125,6 +125,17 @@ def test_extract_access_url_falls_back_to_tiles():
 
 
 @pytest.mark.unit
+def test_extract_access_url_normalizes_relative_href():
+    col = {
+        "id": "roads",
+        "title": "Roads",
+        "links": [{"rel": "items", "href": "collections/roads/items"}],
+    }
+    url = _extract_access_url(col, _BACKEND_URL)
+    assert url == f"{_BACKEND_URL}/collections/roads/items"
+
+
+@pytest.mark.unit
 def test_extract_access_url_constructs_fallback_when_no_links():
     col = {"id": "roads", "title": "Roads", "links": []}
     url = _extract_access_url(col, _BACKEND_URL)
@@ -167,8 +178,22 @@ def test_collection_to_geodata_maps_fields():
     assert obj.title == "Rivers of Germany"
     assert obj.description == "Major rivers"
     assert obj.data_source == "ogcapi"
+    assert obj.data_origin == "tool"
     assert "rivers/items" in obj.data_link
     assert obj.bounding_box is not None
+
+
+@pytest.mark.unit
+def test_collection_to_geodata_maps_coverage_to_raster():
+    col = {
+        "id": "dem",
+        "title": "Digital Elevation Model",
+        "datasetType": "coverage",
+        "links": [{"rel": "tiles", "href": f"{_BACKEND_URL}/collections/dem/tiles"}],
+    }
+    backend = _make_backend()
+    obj = _collection_to_geodata(col, backend)
+    assert obj.data_type == "Raster"
 
 
 # ---------------------------------------------------------------------------
@@ -237,6 +262,28 @@ def test_fetch_collections_fallback_on_400():
     # Only the rivers collection should match the client-side filter for "rivers"
     assert len(result) == 1
     assert result[0]["id"] == "rivers"
+
+
+@pytest.mark.unit
+def test_fetch_collections_does_not_fallback_on_5xx():
+    async_ctx = AsyncMock()
+    async_ctx.__aenter__ = AsyncMock(return_value=async_ctx)
+    async_ctx.__aexit__ = AsyncMock(return_value=False)
+    async_ctx.get = AsyncMock(return_value=_mock_httpx_response(503, {}))
+
+    with patch("services.tools.ogcapi_tools._build_http_client", return_value=async_ctx):
+        import asyncio
+        import httpx
+
+        with pytest.raises(httpx.HTTPStatusError):
+            asyncio.run(
+                _fetch_collections(
+                    base_url=_BACKEND_URL,
+                    query="rivers",
+                    max_results=10,
+                    allow_insecure=False,
+                )
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -345,8 +392,9 @@ def test_search_ssl_error_handled_gracefully():
             query="rivers",
         )
 
-    # SSL error on only backend → no results → ToolMessage
+    # SSL error on only backend → ToolMessage reports backend failure.
     assert isinstance(result, ToolMessage)
+    assert "failed" in result.content.lower()
 
 
 @pytest.mark.unit
