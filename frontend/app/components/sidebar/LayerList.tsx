@@ -600,6 +600,32 @@ export default function LayerList({
                       <h4 className="font-semibold text-sm mb-2">
                         Style Options
                       </h4>
+                      {["WMS", "WMTS", "WCS"].includes(
+                        layer.layer_type?.toUpperCase() || ""
+                      ) ? (
+                        <div className="text-xs">
+                          <label className="block text-gray-700">
+                            Transparency
+                          </label>
+                          <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.05"
+                            value={layer.style?.opacity ?? 1.0}
+                            onChange={(e) =>
+                              updateLayerStyle(layer.id, {
+                                opacity: parseFloat(e.target.value),
+                              })
+                            }
+                            className="w-full"
+                          />
+                          <span className="text-gray-500">
+                            {Math.round((layer.style?.opacity ?? 1.0) * 100)}%
+                          </span>
+                        </div>
+                      ) : (
+                      <>
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         {/* Stroke Color */}
                         <div>
@@ -986,6 +1012,8 @@ export default function LayerList({
                           />
                         </div>
                       </div>
+                      </>
+                      )}
                     </div>
                   )}
 

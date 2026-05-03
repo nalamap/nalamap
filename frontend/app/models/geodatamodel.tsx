@@ -31,6 +31,9 @@ export interface ProcessingMetadata {
 }
 
 export interface LayerStyle {
+  // Overall opacity for raster/tile layers (WMS, WMTS, WCS) — 0.0 (transparent) to 1.0 (opaque)
+  opacity?: number;
+
   // Common stroke properties for all geometry types
   stroke_color?: string;
   stroke_weight?: number;

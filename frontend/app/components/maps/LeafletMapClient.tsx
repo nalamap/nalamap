@@ -1666,6 +1666,7 @@ export default function LeafletMapComponent() {
                     layers={wmsLayers}
                     format={format}
                     transparent={transparent}
+                    opacity={layer.style?.opacity ?? 1.0}
                     zIndex={10}
                   />
                 );
@@ -1678,6 +1679,7 @@ export default function LeafletMapComponent() {
                     layers={parsed.layers}
                     format={parsed.format}
                     transparent={parsed.transparent}
+                    opacity={layer.style?.opacity ?? 1.0}
                     zIndex={10}
                   />
                 );
@@ -1735,6 +1737,7 @@ export default function LeafletMapComponent() {
                     key={layer.id}
                     url={tileUrlTemplate}
                     attribution={layer.title}
+                    opacity={layer.style?.opacity ?? 1.0}
                   />
                 );
               } else if (
