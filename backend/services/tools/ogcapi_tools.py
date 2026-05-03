@@ -105,9 +105,9 @@ async def _fetch_collections(
             resp_fb.raise_for_status()
             payload = resp_fb.json()
             for c in payload.get("collections", []):
-                if q_lower in (c.get("title") or "").lower() or q_lower in (
-                    c.get("description") or ""
-                ).lower():
+                title_match = q_lower in (c.get("title") or "").lower()
+                desc_match = q_lower in (c.get("description") or "").lower()
+                if title_match or desc_match:
                     matched.append(c)
                     if len(matched) >= max_results:
                         return matched
