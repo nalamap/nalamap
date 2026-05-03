@@ -6,6 +6,7 @@ from services.tools.attribute_tool2 import attribute_tool2
 from services.tools.attribute_tools import attribute_tool
 from services.tools.ecmwf_weather import get_ecmwf_weather_data
 from services.tools.geocoding import (
+    geocode_address_via_overpass,
     geocode_using_nominatim_to_geostate,
     geocode_using_overpass_to_geostate,
 )
@@ -34,6 +35,12 @@ TOOL_METADATA = {
     },
     "geocode_overpass": {
         "display_name": "Overpass POI Search",
+        "category": "geocoding",
+        "group": None,
+        "enabled": True,
+    },
+    "geocode_address_overpass": {
+        "display_name": "Overpass Address Search",
         "category": "geocoding",
         "group": None,
         "enabled": True,
@@ -211,6 +218,13 @@ DEFAULT_SYSTEM_PROMPT: str = (
     " multiple relevant OSM tags and issues a union query, returning more complete results"
     " than a single-tag lookup would. You do not need to enumerate tags manually --"
     " pass the natural-language term directly as amenity_key.\n\n"
+    "- geocode_address_via_overpass (OSM addr:* tag address lookup)\n"
+    " - Use when: The user asks for a specific street address such as '221B Baker Street,\n"
+    "   London' or 'Hauptstraße 1, Berlin'.\n"
+    " - Inputs: street (required), housenumber, city, postcode (all optional).\n"
+    " - Notes: Finds OSM elements with matching addr:* tags. Prefer this over\n"
+    "   nominatim when the user wants the exact building on the map rather than\n"
+    "   just a location point. Providing city speeds up the search significantly.\n\n"
     "- Overlap policy\n"
     " - Prefer attribute_tool when an equivalent layer already exists and can be filtered.\n"
     " - Prefer nominatim for single places/boundaries; "
@@ -409,6 +423,7 @@ DEFAULT_AVAILABLE_TOOLS: Dict[str, BaseTool] = {
     # geocode_using_geonames, # its very simple and does not create a geojson
     "geocode_nominatim": geocode_using_nominatim_to_geostate,
     "geocode_overpass": geocode_using_overpass_to_geostate,
+    "geocode_address_overpass": geocode_address_via_overpass,
     # "search_librarian": query_librarian_postgis, # Librarian disconnected for now
     "geoprocess": geoprocess_tool,
     "search_metadata": metadata_search,

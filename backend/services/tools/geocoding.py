@@ -698,6 +698,203 @@ def geocode_using_nominatim_to_geostate(
         return {"message": "Error querying the Nominatim API."}
 
 
+@tool
+def geocode_address_via_overpass(
+    state: Annotated[GeoDataAgentState, InjectedState],
+    tool_call_id: Annotated[str, InjectedToolCallId],
+    street: str,
+    housenumber: Optional[str] = None,
+    city: Optional[str] = None,
+    postcode: Optional[str] = None,
+    max_results: int = 50,
+    timeout: int = 60,
+) -> Union[Dict[str, Any], Command]:
+    """
+    Search for a specific street address using OSM addr:* tags via the Overpass API.
+
+    Use this when the user asks for a specific building or address, such as
+    "221B Baker Street, London" or "Alexanderplatz 1, Berlin 10178".
+    Returns OSM nodes/ways/relations tagged with matching address components.
+    Prefer geocode_using_nominatim_to_geostate for broad place or city searches.
+
+    street: Street name, e.g. "Baker Street" or "Hauptstraße"
+    housenumber: House or building number, e.g. "221B" or "42"
+    city: City name used to spatially constrain the search, e.g. "London"
+    postcode: Postal or ZIP code, e.g. "NW1 6XE" or "10178"
+    max_results: Maximum number of OSM elements to return (default 50)
+    timeout: Overpass API timeout in seconds (default 60)
+    """
+    # Build addr:* component dict from provided arguments
+    address_components: Dict[str, str] = {"addr:street": street}
+    if housenumber:
+        address_components["addr:housenumber"] = housenumber
+    if postcode:
+        address_components["addr:postcode"] = postcode
+    # addr:city is not added when it will be used as a location constraint below
+
+    # Geocode city to spatially constrain the query (prevents global scan)
+    location: Optional[OverpassLocation] = None
+    city_label = city or ""
+    if city:
+        location, err = _geocode_location_for_overpass(city)
+        if err or location is None:
+            # Fall back to adding city as an addr: filter instead
+            address_components["addr:city"] = city
+            location = None
+            city_label = city
+
+    query_description = street
+    if housenumber:
+        query_description = f"{housenumber} {street}"
+    if city_label:
+        query_description = f"{query_description}, {city_label}"
+    if postcode:
+        query_description = f"{query_description} {postcode}"
+
+    query_builder = OverpassQueryBuilder(timeout=timeout, max_results=max_results)
+    try:
+        overpass_query = query_builder.build_address_query(
+            address_components=address_components,
+            location=location,
+            radius_meters=50000,  # 50 km radius around city centre as fallback
+        )
+    except ValueError as exc:
+        return Command(
+            update={
+                "messages": [
+                    *state["messages"],
+                    ToolMessage(
+                        name="geocode_address_via_overpass",
+                        content=str(exc),
+                        tool_call_id=tool_call_id,
+                    ),
+                ]
+            }
+        )
+
+    client = OverpassClient()
+    overpass_data, error_msg = client.execute_query(overpass_query, timeout=timeout)
+
+    if error_msg:
+        return Command(
+            update={
+                "messages": [
+                    *state["messages"],
+                    ToolMessage(
+                        name="geocode_address_via_overpass",
+                        content=f"Overpass error while searching for '{query_description}': {error_msg}",
+                        tool_call_id=tool_call_id,
+                    ),
+                ]
+            }
+        )
+
+    elements = (overpass_data or {}).get("elements", [])
+    if not elements:
+        return Command(
+            update={
+                "messages": [
+                    *state["messages"],
+                    ToolMessage(
+                        name="geocode_address_via_overpass",
+                        content=f"No address found for '{query_description}' in OSM.",
+                        tool_call_id=tool_call_id,
+                    ),
+                ]
+            }
+        )
+
+    # Convert elements to GeoJSON features
+    converter = OverpassResultConverter()
+    features = []
+    seen_ids: set = set()
+    for element in elements:
+        eid = f"{element.get('type', '')}/{element.get('id', '')}"
+        if eid in seen_ids:
+            continue
+        # Skip bare geometry nodes (no addr: tags) that were recursed in via (._; >;)
+        tags = element.get("tags", {})
+        if element.get("type") == "node" and not any(k.startswith("addr:") for k in tags):
+            continue
+        feature = converter.convert_element_to_geojson(element, osm_tag_filter=None)
+        if feature and feature.get("geometry"):
+            seen_ids.add(eid)
+            features.append(feature)
+
+    features = converter.deduplicate_features(features)
+
+    if not features:
+        return Command(
+            update={
+                "messages": [
+                    *state["messages"],
+                    ToolMessage(
+                        name="geocode_address_via_overpass",
+                        content=f"Found OSM elements for '{query_description}' but none had usable geometry.",
+                        tool_call_id=tool_call_id,
+                    ),
+                ]
+            }
+        )
+
+    # Group by geometry type and build collections
+    location_label = location.display_name if location else "global"
+    collection_obj = create_feature_collection_geodata(
+        features,
+        "Address",
+        query_description,
+        location_label,
+        "addr:street",
+        city_label or street,
+    )
+
+    if not collection_obj:
+        return Command(
+            update={
+                "messages": [
+                    *state["messages"],
+                    ToolMessage(
+                        name="geocode_address_via_overpass",
+                        content=f"Could not create a map layer for '{query_description}'.",
+                        tool_call_id=tool_call_id,
+                    ),
+                ]
+            }
+        )
+
+    collection_obj.processing_metadata = ProcessingMetadata(
+        operation="overpass_address_query",
+        crs_used="EPSG:4326",
+        crs_name="WGS 84",
+        auto_selected=True,
+        query_intent=query_description,
+        query_location=city_label or street,
+        resolution_method="address_tags",
+        resolution_detail="OSM addr:* tag lookup",
+        osm_tags_used=[f"{k}={v}" for k, v in address_components.items()],
+        osm_tags_excluded=[],
+        overpass_query=overpass_query,
+    )
+
+    return Command(
+        update={
+            "messages": [
+                *state["messages"],
+                ToolMessage(
+                    name="geocode_address_via_overpass",
+                    content=(
+                        f"Found {len(features)} OSM feature(s) for address '{query_description}'. "
+                        "The result is available as a map layer."
+                    ),
+                    tool_call_id=tool_call_id,
+                ),
+            ],
+            "geodata_last_results": [collection_obj],
+            "geodata_results": [collection_obj],
+        }
+    )
+
+
 # Helper function to convert a single Overpass API element to a GeoJSON Feature dictionary
 def convert_osm_element_to_geojson_feature(
     element: Dict[str, Any], osm_tag_value_filter: Optional[str] = None
