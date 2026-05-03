@@ -42,6 +42,10 @@ def _build_http_client(allow_insecure: bool):
     import httpx  # lazy import – not available at module load for type checking
 
     if allow_insecure:
+        logger.warning(
+            "OGC API: TLS verification is DISABLED for this backend "
+            "(allow_insecure=True). Do not enable in production."
+        )
         return httpx.AsyncClient(verify=False, timeout=_TIMEOUT)
     return httpx.AsyncClient(timeout=_TIMEOUT)
 
@@ -89,17 +93,24 @@ async def _fetch_collections(
             raise
 
         # Fallback: paginate collections and filter client-side.
-        all_collections: List[Dict[str, Any]] = []
         params_fb = urlencode({"limit": _FALLBACK_PAGE_SIZE, "f": "json"})
         next_url = f"{collections_url}?{params_fb}"
         page_count = 0
 
+        matched: List[Dict[str, Any]] = []
+        q_lower = query.lower()
         while next_url and page_count < _FALLBACK_MAX_PAGES:
             page_count += 1
             resp_fb = await client.get(next_url, headers=headers)
             resp_fb.raise_for_status()
             payload = resp_fb.json()
-            all_collections.extend(payload.get("collections", []))
+            for c in payload.get("collections", []):
+                if q_lower in (c.get("title") or "").lower() or q_lower in (
+                    c.get("description") or ""
+                ).lower():
+                    matched.append(c)
+                    if len(matched) >= max_results:
+                        return matched
 
             next_url = None
             for link in payload.get("links", []):
@@ -107,13 +118,7 @@ async def _fetch_collections(
                     next_url = urljoin(base_url.rstrip("/") + "/", str(link["href"]))
                     break
 
-    q_lower = query.lower()
-    return [
-        c
-        for c in all_collections
-        if q_lower in (c.get("title") or "").lower()
-        or q_lower in (c.get("description") or "").lower()
-    ]
+    return matched
 
 
 def _extract_access_url(collection: Dict[str, Any], base_url: str) -> str:
@@ -253,7 +258,7 @@ def _search_ogcapi_layers(
             # We are inside a running event loop (e.g. FastAPI); run in a thread
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 future = pool.submit(asyncio.run, _gather())
-                all_layers, backend_errors = future.result(timeout=60)
+                all_layers, backend_errors = future.result()
         except RuntimeError:
             # No running event loop – run directly (e.g. pytest, CLI)
             all_layers, backend_errors = asyncio.run(_gather())
@@ -325,7 +330,7 @@ def search_ogcapi_layers(
     """
     # Coerce FieldInfo defaults (LangChain may inject them for unset optional args)
     if isinstance(max_results, FieldInfo):
-        max_results = max_results.default or 20
+        max_results = max_results.default if max_results.default is not None else 20
 
     actual_state = state.get("state", state)
     return _search_ogcapi_layers(
