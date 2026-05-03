@@ -42,9 +42,6 @@ def _build_http_client(allow_insecure: bool):
     import httpx  # lazy import – not available at module load for type checking
 
     if allow_insecure:
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
         return httpx.AsyncClient(verify=False, timeout=_TIMEOUT)
     return httpx.AsyncClient(timeout=_TIMEOUT)
 
@@ -191,7 +188,7 @@ def _search_ogcapi_layers(
     tool_call_id: str,
     query: str,
     max_results: int = 20,
-) -> Union[Dict[str, Any], Command]:
+) -> Union[Command, ToolMessage]:
     """Core (sync-wrapper) implementation used by the @tool below."""
     import asyncio
 
@@ -216,28 +213,36 @@ def _search_ogcapi_layers(
             tool_call_id=tool_call_id,
         )
 
+    async def _fetch_one(
+        backend: OGCAPIBackend,
+    ) -> Tuple[List[GeoDataObject], Optional[str]]:
+        """Fetch and map collections from a single backend; return (layers, error)."""
+        try:
+            collections = await _fetch_collections(
+                base_url=backend.url,
+                query=query,
+                max_results=max_results,
+                allow_insecure=backend.allow_insecure,
+            )
+            return [_collection_to_geodata(col, backend) for col in collections], None
+        except Exception as exc:
+            backend_label = backend.name or backend.url
+            logger.warning(
+                "OGC API backend '%s' (%s) error during search: %s",
+                backend_label,
+                backend.url,
+                exc,
+            )
+            return [], f"{backend_label}: {exc}"
+
     async def _gather() -> Tuple[List[GeoDataObject], List[str]]:
+        per_backend = await asyncio.gather(*(_fetch_one(b) for b in enabled_backends))
         results: List[GeoDataObject] = []
         backend_errors: List[str] = []
-        for backend in enabled_backends:
-            try:
-                collections = await _fetch_collections(
-                    base_url=backend.url,
-                    query=query,
-                    max_results=max_results,
-                    allow_insecure=backend.allow_insecure,
-                )
-                for col in collections:
-                    results.append(_collection_to_geodata(col, backend))
-            except Exception as exc:
-                backend_label = backend.name or backend.url
-                logger.warning(
-                    "OGC API backend '%s' (%s) error during search: %s",
-                    backend_label,
-                    backend.url,
-                    exc,
-                )
-                backend_errors.append(f"{backend_label}: {exc}")
+        for layers, err in per_backend:
+            results.extend(layers)
+            if err:
+                backend_errors.append(err)
         return results, backend_errors
 
     try:
@@ -308,7 +313,7 @@ def search_ogcapi_layers(
     tool_call_id: Annotated[str, InjectedToolCallId],
     query: str,
     max_results: int = 20,
-) -> Union[Dict[str, Any], Command]:
+) -> Union[Command, ToolMessage]:
     """
     Search for geospatial layers on configured OGC API servers.
     Use this when the user asks for layers or datasets from an OGC API endpoint or
