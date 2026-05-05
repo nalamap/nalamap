@@ -812,9 +812,9 @@ def geocode_address_via_overpass(
         eid = f"{element.get('type', '')}/{element.get('id', '')}"
         if eid in seen_ids:
             continue
-        # Skip bare geometry nodes (no addr: tags) that were recursed in via (._; >;)
+        # Skip recursed helper elements that are not actual address-tagged matches.
         tags = element.get("tags", {})
-        if element.get("type") == "node" and not any(k.startswith("addr:") for k in tags):
+        if not any(k.startswith("addr:") for k in tags):
             continue
         feature = converter.convert_element_to_geojson(element, osm_tag_filter=None)
         if feature and feature.get("geometry"):

@@ -7,7 +7,10 @@ Tests cover:
 """
 
 import pytest
+from langgraph.types import Command
 
+from models.geodata import DataType, GeoDataObject
+from services.tools import geocoding as gc
 from services.tools.overpass import OverpassLocation, OverpassQueryBuilder
 
 
@@ -108,6 +111,155 @@ class TestBuildAddressQuery:
     def test_value_with_double_quote_escaped(self):
         """Double quotes in values are escaped to prevent Overpass QL injection."""
         query = self.builder.build_address_query({"addr:street": 'O"Brien Road'})
-        # Should not contain an unescaped bare double quote that would break the query
-        # The key/value is already wrapped in double quotes, so the inner quote must be escaped
-        assert '"addr:street"' in query
+        assert '"addr:street"="O\\"Brien Road"' in query
+        assert '"addr:street"="O"Brien Road"' not in query
+
+    def test_non_addr_key_raises(self):
+        with pytest.raises(ValueError, match=r"addr:\* keys"):
+            self.builder.build_address_query({"name": "Baker Street"})
+
+    def test_invalid_addr_key_characters_raise(self):
+        with pytest.raises(ValueError, match="Invalid addr key"):
+            self.builder.build_address_query({"addr:street\"]": "Baker Street"})
+
+
+@pytest.mark.unit
+class TestGeocodeAddressViaOverpass:
+    """Tests for geocode_address_via_overpass with mocked Overpass/Nominatim calls."""
+
+    def setup_method(self):
+        self.state = {"messages": [], "geodata_results": []}
+
+    def test_filters_recursed_non_address_elements_and_sets_metadata(self, monkeypatch):
+        location = OverpassLocation(
+            display_name="London",
+            osm_relation_id=65606,
+            lat=51.5074,
+            lon=-0.1278,
+        )
+        monkeypatch.setattr(gc, "_geocode_location_for_overpass", lambda city: (location, None))
+
+        captured = {}
+
+        def fake_execute_query(self, query, timeout=60):
+            captured["query"] = query
+            return (
+                {
+                    "elements": [
+                        {
+                            "type": "node",
+                            "id": 1,
+                            "lat": 51.5237,
+                            "lon": -0.1585,
+                            "tags": {"addr:street": "Baker Street", "addr:housenumber": "221B"},
+                        },
+                        {
+                            "type": "node",
+                            "id": 2,
+                            "lat": 51.5238,
+                            "lon": -0.1586,
+                            "tags": {},
+                        },
+                        {
+                            "type": "way",
+                            "id": 3,
+                            "tags": {},
+                            "geometry": [
+                                {"lat": 51.5237, "lon": -0.1585},
+                                {"lat": 51.5238, "lon": -0.1585},
+                            ],
+                        },
+                        {
+                            "type": "way",
+                            "id": 4,
+                            "tags": {"addr:street": "Baker Street", "addr:housenumber": "221B"},
+                            "geometry": [
+                                {"lat": 51.5237, "lon": -0.1585},
+                                {"lat": 51.5238, "lon": -0.1585},
+                            ],
+                        },
+                    ]
+                },
+                None,
+            )
+
+        monkeypatch.setattr(gc.OverpassClient, "execute_query", fake_execute_query)
+
+        captured_features = {}
+
+        def fake_create_feature_collection_geodata(
+            features,
+            data_source,
+            query,
+            location_name,
+            osm_tag_key,
+            osm_tag_value,
+        ):
+            captured_features["features"] = features
+            captured_features["query"] = query
+            captured_features["location_name"] = location_name
+            captured_features["osm_tag_key"] = osm_tag_key
+            captured_features["osm_tag_value"] = osm_tag_value
+            return GeoDataObject(
+                id="addr-layer",
+                data_source_id="addr-layer",
+                data_type=DataType.GEOJSON,
+                data_origin="tool",
+                data_source="Address",
+                data_link="/tmp/mock.geojson",
+                name="Address results",
+            )
+
+        monkeypatch.setattr(
+            gc,
+            "create_feature_collection_geodata",
+            fake_create_feature_collection_geodata,
+        )
+
+        result = gc.geocode_address_via_overpass.func(
+            state=self.state,
+            tool_call_id="tool-1",
+            street="Baker Street",
+            housenumber="221B",
+            city="London",
+        )
+
+        assert isinstance(result, Command)
+        assert '"addr:street"="Baker Street"' in captured["query"]
+        assert '"addr:housenumber"="221B"' in captured["query"]
+        assert "area(3600065606)" in captured["query"]
+
+        # Only address-tagged matches should remain after filtering recursed helpers.
+        assert len(captured_features["features"]) == 2
+
+        geodata = result.update["geodata_results"][0]
+        assert geodata.processing_metadata is not None
+        assert geodata.processing_metadata.operation == "overpass_address_query"
+        assert geodata.processing_metadata.resolution_method == "address_tags"
+        assert 'addr:street=Baker Street' in geodata.processing_metadata.osm_tags_used
+
+    def test_falls_back_to_addr_city_when_city_geocode_fails(self, monkeypatch):
+        monkeypatch.setattr(
+            gc,
+            "_geocode_location_for_overpass",
+            lambda city: (None, "Nominatim error"),
+        )
+
+        captured = {}
+
+        def fake_execute_query(self, query, timeout=60):
+            captured["query"] = query
+            return ({"elements": []}, None)
+
+        monkeypatch.setattr(gc.OverpassClient, "execute_query", fake_execute_query)
+
+        result = gc.geocode_address_via_overpass.func(
+            state=self.state,
+            tool_call_id="tool-2",
+            street="Main Street",
+            city="Berlin",
+        )
+
+        assert isinstance(result, Command)
+        assert '"addr:city"="Berlin"' in captured["query"]
+        assert "No address found" in result.update["messages"][-1].content

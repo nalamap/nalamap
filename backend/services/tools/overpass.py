@@ -363,6 +363,27 @@ class OverpassQueryBuilder:
         if not address_components:
             raise ValueError("address_components must not be empty")
 
+        valid_items: List[Tuple[str, str]] = []
+        for key, value in address_components.items():
+            if not key.startswith("addr:"):
+                raise ValueError("address_components must only contain addr:* keys")
+            if not re.fullmatch(r"addr:[A-Za-z0-9:_-]+", key):
+                raise ValueError(f"Invalid addr key: {key}")
+
+            normalized_value = str(value).strip()
+            if not normalized_value:
+                raise ValueError(f"address_components contains empty value for key '{key}'")
+
+            valid_items.append((key, normalized_value))
+
+        if not valid_items:
+            raise ValueError("address_components must contain at least one addr:* key")
+
+        def _escape_overpass_string(raw: str) -> str:
+            # Keep escaping consistent with JSON string escaping for quotes,
+            # backslashes and control chars.
+            return json.dumps(raw, ensure_ascii=False)[1:-1]
+
         parts = [f"[out:json][timeout:{self.timeout}][maxsize:{self.maxsize}];"]
 
         if location is not None:
@@ -381,8 +402,8 @@ class OverpassQueryBuilder:
             location_filter = ""
 
         tag_filters = "".join(
-            f'["{k}"="{v.replace(chr(34), chr(92) + chr(34))}"]'
-            for k, v in address_components.items()
+            f'["{key}"="{_escape_overpass_string(value)}"]'
+            for key, value in valid_items
         )
 
         parts.append("(")
