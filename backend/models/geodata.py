@@ -93,6 +93,9 @@ class GeoDataIdentifier(NamedTuple):
 class LayerStyle:
     """Enhanced style configuration for different geometry types"""
 
+    # Overall opacity for raster/tile layers (WMS, WMTS, WCS)
+    opacity: Optional[float] = None
+
     # Common stroke properties for all geometry types
     stroke_color: Optional[str] = "#3388f"
     stroke_weight: Optional[float] = 2
