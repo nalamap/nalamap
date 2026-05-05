@@ -605,7 +605,7 @@ export default function LayerList({
                       ) ? (
                         <div className="text-xs">
                           <label className="block text-gray-700">
-                            Transparency
+                            Opacity
                           </label>
                           <input
                             type="range"
