@@ -333,6 +333,89 @@ class OverpassQueryBuilder:
 
         return "\n".join(parts)
 
+    def build_address_query(
+        self,
+        address_components: Dict[str, str],
+        location: Optional[OverpassLocation] = None,
+        radius_meters: int = 10000,
+    ) -> str:
+        """
+        Build an Overpass QL query for structured address lookups using addr:* tags.
+
+        Constructs a multi-condition query that searches for OSM elements tagged
+        with all provided address components simultaneously, e.g.:
+            node["addr:street"="Baker Street"]["addr:housenumber"="221B"]["addr:city"="London"]
+
+        Args:
+            address_components: Mapping of addr:* tag names to values, e.g.
+                {"addr:street": "Baker Street", "addr:housenumber": "221B",
+                 "addr:city": "London"}.  Keys must start with "addr:".
+            location: Optional OverpassLocation to spatially constrain results.
+                When omitted the search is global (use sparingly).
+            radius_meters: Search radius for point-based location constraints.
+
+        Returns:
+            Overpass QL query string.
+
+        Raises:
+            ValueError: If address_components is empty or contains no addr:* keys.
+        """
+        if not address_components:
+            raise ValueError("address_components must not be empty")
+
+        valid_items: List[Tuple[str, str]] = []
+        for key, value in address_components.items():
+            if not key.startswith("addr:"):
+                raise ValueError("address_components must only contain addr:* keys")
+            if not re.fullmatch(r"addr:[A-Za-z0-9:_-]+", key):
+                raise ValueError(f"Invalid addr key: {key}")
+
+            normalized_value = str(value).strip()
+            if not normalized_value:
+                raise ValueError(f"address_components contains empty value for key '{key}'")
+
+            valid_items.append((key, normalized_value))
+
+        if not valid_items:
+            raise ValueError("address_components must contain at least one addr:* key")
+
+        def _escape_overpass_string(raw: str) -> str:
+            # Keep escaping consistent with JSON string escaping for quotes,
+            # backslashes and control chars.
+            return json.dumps(raw, ensure_ascii=False)[1:-1]
+
+        parts = [f"[out:json][timeout:{self.timeout}][maxsize:{self.maxsize}];"]
+
+        if location is not None:
+            if location.has_area:
+                overpass_area_id = location.osm_relation_id + 3600000000
+                parts.append(f"area({overpass_area_id})->.search_area;")
+                location_filter = "(area.search_area)"
+            elif location.has_bbox:
+                s, w, n, e = location.bbox
+                location_filter = f"({s},{w},{n},{e})"
+            elif location.has_point:
+                location_filter = f"(around:{radius_meters},{location.lat},{location.lon})"
+            else:
+                location_filter = ""
+        else:
+            location_filter = ""
+
+        tag_filters = "".join(
+            f'["{key}"="{_escape_overpass_string(value)}"]'
+            for key, value in valid_items
+        )
+
+        parts.append("(")
+        for osm_type in ("node", "way", "relation"):
+            parts.append(f"  {osm_type}{tag_filters}{location_filter};")
+        parts.append(");")
+        # Recurse into member nodes so way geometry is available
+        parts.append("(._; >;);")
+        parts.append(f"out geom {self.max_results};")
+
+        return "\n".join(parts)
+
     def build_center_query(
         self,
         osm_tag_key: str,
