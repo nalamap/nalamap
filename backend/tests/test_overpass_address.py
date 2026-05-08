@@ -6,12 +6,20 @@ Tests cover:
 - geocode_address_via_overpass tool (mocked Overpass API)
 """
 
+import sys
+
 import pytest
 from langgraph.types import Command
 
 from models.geodata import DataType, GeoDataObject
 from services.tools import geocoding as gc
 from services.tools.overpass import OverpassLocation, OverpassQueryBuilder
+
+# The `geocoding` package re-exports symbols from a private legacy module loaded
+# under a different module name.  Monkeypatching `gc` only updates the package
+# namespace; the tool function looks up names in its own __globals__ which
+# belongs to the legacy module.  Helper below targets the right module.
+_GEOCODING_FUNC_MOD = sys.modules[gc.geocode_address_via_overpass.func.__module__]
 
 
 @pytest.mark.unit
@@ -137,7 +145,7 @@ class TestGeocodeAddressViaOverpass:
             lat=51.5074,
             lon=-0.1278,
         )
-        monkeypatch.setattr(gc, "_geocode_location_for_overpass", lambda city: (location, None))
+        monkeypatch.setattr(_GEOCODING_FUNC_MOD, "_geocode_location_for_overpass", lambda city: (location, None))
 
         captured = {}
 
@@ -211,7 +219,7 @@ class TestGeocodeAddressViaOverpass:
             )
 
         monkeypatch.setattr(
-            gc,
+            _GEOCODING_FUNC_MOD,
             "create_feature_collection_geodata",
             fake_create_feature_collection_geodata,
         )
@@ -240,7 +248,7 @@ class TestGeocodeAddressViaOverpass:
 
     def test_falls_back_to_addr_city_when_city_geocode_fails(self, monkeypatch):
         monkeypatch.setattr(
-            gc,
+            _GEOCODING_FUNC_MOD,
             "_geocode_location_for_overpass",
             lambda city: (None, "Nominatim error"),
         )
