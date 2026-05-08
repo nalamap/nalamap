@@ -145,7 +145,9 @@ class TestGeocodeAddressViaOverpass:
             lat=51.5074,
             lon=-0.1278,
         )
-        monkeypatch.setattr(_GEOCODING_FUNC_MOD, "_geocode_location_for_overpass", lambda city: (location, None))
+        monkeypatch.setattr(
+            _GEOCODING_FUNC_MOD, "_geocode_location_for_overpass", lambda city: (location, None)
+        )
 
         captured = {}
 
