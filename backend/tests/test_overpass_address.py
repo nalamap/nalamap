@@ -31,7 +31,7 @@ class TestBuildAddressQuery:
 
     def test_street_only(self):
         query = self.builder.build_address_query({"addr:street": "Baker Street"})
-        assert '[out:json]' in query
+        assert "[out:json]" in query
         assert '"addr:street"="Baker Street"' in query
         assert "node" in query
         assert "way" in query
@@ -70,9 +70,7 @@ class TestBuildAddressQuery:
             lat=51.5074,
             lon=-0.1278,
         )
-        query = self.builder.build_address_query(
-            {"addr:street": "Baker Street"}, location=location
-        )
+        query = self.builder.build_address_query({"addr:street": "Baker Street"}, location=location)
         # Area ID = relation_id + 3600000000
         assert "area(3600065606)" in query
         assert "(area.search_area)" in query
@@ -84,9 +82,7 @@ class TestBuildAddressQuery:
             lat=51.5074,
             lon=-0.1278,
         )
-        query = self.builder.build_address_query(
-            {"addr:street": "Baker Street"}, location=location
-        )
+        query = self.builder.build_address_query({"addr:street": "Baker Street"}, location=location)
         assert "(51.3,-0.5,51.7,0.3)" in query
 
     def test_point_location_constraint(self):
@@ -128,7 +124,7 @@ class TestBuildAddressQuery:
 
     def test_invalid_addr_key_characters_raise(self):
         with pytest.raises(ValueError, match="Invalid addr key"):
-            self.builder.build_address_query({"addr:street\"]": "Baker Street"})
+            self.builder.build_address_query({'addr:street"]': "Baker Street"})
 
 
 @pytest.mark.unit
@@ -246,7 +242,7 @@ class TestGeocodeAddressViaOverpass:
         assert geodata.processing_metadata is not None
         assert geodata.processing_metadata.operation == "overpass_address_query"
         assert geodata.processing_metadata.resolution_method == "address_tags"
-        assert 'addr:street=Baker Street' in geodata.processing_metadata.osm_tags_used
+        assert "addr:street=Baker Street" in geodata.processing_metadata.osm_tags_used
 
     def test_falls_back_to_addr_city_when_city_geocode_fails(self, monkeypatch):
         monkeypatch.setattr(

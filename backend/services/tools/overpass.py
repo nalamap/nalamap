@@ -402,8 +402,7 @@ class OverpassQueryBuilder:
             location_filter = ""
 
         tag_filters = "".join(
-            f'["{key}"="{_escape_overpass_string(value)}"]'
-            for key, value in valid_items
+            f'["{key}"="{_escape_overpass_string(value)}"]' for key, value in valid_items
         )
 
         parts.append("(")
