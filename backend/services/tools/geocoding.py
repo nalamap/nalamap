@@ -660,7 +660,6 @@ def geocode_using_nominatim_to_geostate(
                 return Command(
                     update={
                         "messages": [
-                            *state["messages"],
                             ToolMessage(
                                 name="geocode_using_nominatim_to_geostate",
                                 content=tool_message_content,
@@ -762,7 +761,6 @@ def geocode_address_via_overpass(
         return Command(
             update={
                 "messages": [
-                    *state["messages"],
                     ToolMessage(
                         name="geocode_address_via_overpass",
                         content=str(exc),
@@ -779,7 +777,6 @@ def geocode_address_via_overpass(
         return Command(
             update={
                 "messages": [
-                    *state["messages"],
                     ToolMessage(
                         name="geocode_address_via_overpass",
                         content=f"Overpass error while searching for '{query_description}': {error_msg}",
@@ -794,7 +791,6 @@ def geocode_address_via_overpass(
         return Command(
             update={
                 "messages": [
-                    *state["messages"],
                     ToolMessage(
                         name="geocode_address_via_overpass",
                         content=f"No address found for '{query_description}' in OSM.",
@@ -827,7 +823,6 @@ def geocode_address_via_overpass(
         return Command(
             update={
                 "messages": [
-                    *state["messages"],
                     ToolMessage(
                         name="geocode_address_via_overpass",
                         content=f"Found OSM elements for '{query_description}' but none had usable geometry.",
@@ -838,13 +833,13 @@ def geocode_address_via_overpass(
         )
 
     # Group by geometry type and build collections
-    location_label = location.display_name if location else "global"
+    location_label = location.display_name if location else (city_label or "global")
     collection_obj = create_feature_collection_geodata(
         features,
-        "Address",
+        "Points",
         query_description,
         location_label,
-        "addr:street",
+        f"addr:street={street}",
         city_label or street,
     )
 
@@ -852,7 +847,6 @@ def geocode_address_via_overpass(
         return Command(
             update={
                 "messages": [
-                    *state["messages"],
                     ToolMessage(
                         name="geocode_address_via_overpass",
                         content=f"Could not create a map layer for '{query_description}'.",
@@ -879,7 +873,6 @@ def geocode_address_via_overpass(
     return Command(
         update={
             "messages": [
-                *state["messages"],
                 ToolMessage(
                     name="geocode_address_via_overpass",
                     content=(
@@ -1313,7 +1306,6 @@ def geocode_using_overpass_to_geostate(
         return Command(
             update={
                 "messages": [
-                    *state["messages"],
                     ToolMessage(
                         name="geocode_using_overpass_to_geostate",
                         content=hint,
@@ -1352,7 +1344,6 @@ def geocode_using_overpass_to_geostate(
             return Command(
                 update={
                     "messages": [
-                        *state["messages"],
                         ToolMessage(
                             name="geocode_using_overpass_to_geostate",
                             content=error_msg,
@@ -1400,7 +1391,6 @@ def geocode_using_overpass_to_geostate(
         return Command(
             update={
                 "messages": [
-                    *state["messages"],
                     ToolMessage(
                         name="geocode_using_overpass_to_geostate",
                         content=str(e),
@@ -1418,7 +1408,6 @@ def geocode_using_overpass_to_geostate(
         return Command(
             update={
                 "messages": [
-                    *state["messages"],
                     ToolMessage(
                         name="geocode_using_overpass_to_geostate",
                         content=(
@@ -1436,7 +1425,6 @@ def geocode_using_overpass_to_geostate(
         return Command(
             update={
                 "messages": [
-                    *state["messages"],
                     ToolMessage(
                         name="geocode_using_overpass_to_geostate",
                         content=(f"No '{amenity_key_display}' found {search_mode_description}."),
@@ -1581,7 +1569,6 @@ def geocode_using_overpass_to_geostate(
         return Command(
             update={
                 "messages": [
-                    *state["messages"],
                     ToolMessage(
                         name="geocode_using_overpass_to_geostate",
                         content=(
@@ -1615,7 +1602,6 @@ def geocode_using_overpass_to_geostate(
 
     state_update: Dict[str, Any] = {
         "messages": [
-            *state["messages"],
             ToolMessage(
                 name="geocode_using_overpass_to_geostate",
                 content=tool_message_content,

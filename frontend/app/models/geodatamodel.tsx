@@ -58,6 +58,9 @@ export interface LayerStyle {
   shadow_offset_y?: number; // Shadow offset
   shadow_blur?: number; // Shadow blur radius
 
+  // Raster/tile layer opacity (WMS, WCS, WMTS)
+  raster_opacity?: number;
+
   // Animation properties (future enhancement)
   animation_duration?: number; // Animation duration in seconds
   animation_type?: string; // "pulse", "spin", "bounce", etc.
