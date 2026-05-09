@@ -13,6 +13,7 @@ from services.tools.geocoding import (
 from services.tools.geoprocess_tools import geoprocess_tool
 from services.tools.geoserver.custom_geoserver import get_custom_geoserver_data
 from services.tools.geostate_management import metadata_search
+from services.tools.ogcapi_tools import search_ogcapi_layers
 from services.tools.nasa_firms_fire import get_nasa_fire_data
 from services.tools.nasa_gibs_imagery import get_nasa_gibs_layer, list_nasa_gibs_layers
 
@@ -83,6 +84,12 @@ TOOL_METADATA = {
     },
     "get_custom_geoserver_data": {
         "display_name": "Custom GeoServer Data",
+        "category": "data_retrieval",
+        "group": None,
+        "enabled": True,
+    },
+    "search_ogcapi_layers": {
+        "display_name": "OGC API Layer Search",
         "category": "data_retrieval",
         "group": None,
         "enabled": True,
@@ -257,6 +264,11 @@ DEFAULT_SYSTEM_PROMPT: str = (
     "something else.'\n\n"
     "## DATA RETRIEVAL \n"
     "- Purpose: Find, preview, and fetch geospatial datasets and layers.\n\n"
+    "- search_ogcapi_layers (OGC API backend)\n"
+    " - Use when: The user asks for layers from an OGC API endpoint or a configured OGC API "
+    "backend, e.g. 'show me protected areas from our OGC API'.\n"
+    " - Notes: Searches collection title, description, and id; falls back to client-side "
+    "filtering when the server does not support q= search.\n\n"
     "- get_custom_geoserver_data (org/internal backend)\n"
     " - Use when: The user references “my/our database” or known internal layers; when "
     "precision, access control, performance, or consistent schema matters.\n"
@@ -432,6 +444,7 @@ DEFAULT_AVAILABLE_TOOLS: Dict[str, BaseTool] = {
     "check_and_autostyle": check_and_auto_style_layers,  # Automatic layer style checker
     "apply_color_scheme": apply_intelligent_color_scheme,
     "get_custom_geoserver_data": get_custom_geoserver_data,
+    "search_ogcapi_layers": search_ogcapi_layers,
     "attribute_tool": attribute_tool,
     "attribute_tool2": attribute_tool2,  # Simplified attribute tool for better agent usability
     "world_bank_indicators": get_world_bank_data,  # OSINT: World Bank economic indicators
