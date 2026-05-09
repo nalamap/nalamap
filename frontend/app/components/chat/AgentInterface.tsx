@@ -113,11 +113,12 @@ export default function AgentInterface() {
     }));
   };
 
-  const handleReset = useCallback(() => {
+  const handleReset = useCallback(async () => {
     if (!window.confirm(
       "Reset the Map Assistant? This will clear all chat messages and remove all layers from the map."
     )) return;
-    if (isStreaming) cancelRequest();
+    if (isStreaming) await cancelRequest();
+    setExpandedToolMessage({});
     const store = useChatInterfaceStore.getState();
     store.clearMessages();
     store.setGeoDataList([]);
@@ -129,18 +130,19 @@ export default function AgentInterface() {
     store.clearExecutionPlan();
     store.setInput("");
     useLayerStore.getState().resetLayers();
-  }, [isStreaming, cancelRequest]);
+  }, [isStreaming, cancelRequest, setExpandedToolMessage]);
 
   return (
     <div className="h-full w-full bg-primary-50 p-4 flex flex-col overflow-hidden relative border-l border-primary-300">
       {/* Header */}
       <div className="flex items-center mb-4 flex-shrink-0">
+        {/* Left spacer matching button width so title stays centered */}
+        <div className="w-8 flex-shrink-0" />
         <h2 className="flex-1 text-xl font-bold text-primary-900 text-center">
           Map Assistant
         </h2>
         <button
           onClick={handleReset}
-          disabled={false}
           title="Reset — clear chat and all layers"
           className="ml-2 p-1.5 rounded text-primary-500 hover:text-red-600 hover:bg-red-50 transition-colors"
           aria-label="Reset application"
