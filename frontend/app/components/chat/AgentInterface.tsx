@@ -119,6 +119,7 @@ export default function AgentInterface() {
     )) return;
     if (isStreaming) await cancelRequest();
     setExpandedToolMessage({});
+    setScrollLocked(false);
     const store = useChatInterfaceStore.getState();
     store.clearMessages();
     store.setGeoDataList([]);
@@ -146,6 +147,7 @@ export default function AgentInterface() {
           title="Reset — clear chat and all layers"
           className="ml-2 p-1.5 rounded text-primary-500 hover:text-red-600 hover:bg-red-50 transition-colors"
           aria-label="Reset application"
+          data-testid="agent-reset-button"
         >
           {/* Trash / reset icon */}
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
