@@ -841,10 +841,10 @@ def geocode_address_via_overpass(
     location_label = location.display_name if location else "global"
     collection_obj = create_feature_collection_geodata(
         features,
-        "Address",
+        "Points",
         query_description,
         location_label,
-        "addr:street",
+        f"addr:street={street}",
         city_label or street,
     )
 

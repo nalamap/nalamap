@@ -10,6 +10,7 @@ falls back to listing all collections and filtering client-side via substring
 match on ``title`` and ``description``.
 """
 
+import hashlib
 import logging
 import ssl
 import uuid
@@ -85,8 +86,10 @@ def _collection_to_geodata(
     col_id = collection.get("id", "")
     access_url = _pick_access_url(collection, backend.url)
     bbox_wkt = _extract_bbox_wkt(collection)
+    # Stable deterministic ID so the same collection is deduplicated in agent state.
+    stable_id = str(uuid.UUID(hashlib.sha1(f"{backend.name}:{col_id}".encode()).hexdigest()[:32]))
     return GeoDataObject(
-        id=str(uuid.uuid4()),
+        id=stable_id,
         name=col_id,
         title=collection.get("title") or col_id or "Untitled",
         description=collection.get("description") or "",
@@ -129,7 +132,7 @@ def _search_backend(
                 resp.raise_for_status()
                 data = resp.json()
                 collections = data.get("collections", data if isinstance(data, list) else [])
-                results = [_collection_to_geodata(c, backend) for c in collections]
+                results = [_collection_to_geodata(c, backend) for c in collections[:max_results]]
                 if results:
                     return results
                 # Zero server-side results — fall through to client-side fallback
@@ -171,7 +174,7 @@ def search_ogcapi_layers(
     tool_call_id: Annotated[str, InjectedToolCallId],
     query: str,
     max_results: int = 20,
-) -> Union[Dict[str, Any], Command]:
+) -> Union[Dict[str, Any], Command, ToolMessage]:
     """Search for geospatial layers on configured OGC API servers.
 
     Use this when the user asks for layers or datasets from an OGC API endpoint.
@@ -190,7 +193,7 @@ def _search_ogcapi_layers_impl(
     tool_call_id: str,
     query: str,
     max_results: int = 20,
-) -> Union[Dict[str, Any], Command]:
+) -> Union[Dict[str, Any], Command, ToolMessage]:
     settings = state.get("options")
     snapshot: Optional[SettingsSnapshot] = None
     if isinstance(settings, SettingsSnapshot):
