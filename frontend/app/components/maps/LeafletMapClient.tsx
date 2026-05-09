@@ -2,7 +2,6 @@
 
 import {
   MapContainer,
-  LayersControl,
   TileLayer,
   WMSTileLayer,
   GeoJSON,
