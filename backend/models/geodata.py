@@ -124,6 +124,9 @@ class LayerStyle:
     animation_duration: Optional[float] = None  # Animation duration in seconds
     animation_type: Optional[str] = None  # "pulse", "spin", "bounce", etc.
 
+    # Raster layer opacity (WMS/WCS/WMTS layers)
+    raster_opacity: Optional[float] = None  # 0.0 fully transparent, 1.0 fully opaque
+
     # Conditional styling (future enhancement)
     style_conditions: Optional[Dict[str, Any]] = None  # For data-driven styling
 

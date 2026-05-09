@@ -833,7 +833,7 @@ def geocode_address_via_overpass(
         )
 
     # Group by geometry type and build collections
-    location_label = location.display_name if location else "global"
+    location_label = location.display_name if location else (city_label or "global")
     collection_obj = create_feature_collection_geodata(
         features,
         "Points",
