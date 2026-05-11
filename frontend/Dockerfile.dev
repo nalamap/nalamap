@@ -4,7 +4,7 @@
 #
 # 1. Install dependencies layer
 #
-FROM node:25-alpine AS deps
+FROM node:26-alpine AS deps
 
 WORKDIR /app
 
@@ -27,7 +27,7 @@ RUN \
 #
 # 2. Dev image
 #
-FROM node:25-alpine AS dev
+FROM node:26-alpine AS dev
 
 WORKDIR /app
 
