@@ -31,8 +31,14 @@ FROM node:25-alpine AS dev
 
 WORKDIR /app
 
-# copy just node_modules from the deps stage
-COPY --from=deps /app/node_modules ./node_modules
+# glibc compatibility for runtime native modules
+RUN apk add --no-cache libc6-compat
+
+# Keep a copy of the installed deps outside /app so bind mounts do not hide them.
+COPY --from=deps /app/node_modules /opt/node_modules
+COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* /opt/deps-manifest/
+COPY dev-entrypoint.sh /usr/local/bin/dev-entrypoint
+RUN chmod +x /usr/local/bin/dev-entrypoint
 
 # expose Next.js default port
 EXPOSE 3000
@@ -42,8 +48,5 @@ ENV NODE_ENV=development
 ENV HOST=0.0.0.0
 ENV PORT=3000
 
-# declare /app as a mountpoint
-VOLUME ["/app"]
-
 # run the Next.js dev server (hot‑reload)
-CMD ["npm", "run", "dev"]
+CMD ["/usr/local/bin/dev-entrypoint"]

@@ -4,10 +4,14 @@ from typing import Optional
 
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-# Load .env.local first (for local development), then .env (fallback)
-load_dotenv(".env.local", override=True)  # Local development overrides
-load_dotenv()  # Load .env if exists (won't override existing vars)
+# Load dotenv files as fallbacks only.
+# Real environment variables from Docker/Compose/shell must win.
+# Order matters:
+# 1. existing process env
+# 2. .env.local
+# 3. .env
+load_dotenv(".env.local", override=False)
+load_dotenv(override=False)
 # General config in a central place
 
 
@@ -25,6 +29,24 @@ AZURE_SAS_EXPIRY_HOURS = int(os.getenv("AZURE_SAS_EXPIRY_HOURS", "24"))
 LOCAL_UPLOAD_DIR = os.getenv("LOCAL_UPLOAD_DIR", "./uploads")
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
 
+# External OGC API server (for uploads and file serving)
+USE_OGCAPI_STORAGE = os.getenv("USE_OGCAPI_STORAGE", "false").lower() == "true"
+OGCAPI_BASE_URL = os.getenv("OGCAPI_BASE_URL", "").rstrip("/")
+# Public/browser-facing OGC API base URL. If unset, fall back to OGCAPI_BASE_URL.
+OGCAPI_PUBLIC_BASE_URL = os.getenv("OGCAPI_PUBLIC_BASE_URL", OGCAPI_BASE_URL).rstrip("/")
+OGCAPI_TIMEOUT_SECONDS = float(os.getenv("OGCAPI_TIMEOUT_SECONDS", "60"))
+DEFAULT_OGCAPI_UPLOAD_TIMEOUT_SECONDS = 600.0
+OGCAPI_UPLOAD_TIMEOUT_SECONDS = float(
+    os.getenv(
+        "OGCAPI_UPLOAD_TIMEOUT_SECONDS",
+        str(max(OGCAPI_TIMEOUT_SECONDS, DEFAULT_OGCAPI_UPLOAD_TIMEOUT_SECONDS)),
+    )
+)
+OGCAPI_CONNECT_TIMEOUT_SECONDS = float(os.getenv("OGCAPI_CONNECT_TIMEOUT_SECONDS", "10"))
+OGCAPI_VECTOR_TILE_FEATURE_THRESHOLD = int(
+    os.getenv("OGCAPI_VECTOR_TILE_FEATURE_THRESHOLD", "2000")
+)
+
 # CORS configuration
 # Comma-separated list of allowed origins; if empty, allow all (not recommended with credentials)
 RAW_ALLOWED_ORIGINS = os.getenv("ALLOWED_CORS_ORIGINS", "*")
@@ -41,8 +63,41 @@ COOKIE_SECURE = os.getenv("COOKIE_SECURE", "true").lower() == "true"
 COOKIE_HTTPONLY = os.getenv("COOKIE_HTTPONLY", "true").lower() == "true"
 COOKIE_SAMESITE = os.getenv("COOKIE_SAMESITE", "lax")  # "lax", "strict", or "none"
 
-# File size limit (100MB)
-MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB in bytes
+# File size limit (default: 250 MB)
+DEFAULT_MAX_FILE_SIZE = 250 * 1024 * 1024
+MAX_FILE_SIZE = int(os.getenv("MAX_FILE_SIZE", str(DEFAULT_MAX_FILE_SIZE)))
+
+
+def format_file_size(bytes_size: int) -> str:
+    size = float(bytes_size)
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
+        if size < 1024 or unit == "TB":
+            if unit == "B":
+                return f"{int(size)} {unit}"
+            return f"{size:.2f} {unit}"
+        size /= 1024.0
+    return f"{int(bytes_size)} B"
+
+
+def max_file_size_exceeded_detail(actual_size: int | None = None) -> str:
+    limit = format_file_size(MAX_FILE_SIZE)
+    if actual_size is None:
+        return f"File size exceeds the limit of {limit}."
+    return f"File size ({format_file_size(actual_size)}) exceeds the limit of {limit}."
+
+
+def ogcapi_request_timeout() -> tuple[float, float]:
+    return (
+        max(1.0, OGCAPI_CONNECT_TIMEOUT_SECONDS),
+        max(1.0, OGCAPI_TIMEOUT_SECONDS),
+    )
+
+
+def ogcapi_upload_timeout() -> tuple[float, float]:
+    return (
+        max(1.0, OGCAPI_CONNECT_TIMEOUT_SECONDS),
+        max(1.0, OGCAPI_UPLOAD_TIMEOUT_SECONDS),
+    )
 
 
 # Database

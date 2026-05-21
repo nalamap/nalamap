@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 import uuid
 from typing import Any, Dict, List, Optional
 
@@ -14,10 +15,12 @@ from langchain_core.messages import (
     ToolMessage,
 )
 
+from api.ogc_payloads import normalize_ogc_geodata_payloads
 from models.geodata import GeoDataObject, mock_geodata_objects
 from models.messages.chat_messages import NaLaMapRequest, NaLaMapResponse
-from models.settings_model import SettingsSnapshot
+from models.settings_model import OGCAPIServer, SettingsSnapshot
 from models.states import DataState, GeoDataAgentState
+from core import config as core_config
 
 # Lazy imports for heavy modules (loaded only when chat endpoint is called)
 # from services.multi_agent_orch import multi_agent_executor
@@ -29,6 +32,137 @@ logger = logging.getLogger(__name__)
 # Global dict to track cancellation requests by session_id
 _cancellation_flags: Dict[str, bool] = {}
 _cancellation_lock = asyncio.Lock()
+_EXPLICIT_LAYER_REFS_JSON_RE = re.compile(
+    r"\[EXPLICIT_LAYER_REFS_JSON\](.*?)\[/EXPLICIT_LAYER_REFS_JSON\]",
+    flags=re.IGNORECASE | re.DOTALL,
+)
+
+
+def _strip_hex_prefix_filename(value: str) -> str:
+    match = re.match(r"^[0-9a-f]{24,64}[_-](.+)$", value.strip(), flags=re.IGNORECASE)
+    if not match:
+        return value.strip()
+    return match.group(1).strip() or value.strip()
+
+
+def _normalize_explicit_layer_ref(value: str) -> str:
+    cleaned = _strip_hex_prefix_filename((value or "").strip())
+    if cleaned.lower() in {"manual", "uploaded", "user", "tool", "dataset"}:
+        return ""
+    return cleaned
+
+
+def _split_query_and_explicit_layer_refs(query: Optional[str]) -> tuple[str, List[str]]:
+    raw_query = (query or "").strip()
+    if not raw_query:
+        return "", []
+
+    match = _EXPLICIT_LAYER_REFS_JSON_RE.search(raw_query)
+    if not match:
+        return raw_query, []
+
+    clean_query = _EXPLICIT_LAYER_REFS_JSON_RE.sub("", raw_query).strip()
+    refs: List[str] = []
+    raw_payload = (match.group(1) or "").strip()
+    if raw_payload:
+        try:
+            payload = json.loads(raw_payload)
+        except json.JSONDecodeError:
+            payload = None
+
+        layer_refs = payload.get("layer_refs") if isinstance(payload, dict) else None
+        if isinstance(layer_refs, list):
+            for item in layer_refs:
+                if isinstance(item, str):
+                    normalized = _normalize_explicit_layer_ref(item)
+                    if normalized:
+                        refs.append(normalized)
+                    continue
+                if not isinstance(item, dict):
+                    continue
+                # Prefer user-facing labels; use id only as fallback.
+                for key in ("title", "name"):
+                    value = item.get(key)
+                    if isinstance(value, str) and value.strip():
+                        normalized = _normalize_explicit_layer_ref(value)
+                        if normalized:
+                            refs.append(normalized)
+                if not any(
+                    isinstance(item.get(key), str) and item.get(key).strip()
+                    for key in ("title", "name")
+                ):
+                    value = item.get("id")
+                    if isinstance(value, str) and value.strip():
+                        normalized = _normalize_explicit_layer_ref(value)
+                        if normalized:
+                            refs.append(normalized)
+
+    deduped_refs: List[str] = []
+    seen = set()
+    for ref in refs:
+        lowered = ref.lower()
+        if lowered in seen:
+            continue
+        seen.add(lowered)
+        deduped_refs.append(ref)
+
+    return clean_query, deduped_refs
+
+
+def _extract_ogcapi_result_urls(
+    messages: Optional[List[BaseMessage]],
+    geodata_results: Optional[List[Any]],
+) -> List[str]:
+    urls: List[str] = []
+    seen = set()
+
+    def _add_url(value: Any) -> None:
+        if not isinstance(value, str):
+            return
+        url = value.strip()
+        if not url:
+            return
+        lowered = url.lower()
+        if lowered in seen:
+            return
+        # Keep this strict to avoid leaking unrelated URLs in chat UX.
+        if "/processes/" not in lowered or "/jobs/" not in lowered or "/results" not in lowered:
+            return
+        seen.add(lowered)
+        urls.append(url)
+
+    for item in geodata_results or []:
+        if isinstance(item, dict):
+            _add_url(item.get("data_link"))
+            properties = item.get("properties")
+            if isinstance(properties, dict):
+                _add_url(properties.get("ogc_results_url"))
+            continue
+        _add_url(getattr(item, "data_link", None))
+        properties = getattr(item, "properties", None)
+        if isinstance(properties, dict):
+            _add_url(properties.get("ogc_results_url"))
+
+    for message in messages or []:
+        msg_type = str(getattr(message, "type", "")).lower()
+        if msg_type != "tool":
+            continue
+        content = getattr(message, "content", None)
+        parsed: Any = None
+        if isinstance(content, str):
+            try:
+                parsed = json.loads(content)
+            except json.JSONDecodeError:
+                parsed = None
+        elif isinstance(content, dict):
+            parsed = content
+
+        if isinstance(parsed, dict):
+            _add_url(parsed.get("job_results_url"))
+            _add_url(parsed.get("result_url"))
+            _add_url(parsed.get("ogc_results_url"))
+
+    return urls
 
 
 def make_json_serializable(obj: Any) -> Any:
@@ -173,6 +307,44 @@ def normalize_messages(raw: Optional[List[BaseMessage]]) -> List[BaseMessage]:
 router = APIRouter()
 
 
+def _fallback_ogcapi_servers_from_env() -> List[OGCAPIServer]:
+    """Build default OGC API server config from environment variables."""
+    if not core_config.USE_OGCAPI_STORAGE:
+        return []
+
+    fallback_url = (core_config.OGCAPI_PUBLIC_BASE_URL or core_config.OGCAPI_BASE_URL or "").rstrip(
+        "/"
+    )
+    if not fallback_url:
+        return []
+
+    return [
+        OGCAPIServer(
+            url=fallback_url,
+            name="Default OGC API (Environment)",
+            description="Auto-configured from OGCAPI_PUBLIC_BASE_URL/OGCAPI_BASE_URL.",
+            enabled=True,
+        )
+    ]
+
+
+def _resolve_enabled_ogcapi_servers(options: SettingsSnapshot) -> List[OGCAPIServer]:
+    configured_servers = list(getattr(options, "ogcapi_servers", []) or [])
+
+    # Only apply env fallback when the client did not send any OGC API server
+    # configuration. If servers are configured but disabled, keep that choice.
+    if not configured_servers:
+        configured_servers = _fallback_ogcapi_servers_from_env()
+        if configured_servers:
+            options.ogcapi_servers = configured_servers
+            logger.info(
+                "Using fallback OGC API server from env: %s",
+                configured_servers[0].url,
+            )
+
+    return [server for server in configured_servers if server.enabled]
+
+
 async def _prepare_chat_context(
     request: NaLaMapRequest,
     raw_request: Request,
@@ -196,11 +368,20 @@ async def _prepare_chat_context(
     from services.single_agent import create_geo_agent, prepare_messages
     from utility.performance_metrics import PerformanceCallbackHandler
 
-    logger.info(f"[CHAT] query={request.query[:120]!r}")
+    clean_query, explicit_layer_refs = _split_query_and_explicit_layer_refs(request.query)
+    query_for_model = clean_query or (request.query or "")
+    if explicit_layer_refs:
+        refs_preview = ", ".join(explicit_layer_refs[:8])
+        query_for_model = (
+            f"{query_for_model}\n\n"
+            f"Selected existing map layers: {refs_preview}.\n"
+            "These are already loaded layers in state; do not geocode these names."
+        ).strip()
+    logger.info(f"[CHAT] query={query_for_model[:120]!r}")
 
     # Normalize incoming messages and append user query
     messages: List[BaseMessage] = normalize_messages(request.messages)
-    messages.append(HumanMessage(request.query))
+    messages.append(HumanMessage(query_for_model))
 
     # Track message count before processing
     metrics.record("message_count_before", len(messages))
@@ -235,14 +416,21 @@ async def _prepare_chat_context(
 
     # Get enabled MCP servers from options (pass full objects for auth)
     mcp_servers = [server for server in getattr(options, "mcp_servers", []) if server.enabled]
+    configured_ogcapi_servers = list(getattr(options, "ogcapi_servers", []) or [])
+    ogcapi_servers = _resolve_enabled_ogcapi_servers(options)
+    explicit_ogcapi_config = bool(configured_ogcapi_servers)
+    ogcapi_servers_arg = (
+        ogcapi_servers if ogcapi_servers else ([] if explicit_ogcapi_config else None)
+    )
 
     single_agent, llm = await create_geo_agent(
         model_settings=options.model_settings,
         selected_tools=options.tools,
         enable_parallel_tools=enable_parallel_tools,
-        query=request.query,
+        query=query_for_model,
         session_id=options.session_id,
         mcp_servers=mcp_servers if mcp_servers else None,
+        ogcapi_servers=ogcapi_servers_arg,
     )
 
     # Get message management mode from settings (or fall back to env var)
@@ -303,9 +491,10 @@ async def _prepare_chat_context(
                     model_settings=options.model_settings,
                     selected_tools=options.tools,
                     enable_parallel_tools=enable_parallel_tools,
-                    query=request.query,
+                    query=query_for_model,
                     session_id=options.session_id,
                     mcp_servers=mcp_servers if mcp_servers else None,
+                    ogcapi_servers=ogcapi_servers_arg,
                     system_prompt_addendum=plan_addendum,
                 )
         except Exception as e:
@@ -317,6 +506,7 @@ async def _prepare_chat_context(
         messages=messages,
         geodata_last_results=request.geodata_last_results,
         geodata_layers=request.geodata_layers,
+        explicit_layer_refs=explicit_layer_refs,
         results_title="",
         geodata_results=[],
         options=options,
@@ -537,8 +727,8 @@ async def ask_nalamap_agent(request: NaLaMapRequest, raw_request: Request):
     response: NaLaMapResponse = NaLaMapResponse(
         messages=result_messages,
         results_title=results_title,
-        geodata_results=geodata_results,
-        geodata_layers=geodata_layers,
+        geodata_results=normalize_ogc_geodata_payloads(geodata_results),
+        geodata_layers=normalize_ogc_geodata_payloads(geodata_layers),
         # global_geodata=global_geodata,
         options=result_options,
     )
@@ -579,20 +769,70 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
     async def event_generator():
         """Generate SSE events from agent execution."""
         stream_id = "unknown"  # Initialize at function scope
+        pending_tools: List[Dict[str, Optional[str]]] = []
+
+        def _track_tool_start(tool_name: str, run_id: Optional[str]) -> None:
+            pending_tools.append({"tool": tool_name, "run_id": run_id})
+
+        def _track_tool_end(tool_name: str, run_id: Optional[str]) -> None:
+            # Prefer exact run_id matching when available; fallback to first same-name match.
+            if run_id:
+                for idx, item in enumerate(pending_tools):
+                    if item.get("run_id") == run_id:
+                        pending_tools.pop(idx)
+                        return
+
+            for idx, item in enumerate(pending_tools):
+                if item.get("tool") == tool_name:
+                    pending_tools.pop(idx)
+                    return
+
+        async def _emit_pending_tool_end_events(reason: str):
+            while pending_tools:
+                pending = pending_tools.pop(0)
+                tool_name = pending.get("tool") or "unknown_tool"
+                reason_text = str(reason)
+                ellipsis = "..." if len(reason_text) > 200 else ""
+                output_data = {
+                    "tool": tool_name,
+                    "output": {"error": reason_text},
+                    "output_preview": f"Tool error: {reason_text[:200]}{ellipsis}",
+                    "is_state_update": False,
+                    "output_type": "dict",
+                }
+                yield "event: tool_end\n"
+                yield f"data: {json.dumps(output_data)}\n\n"
+
         try:
             # Initialize performance tracking
             metrics = PerformanceMetrics()
 
             # Prepare shared context (messages, agent, state)
-            (
-                state,
-                single_agent,
-                options,
-                perf_callback,
-                session_id,
-                stream_id,
-                execution_plan,
-            ) = await _prepare_chat_context(request, raw_request, metrics)
+            chat_context = await _prepare_chat_context(request, raw_request, metrics)
+            if len(chat_context) == 7:
+                (
+                    state,
+                    single_agent,
+                    options,
+                    perf_callback,
+                    session_id,
+                    stream_id,
+                    execution_plan,
+                ) = chat_context
+            elif len(chat_context) == 6:
+                (
+                    state,
+                    single_agent,
+                    options,
+                    perf_callback,
+                    session_id,
+                    stream_id,
+                ) = chat_context
+                execution_plan = None
+            else:
+                raise ValueError(
+                    f"_prepare_chat_context returned unexpected tuple size: {len(chat_context)}"
+                )
 
             # If we have an execution plan, stream it to the frontend
             if execution_plan:
@@ -647,7 +887,12 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                     event_data = event.get("data", {})
 
                     # Debug logging for cancellation checking
-                    if event_type in ["on_tool_start", "on_tool_end", "on_chain_start"]:
+                    if event_type in [
+                        "on_tool_start",
+                        "on_tool_end",
+                        "on_tool_error",
+                        "on_chain_start",
+                    ]:
                         logger.info(
                             f"Event: {event_type} | name: {event_name} | "
                             f"stream: {stream_id} | "
@@ -663,6 +908,7 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                         tool_name = event_name
                         tool_input = event_data.get("input", {})
                         run_id = event.get("run_id")
+                        _track_tool_start(tool_name=tool_name, run_id=run_id)
                         serializable_input = make_json_serializable(tool_input)
 
                         # Track plan step progress
@@ -712,6 +958,7 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                     elif event_type == "on_tool_end":
                         tool_name = event_name
                         run_id = event.get("run_id")
+                        _track_tool_end(tool_name=tool_name, run_id=run_id)
                         tool_output = event_data.get("output", {})
                         serializable_output = make_json_serializable(tool_output)
 
@@ -747,6 +994,31 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                                 "plan_step": matched_step,
                             }
 
+                        yield "event: tool_end\n"
+                        data = json.dumps(output_data)
+                        yield f"data: {data}\n\n"
+
+                    elif event_type == "on_tool_error":
+                        tool_name = event_name
+                        run_id = event.get("run_id")
+                        _track_tool_end(tool_name=tool_name, run_id=run_id)
+                        tool_error = event_data.get("error", event_data)
+                        serializable_error = make_json_serializable(tool_error)
+                        error_text = str(serializable_error)
+                        ellipsis = "..." if len(error_text) > 200 else ""
+
+                        matched_step = None
+                        if execution_plan and run_id:
+                            matched_step = tool_step_map.pop(run_id, None)
+
+                        output_data = {
+                            "tool": tool_name,
+                            "output": {"error": serializable_error},
+                            "output_preview": f"Tool error: {error_text[:200]}{ellipsis}",
+                            "is_state_update": False,
+                            "output_type": "dict",
+                            "plan_step": matched_step,
+                        }
                         yield "event: tool_end\n"
                         data = json.dumps(output_data)
                         yield f"data: {data}\n\n"
@@ -863,13 +1135,8 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                     elif isinstance(msg, SystemMessage):
                         serializable_messages.append({"type": "system", "content": msg.content})
 
-                serialized_results = [
-                    r.model_dump() if hasattr(r, "model_dump") else r for r in geodata_results
-                ]
-                serialized_layers = [
-                    layer.model_dump() if hasattr(layer, "model_dump") else layer
-                    for layer in geodata_layers
-                ]
+                serialized_results = normalize_ogc_geodata_payloads(geodata_results)
+                serialized_layers = normalize_ogc_geodata_payloads(geodata_layers)
 
                 # Mark any remaining plan steps as complete
                 if execution_plan:
@@ -884,14 +1151,26 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
                             yield f"data: {json.dumps(step_data)}\n\n"
 
                 yield "event: result\n"
+                ogcapi_result_urls = _extract_ogcapi_result_urls(
+                    messages=result_messages,
+                    geodata_results=serialized_results,
+                )
                 result_data = {
                     "messages": serializable_messages,
                     "results_title": results_title,
                     "geodata_results": serialized_results,
                     "geodata_layers": serialized_layers,
                     "metrics": final_metrics,
+                    "ogcapi_job_results": ogcapi_result_urls,
+                    "ogcapi_job_results_urls": ogcapi_result_urls,
                 }
                 yield f"data: {json.dumps(result_data)}\n\n"
+
+            # Ensure every emitted tool_start has a corresponding tool_end.
+            async for chunk in _emit_pending_tool_end_events(
+                "Tool execution did not emit a completion event."
+            ):
+                yield chunk
 
             # Send done event
             yield "event: done\n"
@@ -899,6 +1178,8 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
 
         except openai.InternalServerError as e:
             logger.error(f"OpenAI Internal Server Error during streaming: {e}")
+            async for chunk in _emit_pending_tool_end_events(f"Streaming interrupted: {e}"):
+                yield chunk
             yield "event: error\n"
             yield f"data: {json.dumps({'error': 'model_error', 'message': str(e)})}\n\n"
             yield "event: done\n"
@@ -906,6 +1187,8 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
 
         except openai.APIError as e:
             logger.error(f"OpenAI API Error during streaming: {e}")
+            async for chunk in _emit_pending_tool_end_events(f"Streaming interrupted: {e}"):
+                yield chunk
             yield "event: error\n"
             yield f"data: {json.dumps({'error': 'api_error', 'message': str(e)})}\n\n"
             yield "event: done\n"
@@ -913,6 +1196,8 @@ async def ask_nalamap_agent_stream(request: NaLaMapRequest, raw_request: Request
 
         except Exception as e:
             logger.exception(f"Unexpected error during streaming: {e}")
+            async for chunk in _emit_pending_tool_end_events(f"Streaming interrupted: {e}"):
+                yield chunk
             yield "event: error\n"
             yield f"data: {json.dumps({'error': 'unexpected_error', 'message': str(e)})}\n\n"
             yield "event: done\n"

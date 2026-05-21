@@ -121,6 +121,27 @@ export const wcsLayerMetadata = {
   data_source_id: "geoserver",
 };
 
+export const ogcVectorTileLayerMetadata = {
+  id: "ogc-vector-layer-1",
+  name: "Uploaded Points",
+  title: "Uploaded Points",
+  layer_type: "UPLOADED",
+  data_link: "http://localhost:8000/v1/collections/test_collection/items",
+  bounding_box: [-180, -85.0511, 180, 85.0511],
+  visible: true,
+  data_source_id: "manual",
+  properties: {
+    ogc_collection_id: "test_collection",
+    ogc_items_url: "http://localhost:8000/v1/collections/test_collection/items",
+    ogc_tiles_url:
+      "http://localhost:8000/v1/collections/test_collection/tiles/{z}/{x}/{y}.mvt",
+    ogc_tiles_metadata_url: "http://localhost:8000/v1/collections/test_collection/tiles",
+    ogc_feature_count: 6000,
+    ogc_recommended_render_mode: "tiles",
+    ogc_render_mode: "tiles",
+  },
+};
+
 // Mock GeoJSON responses for single features (testing normalization)
 export const singleFeatureResponse = {
   type: "Feature",

@@ -75,4 +75,3 @@ USER nextjs
 EXPOSE 3000
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["node", "server.js"]
-

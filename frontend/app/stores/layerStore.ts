@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { GeoDataObject, LayerStyle } from "../models/geodatamodel";
 import { getApiBase } from "../utils/apiBase";
 import Logger from "../utils/logger";
+import { hydrateOgcLayer } from "../utils/ogcVectorTiles";
 
 type LayerApiRecord = {
   id: string;
@@ -32,6 +33,9 @@ type LayerApiPayload = {
 
 const inferLayerType = (dataType?: string, dataLink?: string): string | undefined => {
   const link = (dataLink || "").toLowerCase();
+  if (/\/processes\/[^/]+\/jobs\/[^/]+\/results(?:[/?#]|$)/i.test(link)) {
+    return "GEOJSON";
+  }
   if (link.includes("service=wms") || link.includes("/wms")) {
     return "WMS";
   }
@@ -44,8 +48,8 @@ const inferLayerType = (dataType?: string, dataLink?: string): string | undefine
   if (link.includes("service=wcs") || link.includes("/wcs")) {
     return "WCS";
   }
-  if (link.endsWith(".geojson") || link.includes("application/json")) {
-    return "UPLOADED";
+  if (link.endsWith(".geojson") || link.includes("application/json") || link.includes("/json")) {
+    return "GEOJSON";
   }
   if (dataType) {
     return dataType.toUpperCase();
@@ -81,9 +85,26 @@ const toApiPayload = (layer: GeoDataObject, order?: number): LayerApiPayload => 
   payload: buildPayload(layer, order),
 });
 
+const mergeLayerState = (
+  existingLayer: GeoDataObject | undefined,
+  incomingLayer: GeoDataObject,
+): GeoDataObject =>
+  hydrateOgcLayer({
+    ...(existingLayer || {}),
+    ...incomingLayer,
+    db_id: incomingLayer.db_id ?? existingLayer?.db_id,
+    properties: {
+      ...(existingLayer?.properties || {}),
+      ...(incomingLayer.properties || {}),
+    },
+    style: incomingLayer.style ?? existingLayer?.style,
+    visible: existingLayer?.visible ?? incomingLayer.visible ?? true,
+    selected: existingLayer?.selected ?? incomingLayer.selected ?? false,
+  });
+
 const fromApiRecord = (record: LayerApiRecord): GeoDataObject => {
   const payload = record.payload || {};
-  return {
+  return hydrateOgcLayer({
     id: payload.external_id || record.id,
     db_id: record.id,
     data_source_id: payload.data_source_id || record.id,
@@ -104,7 +125,7 @@ const fromApiRecord = (record: LayerApiRecord): GeoDataObject => {
     style: record.style ?? undefined,
     sha256: payload.sha256,
     size: payload.size,
-  };
+  });
 };
 
 const fromMapLayerRecord = (record: MapLayerApiRecord): GeoDataObject => {
@@ -125,6 +146,13 @@ const extractOrder = (record: LayerApiRecord, fallback: number): number => {
 };
 
 const apiUrl = (path: string) => `${getApiBase()}${path}`;
+const LAYER_AUTH_BACKOFF_MS = 60_000;
+let layerApiBlockedUntil = 0;
+
+const isLayerApiBlocked = () => Date.now() < layerApiBlockedUntil;
+const blockLayerApiTemporarily = () => {
+  layerApiBlockedUntil = Date.now() + LAYER_AUTH_BACKOFF_MS;
+};
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -132,9 +160,14 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
     headers: { "Content-Type": "application/json" },
     ...options,
   });
+  if (res.status === 401) {
+    blockLayerApiTemporarily();
+    throw new Error("Request failed: 401");
+  }
   if (!res.ok) {
     throw new Error(`Request failed: ${res.status}`);
   }
+  layerApiBlockedUntil = 0;
   return (await res.json()) as T;
 }
 
@@ -147,6 +180,7 @@ type LayerStore = {
   removeLayer: (resource_id: string | number) => void;
   toggleLayerVisibility: (resource_id: string | number) => void;
   toggleLayerSelection: (resource_id: string | number) => void;
+  setSelectedLayerIds: (resource_ids: Array<string | number>) => void;
   resetLayers: () => void;
   selectLayerForSearch: (resource_id: string | number) => void;
   reorderLayers: (from: number, to: number) => void;
@@ -174,6 +208,7 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
     layerId: string | number,
     orderOverride?: number,
   ): Promise<string | null> => {
+    if (isLayerApiBlocked()) return null;
     const state = get();
     const layerIndex = state.layers.findIndex((layer) => layer.id === layerId);
     if (layerIndex === -1) return null;
@@ -225,11 +260,16 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
   };
 
   const persistLayerDelete = async (dbId: string) => {
+    if (isLayerApiBlocked()) return;
     try {
       const res = await fetch(apiUrl(`/layers/${dbId}`), {
         method: "DELETE",
         credentials: "include",
       });
+      if (res.status === 401) {
+        blockLayerApiTemporarily();
+        return;
+      }
       if (!res.ok && res.status !== 404) {
         throw new Error(`Delete failed: ${res.status}`);
       }
@@ -246,6 +286,7 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
   };
 
   const loadLayersFromBackend = async () => {
+    if (isLayerApiBlocked()) return;
     try {
       const records = await fetchJson<LayerApiRecord[]>(apiUrl("/layers/"));
       const withOrder = records.map((record, index) => ({
@@ -265,6 +306,7 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
   };
 
   const loadLayersForMap = async (mapId: string) => {
+    if (isLayerApiBlocked()) return;
     try {
       const records = await fetchJson<MapLayerApiRecord[]>(
         apiUrl(`/maps/${mapId}/layers`),
@@ -278,6 +320,7 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
   };
 
   const saveLayersToMap = async (mapId: string) => {
+    if (isLayerApiBlocked()) return;
     const state = get();
     const resolved = await Promise.all(
       state.layers.map((layer, index) => persistLayer(layer.id, index)),
@@ -306,21 +349,22 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
     zoomTo: null,
     setZoomTo: (id: string | number | null) => set({ zoomTo: id }),
     addLayer: (layer: GeoDataObject) => {
+      const hydratedLayer = hydrateOgcLayer(layer);
       set((state: LayerStore) => {
         const withoutOld = state.layers.filter(
-          (l: GeoDataObject) => l.id !== layer.id,
+          (l: GeoDataObject) => l.id !== hydratedLayer.id,
         );
         return {
           layers: [
             ...withoutOld,
             {
-              ...layer,
-              visible: layer.visible ?? true,
+              ...hydratedLayer,
+              visible: hydratedLayer.visible ?? true,
             },
           ],
         };
       });
-      void persistLayer(layer.id);
+      void persistLayer(hydratedLayer.id);
     },
     removeLayer: (resource_id: string | number) => {
       const target = get().layers.find((layer) => layer.id === resource_id);
@@ -357,6 +401,15 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
           l.id === resource_id ? { ...l, selected: !l.selected } : l,
         ),
       })),
+    setSelectedLayerIds: (resource_ids: Array<string | number>) => {
+      const selectedSet = new Set(resource_ids.map((id) => String(id)));
+      set((state: LayerStore) => ({
+        layers: state.layers.map((layer: GeoDataObject) => ({
+          ...layer,
+          selected: selectedSet.has(String(layer.id)),
+        })),
+      }));
+    },
     reorderLayers: (from: number, to: number) => {
       set((state: LayerStore) => {
         const layers = [...state.layers];
@@ -372,7 +425,18 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
     ) => {
       set((state: LayerStore) => ({
         layers: state.layers.map((layer: GeoDataObject) =>
-          layer.id === resource_id ? { ...layer, ...updates } : layer,
+          layer.id === resource_id
+            ? hydrateOgcLayer({
+                ...layer,
+                ...updates,
+                properties: updates.properties
+                  ? {
+                      ...(layer.properties || {}),
+                      ...updates.properties,
+                    }
+                  : layer.properties,
+              })
+            : layer,
         ),
       }));
       void persistLayer(resource_id);
@@ -399,19 +463,7 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
 
         const layers = backend_layers.map((backendLayer) => {
           const existingLayer = existingLayersMap.get(backendLayer.id);
-          if (existingLayer) {
-            return {
-              ...backendLayer,
-              db_id: existingLayer.db_id,
-              visible: existingLayer.visible,
-              selected: existingLayer.selected,
-            };
-          }
-          // New layer: ensure visible defaults to true
-          return {
-            ...backendLayer,
-            visible: backendLayer.visible ?? true,
-          };
+          return mergeLayerState(existingLayer, backendLayer);
         });
 
         persistIds = layers
@@ -437,12 +489,7 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
               old: existingLayer,
               new: updatedLayer,
             });
-            return {
-              ...updatedLayer,
-              db_id: existingLayer.db_id,
-              visible: existingLayer.visible,
-              selected: existingLayer.selected,
-            };
+            return mergeLayerState(existingLayer, updatedLayer);
           }
           return existingLayer;
         });

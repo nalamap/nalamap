@@ -34,6 +34,7 @@ export default function LayerManagement() {
   );
   const removeLayer = useLayerStore((state) => state.removeLayer);
   const reorderLayers = useLayerStore((state) => state.reorderLayers);
+  const updateLayer = useLayerStore((state) => state.updateLayer);
   const updateLayerStyle = useLayerStore((state) => state.updateLayerStyle);
   const setZoomTo = useLayerStore((s) => s.setZoomTo);
 
@@ -149,6 +150,7 @@ export default function LayerManagement() {
         toggleLayerVisibility={toggleLayerVisibility}
         removeLayer={removeLayer}
         reorderLayers={reorderLayers}
+        updateLayer={updateLayer}
         updateLayerStyle={updateLayerStyle}
         setZoomTo={setZoomTo}
       />

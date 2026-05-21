@@ -5,6 +5,7 @@ import {
 } from "./fixtures/geocoding-fixtures";
 import { brazilHospitalsOverpassResponse } from "./fixtures/overpass-fixtures";
 import {
+  ogcVectorTileLayerMetadata,
   wmsLayerMetadata,
   wfsLayerMetadata,
   wfsFeatureCollectionResponse,
@@ -14,6 +15,9 @@ import {
   singleGeometryResponse,
   geometryCollectionResponse,
 } from "./fixtures/ogc-services-fixtures";
+
+const SIMPLE_VECTOR_TILE_BASE64 =
+  "GjsKD3Rlc3RfY29sbGVjdGlvbhIPCAESAgAAGAEiBQmAIIAgGgRuYW1lIgwKClRlc3QgUG9pbnQogCB4Ag==";
 
 /**
  * Helper to setup API mocks for backend endpoints
@@ -420,6 +424,483 @@ test.describe("LeafletMapClient - OGC Services Tests", () => {
     // WCS layers are rendered as WMS (raster tiles)
     const tileLayers = await page.locator(".leaflet-tile-pane img").count();
     expect(tileLayers).toBeGreaterThan(0);
+  });
+
+  test("should render OGC vector tiles without fetching items", async ({ page }) => {
+    let tileRequestCount = 0;
+    let itemsRequestCount = 0;
+
+    await page.route("**/collections/test_collection/items", (route) => {
+      itemsRequestCount += 1;
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(wfsFeatureCollectionResponse),
+      });
+    });
+
+    await page.route("**/collections/test_collection/tiles/**", (route) => {
+      tileRequestCount += 1;
+      route.fulfill({
+        status: 200,
+        contentType: "application/vnd.mapbox-vector-tile",
+        body: Buffer.from(SIMPLE_VECTOR_TILE_BASE64, "base64"),
+      });
+    });
+
+    await addLayerViaStore(page, ogcVectorTileLayerMetadata);
+    await page.waitForTimeout(2500);
+
+    const visible = await isLayerVisible(page, "ogc-vector-layer-1");
+    expect(visible).toBe(true);
+    expect(tileRequestCount).toBeGreaterThan(0);
+    expect(itemsRequestCount).toBe(0);
+
+    const overlayCanvases = await page
+      .locator(".leaflet-container canvas")
+      .count();
+    expect(overlayCanvases).toBeGreaterThan(0);
+  });
+
+  test("should show feature properties when clicking an OGC vector tile feature", async ({ page }) => {
+    await page.route("**/collections/test_collection/items", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(wfsFeatureCollectionResponse),
+      });
+    });
+
+    await page.route("**/collections/test_collection/tiles/**", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/vnd.mapbox-vector-tile",
+        body: Buffer.from(SIMPLE_VECTOR_TILE_BASE64, "base64"),
+      });
+    });
+
+    await addLayerViaStore(page, {
+      ...ogcVectorTileLayerMetadata,
+      style: {
+        radius: 20,
+        fill_opacity: 0.9,
+        stroke_weight: 2,
+      },
+    });
+
+    await page.waitForTimeout(2500);
+
+    const map = page.locator(".leaflet-container");
+    await expect(map).toBeVisible();
+
+    const box = await map.boundingBox();
+    expect(box).not.toBeNull();
+    if (!box) {
+      throw new Error("Leaflet map container did not expose a bounding box");
+    }
+
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+
+    const popup = page.locator(".leaflet-popup");
+    await expect(popup).toBeVisible({ timeout: 5000 });
+    await expect(page.locator(".leaflet-popup-content")).toContainText("Test Point");
+    await expect(page.locator(".leaflet-popup-content")).toContainText("name");
+  });
+
+  test("should keep GeoJSON process results clickable when vector tiles are visible", async ({
+    page,
+  }) => {
+    await page.route("**/v1/processes/buffer/jobs/test-job/results", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          type: "Feature",
+          properties: {
+            name: "Process Result Feature",
+            source: "process-result",
+          },
+          geometry: {
+            type: "Point",
+            coordinates: [10, 50],
+          },
+        }),
+      });
+    });
+
+    await page.route("**/collections/test_collection/tiles/**", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/vnd.mapbox-vector-tile",
+        body: Buffer.from(SIMPLE_VECTOR_TILE_BASE64, "base64"),
+      });
+    });
+
+    await addLayerViaStore(page, ogcVectorTileLayerMetadata);
+    await addLayerViaStore(page, {
+      id: "process-result-layer-1",
+      name: "Process Result",
+      title: "Process Result",
+      layer_type: "GEOJSON",
+      data_link: "http://localhost:8000/v1/processes/buffer/jobs/test-job/results",
+      visible: true,
+      data_source_id: "manual",
+    });
+
+    await page.waitForTimeout(2500);
+
+    await expect(page.locator(".leaflet-overlay-pane circle")).toHaveCount(1);
+    await expect(page.locator(".leaflet-container canvas")).toHaveCount(1);
+
+    const map = page.locator(".leaflet-container");
+    await expect(map).toBeVisible();
+
+    const box = await map.boundingBox();
+    expect(box).not.toBeNull();
+    if (!box) {
+      throw new Error("Leaflet map container did not expose a bounding box");
+    }
+
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+
+    const popupContent = page.locator(".leaflet-popup-content");
+    await expect(popupContent).toContainText("Process Result Feature");
+    await expect(popupContent).not.toContainText("Test Point");
+  });
+
+  test("should show vector rendering selector for saved OGC items layers", async ({ page }) => {
+    await page.route("**/collections/test_collection/items**", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          type: "FeatureCollection",
+          features: [],
+          numberReturned: 0,
+          numberMatched: 0,
+          links: [],
+        }),
+      });
+    });
+
+    await addLayerViaStore(page, {
+      id: "saved-ogc-layer-1",
+      name: "Saved OGC Layer",
+      title: "Saved OGC Layer",
+      layer_type: "UPLOADED",
+      data_type: "uploaded",
+      data_link: "http://localhost:8081/v1/collections/test_collection/items",
+      visible: true,
+      data_source_id: "manual",
+      properties: {
+        ogc_collection_id: "test_collection",
+      },
+    });
+
+    await page.waitForTimeout(1000);
+    await page.getByTitle("Style Layer").first().click();
+
+    const stylePanel = page.locator("div").filter({
+      has: page.getByText("Style Options"),
+    });
+    await expect(stylePanel.getByText("Vector Rendering")).toBeVisible();
+    await expect(stylePanel.getByRole("combobox")).toHaveValue("auto");
+  });
+
+  test("should switch auto OGC items layers to tiles when numberMatched exceeds threshold", async ({ page }) => {
+    let itemsRequestCount = 0;
+    let tileRequestCount = 0;
+
+    await page.route("**/collections/auto_tile_collection/items**", (route) => {
+      itemsRequestCount += 1;
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          type: "FeatureCollection",
+          features: [
+            {
+              type: "Feature",
+              id: "feature.1",
+              geometry: {
+                type: "Point",
+                coordinates: [10, 50],
+              },
+              properties: {
+                name: "Feature 1",
+              },
+            },
+          ],
+          numberReturned: 1,
+          numberMatched: 3873,
+          links: [],
+        }),
+      });
+    });
+
+    await page.route("**/collections/auto_tile_collection/tiles/**", (route) => {
+      tileRequestCount += 1;
+      route.fulfill({
+        status: 200,
+        contentType: "application/vnd.mapbox-vector-tile",
+        body: Buffer.from(SIMPLE_VECTOR_TILE_BASE64, "base64"),
+      });
+    });
+
+    await addLayerViaStore(page, {
+      id: "saved-ogc-layer-auto",
+      name: "Saved OGC Auto",
+      title: "Saved OGC Auto",
+      layer_type: "UPLOADED",
+      data_type: "uploaded",
+      data_link: "http://localhost:8081/v1/collections/auto_tile_collection/items",
+      visible: true,
+      data_source_id: "manual",
+      properties: {
+        ogc_collection_id: "auto_tile_collection",
+        ogc_vector_tile_feature_threshold: 2000,
+        ogc_render_mode: "auto",
+      },
+    });
+
+    await page.waitForTimeout(2500);
+
+    const visible = await isLayerVisible(page, "saved-ogc-layer-auto");
+    expect(visible).toBe(true);
+    expect(itemsRequestCount).toBeGreaterThan(0);
+    expect(tileRequestCount).toBeGreaterThan(0);
+
+    const overlayCanvases = await page
+      .locator(".leaflet-container canvas")
+      .count();
+    expect(overlayCanvases).toBeGreaterThan(0);
+  });
+
+  test("should paginate OGC items with offset when next link is absent", async ({ page }) => {
+    const requestUrls: string[] = [];
+
+    await page.route("**/collections/offset_collection/items**", (route) => {
+      const requestUrl = route.request().url();
+      requestUrls.push(requestUrl);
+      const parsed = new URL(requestUrl);
+      const offset = Number(parsed.searchParams.get("offset") || "0");
+
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          type: "FeatureCollection",
+          features: [
+            {
+              type: "Feature",
+              id: `feature.${offset + 1}`,
+              geometry: {
+                type: "Point",
+                coordinates: [10 + offset / 100, 50 + offset / 100],
+              },
+              properties: {
+                name: `Feature ${offset + 1}`,
+              },
+            },
+          ],
+          numberReturned: 1,
+          numberMatched: 3,
+          links: [
+            {
+              href: `http://localhost:8081/v1/collections/offset_collection/items?limit=1&offset=${offset}`,
+              rel: "self",
+            },
+          ],
+        }),
+      });
+    });
+
+    await addLayerViaStore(page, {
+      id: "saved-ogc-layer-offset",
+      name: "Saved OGC Offset",
+      title: "Saved OGC Offset",
+      layer_type: "UPLOADED",
+      data_type: "uploaded",
+      data_link: "http://localhost:8081/v1/collections/offset_collection/items",
+      visible: true,
+      data_source_id: "manual",
+      properties: {
+        ogc_collection_id: "offset_collection",
+        ogc_vector_tile_feature_threshold: 5000,
+        ogc_render_mode: "items",
+      },
+    });
+
+    await page.waitForTimeout(2500);
+
+    expect(requestUrls.length).toBeGreaterThanOrEqual(3);
+    expect(requestUrls.some((candidate) => candidate.includes("offset=1"))).toBe(true);
+    expect(requestUrls.some((candidate) => candidate.includes("offset=2"))).toBe(true);
+  });
+
+  test("should cap OGC items GeoJSON loading to the frontend threshold in items mode", async ({ page }) => {
+    const requestUrls: string[] = [];
+    const itemsUrl = "http://localhost:8081/v1/collections/capped_collection/items";
+
+    await page.route("**/collections/capped_collection/items**", (route) => {
+      const requestUrl = route.request().url();
+      requestUrls.push(requestUrl);
+
+      const parsed = new URL(requestUrl);
+      const limit = Number(parsed.searchParams.get("limit") || "1000");
+      const offset = Number(parsed.searchParams.get("offset") || "0");
+      const total = 3873;
+      const returned = Math.max(0, Math.min(limit, total - offset));
+
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          type: "FeatureCollection",
+          features: Array.from({ length: returned }, (_, index) => ({
+            type: "Feature",
+            id: `feature.${offset + index + 1}`,
+            geometry: {
+              type: "Point",
+              coordinates: [10 + (offset + index) / 10000, 50],
+            },
+            properties: {
+              name: `Feature ${offset + index + 1}`,
+            },
+          })),
+          numberReturned: returned,
+          numberMatched: total,
+          links: [
+            {
+              href: `http://localhost:8081/v1/collections/capped_collection/items?limit=${limit}&offset=${offset}`,
+              rel: "self",
+            },
+          ],
+        }),
+      });
+    });
+
+    await addLayerViaStore(page, {
+      id: "saved-ogc-layer-capped",
+      name: "Saved OGC Capped",
+      title: "Saved OGC Capped",
+      layer_type: "UPLOADED",
+      data_type: "uploaded",
+      data_link: itemsUrl,
+      visible: true,
+      data_source_id: "manual",
+      properties: {
+        ogc_collection_id: "capped_collection",
+        ogc_vector_tile_feature_threshold: 2000,
+        ogc_render_mode: "items",
+      },
+    });
+
+    await page.waitForTimeout(2500);
+
+    expect(requestUrls.some((candidate) => candidate.includes("offset=1000"))).toBe(true);
+    expect(requestUrls.some((candidate) => candidate.includes("offset=2000"))).toBe(false);
+
+    const cachedFeatureCount = await page.evaluate((targetUrl) => {
+      return (window as any).geoJSONCache.get(targetUrl)?.features?.length ?? null;
+    }, itemsUrl);
+    expect(cachedFeatureCount).toBe(2000);
+  });
+
+  test("should ignore oversized cached OGC GeoJSON and switch auto mode to tiles", async ({ page }) => {
+    let itemsRequestCount = 0;
+    let tileRequestCount = 0;
+    const itemsUrl = "http://localhost:8081/v1/collections/cached_auto_collection/items";
+
+    await page.route("**/collections/cached_auto_collection/items**", (route) => {
+      itemsRequestCount += 1;
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          type: "FeatureCollection",
+          features: [
+            {
+              type: "Feature",
+              id: "feature.1",
+              geometry: {
+                type: "Point",
+                coordinates: [10, 50],
+              },
+              properties: {
+                name: "Feature 1",
+              },
+            },
+          ],
+          numberReturned: 1,
+          numberMatched: 3873,
+          links: [],
+        }),
+      });
+    });
+
+    await page.route("**/collections/cached_auto_collection/tiles/**", (route) => {
+      tileRequestCount += 1;
+      route.fulfill({
+        status: 200,
+        contentType: "application/vnd.mapbox-vector-tile",
+        body: Buffer.from(SIMPLE_VECTOR_TILE_BASE64, "base64"),
+      });
+    });
+
+    await page.evaluate((targetUrl) => {
+      const cachedFeatures = Array.from({ length: 3873 }, (_, index) => ({
+        type: "Feature",
+        id: `cached.${index + 1}`,
+        geometry: {
+          type: "Point",
+          coordinates: [10, 50],
+        },
+        properties: {
+          name: `Cached ${index + 1}`,
+        },
+      }));
+
+      (window as any).geoJSONCache.set(targetUrl, {
+        type: "FeatureCollection",
+        features: cachedFeatures,
+      });
+    }, itemsUrl);
+
+    await addLayerViaStore(page, {
+      id: "saved-ogc-layer-cached-auto",
+      name: "Saved OGC Cached Auto",
+      title: "Saved OGC Cached Auto",
+      layer_type: "UPLOADED",
+      data_type: "uploaded",
+      data_link: itemsUrl,
+      visible: true,
+      data_source_id: "manual",
+      properties: {
+        ogc_collection_id: "cached_auto_collection",
+        ogc_tiles_url:
+          "http://localhost:8081/v1/collections/cached_auto_collection/tiles/{z}/{x}/{y}.mvt",
+        ogc_tiles_metadata_url:
+          "http://localhost:8081/v1/collections/cached_auto_collection/tiles",
+        ogc_vector_tile_feature_threshold: 2000,
+        ogc_render_mode: "auto",
+      },
+    });
+
+    await page.waitForTimeout(2500);
+
+    expect(itemsRequestCount).toBeGreaterThan(0);
+    expect(tileRequestCount).toBeGreaterThan(0);
+
+    const cachedFeatureCount = await page.evaluate((targetUrl) => {
+      return (window as any).geoJSONCache.get(targetUrl)?.features?.length ?? null;
+    }, itemsUrl);
+    expect(cachedFeatureCount === null || cachedFeatureCount <= 2000).toBe(true);
+
+    const overlayCanvases = await page
+      .locator(".leaflet-container canvas")
+      .count();
+    expect(overlayCanvases).toBeGreaterThan(0);
   });
 });
 

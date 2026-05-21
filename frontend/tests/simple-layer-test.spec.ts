@@ -102,7 +102,7 @@ test("simple layer rendering test", async ({ page }) => {
 
   // Check canvas elements
   const canvasCount = await page
-    .locator(".leaflet-overlay-pane canvas")
+    .locator(".leaflet-container canvas")
     .count();
   console.log("Canvas count:", canvasCount);
 

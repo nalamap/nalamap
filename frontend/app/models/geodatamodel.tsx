@@ -83,7 +83,7 @@ export interface GeoDataObject {
   score?: number;
   bounding_box?: string | number[]; // Can be WKT POLYGON string or array [minX, minY, maxX, maxY]
   layer_type?: string;
-  properties?: Record<string, string>;
+  properties?: Record<string, any>;
 
   visible?: boolean;
   selected?: boolean; // <— new flag
@@ -109,6 +109,7 @@ export interface NaLaMapResponse {
   results_title?: string;
   geodata_results?: GeoDataObject[];
   geodata_layers?: GeoDataObject[];
+  ogcapi_job_results_urls?: string[];
   //global_geodata?: GeoDataObject[]
   options?: Record<string, unknown[]>;
 }

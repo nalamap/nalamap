@@ -277,7 +277,7 @@ test.describe("Geoprocessing Operations", () => {
     // Check for map features (markers or paths)
     const featureCount = await page
       .locator(
-        ".leaflet-overlay-pane path, .leaflet-overlay-pane circle, .leaflet-marker-pane img, .leaflet-overlay-pane canvas",
+        ".leaflet-overlay-pane path, .leaflet-overlay-pane circle, .leaflet-marker-pane img, .leaflet-container canvas",
       )
       .count();
     console.log("Feature count on map:", featureCount);

@@ -17,8 +17,6 @@ from models.messages.chat_messages import (
     OrchestratorRequest,
     OrchestratorResponse,
 )
-from services.agents.langgraph_agent import SearchState, executor
-from services.multi_agent_orch import multi_agent_executor
 from services.storage.file_management import store_file
 from services.tools.geocoding import geocode_using_nominatim
 from utility.string_methods import clean_allow
@@ -31,6 +29,11 @@ router = APIRouter()
 
 @router.post("/search", tags=["debug"], response_model=NaLaMapResponse)
 async def search(req: NaLaMapRequest):
+    try:
+        from services.agents.langgraph_agent import SearchState, executor
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=503, detail="Debug search agent is unavailable") from exc
+
     state = SearchState(raw_query=req.query)
     result_state = await executor.ainvoke(state)
     numresults = result_state["num_results"]
@@ -176,6 +179,11 @@ async def geocode(req: NaLaMapRequest) -> Dict[str, Any]:
 
 @router.post("/orchestrate", tags=["debug"], response_model=OrchestratorResponse)
 async def orchestrate(req: OrchestratorRequest):
+    try:
+        from services.multi_agent_orch import multi_agent_executor
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=503, detail="Debug orchestrator is unavailable") from exc
+
     state = {"messages": [m.dict() for m in req.messages], "next": ""}
     final_state = await multi_agent_executor.ainvoke(state)
 

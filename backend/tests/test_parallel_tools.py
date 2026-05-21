@@ -72,10 +72,15 @@ async def test_create_agent_parallel_enabled_supported_model(mock_get_llm, mock_
         )
 
         assert agent is not None
-        # Should log info about parallel execution being enabled
-        mock_logger.info.assert_called()
-        info_msg = mock_logger.info.call_args[0][0]
-        assert "parallel" in info_msg.lower()
+        # Parallel tool calling should be enabled on the bound model call.
+        mock_llm.bind_tools.assert_called_once()
+        assert mock_llm.bind_tools.call_args.kwargs.get("parallel_tool_calls") is True
+
+        # Should still log at least one message mentioning parallel execution.
+        logged_info_messages = [
+            str(args[0]).lower() for args, _ in mock_logger.info.call_args_list if len(args) > 0
+        ]
+        assert any("parallel" in msg for msg in logged_info_messages)
 
 
 @pytest.mark.unit

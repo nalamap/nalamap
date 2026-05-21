@@ -192,6 +192,16 @@ class GeoDataAgentState(MessagesState):
     options: Optional[Union[Dict[str, Any], SettingsSnapshot]] = Field(
         default_factory=dict, exclude=True, validate_default=False
     )
+    explicit_layer_refs: NotRequired[
+        Annotated[
+            List[str],
+            Field(
+                exclude=True,
+                validate_default=False,
+                description="Layer refs extracted from explicit frontend marker block.",
+            ),
+        ]
+    ]
 
     # Execution plan for multi-step tasks (excluded from LLM prompt)
     # Note: Uses NotRequired so existing state dicts without this field

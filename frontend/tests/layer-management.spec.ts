@@ -44,7 +44,7 @@ test.describe("LayerManagement Component", () => {
     await expect(dropArea).toBeVisible();
     
     // Check file size limit is displayed
-    const sizeLimit = await page.locator("text=/Max size:/");
+    const sizeLimit = await page.getByText("Supports multiple files • Max size: 250 MB");
     await expect(sizeLimit).toBeVisible();
     
     // Check format information
