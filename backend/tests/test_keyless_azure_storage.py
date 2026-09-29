@@ -45,7 +45,10 @@ def svc():
 
 def _assert_keyless(svc):
     svc.cls.from_connection_string.assert_not_called()
-    svc.cls.assert_called_with(ACCOUNT_URL, credential=svc.cred.return_value)
+    assert svc.cls.call_args_list
+    for call in svc.cls.call_args_list:  # upload client and signing client alike
+        assert call.args == (ACCOUNT_URL,)
+        assert call.kwargs == {"credential": svc.cred.return_value}
     for call in svc.sas.call_args_list:
         assert call.kwargs["user_delegation_key"] == "delegation-key"
         assert "account_key" not in call.kwargs
