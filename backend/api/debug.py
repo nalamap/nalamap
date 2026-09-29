@@ -19,7 +19,7 @@ from models.messages.chat_messages import (
 )
 from services.agents.langgraph_agent import SearchState, executor
 from services.multi_agent_orch import multi_agent_executor
-from services.storage.file_management import store_file
+from services.storage.file_management import StorageSigningError, store_file
 from services.tools.geocoding import geocode_using_nominatim
 from utility.string_methods import clean_allow
 
@@ -127,7 +127,10 @@ async def geocode(req: NaLaMapRequest) -> Dict[str, Any]:
         json_content = json.dumps(geojson_dict).encode("utf-8")
 
         # Use centralized file management (supports both local and Azure Blob Storage)
-        out_url, stored_filename = store_file(out_filename, json_content)
+        try:
+            out_url, stored_filename = store_file(out_filename, json_content)
+        except StorageSigningError as e:
+            raise HTTPException(status_code=503, detail=str(e))
 
         # Copy selected properties
         properties: Dict[str, Any] = dict()
@@ -270,7 +273,10 @@ async def geoprocess(req: NaLaMapRequest):
         json_content = json.dumps(result_layer).encode("utf-8")
 
         # Use centralized file management (supports both local and Azure Blob Storage)
-        out_url, stored_filename = store_file(out_filename, json_content)
+        try:
+            out_url, stored_filename = store_file(out_filename, json_content)
+        except StorageSigningError as e:
+            raise HTTPException(status_code=503, detail=str(e))
         out_urls.append(out_url)
         new_geodata.append(
             GeoDataObject(
