@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 # Lower bound on a user-delegation key lifetime
 MIN_KEY = timedelta(hours=1)
+MAX_KEY = timedelta(days=7) - timedelta(minutes=10)  # 7-day service cap, minus margin
 
 # Minimum file size for compression (1MB)
 MIN_COMPRESS_SIZE = 1024 * 1024
@@ -83,9 +84,9 @@ def _get_user_delegation_key() -> Tuple[Any, datetime]:
             if now < start + (expiry - start) / 2:
                 return key, expiry
         # Key must outlive the SAS it signs (refresh at half-life) and is capped at 7 days
-        lifetime = min(timedelta(days=7), max(timedelta(hours=2 * AZURE_SAS_EXPIRY_HOURS), MIN_KEY))
+        lifetime = min(timedelta(hours=2 * AZURE_SAS_EXPIRY_HOURS), MAX_KEY)
         start = now - timedelta(minutes=5)  # tolerate clock skew
-        expiry = now + lifetime
+        expiry = min(now + max(lifetime, MIN_KEY), start + MAX_KEY)  # Azure: <= 7 days from start
         client = BlobServiceClient(AZURE_STORAGE_ACCOUNT_URL, credential=DefaultAzureCredential())
         key = client.get_user_delegation_key(start, expiry)
         _delegation_cache = (key, now, expiry)
@@ -144,7 +145,7 @@ def _generate_sas_url(blob_url: str, blob_name: str) -> str:
     return f"{blob_url}?{sas_token}"
 
 
-def _get_blob_service_client():
+def get_blob_service_client():
     """Blob service client from the connection string, else from the account URL + identity."""
     from azure.storage.blob import BlobServiceClient
 
@@ -170,7 +171,7 @@ def store_file(name: str, content: bytes) -> Tuple[str, str]:
     if USE_AZURE:
         from azure.storage.blob import ContentSettings
 
-        blob_svc = _get_blob_service_client()
+        blob_svc = get_blob_service_client()
         container = blob_svc.get_container_client(AZ_CONTAINER)
 
         # Check if we should compress
@@ -243,7 +244,7 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
     if USE_AZURE:
         from azure.storage.blob import ContentSettings
 
-        blob_svc = _get_blob_service_client()
+        blob_svc = get_blob_service_client()
         container = blob_svc.get_container_client(AZ_CONTAINER)
         blob_client = container.get_blob_client(unique_name)
 

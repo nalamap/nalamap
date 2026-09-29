@@ -153,3 +153,43 @@ def test_store_file_stream_returns_503_and_cleans_up(monkeypatch):
     assert exc.value.status_code == 503
     assert "AccountName" not in exc.value.detail
     blob_client.delete_blob.assert_called_once()
+
+
+def test_delegation_key_validity_within_seven_days_of_start(monkeypatch):
+    monkeypatch.setattr(fm, "AZURE_STORAGE_ACCOUNT_URL", ACCOUNT_URL)
+    monkeypatch.setattr(fm, "AZURE_SAS_EXPIRY_HOURS", 24 * 30)
+    _, svc = _delegation_mocks()
+    with (
+        patch("azure.identity.DefaultAzureCredential"),
+        patch("azure.storage.blob.BlobServiceClient", return_value=svc),
+    ):
+        fm._get_user_delegation_key()
+    start, expiry = svc.get_user_delegation_key.call_args.args
+    assert expiry - start <= timedelta(days=7)
+
+
+def test_client_from_account_url_when_no_connection_string(monkeypatch):
+    monkeypatch.setattr(fm, "AZURE_STORAGE_ACCOUNT_URL", ACCOUNT_URL)
+    monkeypatch.setattr(fm, "AZ_CONN", "")
+    with (
+        patch("azure.identity.DefaultAzureCredential") as cred,
+        patch("azure.storage.blob.BlobServiceClient") as cls,
+    ):
+        fm.get_blob_service_client()
+    cls.assert_called_once_with(ACCOUNT_URL, credential=cred.return_value)
+
+
+def test_upload_meta_reads_azure_in_keyless_mode(monkeypatch):
+    import asyncio
+
+    import api.data_management as dm
+
+    monkeypatch.setattr(dm.core_config, "USE_AZURE", True)
+    monkeypatch.setattr(dm.core_config, "AZ_CONN", "")
+    monkeypatch.setattr(dm.core_config, "AZURE_STORAGE_ACCOUNT_URL", ACCOUNT_URL)
+    svc = MagicMock()
+    blob = svc.get_container_client.return_value.get_blob_client.return_value
+    blob.download_blob.return_value.chunks.return_value = [b"ab", b"c"]
+    with patch.object(dm, "get_blob_service_client", return_value=svc):
+        out = asyncio.run(dm.get_upload_meta("f.json"))
+    assert out["size"] == "3" and out["storage"] == "azure"
