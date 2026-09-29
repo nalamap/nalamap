@@ -61,13 +61,14 @@ def test_config_does_not_derive_use_azure_from_connection_string(monkeypatch):
     monkeypatch.setenv("AZURE_CONN_STRING", "")
     monkeypatch.setenv("AZURE_STORAGE_ACCOUNT_URL", ACCOUNT_URL)
     try:
-        importlib.reload(cfg)
+        with patch("dotenv.load_dotenv"):  # keep a developer's .env.local out of the reload
+            importlib.reload(cfg)
         assert cfg.USE_AZURE is True
         assert cfg.AZ_CONN == ""
         assert cfg.AZURE_STORAGE_ACCOUNT_URL == ACCOUNT_URL
     finally:
         monkeypatch.undo()
-        importlib.reload(cfg)
+        importlib.reload(cfg)  # restore module state from the real environment
 
 
 def test_store_file_uploads_and_signs_keyless(svc):
