@@ -6,7 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "test": "playwright test",
     "test:ui": "playwright test",
     "test:e2e": "playwright test --config=playwright.e2e.config.ts",
