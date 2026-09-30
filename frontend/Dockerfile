@@ -58,6 +58,11 @@ ENV NODE_ENV=production \
 # Patch OS packages (e.g. libgnutls30) to their latest fixed version
 RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
 
+# The standalone server only needs `node`. Remove the base image's bundled
+# npm/npx/corepack (and the tar version it vendors, CVE-2026-59873) —
+# nothing in this stage or entrypoint.sh invokes them.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
+
 # Create a non-root user
 RUN groupadd --system nodejs && useradd --system --gid nodejs nextjs
 
