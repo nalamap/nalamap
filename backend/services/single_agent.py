@@ -2,10 +2,11 @@ import logging
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
+from langchain.agents import create_agent
+from langchain.agents.middleware import AgentMiddleware
 from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_core.tools import BaseTool
 from langgraph.graph.state import CompiledStateGraph
-from langgraph.prebuilt import create_react_agent
 
 from models.settings_model import ModelSettings, ToolConfig
 from models.states import GeoDataAgentState, get_minimal_debug_state
@@ -32,6 +33,39 @@ from services.tools.styling_tools import (
 from utility.tool_configurator import create_configured_tools
 
 logger = logging.getLogger(__name__)
+
+
+class _ParallelToolCallsMiddleware(AgentMiddleware):
+    """Thread a provider-level ``parallel_tool_calls`` setting through to the
+    model call.
+
+    ``langchain.agents.create_agent`` (langchain>=1.0) no longer accepts a
+    pre-bound model (``model.bind_tools(tools, parallel_tool_calls=...)``) —
+    it binds tools itself. Non-tool provider kwargs go through
+    ``ModelRequest.model_settings`` instead, which is only reachable from
+    middleware. Implements both the sync and async hooks since the agent is
+    invoked both ways (``main.py``'s CLI entrypoint vs. the async SSE
+    streaming path in ``api/nalamap.py``).
+    """
+
+    def __init__(self, parallel_tool_calls: bool):
+        super().__init__()
+        self._parallel_tool_calls = parallel_tool_calls
+
+    def _override(self, request):
+        return request.override(
+            model_settings={
+                **(request.model_settings or {}),
+                "parallel_tool_calls": self._parallel_tool_calls,
+            }
+        )
+
+    def wrap_model_call(self, request, handler):
+        return handler(self._override(request))
+
+    async def awrap_model_call(self, request, handler):
+        return await handler(self._override(request))
+
 
 # Module-level conversation managers (per session)
 # Format: {session_id: {"manager": ConversationManager, "last_access": timestamp}}
@@ -419,14 +453,15 @@ async def create_geo_agent(
         system_prompt = system_prompt + system_prompt_addendum
         logger.info("Appended execution plan to system prompt")
 
-    agent = create_react_agent(
+    agent = create_agent(
         name="GeoAgent",
         state_schema=GeoDataAgentState,
         tools=tools,
-        model=llm.bind_tools(tools, parallel_tool_calls=parallel_tool_calls),
-        prompt=system_prompt,
+        model=llm,
+        system_prompt=system_prompt,
+        middleware=[_ParallelToolCallsMiddleware(parallel_tool_calls)],
         debug=debug_enabled,
-        # config_schema=GeoData,
+        # context_schema=GeoData,
         # response_format=GeoData
     )
     return agent, llm
