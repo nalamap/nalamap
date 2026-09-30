@@ -18,6 +18,13 @@ export default defineConfig([
       // masking other rules. Mirrors the override landing on the S0
       // (deps_s0_ci_dependabot) branch's .eslintrc.json.
       "@typescript-eslint/no-explicit-any": "warn",
+      // Both new to `next/core-web-vitals` via the eslint-config-next 16 /
+      // eslint-plugin-react-hooks bump (part of this Next 16 upgrade, not
+      // pre-existing). They flag 13 call sites across 8 files, including
+      // the standard Next.js hydration-safe mount pattern. Downgraded
+      // pending nalamap/nalamap#239.
+      "react-hooks/set-state-in-effect": "warn",
+      "react-hooks/immutability": "warn",
     },
   },
 ]);
