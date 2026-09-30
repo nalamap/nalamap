@@ -404,7 +404,7 @@ export default function GeoServerSettingsComponent({
                               <div className="px-3 py-2 bg-error-200 dark:bg-error-800 border-t border-error-300 dark:border-error-600">
                                 <p className="text-xs text-gray-900 dark:text-error-100 flex items-start gap-1.5">
                                   <span className="text-base shrink-0">💡</span>
-                                  <span>Try enabling "Allow insecure connections" below</span>
+                                  <span>Try enabling &quot;Allow insecure connections&quot; below</span>
                                 </p>
                               </div>
                             )}
