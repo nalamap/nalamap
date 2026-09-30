@@ -75,6 +75,7 @@ When deploying to Azure Container Apps, set these as container environment varia
 | `AZURE_CONN_STRING` | `DefaultEndpointsProtocol=https;AccountName=...` | **Yes** |
 | `AZURE_CONTAINER` | `data` | No |
 | `AZURE_SAS_EXPIRY_HOURS` | `24` | No |
+| `AZURE_STORAGE_ACCOUNT_URL` | `https://<account>.blob.core.windows.net` (optional, enables keyless user-delegation SAS via managed identity; `AZURE_CONN_STRING` remains the fallback) | No |
 
 ### Nginx Container
 
