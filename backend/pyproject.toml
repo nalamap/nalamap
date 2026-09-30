@@ -24,6 +24,9 @@ langchain_openai = "^0.3.33"
 langchain-anthropic = "^0.3.5"
 owslib = "*"
 httpx = "*"
+# transitive (httpx/starlette/openai) — pinned up explicitly to clear
+# CVE-2026-63374 (TLS certificate spoofing), caught by the new trivy CI gate
+anyio = ">=4.14.2"
 sqlite-vec = "^0.1.6"
 langchain_google_genai = "^2.1.12"
 langchain_mistralai = "^0.2.12"
