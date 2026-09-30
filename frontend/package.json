@@ -35,7 +35,7 @@
     "zustand": "^5.0.8"
   },
   "devDependencies": {
-    "@eslint/object-schema": "^2.1.7",
+    "@eslint/object-schema": "^3.0.5",
     "@playwright/test": "^1.56.1",
     "@tailwindcss/postcss": "^4",
     "@tailwindcss/typography": "^0.5.16",
