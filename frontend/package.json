@@ -23,7 +23,7 @@
     "leaflet-defaulticon-compatibility": "^0.1.2",
     "leaflet-geosearch": "^4.2.0",
     "lucide-react": "^0.486.0",
-    "maplibre-gl": "^5.1.1",
+    "maplibre-gl": "^6.11.2",
     "next": "^15.5.27",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
