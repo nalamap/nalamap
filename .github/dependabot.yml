@@ -1,7 +1,16 @@
-# Dcumentation for all configuration options:
+# Documentation for all configuration options:
 # https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 
-# Weekly dependabot updates for Python (Poetry), Node.js (npm), and Docker dependencies
+# Weekly dependabot updates for Python (Poetry), Node.js (npm), Docker and
+# GitHub Actions dependencies.
+#
+# Policy (see nalawiki epics/nalamap-dependency-upgrades/EPIC.md):
+# - Only direct dependencies get PRs; transitive bumps ride along with their
+#   parent (poetry.lock / package-lock.json already pull them in).
+# - Minor/patch bumps are grouped per ecosystem so they land as one PR.
+# - Majors for the LangChain/OpenAI stack, fastapi, next and typescript are
+#   held until their migration slice lands, then this file's ignore list
+#   should be trimmed.
 version: 2
 updates:
   # Backend Python dependencies (Poetry)
@@ -9,9 +18,40 @@ updates:
     directory: "/backend"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 10
     allow:
-      - dependency-type: "all"
-    open-pull-requests-limit: 5
+      - dependency-type: "direct"
+    groups:
+      langchain-stack:
+        patterns:
+          - "langchain*"
+          - "langgraph*"
+          - "openai"
+        update-types:
+          - "minor"
+          - "patch"
+      python-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+      dev-tools:
+        patterns:
+          - "pytest*"
+          - "black"
+          - "isort"
+          - "flake8*"
+          - "alembic"
+    ignore:
+      - dependency-name: "langchain*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "langgraph*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "openai"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "fastapi"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "sqlalchemy"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "fix"
       include: "scope"
@@ -21,9 +61,30 @@ updates:
     directory: "/frontend"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 10
     allow:
-      - dependency-type: "all"
-    open-pull-requests-limit: 5
+      - dependency-type: "direct"
+    groups:
+      eslint-stack:
+        patterns:
+          - "eslint*"
+          - "@typescript-eslint/*"
+        update-types:
+          - "minor"
+          - "patch"
+      js-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-name: "next"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "eslint-config-next"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "fix"
       include: "scope"
@@ -34,6 +95,9 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major"]
 
   # Frontend Docker container dependencies
   - package-ecosystem: "docker"
@@ -41,10 +105,21 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    ignore:
+      # Track LTS only — Node's odd majors (25, 27, …) are not LTS.
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
 
   # Nginx Docker container dependencies
   - package-ecosystem: "docker"
     directory: "/nginx"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  # GitHub Actions used by workflows in this repo
+  - package-ecosystem: "github-actions"
+    directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
