@@ -2,7 +2,7 @@
 
 import { useState, memo } from "react";
 import { useSettingsStore } from "../../stores/settingsStore";
-import { ChevronDown, ChevronUp, RotateCcw, Info, Wand2 } from "lucide-react";
+import { ChevronDown, ChevronUp, RotateCcw, Info, WandSparkles } from "lucide-react";
 import { ColorScale, ColorSettings } from "../../stores/settingsStore";
 import { generateColorScale } from "../../utils/colorGenerator";
 
@@ -165,7 +165,7 @@ const ColorScaleEditor = memo(function ColorScaleEditor({
             className="p-1.5 bg-secondary-100 hover:bg-secondary-200 rounded transition-colors"
             title="Quick set color (auto-generates all shades)"
           >
-            <Wand2 className="w-4 h-4 text-secondary-700" />
+            <WandSparkles className="w-4 h-4 text-secondary-700" />
           </button>
           {expanded ? (
             <ChevronUp className="w-4 h-4 text-primary-600 dark:text-primary-400" />
