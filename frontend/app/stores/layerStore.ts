@@ -124,6 +124,19 @@ const extractOrder = (record: LayerApiRecord, fallback: number): number => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+// Merge style when a backend layer object replaces an existing one. Backend
+// style keys win (style tools rely on that), except raster_opacity: it is owned
+// by the opacity slider, the backend never produces it and only echoes the
+// (possibly stale) snapshot sent with the request, so a local value is kept.
+const mergeStyle = (existing?: LayerStyle, incoming?: LayerStyle) => {
+  if (!existing && !incoming) return undefined;
+  const merged: LayerStyle = { ...existing, ...incoming };
+  if (existing?.raster_opacity !== undefined) {
+    merged.raster_opacity = existing.raster_opacity;
+  }
+  return merged;
+};
+
 const apiUrl = (path: string) => `${getApiBase()}${path}`;
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
@@ -168,9 +181,20 @@ type LayerStore = {
 };
 
 export const useLayerStore = create<LayerStore>()((set, get) => {
-  const pendingCreates = new Map<string, Promise<string>>();
+  // Per-layer persistence queue: writes for one layer run strictly in order,
+  // and writes requested while one is running coalesce into a single follow-up
+  // that reads the latest local state when it starts (latest wins). This also
+  // makes the post-create catch-up one ordered PATCH.
+  const persistQueues = new Map<
+    string,
+    {
+      tail: Promise<unknown>;
+      queued: Promise<string | null> | null;
+      order?: number;
+    }
+  >();
 
-  const persistLayer = async (
+  const doPersistLayer = async (
     layerId: string | number,
     orderOverride?: number,
   ): Promise<string | null> => {
@@ -183,31 +207,19 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
     const payload = toApiPayload(layer, order);
 
     if (!layer.db_id) {
-      const pendingKey = String(layer.id);
-      let createPromise = pendingCreates.get(pendingKey);
-      if (!createPromise) {
-        createPromise = (async () => {
-          const created = await fetchJson<LayerApiRecord>(apiUrl("/layers/"), {
-            method: "POST",
-            body: JSON.stringify(payload),
-          });
-          return created.id;
-        })();
-        pendingCreates.set(pendingKey, createPromise);
-      }
-
       try {
-        const createdId = await createPromise;
+        const created = await fetchJson<LayerApiRecord>(apiUrl("/layers/"), {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
         set((state: LayerStore) => ({
           layers: state.layers.map((item) =>
-            item.id === layerId ? { ...item, db_id: createdId } : item,
+            item.id === layerId ? { ...item, db_id: created.id } : item,
           ),
         }));
-        return createdId;
+        return created.id;
       } catch (err) {
         Logger.warn("Failed to persist new layer:", err);
-      } finally {
-        pendingCreates.delete(pendingKey);
       }
       return null;
     }
@@ -222,6 +234,34 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
       Logger.warn("Failed to update layer:", err);
     }
     return null;
+  };
+
+  const persistLayer = (
+    layerId: string | number,
+    orderOverride?: number,
+  ): Promise<string | null> => {
+    const key = String(layerId);
+    let entry = persistQueues.get(key);
+    if (!entry) {
+      entry = { tail: Promise.resolve(), queued: null };
+      persistQueues.set(key, entry);
+    }
+    if (orderOverride !== undefined) entry.order = orderOverride;
+    if (entry.queued) return entry.queued;
+    const current = entry;
+    const run: Promise<string | null> = current.tail.then(() => {
+      current.queued = null; // later requests schedule a new follow-up run
+      const order = current.order;
+      current.order = undefined;
+      return doPersistLayer(layerId, order);
+    });
+    current.queued = run;
+    current.tail = run.catch(() => null).then(() => {
+      if (current.queued === null && persistQueues.get(key) === current) {
+        persistQueues.delete(key);
+      }
+    });
+    return run;
   };
 
   const persistLayerDelete = async (dbId: string) => {
@@ -417,6 +457,7 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
               db_id: existingLayer.db_id,
               visible: existingLayer.visible,
               selected: existingLayer.selected,
+              style: mergeStyle(existingLayer.style, backendLayer.style),
             };
           }
           // New layer: ensure visible defaults to true
@@ -454,6 +495,7 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
               db_id: existingLayer.db_id,
               visible: existingLayer.visible,
               selected: existingLayer.selected,
+              style: mergeStyle(existingLayer.style, updatedLayer.style),
             };
           }
           return existingLayer;

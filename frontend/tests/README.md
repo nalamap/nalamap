@@ -34,6 +34,7 @@ tests/
 ├── leaflet-map.spec.ts           # Map functionality tests (25+ tests)
 ├── chat-interface.spec.ts        # AI chat interface tests
 ├── settings.spec.ts              # Settings panel tests
+├── raster-opacity.spec.ts        # WMS/WMTS opacity slider tests
 ├── fixtures/
 │   ├── geocoding-fixtures.ts     # Mock geocoding data
 │   ├── overpass-fixtures.ts      # Mock Overpass API data
