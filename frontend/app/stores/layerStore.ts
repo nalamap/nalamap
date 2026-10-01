@@ -125,9 +125,19 @@ const extractOrder = (record: LayerApiRecord, fallback: number): number => {
 };
 
 // Keep user-set style (e.g. raster opacity) when a backend layer object
-// replaces an existing one; backend-provided keys win.
-const mergeStyle = (existing?: LayerStyle, incoming?: LayerStyle) =>
-  existing || incoming ? { ...existing, ...incoming } : undefined;
+// replaces an existing one. By default local keys are authoritative (agent
+// responses carry a stale snapshot); explicit backend styling updates pass
+// preferIncoming so backend-provided keys win.
+const mergeStyle = (
+  existing?: LayerStyle,
+  incoming?: LayerStyle,
+  preferIncoming = false,
+) =>
+  existing || incoming
+    ? preferIncoming
+      ? { ...existing, ...incoming }
+      : { ...incoming, ...existing }
+    : undefined;
 
 const apiUrl = (path: string) => `${getApiBase()}${path}`;
 
@@ -191,6 +201,8 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
     if (!layer.db_id) {
       const pendingKey = String(layer.id);
       let createPromise = pendingCreates.get(pendingKey);
+      // Only the call that starts the POST owns the post-create catch-up.
+      const isCreator = !createPromise;
       if (!createPromise) {
         postedPayloads.set(pendingKey, JSON.stringify(payload));
         createPromise = (async () => {
@@ -217,7 +229,7 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
         const latestIndex = latestState.layers.findIndex(
           (item) => item.id === layerId,
         );
-        if (latestIndex !== -1) {
+        if (isCreator && latestIndex !== -1) {
           const latestPayload = toApiPayload(
             latestState.layers[latestIndex],
             orderOverride ?? latestIndex,
@@ -486,7 +498,7 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
               db_id: existingLayer.db_id,
               visible: existingLayer.visible,
               selected: existingLayer.selected,
-              style: mergeStyle(existingLayer.style, updatedLayer.style),
+              style: mergeStyle(existingLayer.style, updatedLayer.style, true),
             };
           }
           return existingLayer;

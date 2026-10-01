@@ -253,4 +253,69 @@ test.describe("Raster layer opacity slider", () => {
     expect(await storeOpacity(page, wmsLayer.id)).toBeCloseTo(0.6, 5);
     await expect.poll(() => mapOpacity(page, "wms.opacity-test.example")).toBeCloseTo(0.6, 5);
   });
+
+  test("stale backend sync snapshot does not overwrite newer local opacity; style updates do", async ({
+    page,
+  }) => {
+    await add(page, wmsLayer);
+    await page.getByTitle("Style Layer").first().click();
+    // Snapshot the agent would have been sent (opacity 1), then user moves slider
+    await setSlider(page, "0.2");
+    await page.evaluate((l) => {
+      const stale = { ...l, style: { raster_opacity: 1, stroke_color: "#ff0000" } };
+      (window as any).useLayerStore.getState().synchronizeLayersFromBackend([stale]);
+    }, wmsLayer);
+    expect(await storeOpacity(page, wmsLayer.id)).toBeCloseTo(0.2, 5);
+    // Missing keys still come from the backend
+    expect(
+      await page.evaluate(
+        () => (window as any).useLayerStore.getState().layers[0].style.stroke_color,
+      ),
+    ).toBe("#ff0000");
+    // Explicit backend styling update wins
+    await page.evaluate((l) => {
+      (window as any).useLayerStore
+        .getState()
+        .updateLayersFromBackend([{ ...l, style: { raster_opacity: 0.7 } }]);
+    }, wmsLayer);
+    expect(await storeOpacity(page, wmsLayer.id)).toBeCloseTo(0.7, 5);
+  });
+
+  test("many slider changes before POST resolves produce one catch-up PATCH with the latest value", async ({
+    page,
+  }) => {
+    const calls: { method: string; opacity?: number }[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    await page.route(/\/layers\/?(\?.*)?$|\/layers\/[^/]+$/, async (route) => {
+      const req = route.request();
+      const m = req.method();
+      if (m !== "POST" && m !== "PATCH") return route.fallback();
+      const body = JSON.parse(req.postData() || "{}");
+      calls.push({ method: m, opacity: body?.style?.raster_opacity });
+      if (m === "POST") await gate;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ id: "db-2" }),
+      });
+    });
+
+    await add(page, wmsLayer);
+    await expect.poll(() => calls.length).toBe(1);
+    await page.getByTitle("Style Layer").first().click();
+    for (const v of ["0.8", "0.6", "0.4", "0.25"]) await setSlider(page, v);
+    release();
+    await expect.poll(() => calls.filter((c) => c.method === "PATCH").length).toBe(1);
+    // A later db_id-based change is the final write and must not be overwritten
+    await setSlider(page, "0.9");
+    await expect
+      .poll(() => calls.filter((c) => c.method === "PATCH").length)
+      .toBe(2);
+    await page.waitForTimeout(500);
+    const patches = calls.filter((c) => c.method === "PATCH");
+    expect(patches).toHaveLength(2);
+    expect(patches[0].opacity).toBeCloseTo(0.25, 5);
+    expect(patches[1].opacity).toBeCloseTo(0.9, 5);
+  });
 });
