@@ -53,8 +53,8 @@ ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     NODE_OPTIONS="--max-old-space-size=512"
 
-# Patch OS packages (e.g. libgnutls30) to their latest fixed version
-RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+# Patch OS packages to their latest fixed version
+RUN apk upgrade --no-cache
 
 # The standalone server only needs `node`. Remove the base image's bundled
 # npm/npx/corepack (and the tar version it vendors, CVE-2026-59873) —
