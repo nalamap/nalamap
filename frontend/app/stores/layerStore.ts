@@ -124,20 +124,18 @@ const extractOrder = (record: LayerApiRecord, fallback: number): number => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
-// Keep user-set style (e.g. raster opacity) when a backend layer object
-// replaces an existing one. By default local keys are authoritative (agent
-// responses carry a stale snapshot); explicit backend styling updates pass
-// preferIncoming so backend-provided keys win.
-const mergeStyle = (
-  existing?: LayerStyle,
-  incoming?: LayerStyle,
-  preferIncoming = false,
-) =>
-  existing || incoming
-    ? preferIncoming
-      ? { ...existing, ...incoming }
-      : { ...incoming, ...existing }
-    : undefined;
+// Merge style when a backend layer object replaces an existing one. Backend
+// style keys win (style tools rely on that), except raster_opacity: it is owned
+// by the opacity slider, the backend never produces it and only echoes the
+// (possibly stale) snapshot sent with the request, so a local value is kept.
+const mergeStyle = (existing?: LayerStyle, incoming?: LayerStyle) => {
+  if (!existing && !incoming) return undefined;
+  const merged: LayerStyle = { ...existing, ...incoming };
+  if (existing?.raster_opacity !== undefined) {
+    merged.raster_opacity = existing.raster_opacity;
+  }
+  return merged;
+};
 
 const apiUrl = (path: string) => `${getApiBase()}${path}`;
 
@@ -497,7 +495,7 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
               db_id: existingLayer.db_id,
               visible: existingLayer.visible,
               selected: existingLayer.selected,
-              style: mergeStyle(existingLayer.style, updatedLayer.style, true),
+              style: mergeStyle(existingLayer.style, updatedLayer.style),
             };
           }
           return existingLayer;

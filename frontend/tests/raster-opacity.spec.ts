@@ -254,31 +254,30 @@ test.describe("Raster layer opacity slider", () => {
     await expect.poll(() => mapOpacity(page, "wms.opacity-test.example")).toBeCloseTo(0.6, 5);
   });
 
-  test("stale backend sync snapshot does not overwrite newer local opacity; style updates do", async ({
+  test("backend sync/update: style keys come from backend, local raster_opacity is retained", async ({
     page,
   }) => {
     await add(page, wmsLayer);
     await page.getByTitle("Style Layer").first().click();
-    // Snapshot the agent would have been sent (opacity 1), then user moves slider
     await setSlider(page, "0.2");
-    await page.evaluate((l) => {
-      const stale = { ...l, style: { raster_opacity: 1, stroke_color: "#ff0000" } };
-      (window as any).useLayerStore.getState().synchronizeLayersFromBackend([stale]);
-    }, wmsLayer);
-    expect(await storeOpacity(page, wmsLayer.id)).toBeCloseTo(0.2, 5);
-    // Missing keys still come from the backend
-    expect(
+    for (const fn of ["synchronizeLayersFromBackend", "updateLayersFromBackend"]) {
       await page.evaluate(
-        () => (window as any).useLayerStore.getState().layers[0].style.stroke_color,
-      ),
-    ).toBe("#ff0000");
-    // Explicit backend styling update wins
-    await page.evaluate((l) => {
-      (window as any).useLayerStore
-        .getState()
-        .updateLayersFromBackend([{ ...l, style: { raster_opacity: 0.7 } }]);
-    }, wmsLayer);
-    expect(await storeOpacity(page, wmsLayer.id)).toBeCloseTo(0.7, 5);
+        ([l, f]) => {
+          const stale = { ...(l as any), style: { raster_opacity: 1, fill_color: "#ff0000" } };
+          (window as any).useLayerStore.getState()[f as string]([stale]);
+        },
+        [wmsLayer, fn] as const,
+      );
+      expect(await storeOpacity(page, wmsLayer.id)).toBeCloseTo(0.2, 5);
+      expect(
+        await page.evaluate(
+          () => (window as any).useLayerStore.getState().layers[0].style.fill_color,
+        ),
+      ).toBe("#ff0000");
+      await page.evaluate(() =>
+        (window as any).useLayerStore.getState().updateLayerStyle("wms-opacity", { fill_color: "#000000" }),
+      );
+    }
   });
 
   test("many slider changes before POST resolves produce one catch-up PATCH with the latest value", async ({
@@ -339,45 +338,34 @@ test.describe("Raster layer opacity slider", () => {
     await input.press("Enter");
   }
 
-  test("streamed styling result changes an existing layer's style (incoming wins)", async ({
+  test("streamed result (real payload shape, no tool messages): fill color updates, local raster_opacity retained", async ({
     page,
   }) => {
     await add(page, wmsLayer);
     await page.getByTitle("Style Layer").first().click();
-    await setSlider(page, "0.9");
+    await setSlider(page, "0.3");
+    // Backend only serializes human/ai/system messages and echoes the stale snapshot
     await streamResult(page, {
       messages: [
-        { type: "human", content: "make it transparent" },
-        { type: "tool", content: "Successfully applied styling to 1 layer" },
-        { type: "ai", content: "Done" },
+        { type: "human", content: "color it red" },
+        { type: "ai", content: "Styled the layer" },
       ],
       geodata_results: [],
-      geodata_layers: [{ ...wmsLayer, style: { raster_opacity: 0.3 } }],
+      geodata_layers: [
+        { ...wmsLayer, style: { raster_opacity: 1, fill_color: "#ff0000" } },
+      ],
     });
-    await sendChat(page, "make it transparent");
-    await expect.poll(() => storeOpacity(page, wmsLayer.id)).toBeCloseTo(0.3, 5);
+    await sendChat(page, "color it red");
+    await expect(page.getByText("Styled the layer")).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => (window as any).useLayerStore.getState().layers[0].style.fill_color,
+      ),
+    ).toBe("#ff0000");
+    expect(await storeOpacity(page, wmsLayer.id)).toBeCloseTo(0.3, 5);
     await expect
       .poll(() => mapOpacity(page, "wms.opacity-test.example"))
       .toBeCloseTo(0.3, 5);
-  });
-
-  test("streamed non-styling result with stale snapshot keeps local opacity", async ({
-    page,
-  }) => {
-    await add(page, wmsLayer);
-    await page.getByTitle("Style Layer").first().click();
-    await setSlider(page, "0.5");
-    await streamResult(page, {
-      messages: [
-        { type: "human", content: "hello" },
-        { type: "ai", content: "Hi there" },
-      ],
-      geodata_results: [],
-      geodata_layers: [{ ...wmsLayer, style: { raster_opacity: 1 } }],
-    });
-    await sendChat(page, "hello");
-    await expect(page.getByText("Hi there")).toBeVisible();
-    expect(await storeOpacity(page, wmsLayer.id)).toBeCloseTo(0.5, 5);
   });
 
   test("catch-up PATCH is serialized with later opacity writes (final state = latest)", async ({
