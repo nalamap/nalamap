@@ -116,7 +116,7 @@ def _patch_client(responses: List[MagicMock]):
 
 
 @pytest.mark.unit
-def test_pick_access_url_tiles_link():
+def test_pick_access_url_ignores_tiles_link_and_uses_items():
     col = _make_collection(
         "rivers",
         "Rivers",
@@ -125,24 +125,43 @@ def test_pick_access_url_tiles_link():
             {"rel": "items", "href": "https://example.com/items"},
         ],
     )
-    assert _pick_access_url(col, "https://example.com") == "https://example.com/tiles"
+    url = _pick_access_url(col, "https://example.com")
+    assert url.startswith("https://example.com/items?")
+    assert "f=json" in url and "limit=" in url
 
 
 @pytest.mark.unit
-def test_pick_access_url_items_link_when_no_tiles():
+def test_pick_access_url_prefers_geojson_items_link_and_keeps_query():
     col = _make_collection(
         "rivers",
         "Rivers",
-        links=[{"rel": "items", "href": "https://example.com/items"}],
+        links=[
+            {"rel": "items", "type": "text/html", "href": "https://example.com/html"},
+            {
+                "rel": "items",
+                "type": "application/geo+json",
+                "href": "https://example.com/items?token=abc&f=html",
+            },
+        ],
     )
-    assert _pick_access_url(col, "https://example.com") == "https://example.com/items"
+    url = _pick_access_url(col, "https://example.com")
+    assert url.startswith("https://example.com/items?")
+    assert "token=abc" in url and "f=json" in url and "f=html" not in url
+
+
+@pytest.mark.unit
+def test_pick_access_url_resolves_relative_href():
+    col = _make_collection("r", "R", links=[{"rel": "items", "href": "collections/r/items"}])
+    url = _pick_access_url(col, "https://example.com/v1")
+    assert url.startswith("https://example.com/v1/collections/r/items?")
 
 
 @pytest.mark.unit
 def test_pick_access_url_fallback_to_constructed():
     col = _make_collection("rivers", "Rivers")
     result = _pick_access_url(col, "https://example.com/v1")
-    assert result == "https://example.com/v1/collections/rivers/items"
+    assert result.startswith("https://example.com/v1/collections/rivers/items?")
+    assert "f=json" in result
 
 
 @pytest.mark.unit
@@ -157,6 +176,8 @@ def test_collection_to_geodata_maps_fields():
     assert obj.title == "Key Biodiversity Areas"
     assert obj.description == "Global KBA dataset"
     assert obj.data_type == DataType.LAYER
+    assert obj.layer_type == "WFS"  # renderable GeoJSON feature layer
+    assert "f=json" in obj.data_link
     assert obj.data_source == "ogcapi"
     assert obj.name == "kba"
     assert obj.data_source_id == "Test OGC API"
@@ -180,11 +201,14 @@ def test_search_returns_matching_collections():
         _make_collection("streams", "Streams Germany", "Small streams"),
     ]
     resp = _mock_http_response({"collections": collections})
+    unfiltered = _mock_http_response(
+        {"collections": collections + [_make_collection("airports", "Airports")]}
+    )
 
     snapshot = _make_snapshot([MOCK_BACKEND])
     state = _make_state(snapshot)
 
-    with _patch_client([resp]):
+    with _patch_client([resp, unfiltered]):
         result = _search_ogcapi_layers_impl(
             state=state, tool_call_id="test-call-id", query="rivers", max_results=20
         )
@@ -273,23 +297,30 @@ def test_search_ssl_error_handled():
 
 
 @pytest.mark.unit
-def test_search_maps_tiles_link():
-    """Collection with a tiles link → data_link set to tiles URL."""
+def test_search_maps_items_link_to_geojson_layer():
+    """Tiles + items links → data_link is a GeoJSON items URL and layer_type is set."""
     collections = [
         _make_collection(
             "wdpa",
             "WDPA Protected Areas",
             links=[
-                {"rel": "tiles", "href": "https://ogcapi.example.com/v1/collections/wdpa/tiles"}
+                {"rel": "tiles", "href": "https://ogcapi.example.com/v1/collections/wdpa/tiles"},
+                {
+                    "rel": "items",
+                    "type": "application/geo+json",
+                    "href": "https://ogcapi.example.com/v1/collections/wdpa/items",
+                },
             ],
-        )
+        ),
+        _make_collection("other", "Other"),
     ]
-    resp = _mock_http_response({"collections": collections})
+    resp = _mock_http_response({"collections": collections[:1]})
+    unfiltered = _mock_http_response({"collections": collections})
 
     snapshot = _make_snapshot([MOCK_BACKEND])
     state = _make_state(snapshot)
 
-    with _patch_client([resp]):
+    with _patch_client([resp, unfiltered]):
         result = _search_ogcapi_layers_impl(
             state=state, tool_call_id="test-call-id", query="wdpa", max_results=20
         )
@@ -297,7 +328,54 @@ def test_search_maps_tiles_link():
     assert isinstance(result, Command)
     geo_results = result.update["geodata_last_results"]
     assert len(geo_results) == 1
-    assert geo_results[0].data_link == "https://ogcapi.example.com/v1/collections/wdpa/tiles"
+    assert geo_results[0].layer_type == "WFS"
+    assert geo_results[0].data_link.startswith(
+        "https://ogcapi.example.com/v1/collections/wdpa/items?"
+    )
+    assert "f=json" in geo_results[0].data_link
+
+
+@pytest.mark.unit
+def test_search_filters_locally_when_backend_ignores_q():
+    """HTTP 200 with the normal listing (q ignored) → local predicate still applied."""
+    all_collections = [
+        _make_collection("rivers", "Rivers", "German rivers"),
+        _make_collection("airports", "Airports", "International airports"),
+    ]
+    ignored = _mock_http_response({"collections": all_collections})
+    unfiltered = _mock_http_response({"collections": all_collections})
+
+    snapshot = _make_snapshot([MOCK_BACKEND])
+    state = _make_state(snapshot)
+
+    with _patch_client([ignored, unfiltered]):
+        result = _search_ogcapi_layers_impl(
+            state=state, tool_call_id="test-call-id", query="rivers", max_results=20
+        )
+
+    assert isinstance(result, Command)
+    geo_results = result.update["geodata_last_results"]
+    assert [g.name for g in geo_results] == ["rivers"]
+
+
+@pytest.mark.unit
+def test_search_trusts_server_side_search_when_it_narrows_results():
+    """A server-side hit that does not literally contain the query (e.g. fuzzy) is kept."""
+    fuzzy = [_make_collection("hydro", "Hydrography", "Streams and waterways")]
+    all_collections = fuzzy + [_make_collection("airports", "Airports")]
+    resp = _mock_http_response({"collections": fuzzy})
+    unfiltered = _mock_http_response({"collections": all_collections})
+
+    snapshot = _make_snapshot([MOCK_BACKEND])
+    state = _make_state(snapshot)
+
+    with _patch_client([resp, unfiltered]):
+        result = _search_ogcapi_layers_impl(
+            state=state, tool_call_id="test-call-id", query="rivers", max_results=20
+        )
+
+    assert isinstance(result, Command)
+    assert [g.name for g in result.update["geodata_last_results"]] == ["hydro"]
 
 
 @pytest.mark.unit

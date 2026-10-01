@@ -5,9 +5,13 @@ matching a natural-language query, and returns them as GeoDataObject items that
 NaLaMap can display on the map.
 
 Server-side ``q=`` full-text search is attempted first (OGC API – Common Part 2
-conformance).  When the server returns HTTP 400 or yields no results, the tool
-falls back to listing all collections and filtering client-side via substring
-match on ``title`` and ``description``.
+conformance) and compared with the unfiltered listing.  If the server rejected
+``q`` (HTTP 400), returned nothing, or returned the same collections as the
+unfiltered listing (i.e. it ignored ``q``), the tool filters the listing
+client-side via substring match on ``title``, ``description`` and ``id``.
+
+Results are exposed as GeoJSON feature layers (``layer_type="WFS"`` with an
+``/items?f=json&limit=...`` URL) because that is what the map renderer supports.
 """
 
 import hashlib
@@ -15,6 +19,7 @@ import logging
 import ssl
 import uuid
 from typing import Any, Dict, List, Optional, Union
+from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 
 import httpx
 from langchain_core.messages import ToolMessage
@@ -32,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_TIMEOUT = 15.0  # seconds
 _MAX_RESULTS = 50  # upper bound to avoid oversized ToolMessage
+_ITEMS_LIMIT = 1000  # max features requested per layer when displaying on the map
 
 
 def _make_client(allow_insecure: bool) -> httpx.Client:
@@ -41,18 +47,38 @@ def _make_client(allow_insecure: bool) -> httpx.Client:
     return httpx.Client(timeout=_DEFAULT_TIMEOUT)
 
 
-def _pick_access_url(collection: Dict[str, Any], base_url: str) -> str:
-    """Extract the best access URL from a collection's links array.
+def _with_query_params(url: str, params: Dict[str, Any]) -> str:
+    """Return ``url`` with ``params`` set (overriding existing keys of the same name)."""
+    parts = urlsplit(url)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query.update({k: str(v) for k, v in params.items()})
+    return urlunsplit(parts._replace(query=urlencode(query)))
 
-    Preference order: tiles link → items link → self link → base_url/collection_id.
+
+def _pick_access_url(collection: Dict[str, Any], base_url: str) -> str:
+    """Return a GeoJSON ``/items`` URL for the collection, renderable by the map.
+
+    The Leaflet renderer fetches ``data_link`` as GeoJSON, so MVT/tiles links are
+    intentionally ignored.  Preference: ``rel="items"`` link whose type is GeoJSON,
+    then any ``rel="items"`` link, then ``{base}/collections/{id}/items``.  The URL
+    always carries ``f=json`` and ``limit`` so the server answers with GeoJSON.
     """
-    links: List[Dict[str, Any]] = collection.get("links", [])
-    for rel in ("tiles", "items", "self"):
-        for link in links:
-            if link.get("rel") == rel and link.get("href"):
-                return link["href"]
-    col_id = collection.get("id", "")
-    return f"{base_url.rstrip('/')}/collections/{col_id}/items" if col_id else base_url
+    links: List[Dict[str, Any]] = collection.get("links", []) or []
+    items_links = [lk for lk in links if lk.get("rel") == "items" and lk.get("href")]
+    chosen: Optional[str] = None
+    for link in items_links:
+        if "json" in (link.get("type") or "").lower():
+            chosen = link["href"]
+            break
+    if chosen is None and items_links:
+        chosen = items_links[0]["href"]
+    if chosen is None:
+        col_id = collection.get("id", "")
+        if not col_id:
+            return base_url
+        chosen = f"{base_url.rstrip('/')}/collections/{col_id}/items"
+    chosen = urljoin(base_url.rstrip("/") + "/", chosen)
+    return _with_query_params(chosen, {"f": "json", "limit": _ITEMS_LIMIT})
 
 
 def _extract_bbox_wkt(collection: Dict[str, Any]) -> Optional[str]:
@@ -98,6 +124,7 @@ def _collection_to_geodata(
         data_source_id=backend.name,
         data_origin=DataOrigin.TOOL.value,
         data_link=access_url,
+        layer_type="WFS",  # renderer treats this as a GeoJSON feature layer
         bounding_box=bbox_wkt,
         properties={
             "collection_id": col_id,
@@ -121,38 +148,47 @@ def _search_backend(
 
     try:
         with _make_client(backend.allow_insecure) as client:
-            # --- Attempt 1: server-side q= search ---
-            try:
-                resp = client.get(
-                    f"{base}/collections",
-                    params={"q": query, "limit": min(max_results, _MAX_RESULTS)},
-                )
-                if resp.status_code == 400:
-                    raise ValueError("Server does not support q= parameter")
+
+            def _list(params: Dict[str, Any]) -> List[Dict[str, Any]]:
+                resp = client.get(f"{base}/collections", params=params)
                 resp.raise_for_status()
                 data = resp.json()
-                collections = data.get("collections", data if isinstance(data, list) else [])
-                results = [_collection_to_geodata(c, backend) for c in collections[:max_results]]
-                if results:
-                    return results
-                # Zero server-side results — fall through to client-side fallback
-            except (ValueError, httpx.HTTPStatusError):
-                pass
+                return data.get("collections", data if isinstance(data, list) else [])
 
-            # --- Attempt 2: client-side substring filter ---
-            resp = client.get(f"{base}/collections", params={"limit": _MAX_RESULTS})
-            resp.raise_for_status()
-            data = resp.json()
-            all_collections = data.get("collections", data if isinstance(data, list) else [])
-            q = query.lower()
-            matched = [
-                c
-                for c in all_collections
-                if q in (c.get("title") or "").lower()
-                or q in (c.get("description") or "").lower()
-                or q in (c.get("id") or "").lower()
-            ]
-            return [_collection_to_geodata(c, backend) for c in matched[:max_results]]
+            def _local_matches(cols: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+                q = query.lower()
+                return [
+                    c
+                    for c in cols
+                    if q in (c.get("title") or "").lower()
+                    or q in (c.get("description") or "").lower()
+                    or q in (c.get("id") or "").lower()
+                ]
+
+            # Same limit for both requests so their results are comparable.
+            base_params: Dict[str, Any] = {"limit": _MAX_RESULTS}
+
+            # --- Attempt 1: server-side q= search ---
+            searched: List[Dict[str, Any]] = []
+            try:
+                searched = _list({**base_params, "q": query})
+            except (ValueError, httpx.HTTPStatusError):
+                searched = []  # e.g. HTTP 400: q= unsupported
+
+            all_collections = _list(base_params)
+
+            # A server that does not implement q= typically ignores it and returns its
+            # normal listing with HTTP 200.  We only trust the server-side result when
+            # it demonstrably narrowed the listing, i.e. the set of collection ids
+            # differs from the unfiltered listing.  Otherwise (identical, empty or
+            # failed) the local title/description/id predicate is applied.
+            searched_ids = {c.get("id") for c in searched}
+            all_ids = {c.get("id") for c in all_collections}
+            if searched and searched_ids != all_ids:
+                chosen = searched
+            else:
+                chosen = _local_matches(all_collections)
+            return [_collection_to_geodata(c, backend) for c in chosen[:max_results]]
 
     except httpx.ConnectError as exc:
         logger.warning("OGC API backend %s: connection error — %s", backend.name, exc)
