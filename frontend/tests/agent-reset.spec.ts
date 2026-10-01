@@ -284,7 +284,16 @@ test.describe("AgentInterface reset button", () => {
     await page.getByTestId("agent-reset-button").click();
     await expect.poll(() => page.evaluate(() => (window as any).__cancelPosted)).toBe(true);
 
-    await page.waitForTimeout(2300);
+    // Check while the cancel POST (1.5s) is still pending: the mocked result
+    // arrives at ~0.6s and must not have been applied (reset's own clear only
+    // runs after the POST resolves, so a late result would otherwise show here).
+    await page.waitForTimeout(1000);
+    const mid = await page.evaluate(
+      () => (window as any).useChatInterfaceStore.getState().messages.length,
+    );
+    expect(mid).toBe(1); // only the human message appended before the stream
+
+    await page.waitForTimeout(1500);
     const n = await page.evaluate(
       () => (window as any).useChatInterfaceStore.getState().messages.length,
     );
