@@ -493,24 +493,29 @@ async def test_osint_fire_query_selects_firms_tool_with_default_aliases(strategy
 
     tools = {name: MockTool(name=name) for name in DEFAULT_AVAILABLE_TOOLS}
 
-    # One-hot embeddings by tool name so "show active fires" matches only the FIRMS tool.
-    names = list(TOOL_METADATA.keys())
-    dim = len(names)
+    # Lexical bag-of-words embeddings over the real TOOL_METADATA descriptions, so the
+    # match comes from description text rather than a hand-picked one-hot vector.
+    import re
+    import zlib
 
-    def vec(idx):
-        return [1.0 if i == idx else 0.0 for i in range(dim)]
+    dim = 512
+
+    def embed(text):
+        v = [0.0] * dim
+        for word in re.findall(r"[a-z]+", text.lower()):
+            v[zlib.crc32(word.encode()) % dim] += 1.0
+        return v
 
     embeddings = AsyncMock()
-    embeddings.aembed_query = AsyncMock(return_value=vec(names.index("nasa_fire_data")))
+    embeddings.aembed_query = AsyncMock(side_effect=lambda q: embed(q))
 
     async def embed_documents(texts):
-        by_desc = {m.description: i for i, m in enumerate(TOOL_METADATA.values())}
-        return [vec(by_desc[t]) for t in texts]
+        return [embed(t) for t in texts]
 
     embeddings.aembed_documents = embed_documents
 
     selector = DynamicToolSelector(
-        embeddings=embeddings, strategy=strategy, similarity_threshold=0.5
+        embeddings=embeddings, strategy=strategy, similarity_threshold=0.1
     )
     selected = await selector.select_tools("show active fires", tools)
     assert "nasa_fire_data" in [t.name for t in selected]
