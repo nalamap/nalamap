@@ -306,3 +306,30 @@ async def test_agent_creation_basic():
     agent, llm = await create_geo_agent()
     assert agent is not None
     assert llm is not None
+
+
+@pytest.mark.unit
+def test_parallel_tool_calls_middleware_skips_when_no_tools():
+    """No tools bound -> don't send parallel_tool_calls (OpenAI returns 400)."""
+    from types import SimpleNamespace
+
+    from services.single_agent import _ParallelToolCallsMiddleware
+
+    mw = _ParallelToolCallsMiddleware(False)
+    req = SimpleNamespace(tools=[], model_settings=None)
+    assert mw._override(req) is req
+
+
+@pytest.mark.unit
+def test_parallel_tool_calls_middleware_sets_when_tools_present():
+    from types import SimpleNamespace
+
+    from services.single_agent import _ParallelToolCallsMiddleware
+
+    class Req(SimpleNamespace):
+        def override(self, **kw):
+            return Req(**{**self.__dict__, **kw})
+
+    mw = _ParallelToolCallsMiddleware(True)
+    out = mw._override(Req(tools=["t"], model_settings={"a": 1}))
+    assert out.model_settings == {"a": 1, "parallel_tool_calls": True}

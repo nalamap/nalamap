@@ -318,3 +318,21 @@ async def async_client():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
+
+
+@pytest.fixture(autouse=True)
+def _reset_langchain_openai_http_clients():
+    """langchain-openai >=1.0 shares one cached async httpx client across all
+    ChatOpenAI instances. pytest-asyncio gives every test its own event loop,
+    so a pooled keep-alive connection left over from an earlier test's (closed)
+    loop raises ``RuntimeError: Event loop is closed`` when a later test reuses
+    it. Production runs a single loop, so this only matters for the test suite.
+    """
+    yield
+    try:
+        from langchain_openai.chat_models import _client_utils
+
+        _client_utils._cached_async_httpx_client.cache_clear()
+        _client_utils._cached_sync_httpx_client.cache_clear()
+    except Exception:  # pragma: no cover - private API may move
+        pass

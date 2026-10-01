@@ -14,7 +14,7 @@ export async function GET() {
     }
 
     try {
-      const content = await readFile(filePath, "utf-8");
+      const content = await readFile(/*turbopackIgnore: true*/ filePath, "utf-8");
       return new NextResponse(content, {
         headers: {
           "Content-Type": "application/javascript",

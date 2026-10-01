@@ -24,7 +24,7 @@ class TestAgentModelSelection:
     """Test that geo agent uses correct model based on settings."""
 
     @pytest.mark.asyncio
-    @patch("services.single_agent.create_react_agent")
+    @patch("services.single_agent.create_agent")
     async def test_create_agent_with_openai_model_settings(self, mock_create_react):
         """Test creating agent with specific OpenAI model."""
         # Mock the create_react_agent to avoid actual LangGraph setup
@@ -47,14 +47,14 @@ class TestAgentModelSelection:
 
         # Get the call arguments
         call_kwargs = mock_create_react.call_args[1]
-        assert call_kwargs["prompt"] == "Test prompt"
+        assert call_kwargs["system_prompt"] == "Test prompt"
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(
         not _is_google_provider_available(),
         reason="Google Gemini provider not available (missing langchain_google_genai)",
     )
-    @patch("services.single_agent.create_react_agent")
+    @patch("services.single_agent.create_agent")
     async def test_create_agent_with_google_model_settings(self, mock_create_react):
         """Test creating agent with Google Gemini model."""
         mock_agent = MagicMock()
@@ -74,7 +74,7 @@ class TestAgentModelSelection:
         assert mock_create_react.called
 
     @pytest.mark.asyncio
-    @patch("services.single_agent.create_react_agent")
+    @patch("services.single_agent.create_agent")
     async def test_create_agent_uses_default_prompt_when_empty(self, mock_create_react):
         """Test that default prompt is used when system_prompt is empty."""
         mock_agent = MagicMock()
@@ -93,10 +93,10 @@ class TestAgentModelSelection:
         assert agent is not None
         call_kwargs = mock_create_react.call_args[1]
         # Should use default prompt, not empty string
-        assert call_kwargs["prompt"] != ""
+        assert call_kwargs["system_prompt"] != ""
 
     @pytest.mark.asyncio
-    @patch("services.single_agent.create_react_agent")
+    @patch("services.single_agent.create_agent")
     async def test_create_agent_without_model_settings_uses_env_default(self, mock_create_react):
         """Test that agent uses env-configured provider when no settings provided."""
         mock_agent = MagicMock()
@@ -170,7 +170,7 @@ class TestConversationSummarization:
     """Integration tests for conversation summarization feature."""
 
     @pytest.mark.asyncio
-    @patch("services.single_agent.create_react_agent")
+    @patch("services.single_agent.create_agent")
     async def test_create_agent_with_session_id(self, mock_create_react):
         """Test creating agent with session_id creates conversation manager."""
         from unittest.mock import MagicMock
@@ -194,7 +194,7 @@ class TestConversationSummarization:
         assert llm is not None
 
     @pytest.mark.asyncio
-    @patch("services.single_agent.create_react_agent")
+    @patch("services.single_agent.create_agent")
     async def test_conversation_manager_session_reuse(self, mock_create_react):
         """Test that conversation manager is reused for same session."""
         from services.single_agent import conversation_managers
@@ -222,7 +222,7 @@ class TestConversationSummarization:
             assert first_manager is second_manager
 
     @pytest.mark.asyncio
-    @patch("services.single_agent.create_react_agent")
+    @patch("services.single_agent.create_agent")
     async def test_prepare_messages_prune_mode(self, mock_create_react):
         """Test that prepare_messages uses pruning in 'prune' mode."""
         from langchain_core.messages import HumanMessage
@@ -242,7 +242,7 @@ class TestConversationSummarization:
         assert len(result) == 10
 
     @pytest.mark.asyncio
-    @patch("services.single_agent.create_react_agent")
+    @patch("services.single_agent.create_agent")
     async def test_prepare_messages_summarize_mode_without_session(self, mock_create_react):
         """Test that summarization falls back to pruning without session_id."""
         from langchain_core.messages import HumanMessage
@@ -262,7 +262,7 @@ class TestConversationSummarization:
         assert len(result) == 10
 
     @pytest.mark.asyncio
-    @patch("services.single_agent.create_react_agent")
+    @patch("services.single_agent.create_agent")
     async def test_session_cleanup_on_ttl(self, mock_create_react):
         """Test that expired sessions are cleaned up."""
         import time
@@ -309,7 +309,7 @@ class TestConversationSummarization:
         assert manager.summary_window == message_window_size  # 15
 
     @pytest.mark.asyncio
-    @patch("services.single_agent.create_react_agent")
+    @patch("services.single_agent.create_agent")
     async def test_prepare_messages_with_settings_mode(self, mock_create_react):
         """Test that prepare_messages respects settings_mode parameter over env var."""
         from langchain_core.messages import HumanMessage
@@ -331,7 +331,7 @@ class TestConversationSummarization:
         assert len(result) == 10
 
     @pytest.mark.asyncio
-    @patch("services.single_agent.create_react_agent")
+    @patch("services.single_agent.create_agent")
     async def test_prepare_messages_settings_mode_fallback_to_env(self, mock_create_react):
         """Test that prepare_messages falls back to env var when settings_mode is None."""
         from langchain_core.messages import HumanMessage

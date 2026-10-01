@@ -492,3 +492,63 @@ async def test_ogcapi_tool_selected_for_ogc_query():
     )
     selected = await selector.select_tools("find layers on the OGC API server", tools)
     assert [t.name for t in selected] == ["search_ogcapi_layers"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "strategy",
+    [SelectionStrategy.SEMANTIC, SelectionStrategy.CONSERVATIVE, SelectionStrategy.MINIMAL],
+)
+async def test_osint_fire_query_selects_firms_tool_with_default_aliases(strategy):
+    """OSINT tools are selectable under their DEFAULT_AVAILABLE_TOOLS alias keys."""
+    from services.default_agent_settings import DEFAULT_AVAILABLE_TOOLS
+
+    osint_aliases = [
+        "world_bank_indicators",
+        "ecmwf_weather",
+        "nasa_fire_data",
+        "nasa_gibs_layer",
+        "list_nasa_gibs_layers",
+    ]
+    for alias in osint_aliases:
+        assert alias in TOOL_METADATA
+        assert alias in DEFAULT_AVAILABLE_TOOLS
+
+    tools = {name: MockTool(name=name) for name in DEFAULT_AVAILABLE_TOOLS}
+
+    # Lexical bag-of-words embeddings over the real TOOL_METADATA descriptions, so the
+    # match comes from description text rather than a hand-picked one-hot vector.
+    import re
+    import zlib
+
+    dim = 512
+
+    def embed(text):
+        v = [0.0] * dim
+        for word in re.findall(r"[a-z]+", text.lower()):
+            v[zlib.crc32(word.encode()) % dim] += 1.0
+        return v
+
+    embeddings = AsyncMock()
+    embeddings.aembed_query = AsyncMock(side_effect=lambda q: embed(q))
+
+    async def embed_documents(texts):
+        return [embed(t) for t in texts]
+
+    embeddings.aembed_documents = embed_documents
+
+    selector = DynamicToolSelector(
+        embeddings=embeddings, strategy=strategy, similarity_threshold=0.1
+    )
+    selected = await selector.select_tools("show active fires", tools)
+    assert "nasa_fire_data" in [t.name for t in selected]
+
+
+def test_osint_prompt_guidance_matches_tool_behaviour():
+    """Prompt must not promise behaviour the OSINT tools lack."""
+    from services.default_agent_settings import DEFAULT_SYSTEM_PROMPT as P
+
+    assert "individual countries" in P and "Sub-Saharan Africa" in P
+    assert "Pass the place name directly" in P
+    assert "NASA GIBS layers are live tile layers without a fixed date" in P
+    assert "burn areas" not in P
