@@ -201,7 +201,9 @@ class GeoDataAgentState(MessagesState):
         reduce_execution_plan,
     ] = Field(default=None, exclude=True, validate_default=False)
 
-    # Required by create_react_agent
+    # Unused by langchain.agents.create_agent (no built-in step-limiting
+    # like the old langgraph.prebuilt.create_react_agent had), kept for
+    # backward-compatible state shape in case callers still set it.
     remaining_steps: Optional[int] = Field(
         default=10, description="Number of remaining steps for the agent"
     )

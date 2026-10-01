@@ -12,24 +12,24 @@ package-mode = false
 python = "^3.11"
 fastapi = "^0.142.2"
 uvicorn = {extras = ["standard"], version = "^0.54.0"}
-langchain = "^0.3.27"
-langchain-core = "^0.3.76"
-langchain_community = "^0.3.30"
-openai = "^1.108.1"
+langchain = "^1.4.3"
+langchain-core = "^1.6.6"
+langchain_community = "^0.4.2"
+openai = "^3.22.1"
 psycopg = {extras = ["binary","pool"], version = "^3.3.2"}
 sqlalchemy = {extras = ["asyncio"], version = "^2.1.1"}
 geoalchemy2 = "^0.20.0"
-langgraph = "^0.6.7"
-langchain_openai = "^0.3.33"
-langchain-anthropic = "^0.3.5"
+langgraph = "^1.2.12"
+langchain_openai = "^1.6.7"
+langchain-anthropic = "^1.7.5"
 owslib = "*"
 httpx = "*"
 # transitive (httpx/starlette/openai) — pinned up explicitly to clear
 # CVE-2026-63374 (TLS certificate spoofing), caught by the new trivy CI gate
 anyio = ">=4.14.2"
 sqlite-vec = "^0.1.6"
-langchain_google_genai = "^2.1.12"
-langchain_mistralai = "^0.2.12"
+langchain_google_genai = "^4.4.0"
+langchain_mistralai = "^1.1.6"
 azure-storage-blob = "*"
 python-multipart = "*"
 shapely = "*"
