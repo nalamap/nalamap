@@ -541,24 +541,32 @@ export function useNaLaMapAgent(apiUrl: string) {
     
     Logger.log(`Cancelling request for session: ${currentSessionId}`);
     
-    // Abort the fetch request
-    abortControllerRef.current?.abort();
-    
-    // Notify the backend to stop processing
+    const controller = abortControllerRef.current;
+
+    // Notify the backend FIRST and wait for the ack. Aborting the SSE fetch
+    // before this would let the backend's stream cleanup run before the cancel
+    // POST arrives, which would then re-create a flag nobody clears.
     try {
-      await fetch(`${apiUrl}/chat/cancel?session_id=${currentSessionId}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      await fetch(
+        `${apiUrl}/chat/cancel?session_id=${encodeURIComponent(currentSessionId)}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          signal: AbortSignal.timeout(3000),
         },
-        credentials: "include",
-      });
+      );
       Logger.log("Backend notified of cancellation");
     } catch (error) {
       Logger.error("Failed to notify backend of cancellation:", error);
-      // Continue anyway - the abort should have stopped the stream
+      // Continue anyway - the local abort below still stops the stream
     }
-    
+
+    // Then abort the local fetch
+    controller?.abort();
+
     // Clear state
     chatInterfaceStore.setLoading(false);
     chatInterfaceStore.setIsStreaming(false);
