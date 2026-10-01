@@ -206,7 +206,7 @@ jobs:
         || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository))
     steps:
       - name: Download image metadata
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           # Download only our image metadata artifacts from matrix jobs
           pattern: image-metadata-*
