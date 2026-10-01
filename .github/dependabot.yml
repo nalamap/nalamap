@@ -85,6 +85,9 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
+      # Types must track the Node LTS used by the Dockerfiles/CI (24), not latest.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "fix"
       include: "scope"
