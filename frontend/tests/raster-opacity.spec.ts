@@ -41,6 +41,21 @@ const wmtsLayer = {
   visible: true,
 };
 
+const wcsLayer = {
+  id: "wcs-opacity",
+  data_source_id: "t",
+  data_type: "LAYER",
+  data_origin: "TOOL",
+  data_source: "test",
+  name: "WCS Opacity",
+  title: "WCS Opacity",
+  layer_type: "WCS",
+  // LeafletMapClient renders WCS as a WMS tile layer on the derived /wms endpoint
+  data_link:
+    "https://wcs.opacity-test.example/geoserver/wcs?service=WCS&coverageId=cov",
+  visible: true,
+};
+
 const vectorLayer = {
   id: "vec-opacity",
   data_source_id: "t",
@@ -122,6 +137,7 @@ test.describe("Raster layer opacity slider", () => {
   for (const [label, layer, host] of [
     ["WMS", wmsLayer, "wms.opacity-test.example"],
     ["WMTS", wmtsLayer, "wmts.opacity-test.example"],
+    ["WCS", wcsLayer, "wcs.opacity-test.example"],
   ] as const) {
     test(`${label}: slider defaults to 100% and updates store + map and survives visibility toggle`, async ({
       page,
@@ -168,5 +184,73 @@ test.describe("Raster layer opacity slider", () => {
     await expect(page.getByText("Opacity", { exact: true })).toHaveCount(0);
     await expect(page.getByText("Stroke Opacity")).toBeVisible();
     await expect(page.getByText("Stroke Weight")).toBeVisible();
+  });
+
+  test("opacity changed while the layer is still being created is persisted", async ({
+    page,
+  }) => {
+    const requests: { method: string; url: string; body: any }[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    await page.route(/\/layers\/?(\?.*)?$|\/layers\/[^/]+$/, async (route) => {
+      const req = route.request();
+      if (req.method() === "POST") {
+        requests.push({
+          method: "POST",
+          url: req.url(),
+          body: JSON.parse(req.postData() || "{}"),
+        });
+        await gate; // delay creation
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ id: "db-1" }),
+        });
+      } else if (req.method() === "PATCH") {
+        requests.push({
+          method: "PATCH",
+          url: req.url(),
+          body: JSON.parse(req.postData() || "{}"),
+        });
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ id: "db-1" }),
+        });
+      } else {
+        await route.fallback();
+      }
+    });
+
+    await add(page, wmsLayer);
+    await expect.poll(() => requests.length).toBe(1);
+    await page.getByTitle("Style Layer").first().click();
+    await setSlider(page, "0.3");
+    await expect.poll(() => storeOpacity(page, wmsLayer.id)).toBeCloseTo(0.3, 5);
+    expect(requests.some((r) => r.method === "PATCH")).toBe(false);
+
+    release();
+    await expect
+      .poll(() => requests.find((r) => r.method === "PATCH")?.body?.style?.raster_opacity)
+      .toBeCloseTo(0.3, 5);
+    expect(
+      requests.find((r) => r.method === "PATCH")!.url,
+    ).toContain("/layers/db-1");
+    expect(await storeOpacity(page, wmsLayer.id)).toBeCloseTo(0.3, 5);
+  });
+
+  test("opacity survives a backend layer update replacing the layer object", async ({
+    page,
+  }) => {
+    await add(page, wmsLayer);
+    await page.getByTitle("Style Layer").first().click();
+    await setSlider(page, "0.6");
+    await page.evaluate((l) => {
+      const { style, ...fresh } = l as any;
+      (window as any).useLayerStore.getState().updateLayersFromBackend([fresh]);
+      (window as any).useLayerStore.getState().synchronizeLayersFromBackend([fresh]);
+    }, wmsLayer);
+    expect(await storeOpacity(page, wmsLayer.id)).toBeCloseTo(0.6, 5);
+    await expect.poll(() => mapOpacity(page, "wms.opacity-test.example")).toBeCloseTo(0.6, 5);
   });
 });

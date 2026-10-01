@@ -124,6 +124,11 @@ const extractOrder = (record: LayerApiRecord, fallback: number): number => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+// Keep user-set style (e.g. raster opacity) when a backend layer object
+// replaces an existing one; backend-provided keys win.
+const mergeStyle = (existing?: LayerStyle, incoming?: LayerStyle) =>
+  existing || incoming ? { ...existing, ...incoming } : undefined;
+
 const apiUrl = (path: string) => `${getApiBase()}${path}`;
 
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
@@ -169,6 +174,7 @@ type LayerStore = {
 
 export const useLayerStore = create<LayerStore>()((set, get) => {
   const pendingCreates = new Map<string, Promise<string>>();
+  const postedPayloads = new Map<string, string>();
 
   const persistLayer = async (
     layerId: string | number,
@@ -186,6 +192,7 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
       const pendingKey = String(layer.id);
       let createPromise = pendingCreates.get(pendingKey);
       if (!createPromise) {
+        postedPayloads.set(pendingKey, JSON.stringify(payload));
         createPromise = (async () => {
           const created = await fetchJson<LayerApiRecord>(apiUrl("/layers/"), {
             method: "POST",
@@ -196,6 +203,7 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
         pendingCreates.set(pendingKey, createPromise);
       }
 
+      const postedPayloadJson = postedPayloads.get(pendingKey) ?? "";
       try {
         const createdId = await createPromise;
         set((state: LayerStore) => ({
@@ -203,11 +211,34 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
             item.id === layerId ? { ...item, db_id: createdId } : item,
           ),
         }));
+        // Edits (e.g. opacity slider) made while the POST was in flight were
+        // not part of the created record: push the latest state via PATCH.
+        const latestState = get();
+        const latestIndex = latestState.layers.findIndex(
+          (item) => item.id === layerId,
+        );
+        if (latestIndex !== -1) {
+          const latestPayload = toApiPayload(
+            latestState.layers[latestIndex],
+            orderOverride ?? latestIndex,
+          );
+          if (JSON.stringify(latestPayload) !== postedPayloadJson) {
+            try {
+              await fetchJson<LayerApiRecord>(
+                apiUrl(`/layers/${createdId}`),
+                { method: "PATCH", body: JSON.stringify(latestPayload) },
+              );
+            } catch (err) {
+              Logger.warn("Failed to update layer after creation:", err);
+            }
+          }
+        }
         return createdId;
       } catch (err) {
         Logger.warn("Failed to persist new layer:", err);
       } finally {
         pendingCreates.delete(pendingKey);
+        postedPayloads.delete(pendingKey);
       }
       return null;
     }
@@ -417,6 +448,7 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
               db_id: existingLayer.db_id,
               visible: existingLayer.visible,
               selected: existingLayer.selected,
+              style: mergeStyle(existingLayer.style, backendLayer.style),
             };
           }
           // New layer: ensure visible defaults to true
@@ -454,6 +486,7 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
               db_id: existingLayer.db_id,
               visible: existingLayer.visible,
               selected: existingLayer.selected,
+              style: mergeStyle(existingLayer.style, updatedLayer.style),
             };
           }
           return existingLayer;
