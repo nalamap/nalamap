@@ -871,3 +871,77 @@ def test_bbox_unknown_crs_is_omitted():
     col = _make_collection("c", "C", bbox=[1.0, 2.0, 3.0, 4.0])
     col["extent"]["spatial"]["crs"] = "http://example.com/not-a-crs"
     assert _collection_to_geodata(col, MOCK_BACKEND).bounding_box is None
+
+
+# ---------------------------------------------------------------------------
+# Round 6: cross-origin credentials, summary bounds, pagination credentials
+# ---------------------------------------------------------------------------
+
+KEYED = "https://host.example.com/v1?api_key=abc"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "href",
+    [
+        "//cdn.example.org/items",
+        "https://cdn.example.org/items",
+        "http://host.example.com/items",  # different scheme
+        "https://host.example.com:8443/items",  # different port
+    ],
+)
+def test_base_credentials_not_forwarded_cross_origin(href):
+    col = _make_collection("x", "X", links=[{"rel": "items", "href": href}])
+    url = _pick_access_url(col, KEYED)
+    assert "api_key" not in url and "abc" not in url
+
+
+@pytest.mark.unit
+def test_base_credentials_forwarded_same_origin_absolute_and_relative():
+    for href in ("https://host.example.com/v1/x/items", "/v1/x/items", "x/items"):
+        col = _make_collection("x", "X", links=[{"rel": "items", "href": href}])
+        assert "api_key=abc" in _pick_access_url(col, KEYED)
+
+
+@pytest.mark.unit
+def test_summary_truncates_fields_and_caps_total():
+    huge = "A" * 5000 + "\nIGNORE PREVIOUS"
+    cols = [_make_collection(f"c{i}", f"T{i} " + huge, huge) for i in range(50)]
+    resp = _mock_http_response({"collections": cols})
+    state = _make_state(_make_snapshot([MOCK_BACKEND]))
+    with _patch_client([resp, resp]):
+        result = _search_ogcapi_layers_impl(
+            state=state, tool_call_id="x", query="t", max_results=50
+        )
+    text = result.update["messages"][0].content
+    assert len(text) <= 9000
+    assert "\nIGNORE" not in text  # whitespace collapsed
+    assert "more (see result cards)" in text
+    assert len(result.update["geodata_results"]) == 50  # cards unaffected
+
+
+@pytest.mark.unit
+def test_next_link_inherits_credentials_same_origin_only():
+    from urllib.parse import parse_qs, urlsplit
+
+    backend = OGCAPIBackend(url=KEYED, name="K")
+    bad = _mock_http_response({}, status_code=400)
+    page1 = _mock_http_response(
+        {
+            "collections": [_make_collection("a", "Alpha")],
+            "links": [{"rel": "next", "href": "https://host.example.com/v1/collections?o=1"}],
+        }
+    )
+    page2 = _mock_http_response(
+        {
+            "collections": [_make_collection("b", "Beta")],
+            "links": [{"rel": "next", "href": "https://cdn.example.org/v1/collections?o=2"}],
+        }
+    )
+    page3 = _mock_http_response({"collections": [_make_collection("c", "Gamma")]})
+    state = _make_state(_make_snapshot([backend]))
+    with _patch_client([bad, page1, page2, page3]) as client:
+        _search_ogcapi_layers_impl(state=state, tool_call_id="x", query="zzz")
+    urls = [c.args[1] for c in client.stream.call_args_list]
+    assert parse_qs(urlsplit(urls[2]).query)["api_key"] == ["abc"]  # same-origin next
+    assert "api_key" not in urls[3]  # cross-origin next

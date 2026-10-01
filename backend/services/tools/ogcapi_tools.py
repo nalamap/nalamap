@@ -50,6 +50,8 @@ _ITEMS_LIMIT = 1000  # max features requested per layer when displaying on the m
 
 _MAX_PAGES = 10  # cap on followed pagination links per backend
 _MAX_REDIRECTS = 3
+_MAX_FIELD_CHARS = 300  # per title/description in the model-facing summary
+_MAX_SUMMARY_CHARS = 8000  # total cap for the model-facing summary
 _MAX_BODY_BYTES = 5 * 1024 * 1024  # cap on any single response body
 
 
@@ -166,6 +168,12 @@ def _safe_get(
 _URL_RE = re.compile(r"https?://[^\s'\"<>)]+")
 
 
+def _clip(text: Optional[str], limit: int) -> str:
+    """Collapse whitespace/newlines and truncate untrusted catalog text."""
+    flat = " ".join((text or "").split())
+    return flat if len(flat) <= limit else flat[: limit - 1] + "…"
+
+
 def _redact_urls(text: str) -> str:
     """Strip userinfo, query strings and fragments from any URL inside ``text``."""
 
@@ -230,17 +238,32 @@ def _resolve_link(base_url: str, href: str) -> str:
     """Resolve ``href`` against the parsed base URL (path joined, query preserved).
 
     Plain ``urljoin`` against the raw base would drop the base path (when it has no
-    trailing slash) and any query credentials.  Absolute hrefs are returned as-is;
-    relative ones are resolved under the base path and, being same-origin, inherit
-    the base query parameters (e.g. an api key) unless they set their own.
+    trailing slash) and any query credentials.  Absolute, scheme-relative (``//host``)
+    and relative hrefs are all resolved with ``urljoin``; the base query parameters
+    (e.g. an api key) are inherited only when the *resolved* origin (scheme, host,
+    port) equals the base origin, never cross-origin.
     """
-    if urlsplit(href).scheme:
-        return href
     base = urlsplit(base_url.strip())
     anchor = urlunsplit(base._replace(path=base.path.rstrip("/") + "/", query="", fragment=""))
-    resolved = urljoin(anchor, href)
-    base_query = dict(parse_qsl(base.query, keep_blank_values=True))
-    return _merge_query(resolved, base_query) if base_query else resolved
+    return _inherit_base_query(base_url, urljoin(anchor, href))
+
+
+def _origin(url: str) -> Tuple[str, str, int]:
+    parts = urlsplit(url.strip())
+    scheme = parts.scheme.lower()
+    try:
+        port = parts.port or {"http": 80, "https": 443}.get(scheme, 0)
+    except ValueError:
+        port = -1
+    return scheme, (parts.hostname or "").lower(), port
+
+
+def _inherit_base_query(base_url: str, resolved: str) -> str:
+    """Copy the base URL's query params onto ``resolved`` iff it is same-origin."""
+    base_query = dict(parse_qsl(urlsplit(base_url.strip()).query, keep_blank_values=True))
+    if base_query and _origin(resolved) == _origin(base_url):
+        return _merge_query(resolved, base_query)
+    return resolved
 
 
 def _merge_query(url: str, defaults: Dict[str, str]) -> str:
@@ -412,7 +435,8 @@ def _search_backend(
                         None,
                     )
                     if next_href:
-                        url, page_params = urljoin(url, next_href), None
+                        url = _inherit_base_query(backend.url, urljoin(url, next_href))
+                        page_params = None
                     elif cols and fetched < (data.get("numberMatched") or 0):
                         url = _join_path(backend.url, "collections")
                         page_params = {**params, "offset": fetched}
@@ -554,11 +578,20 @@ def _search_ogcapi_layers_impl(
             msg += f" (some backends unreachable: {', '.join(errors)})"
         return ToolMessage(content=msg + ".", tool_call_id=tool_call_id)
 
-    summary_lines = [f'Found {len(all_results)} collection(s) matching "{query}":']
-    for obj in all_results:
-        summary_lines.append(f"- **{obj.title}**: {obj.description or '(no description)'}")
+    summary_lines = [f'Found {len(all_results)} collection(s) matching "{_clip(query, 200)}":']
+    used = len(summary_lines[0])
+    for i, obj in enumerate(all_results):
+        line = (
+            f"- **{_clip(obj.title, _MAX_FIELD_CHARS)}**: "
+            f"{_clip(obj.description, _MAX_FIELD_CHARS) or '(no description)'}"
+        )
+        if used + len(line) > _MAX_SUMMARY_CHARS:
+            summary_lines.append(f"... and {len(all_results) - i} more (see result cards)")
+            break
+        summary_lines.append(line)
+        used += len(line) + 1
     if errors:
-        summary_lines.append(f"\n⚠️ Could not reach: {', '.join(errors)}")
+        summary_lines.append(f"\n⚠️ Could not reach: {_clip(', '.join(errors), 500)}")
 
     return Command(
         update={
