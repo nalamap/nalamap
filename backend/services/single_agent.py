@@ -53,6 +53,11 @@ class _ParallelToolCallsMiddleware(AgentMiddleware):
         self._parallel_tool_calls = parallel_tool_calls
 
     def _override(self, request):
+        # OpenAI rejects `parallel_tool_calls` when no tools are bound
+        # (HTTP 400), and the pre-1.x bind_tools(...) path never sent it
+        # without tools — so only set it when the request carries tools.
+        if not request.tools:
+            return request
         return request.override(
             model_settings={
                 **(request.model_settings or {}),
