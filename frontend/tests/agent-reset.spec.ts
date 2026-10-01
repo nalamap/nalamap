@@ -337,4 +337,23 @@ test.describe("AgentInterface reset button", () => {
     );
     expect(count).toBe(0);
   });
+
+  test("reset asks the backend to drop the conversation state", async ({ page }) => {
+    await page.waitForFunction(
+      () => !!(window as any).useSettingsStore?.getState().session_id,
+    );
+    const sid = await page.evaluate(
+      () => (window as any).useSettingsStore.getState().session_id,
+    );
+    const resetReq = page.waitForRequest(
+      (r) => r.url().includes("/chat/reset") && r.method() === "POST",
+    );
+    await page.route("**/chat/reset*", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: "{}" }),
+    );
+    page.on("dialog", (dialog) => dialog.accept());
+    await page.getByTestId("agent-reset-button").click();
+    const req = await resetReq;
+    expect(new URL(req.url()).searchParams.get("session_id")).toBe(sid);
+  });
 });

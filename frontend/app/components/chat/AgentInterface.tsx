@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useNaLaMapAgent } from "../../hooks/useNaLaMapAgent";
+import { useSettingsStore } from "../../stores/settingsStore";
 import { useLayerStore } from "../../stores/layerStore";
 import { useChatInterfaceStore } from "../../stores/chatInterfaceStore";
 import type { GeoDataObject } from "../../models/geodatamodel";
@@ -131,7 +132,25 @@ export default function AgentInterface() {
     store.clearExecutionPlan();
     store.setInput("");
     useLayerStore.getState().resetLayers();
-  }, [isStreaming, cancelRequest, setExpandedToolMessage]);
+
+    // Drop server-side conversation state (summary) so old context cannot
+    // influence answers after the reset. Best effort.
+    const sessionId = useSettingsStore.getState().session_id;
+    if (sessionId) {
+      try {
+        await fetch(
+          `${API_BASE_URL}/chat/reset?session_id=${encodeURIComponent(sessionId)}`,
+          {
+            method: "POST",
+            credentials: "include",
+            signal: AbortSignal.timeout(3000),
+          },
+        );
+      } catch {
+        // ignore: UI state is already cleared
+      }
+    }
+  }, [isStreaming, cancelRequest, setExpandedToolMessage, API_BASE_URL]);
 
   return (
     <div className="h-full w-full bg-primary-50 p-4 flex flex-col overflow-hidden relative border-l border-primary-300">
