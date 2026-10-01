@@ -65,24 +65,24 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONOPTIMIZE=1
 
-# Runtime system libraries only (no compilers):
-#   libpq5           → psycopg runtime
-#   libgeos-dev      → shapely runtime
-#   libgdal*         → pyogrio / GDAL runtime
-# Note: The exact libgdal package name varies by Debian version.
+# No extra system libraries: every native dependency ships its own copy in the
+# manylinux wheels (pyogrio.libs -> GDAL, shapely.libs -> GEOS, pyproj.libs ->
+# PROJ, psycopg-binary -> libpq). The previously installed libgdal/libgeos/
+# libpq5 were never loaded, but dragged in mariadb, poppler, netcdf, hdf5 ...
+# and ~230 OS-level findings. `apt-get upgrade` still patches the base layer.
 RUN apt-get update \
  && apt-get upgrade -y \
- && apt-get install -y --no-install-recommends \
-      libpq5 \
-      libgeos-dev \
- && apt-get install -y --no-install-recommends libgdal36t64 \
-    || apt-get install -y --no-install-recommends $(apt-cache search --names-only '^libgdal[0-9]' | head -1 | cut -d' ' -f1) \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 # Copy the pre-built virtualenv from the build stage
 COPY --from=build /app/.venv .venv
+
+# pip is not needed at runtime; its vendored setuptools/urllib3/msgpack carry
+# CVEs that cannot be updated independently of pip.
+RUN python -m pip uninstall -y pip setuptools wheel >/dev/null 2>&1 || true \
+ && rm -rf /usr/local/lib/python3.13/site-packages/pip* /usr/local/lib/python3.13/site-packages/setuptools* /usr/local/lib/python3.13/site-packages/pkg_resources* /app/.venv/lib/python3.13/site-packages/pip* /app/.venv/bin/pip*
 
 # Put the venv's Python on PATH
 ENV PATH="/app/.venv/bin:$PATH"
