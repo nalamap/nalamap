@@ -2,7 +2,10 @@
 # # syntax=docker/dockerfile:1
 
 ### 1) deps stage: install and cache all dependencies ###
-FROM node:25-slim AS deps
+FROM node:24-alpine AS deps
+
+# glibc compatibility for some native modules / prebuilt binaries
+RUN apk add --no-cache libc6-compat
 
 WORKDIR /app
 
@@ -19,17 +22,12 @@ RUN \
 
 
 ### 2) builder stage: bring down the build deps & build the app ###
-FROM node:25-slim AS builder
-
-WORKDIR /app
+FROM node:24-alpine AS builder
 
 # Install only what’s needed to compile any native modules (e.g. SWC, image libs, etc.)
-RUN apt-get update \
- && apt-get install -y --no-install-recommends \
-      python3 \
-      build-essential \
-      libc6-dev \
- && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache libc6-compat python3 make g++
+
+WORKDIR /app
 
 # Copy node_modules from deps
 COPY --from=deps /app/node_modules ./node_modules
@@ -47,7 +45,7 @@ RUN \
 
 
 ### 3) runner stage: production image ###
-FROM node:25-slim AS runner
+FROM node:24-alpine AS runner
 
 WORKDIR /app
 ENV NODE_ENV=production \
@@ -55,8 +53,16 @@ ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     NODE_OPTIONS="--max-old-space-size=512"
 
+# Patch OS packages to their latest fixed version
+RUN apk upgrade --no-cache
+
+# The standalone server only needs `node`. Remove the base image's bundled
+# npm/npx/corepack (and the tar version it vendors, CVE-2026-59873) —
+# nothing in this stage or entrypoint.sh invokes them.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
+
 # Create a non-root user
-RUN groupadd --system nodejs && useradd --system --gid nodejs nextjs
+RUN addgroup --system nodejs && adduser --system --ingroup nodejs nextjs
 
 # Copy built output from builder
 COPY --from=builder /app/public ./public

@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 import core.config as core_config
 from core.config import MAX_FILE_SIZE
-from services.storage.file_management import store_file_stream
+from services.storage.file_management import get_blob_service_client, store_file_stream
 
 
 # Helper function for formatting file size
@@ -115,14 +115,12 @@ async def get_upload_meta(file_id: str) -> Dict[str, str]:
     Supports both local storage and Azure Blob Storage backends.
     """
     # Check if we're using Azure Blob Storage
-    if core_config.USE_AZURE and core_config.AZ_CONN:
+    if core_config.USE_AZURE and (core_config.AZ_CONN or core_config.AZURE_STORAGE_ACCOUNT_URL):
         try:
-            from azure.storage.blob import BlobServiceClient
-
             # Sanitize filename to prevent path traversal
             safe_file_id = file_id.split("/")[-1]  # Get just the filename
 
-            blob_svc = BlobServiceClient.from_connection_string(core_config.AZ_CONN)
+            blob_svc = get_blob_service_client()
             container_client = blob_svc.get_container_client(core_config.AZ_CONTAINER)
             blob_client = container_client.get_blob_client(safe_file_id)
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { Loader2 } from "lucide-react";
+import { LoaderCircle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { hashString } from "../../utils/hashUtil";
 
@@ -68,8 +68,8 @@ export default function ChatMessages({
               <div key={msgKey} className="flex justify-start">
                 <div className="max-w px-4 py-2 rounded-lg bg-primary-100 rounded-tl-none border border-primary-300">
                   <div className="text-sm font-medium text-primary-900">
-                    Using tool '{call.function.name}' with arguments '{" "}
-                    {call.function.arguments}'
+                    Using tool &apos;{call.function.name}&apos; with arguments &apos;{" "}
+                    {call.function.arguments}&apos;
                   </div>
 
                   <button
@@ -130,7 +130,7 @@ export default function ChatMessages({
         {loading && (
           <div className="flex justify-start mb-2">
             <div className="flex items-center space-x-2 max-w-[80%] px-4 py-2 rounded-lg bg-neutral-50 rounded-tl-none border border-primary-200">
-              <Loader2 size={16} className="animate-spin text-second-primary-600" />
+              <LoaderCircle size={16} className="animate-spin text-second-primary-600" />
               <span className="text-sm text-primary-700">
                 NaLaMap Agent is working on your request...
               </span>
