@@ -216,6 +216,17 @@ def _cleanup_expired_sessions():
         logger.info(f"Cleaned up {len(expired_sessions)} expired conversation sessions")
 
 
+def clear_conversation_manager(session_id: str) -> bool:
+    """Drop the conversation manager (and its summary) for a session.
+
+    Returns True if a manager existed and was removed.
+    """
+    removed = conversation_managers.pop(session_id, None) is not None
+    if removed:
+        logger.info(f"Cleared conversation manager for session: {session_id}")
+    return removed
+
+
 def get_conversation_manager(session_id: str, message_window_size: int) -> ConversationManager:
     """Get or create conversation manager for a session.
 

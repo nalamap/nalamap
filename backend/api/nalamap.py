@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import time
 import uuid
 from typing import Any, Dict, List, Optional
 
@@ -28,7 +29,28 @@ logger = logging.getLogger(__name__)
 
 # Global dict to track cancellation requests by session_id
 _cancellation_flags: Dict[str, bool] = {}
+_cancellation_times: Dict[str, float] = {}
 _cancellation_lock = asyncio.Lock()
+
+# A cancel may arrive before its stream registers (or after it ended); such flags
+# are never cleared by a stream, so they expire and the table is size-bounded.
+CANCELLATION_FLAG_TTL = 300.0  # seconds
+CANCELLATION_FLAG_MAX = 1000
+
+
+def _prune_cancellation_flags(now: Optional[float] = None) -> None:
+    """Drop expired flags and cap the table size. Caller must hold the lock."""
+    now = time.monotonic() if now is None else now
+    for key in [k for k, t in _cancellation_times.items() if now - t > CANCELLATION_FLAG_TTL]:
+        _cancellation_flags.pop(key, None)
+        _cancellation_times.pop(key, None)
+    for key in list(_cancellation_times):
+        if key not in _cancellation_flags:
+            del _cancellation_times[key]
+    while len(_cancellation_flags) > CANCELLATION_FLAG_MAX:
+        oldest = next(iter(_cancellation_flags))
+        _cancellation_flags.pop(oldest, None)
+        _cancellation_times.pop(oldest, None)
 
 
 def make_json_serializable(obj: Any) -> Any:
@@ -974,7 +996,12 @@ async def cancel_chat_request(session_id: str):
         Status message indicating cancellation was requested
     """
     async with _cancellation_lock:
+        _prune_cancellation_flags()
+        # Set even if the stream has not registered yet (cancel overtook the
+        # stream POST): the stream sees the flag on its first event. Unclaimed
+        # flags expire via the TTL above.
         _cancellation_flags[session_id] = True
+        _cancellation_times[session_id] = time.monotonic()
         logger.info(f"Cancellation requested for stream: {session_id}")
 
     return {"status": "cancellation_requested", "session_id": session_id}
@@ -983,13 +1010,32 @@ async def cancel_chat_request(session_id: str):
 async def is_cancelled(session_id: str) -> bool:
     """Check if cancellation has been requested for a session."""
     async with _cancellation_lock:
-        return _cancellation_flags.get(session_id, False)
+        flag = _cancellation_flags.get(session_id, False)
+        ts = _cancellation_times.get(session_id)
+        if flag and ts is not None and time.monotonic() - ts > CANCELLATION_FLAG_TTL:
+            _cancellation_flags.pop(session_id, None)
+            _cancellation_times.pop(session_id, None)
+            return False
+        return flag
 
 
 async def clear_cancellation(session_id: str):
     """Clear cancellation flag for a session after completion."""
     async with _cancellation_lock:
         _cancellation_flags.pop(session_id, None)
+        _cancellation_times.pop(session_id, None)
+
+
+@router.post("/chat/reset", tags=["nalamap"])
+async def reset_chat_conversation(session_id: str):
+    """Drop server-side conversation state (summary) for a session.
+
+    Called by the Map Assistant reset so old summaries cannot influence later answers.
+    """
+    from services.single_agent import clear_conversation_manager
+
+    cleared = clear_conversation_manager(session_id)
+    return {"status": "reset", "session_id": session_id, "cleared": cleared}
 
 
 @router.get("/metrics/recent", tags=["nalamap"])

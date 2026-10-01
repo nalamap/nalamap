@@ -15,6 +15,7 @@ NaLaMap is an open-source platform that helps users find and analyze geospatial 
 * Automated Geoprocessing using natural language (e.g buffer, centroids, intersections).
 * Create and share GIS-AI-Applications for people without geodata expertise based on custom use-cases, processing logic and data-sources.
 * Flexible Extension Possibilities of Toolbox e.g. for including document or web-search
+* **Application Reset**: The trash button in the Map Assistant header (with a confirmation prompt) clears the chat history, search results, plan/tool progress and all map layers, and cancels any in-flight streaming request (backend is notified via `/chat/cancel`, then the stream is aborted) so late results cannot repopulate the cleared state. Unlike the sidebar "Reset App" button (which also resets color settings, wipes localStorage and reloads the page), it only resets chat and map state in place: settings and stored preferences are kept and the page is not reloaded.
 * **Color Customization**: Customize the application's color scheme to match corporate branding or personal preferences. See [Color Customization Guide](docs/color-customization.md).
 
 

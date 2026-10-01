@@ -1,6 +1,7 @@
 // hooks/useNaLaMap.ts
 "use client";
 
+import { useRef } from "react";
 import {
   ChatMessage,
   NaLaMapRequest,
@@ -85,8 +86,14 @@ export function useNaLaMapAgent(apiUrl: string) {
   const chatInterfaceStore = useChatInterfaceStore();
   
   // AbortController for cancelling ongoing streaming requests
-  let abortController: AbortController | null = null;
-  let currentSessionId: string | null = null;
+  // Held in refs so they survive re-renders (a plain local would be reset to
+  // null on every render, making cancelRequest a no-op for in-flight streams).
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const currentSessionIdRef = useRef<string | null>(null);
+  // True once /chat/stream has actually been requested (backend knows the id)
+  const requestStartedRef = useRef(false);
+  // Stream id of a request being cancelled; its remaining SSE events are dropped
+  const cancelledStreamIdRef = useRef<string | null>(null);
 
   const appendHumanMessage = (query: string) => {
     /* // Don't normalize for now to keep all arguments
@@ -280,10 +287,6 @@ export function useNaLaMapAgent(apiUrl: string) {
     chatInterfaceStore.clearExecutionPlan();
     chatInterfaceStore.setGeoDataList([]);
 
-    await useSettingsStore.getState().initializeIfNeeded();
-    const rawSettings = useSettingsStore.getState().getSettings();
-    const settingsObj = normalizeSettings(rawSettings);
-    
     // Two types of IDs:
     // 1. User session_id (persistent): from settings, used for GeoServer layers, conversation history
     // 2. Request stream_id (ephemeral): unique per request, used for cancellation tracking
@@ -294,10 +297,26 @@ export function useNaLaMapAgent(apiUrl: string) {
     // Generate unique stream_id for this specific request (for cancellation)
     const randomSuffix = window.crypto.getRandomValues(new Uint32Array(1))[0].toString(36).substr(2, 9);
     const streamId = `stream_${Date.now()}_${randomSuffix}`;
-    currentSessionId = streamId; // Used for cancellation
+    currentSessionIdRef.current = streamId; // Used for cancellation
+    requestStartedRef.current = false;
+    cancelledStreamIdRef.current = null;
     
     // Create new AbortController for this request
-    abortController = new AbortController();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    await useSettingsStore.getState().initializeIfNeeded();
+    // Reset (cancelRequest) may have run while we awaited settings: never start.
+    if (controller.signal.aborted || cancelledStreamIdRef.current === streamId) {
+      Logger.log("Stream cancelled before request started");
+      return;
+    }
+    const rawSettings = useSettingsStore.getState().getSettings();
+    const settingsObj = normalizeSettings(rawSettings);
+
+
+    const isCancelled = () =>
+      controller.signal.aborted || cancelledStreamIdRef.current === streamId;
 
     try {
       const selectedLayers = useLayerStore
@@ -321,6 +340,7 @@ export function useNaLaMapAgent(apiUrl: string) {
       chatInterfaceStore.setInput("");
       Logger.log("Streaming payload:", payload);
 
+      requestStartedRef.current = true;
       const response = await fetch(`${apiUrl}/chat/stream`, {
         method: "POST",
         headers: {
@@ -329,7 +349,7 @@ export function useNaLaMapAgent(apiUrl: string) {
         },
         credentials: "include",
         body: JSON.stringify(payload),
-        signal: abortController.signal, // Add abort signal for cancellation
+        signal: controller.signal, // Add abort signal for cancellation
       });
 
       if (!response.ok) {
@@ -347,6 +367,11 @@ export function useNaLaMapAgent(apiUrl: string) {
       while (true) {
         const { done, value } = await reader.read();
 
+        if (isCancelled()) {
+          Logger.log("Stream cancelled; discarding remaining events");
+          break;
+        }
+
         if (done) {
           Logger.log("Stream complete");
           break;
@@ -360,6 +385,7 @@ export function useNaLaMapAgent(apiUrl: string) {
         buffer = messages.pop() || ""; // Keep incomplete message in buffer
 
         for (const message of messages) {
+          if (isCancelled()) break;
           if (!message.trim()) continue;
 
           const lines = message.split("\n");
@@ -529,6 +555,7 @@ export function useNaLaMapAgent(apiUrl: string) {
    * Cancel the currently running streaming request
    */
   async function cancelRequest() {
+    const currentSessionId = currentSessionIdRef.current;
     if (!currentSessionId) {
       Logger.warn("No active session to cancel");
       return;
@@ -536,26 +563,36 @@ export function useNaLaMapAgent(apiUrl: string) {
     
     Logger.log(`Cancelling request for session: ${currentSessionId}`);
     
-    // Abort the fetch request
-    if (abortController) {
-      abortController.abort();
-    }
-    
-    // Notify the backend to stop processing
+    const controller = abortControllerRef.current;
+    const started = requestStartedRef.current;
+    // Drop any further events from this stream while the cancel POST is pending
+    cancelledStreamIdRef.current = currentSessionId;
+
+    // Notify the backend FIRST and wait for the ack. Aborting the SSE fetch
+    // before this would let the backend's stream cleanup run before the cancel
+    // POST arrives, which would then re-create a flag nobody clears.
+    // (skipped if /chat/stream was never requested: backend has no such stream)
     try {
-      await fetch(`${apiUrl}/chat/cancel?session_id=${currentSessionId}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      if (started) await fetch(
+        `${apiUrl}/chat/cancel?session_id=${encodeURIComponent(currentSessionId)}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          signal: AbortSignal.timeout(3000),
         },
-        credentials: "include",
-      });
+      );
       Logger.log("Backend notified of cancellation");
     } catch (error) {
       Logger.error("Failed to notify backend of cancellation:", error);
-      // Continue anyway - the abort should have stopped the stream
+      // Continue anyway - the local abort below still stops the stream
     }
-    
+
+    // Then abort the local fetch
+    controller?.abort();
+
     // Clear state
     chatInterfaceStore.setLoading(false);
     chatInterfaceStore.setIsStreaming(false);
@@ -564,8 +601,10 @@ export function useNaLaMapAgent(apiUrl: string) {
     chatInterfaceStore.clearExecutionPlan();
     
     // Reset references
-    abortController = null;
-    currentSessionId = null;
+    if (currentSessionIdRef.current === currentSessionId) {
+      abortControllerRef.current = null;
+      currentSessionIdRef.current = null;
+    }
   }
 
   return {

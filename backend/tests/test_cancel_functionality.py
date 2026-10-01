@@ -5,6 +5,7 @@ Tests the ability to cancel ongoing streaming requests via the /chat/cancel endp
 """
 
 import asyncio
+import time
 
 import pytest
 from fastapi.testclient import TestClient
@@ -539,3 +540,68 @@ def test_cancel_endpoint_logs_properly(client, caplog):
     # Check that logging occurred
     assert any("Cancellation requested" in record.message for record in caplog.records)
     assert any(session_id in record.message for record in caplog.records)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_cancel_before_stream_registers_still_takes_effect():
+    """Early cancel (before the stream exists) is honoured and cleared by the stream."""
+    from api.nalamap import cancel_chat_request
+
+    sid = "early_cancel_stream"
+    await clear_cancellation(sid)
+    await cancel_chat_request(sid)
+    assert await is_cancelled(sid) is True
+    await clear_cancellation(sid)
+    assert await is_cancelled(sid) is False
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_stale_cancellation_flags_expire():
+    import api.nalamap as nm
+
+    sid = "stale_flag_stream"
+    nm._cancellation_flags[sid] = True
+    nm._cancellation_times[sid] = time.monotonic() - nm.CANCELLATION_FLAG_TTL - 1
+    assert await is_cancelled(sid) is False
+    assert sid not in nm._cancellation_flags
+
+    nm._cancellation_flags["stale2"] = True
+    nm._cancellation_times["stale2"] = time.monotonic() - nm.CANCELLATION_FLAG_TTL - 1
+    await nm.cancel_chat_request("fresh")  # prunes on write
+    assert "stale2" not in nm._cancellation_flags
+    await clear_cancellation("fresh")
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_cancellation_flags_are_size_bounded(monkeypatch):
+    import api.nalamap as nm
+
+    monkeypatch.setattr(nm, "CANCELLATION_FLAG_MAX", 5)
+    nm._cancellation_flags.clear()
+    nm._cancellation_times.clear()
+    for i in range(20):
+        await nm.cancel_chat_request(f"bound_{i}")
+    assert len(nm._cancellation_flags) <= 6  # prune runs before insert
+    assert "bound_19" in nm._cancellation_flags
+    nm._cancellation_flags.clear()
+    nm._cancellation_times.clear()
+
+
+@pytest.mark.unit
+def test_chat_reset_clears_conversation_summary(client):
+    from services.single_agent import conversation_managers, get_conversation_manager
+
+    sid = "reset_summary_session"
+    get_conversation_manager(sid, 10).current_summary = "old summary"
+    assert sid in conversation_managers
+    res = client.post(f"/api/chat/reset?session_id={sid}")
+    assert res.status_code == 200
+    assert res.json()["cleared"] is True
+    assert sid not in conversation_managers
+    # fresh manager has no summary
+    assert get_conversation_manager(sid, 10).current_summary in (None, "")
+    conversation_managers.pop(sid, None)
+    assert client.post(f"/api/chat/reset?session_id={sid}").json()["cleared"] is False
