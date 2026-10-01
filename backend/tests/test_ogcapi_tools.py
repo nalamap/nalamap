@@ -537,7 +537,10 @@ def test_fallback_uses_offset_when_no_next_link():
     with _patch_client([bad, page1, page2]) as client:
         result = _search_ogcapi_layers_impl(state=state, tool_call_id="x", query="rivers")
     assert [g.name for g in result.update["geodata_last_results"]] == ["rivers"]
-    assert client.stream.call_args_list[-1].kwargs["params"]["offset"] == 1
+    from urllib.parse import parse_qs, urlsplit
+
+    last_url = client.stream.call_args_list[-1].args[1]
+    assert parse_qs(urlsplit(last_url).query)["offset"] == ["1"]
 
 
 @pytest.mark.unit
@@ -711,3 +714,38 @@ def test_bbox_2d_unchanged():
     col = _make_collection("c", "C", bbox=[-10.0, -20.0, 30.0, 40.0])
     wkt = _collection_to_geodata(col, MOCK_BACKEND).bounding_box
     assert wkt == "POLYGON((30.0 -20.0, 30.0 40.0, -10.0 40.0, -10.0 -20.0, 30.0 -20.0))"
+
+
+@pytest.mark.unit
+def test_results_published_to_geodata_results():
+    cols = [_make_collection("rivers", "Rivers")]
+    resp = _mock_http_response({"collections": cols})
+    state = _make_state(_make_snapshot([MOCK_BACKEND]))
+    with _patch_client([resp, resp]):
+        result = _search_ogcapi_layers_impl(state=state, tool_call_id="x", query="rivers")
+    assert result.update["geodata_results"] == result.update["geodata_last_results"]
+    assert len(result.update["geodata_results"]) == 1
+
+
+@pytest.mark.unit
+def test_base_url_query_string_preserved():
+    from urllib.parse import parse_qs, urlsplit
+
+    backend = OGCAPIBackend(url="https://ogcapi.example.com/v1?api_key=secret", name="K")
+    ok = _mock_http_response({"collections": [_make_collection("rivers", "Rivers")]})
+    state = _make_state(_make_snapshot([backend]))
+    with _patch_client([ok, ok]) as client:
+        _search_ogcapi_layers_impl(state=state, tool_call_id="x", query="rivers")
+    for call in client.stream.call_args_list:
+        parts = urlsplit(call.args[1])
+        assert parts.path == "/v1/collections"
+        q = parse_qs(parts.query)
+        assert q["api_key"] == ["secret"] and "limit" in q
+
+
+@pytest.mark.unit
+def test_constructed_items_url_preserves_base_query():
+    col = _make_collection("rivers", "Rivers")
+    url = _pick_access_url(col, "https://ogcapi.example.com/v1?api_key=secret")
+    assert url.startswith("https://ogcapi.example.com/v1/collections/rivers/items?")
+    assert "api_key=secret" in url and "f=json" in url

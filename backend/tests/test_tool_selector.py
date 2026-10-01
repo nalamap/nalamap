@@ -469,3 +469,26 @@ async def test_module_level_metrics_storage(mock_tools):
     assert stored_metrics is not None
     assert stored_metrics["total_selections"] == 1
     assert stored_metrics["avg_tools_selected"] > 0
+
+
+@pytest.mark.asyncio
+async def test_ogcapi_tool_selected_for_ogc_query():
+    """search_ogcapi_layers has metadata and is chosen for OGC API queries."""
+    from services.default_agent_settings import DEFAULT_AVAILABLE_TOOLS
+
+    assert "search_ogcapi_layers" in DEFAULT_AVAILABLE_TOOLS
+    assert "search_ogcapi_layers" in TOOL_METADATA
+
+    embeddings = AsyncMock()
+    embeddings.aembed_query = AsyncMock(return_value=[1.0, 0.0])
+
+    async def embed_docs(texts):
+        return [[1.0, 0.0] if "OGC API" in t else [0.0, 1.0] for t in texts]
+
+    embeddings.aembed_documents = embed_docs
+    tools = {n: MockTool(name=n) for n in ["search_ogcapi_layers", "geoprocess_tool"]}
+    selector = DynamicToolSelector(
+        embeddings=embeddings, strategy=SelectionStrategy.SEMANTIC, similarity_threshold=0.5
+    )
+    selected = await selector.select_tools("find layers on the OGC API server", tools)
+    assert [t.name for t in selected] == ["search_ogcapi_layers"]

@@ -82,6 +82,14 @@ TOOL_METADATA = {
         ),
         always_include=True,  # Core tool
     ),
+    "search_ogcapi_layers": ToolMetadata(
+        name="search_ogcapi_layers",
+        category="metadata",
+        description=(
+            "Search configured OGC API servers (OGC API Features and Tiles) for layers "
+            "and collections. Find datasets on an OGC API endpoint and add them to the map."
+        ),
+    ),
     # Geoprocessing & Analysis
     "geoprocess_tool": ToolMetadata(
         name="geoprocess_tool",

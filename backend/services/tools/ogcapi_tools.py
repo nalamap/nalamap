@@ -139,7 +139,10 @@ def _safe_get(
     """
     for _ in range(_MAX_REDIRECTS + 1):
         _validate_outbound_url(url)
-        with client.stream("GET", url, params=params, follow_redirects=False) as resp:
+        # Merge params into the URL ourselves: httpx's ``params=`` would replace any
+        # query string already present (e.g. an api_key on the configured base URL).
+        request_url = _with_query_params(url, params) if params else url
+        with client.stream("GET", request_url, follow_redirects=False) as resp:
             if resp.status_code in (301, 302, 303, 307, 308):
                 location = resp.headers.get("location")
                 if location:
@@ -180,6 +183,13 @@ def _make_client(allow_insecure: bool) -> httpx.Client:
     return httpx.Client(transport=transport, timeout=_DEFAULT_TIMEOUT)
 
 
+def _join_path(base_url: str, *segments: str) -> str:
+    """Append path segments to ``base_url`` while preserving its query string."""
+    parts = urlsplit(base_url.strip())
+    path = "/".join([parts.path.rstrip("/"), *[seg.strip("/") for seg in segments]])
+    return urlunsplit(parts._replace(path=path, fragment=""))
+
+
 def _with_query_params(url: str, params: Dict[str, Any]) -> str:
     """Return ``url`` with ``params`` set (overriding existing keys of the same name)."""
     parts = urlsplit(url)
@@ -209,7 +219,7 @@ def _pick_access_url(collection: Dict[str, Any], base_url: str) -> str:
         col_id = collection.get("id", "")
         if not col_id:
             return base_url
-        chosen = f"{base_url.rstrip('/')}/collections/{col_id}/items"
+        chosen = _join_path(base_url, "collections", col_id, "items")
     chosen = urljoin(base_url.rstrip("/") + "/", chosen)
     return _with_query_params(chosen, {"f": "json", "limit": _ITEMS_LIMIT})
 
@@ -282,14 +292,12 @@ def _search_backend(
     Tries server-side ``?q=`` search first; falls back to client-side filtering
     if the server returns HTTP 400 or does not support the parameter.
     """
-    base = backend.url.rstrip("/")
-
     try:
         with _make_client(backend.allow_insecure) as client:
 
             def _pages(params: Dict[str, Any]) -> Iterator[List[Dict[str, Any]]]:
                 """Yield collection pages, following rel=next links (or offset)."""
-                url = f"{base}/collections"
+                url = _join_path(backend.url, "collections")
                 page_params: Optional[Dict[str, Any]] = params
                 fetched = 0
                 for _ in range(_MAX_PAGES):
@@ -314,7 +322,7 @@ def _search_backend(
                     if next_href:
                         url, page_params = urljoin(url, next_href), None
                     elif cols and fetched < (data.get("numberMatched") or 0):
-                        url = f"{base}/collections"
+                        url = _join_path(backend.url, "collections")
                         page_params = {**params, "offset": fetched}
                     else:
                         return
@@ -472,6 +480,7 @@ def _search_ogcapi_layers_impl(
     return Command(
         update={
             "geodata_last_results": all_results,
+            "geodata_results": all_results,
             "messages": [
                 ToolMessage(
                     content="\n".join(summary_lines),

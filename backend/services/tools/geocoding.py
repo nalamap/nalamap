@@ -832,18 +832,34 @@ def geocode_address_via_overpass(
             }
         )
 
-    # Group by geometry type and build collections
+    # Group by actual geometry type (ways/relations can be lines or polygons)
     location_label = location.display_name if location else "global"
-    collection_obj = create_feature_collection_geodata(
-        features,
-        "Points",
-        query_description,
-        location_label,
-        f"addr:street={street}",
-        city_label or street,
-    )
+    groups: Dict[str, List[Dict[str, Any]]] = {"Points": [], "Lines": [], "Areas": []}
+    for feat in features:
+        gtype = (feat.get("geometry") or {}).get("type", "")
+        if "Polygon" in gtype:
+            groups["Areas"].append(feat)
+        elif "LineString" in gtype:
+            groups["Lines"].append(feat)
+        else:
+            groups["Points"].append(feat)
 
-    if not collection_obj:
+    collection_objs: List[GeoDataObject] = []
+    for collection_type, group_features in groups.items():
+        if not group_features:
+            continue
+        obj = create_feature_collection_geodata(
+            group_features,
+            collection_type,
+            query_description,
+            location_label,
+            f"addr:street={street}",
+            city_label or street,
+        )
+        if obj:
+            collection_objs.append(obj)
+
+    if not collection_objs:
         return Command(
             update={
                 "messages": [
@@ -856,19 +872,20 @@ def geocode_address_via_overpass(
             }
         )
 
-    collection_obj.processing_metadata = ProcessingMetadata(
-        operation="overpass_address_query",
-        crs_used="EPSG:4326",
-        crs_name="WGS 84",
-        auto_selected=True,
-        query_intent=query_description,
-        query_location=city_label or street,
-        resolution_method="address_tags",
-        resolution_detail="OSM addr:* tag lookup",
-        osm_tags_used=[f"{k}={v}" for k, v in address_components.items()],
-        osm_tags_excluded=[],
-        overpass_query=overpass_query,
-    )
+    for collection_obj in collection_objs:
+        collection_obj.processing_metadata = ProcessingMetadata(
+            operation="overpass_address_query",
+            crs_used="EPSG:4326",
+            crs_name="WGS 84",
+            auto_selected=True,
+            query_intent=query_description,
+            query_location=city_label or street,
+            resolution_method="address_tags",
+            resolution_detail="OSM addr:* tag lookup",
+            osm_tags_used=[f"{k}={v}" for k, v in address_components.items()],
+            osm_tags_excluded=[],
+            overpass_query=overpass_query,
+        )
 
     return Command(
         update={
@@ -882,8 +899,8 @@ def geocode_address_via_overpass(
                     tool_call_id=tool_call_id,
                 ),
             ],
-            "geodata_last_results": [collection_obj],
-            "geodata_results": [collection_obj],
+            "geodata_last_results": collection_objs,
+            "geodata_results": collection_objs,
         }
     )
 
