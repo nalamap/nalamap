@@ -72,7 +72,7 @@ The following model was created to give you a high level overview of how NaLaMap
 
 - **Git**  
 - **Python 3.10+**  
-- **Node.js 18+**  
+- **Node.js 20.19+ / 22.13+ / 24 (Node 24 LTS recommended)**  
 - **Docker & Docker Compose** (optional)  
 - **[Poetry](https://python-poetry.org/docs/)** (for backend)
 
@@ -239,7 +239,7 @@ docker-compose -f dev.docker-compose.yml up --build
 - **Uvicorn**: ASGI server for serving the FastAPI application
 
 ### Frontend
-- **Next.js 15**: React framework for building web applications
+- **Next.js 16**: React framework for building web applications
 - **React 19**: JavaScript library for building user interfaces
 - **Leaflet**: Open-source JavaScript library for interactive maps
 - **Tailwind CSS**: Utility-first CSS framework
@@ -302,7 +302,7 @@ npx playwright test --ui
 - Ensure `LLM_PROVIDER` matches your chosen provider (openai, azure, google, mistral, or deepseek)
 
 **Frontend fails to start:**
-- Ensure Node.js 18+ is installed: `node --version`
+- Ensure Node.js 20.19+ / 22.13+ / 24 (Node 24 LTS recommended) is installed: `node --version`
 - Clear npm cache: `npm cache clean --force`
 - Delete node_modules and reinstall: `rm -rf node_modules && npm i`
 
