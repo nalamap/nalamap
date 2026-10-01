@@ -166,4 +166,129 @@ test.describe("AgentInterface reset button", () => {
     expect(state.streaming).toBe(false);
     await expect(page.getByText("late answer")).toHaveCount(0);
   });
+
+  test("reset during slow settings init prevents the stream from starting", async ({
+    page,
+  }) => {
+    await page.waitForFunction(
+      () => !!(window as any).useChatInterfaceStore && !!(window as any).useSettingsStore,
+    );
+    await page.evaluate(() => {
+      const w = window as any;
+      w.__streamRequests = 0;
+      w.useSettingsStore.setState({
+        initializeIfNeeded: () => new Promise<void>((r) => setTimeout(r, 1500)),
+      });
+      const originalFetch = window.fetch;
+      window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url =
+          typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        if (url.includes("/chat/stream")) {
+          w.__streamRequests++;
+          return new Response("", { status: 200 });
+        }
+        return originalFetch(input, init);
+      };
+    });
+
+    const input = page.getByPlaceholder(
+      "Ask about maps, search for data, or request analysis...",
+    );
+    await input.fill("pending question");
+    await input.press("Enter");
+    await expect
+      .poll(() =>
+        page.evaluate(() => (window as any).useChatInterfaceStore.getState().isStreaming),
+      )
+      .toBe(true);
+
+    page.on("dialog", (dialog) => dialog.accept());
+    await page.getByTestId("agent-reset-button").click();
+
+    await page.waitForTimeout(2200);
+    const state = await page.evaluate(() => {
+      const w = window as any;
+      const s = w.useChatInterfaceStore.getState();
+      return { n: s.messages.length, streaming: s.isStreaming, reqs: w.__streamRequests };
+    });
+    expect(state.reqs).toBe(0);
+    expect(state.n).toBe(0);
+    expect(state.streaming).toBe(false);
+    await expect(page.getByText("pending question")).toHaveCount(0);
+  });
+
+  test("late result while the cancel POST is pending is discarded", async ({
+    page,
+  }) => {
+    await page.waitForFunction(() => !!(window as any).useChatInterfaceStore);
+    await page.evaluate(() => {
+      const w = window as any;
+      w.__cancelPosted = false;
+      const originalFetch = window.fetch;
+      window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url =
+          typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+        if (url.includes("/chat/stream")) {
+          const enc = new TextEncoder();
+          const stream = new ReadableStream({
+            start(controller) {
+              init?.signal?.addEventListener("abort", () =>
+                controller.error(new DOMException("Aborted", "AbortError")),
+              );
+              controller.enqueue(enc.encode('event: llm_token\ndata: {"token":"x"}\n\n'));
+              setTimeout(() => {
+                const data = {
+                  messages: [
+                    { type: "human", content: "late q" },
+                    { type: "ai", content: "late a" },
+                  ],
+                  geodata_results: [],
+                };
+                try {
+                  controller.enqueue(
+                    enc.encode(`event: result\ndata: ${JSON.stringify(data)}\n\n`),
+                  );
+                  controller.close();
+                } catch {
+                  /* stream already aborted */
+                }
+              }, 600);
+            },
+          });
+          return new Response(stream, {
+            status: 200,
+            headers: { "Content-Type": "text/event-stream" },
+          });
+        }
+        if (url.includes("/chat/cancel")) {
+          w.__cancelPosted = true;
+          await new Promise((r) => setTimeout(r, 1500)); // slow ack
+          return new Response("{}", { status: 200 });
+        }
+        return originalFetch(input, init);
+      };
+    });
+
+    const input = page.getByPlaceholder(
+      "Ask about maps, search for data, or request analysis...",
+    );
+    await input.fill("late q");
+    await input.press("Enter");
+    await expect
+      .poll(() =>
+        page.evaluate(() => (window as any).useChatInterfaceStore.getState().isStreaming),
+      )
+      .toBe(true);
+
+    page.on("dialog", (dialog) => dialog.accept());
+    await page.getByTestId("agent-reset-button").click();
+    await expect.poll(() => page.evaluate(() => (window as any).__cancelPosted)).toBe(true);
+
+    await page.waitForTimeout(2300);
+    const n = await page.evaluate(
+      () => (window as any).useChatInterfaceStore.getState().messages.length,
+    );
+    expect(n).toBe(0);
+    await expect(page.getByText("late a")).toHaveCount(0);
+  });
 });
