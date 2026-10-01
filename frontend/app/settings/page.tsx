@@ -11,6 +11,7 @@ import AgentSettingsComponent from "../components/settings/AgentSettingsComponen
 import ToolSettingsComponent from "../components/settings/ToolSettingsComponent";
 import GeoServerSettingsComponent from "../components/settings/GeoServerSettingsComponent";
 import MCPServerSettingsComponent from "../components/settings/MCPServerSettingsComponent";
+import OGCAPISettingsComponent from "../components/settings/OGCAPISettingsComponent";
 import GeocodingSettingsComponent from "../components/settings/GeocodingSettingsComponent";
 
 import { useInitializedSettingsStore } from "../hooks/useInitializedSettingsStore";
@@ -238,6 +239,7 @@ export default function SettingsPage() {
     const sanitized: SettingsSnapshot = {
       search_portals: snapshot.search_portals || [],
       geoserver_backends: [], // Will be populated via prefetch
+      ogcapi_backends: snapshot.ogcapi_backends || [],
       model_settings: snapshot.model_settings || currentSettings.model_settings,
       tools: snapshot.tools || currentSettings.tools,
       tool_options: snapshot.tool_options || currentSettings.tool_options,
@@ -815,6 +817,11 @@ export default function SettingsPage() {
           {/* MCP Servers */}
           <section>
             <MCPServerSettingsComponent />
+          </section>
+
+          {/* OGC API Backends */}
+          <section>
+            <OGCAPISettingsComponent />
           </section>
 
           {/* GeoServer Backends */}

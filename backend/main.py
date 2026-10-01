@@ -192,10 +192,10 @@ async def validation_exception_handler_422(request: Request, exc: RequestValidat
     return JSONResponse(content=content, status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
 
 
-@app.exception_handler(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE)
+@app.exception_handler(status.HTTP_413_CONTENT_TOO_LARGE)
 async def request_entity_too_large_handler(request: Request, exc):
     return JSONResponse(
-        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+        status_code=status.HTTP_413_CONTENT_TOO_LARGE,
         content={"detail": "File size exceeds the 100MB limit. Please upload a smaller file."},
     )
 

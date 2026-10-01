@@ -6,7 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "test": "playwright test",
     "test:ui": "playwright test",
     "test:e2e": "playwright test --config=playwright.e2e.config.ts",
@@ -21,7 +21,7 @@
     "leaflet-defaulticon-compatibility": "^0.1.2",
     "leaflet-geosearch": "^4.4.0",
     "lucide-react": "^1.49.0",
-    "next": "^15.5.27",
+    "next": "^16.3.8",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-leaflet": "^5.0.0",
@@ -40,9 +40,12 @@
     "@types/wellknown": "^0.5.8",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.37.0",
-    "eslint-config-next": "^15.5.4",
+    "eslint-config-next": "^16.3.8",
     "postcss": "^8.5.3",
     "tailwindcss": "^4.3.3",
     "typescript": "^5"
+  },
+  "engines": {
+    "node": "^20.19.0 || ^22.13.0 || >=24"
   }
 }

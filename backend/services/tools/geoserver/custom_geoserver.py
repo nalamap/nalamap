@@ -41,12 +41,8 @@ from services.tools.geoserver.vector_store import (
     is_fully_encoded,
 )
 from services.tools.geoserver.vector_store import list_layers as vector_list_layers
-from services.tools.geoserver.vector_store import (
-    similarity_search as vector_similarity_search,
-)
-from services.tools.geoserver.vector_store import (
-    store_layers,
-)
+from services.tools.geoserver.vector_store import similarity_search as vector_similarity_search
+from services.tools.geoserver.vector_store import store_layers
 
 logger = logging.getLogger(__name__)
 

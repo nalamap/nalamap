@@ -201,7 +201,8 @@ class TestGeocodeAddressViaOverpass:
             osm_tag_key,
             osm_tag_value,
         ):
-            captured_features["features"] = features
+            captured_features.setdefault("features", []).extend(features)
+            captured_features.setdefault("calls", []).append((data_source, features))
             captured_features["query"] = query
             captured_features["location_name"] = location_name
             captured_features["osm_tag_key"] = osm_tag_key
@@ -237,6 +238,13 @@ class TestGeocodeAddressViaOverpass:
 
         # Only address-tagged matches should remain after filtering recursed helpers.
         assert len(captured_features["features"]) == 2
+
+        # Mixed geometry is split by actual type instead of being labeled "Points".
+        kinds = {
+            kind: [f["geometry"]["type"] for f in feats]
+            for kind, feats in captured_features["calls"]
+        }
+        assert kinds == {"Points": ["Point"], "Lines": ["LineString"]}
 
         geodata = result.update["geodata_results"][0]
         assert geodata.processing_metadata is not None

@@ -82,6 +82,14 @@ TOOL_METADATA = {
         ),
         always_include=True,  # Core tool
     ),
+    "search_ogcapi_layers": ToolMetadata(
+        name="search_ogcapi_layers",
+        category="metadata",
+        description=(
+            "Search configured OGC API servers (OGC API Features and Tiles) for layers "
+            "and collections. Find datasets on an OGC API endpoint and add them to the map."
+        ),
+    ),
     # Geoprocessing & Analysis
     "geoprocess_tool": ToolMetadata(
         name="geoprocess_tool",
@@ -146,6 +154,47 @@ TOOL_METADATA = {
             "Advanced attribute operations: get unique values, filter by properties. "
             "Analyze feature characteristics and data fields. "
             "Extract specific attribute information from layers."
+        ),
+    ),
+    # OSINT / External Data (keys match the DEFAULT_AVAILABLE_TOOLS aliases)
+    "world_bank_indicators": ToolMetadata(
+        name="world_bank_indicators",
+        category="osint",
+        description=(
+            "World Bank country statistics and economic, social, and governance indicators: "
+            "GDP, poverty, population, education, health, infrastructure by country."
+        ),
+    ),
+    "ecmwf_weather": ToolMetadata(
+        name="ecmwf_weather",
+        category="osint",
+        description=(
+            "Historical weather data and weather forecasts for a location: temperature, "
+            "precipitation, wind, climate reanalysis (ECMWF / Open-Meteo)."
+        ),
+    ),
+    "nasa_fire_data": ToolMetadata(
+        name="nasa_fire_data",
+        category="osint",
+        description=(
+            "Active fires, wildfires, and thermal anomalies: recent NASA FIRMS satellite "
+            "fire detection points for a region."
+        ),
+    ),
+    "nasa_gibs_layer": ToolMetadata(
+        name="nasa_gibs_layer",
+        category="osint",
+        description=(
+            "Add NASA GIBS satellite imagery tile layers as a map background or overlay: "
+            "true colour, vegetation, snow cover, fires, weather, ocean imagery."
+        ),
+    ),
+    "list_nasa_gibs_layers": ToolMetadata(
+        name="list_nasa_gibs_layers",
+        category="osint",
+        description=(
+            "List and browse the catalogue of available NASA GIBS satellite imagery layers "
+            "by category."
         ),
     ),
 }

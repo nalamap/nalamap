@@ -11,11 +11,6 @@ const nextConfig: NextConfig = {
     'http://0.0.0.0:3000',
   ],
   
-  // Disable ESLint during production builds (errors will still be caught in development)
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  
   // Disable TypeScript type checking during production builds (use separate CI check)
   typescript: {
     ignoreBuildErrors: true,
