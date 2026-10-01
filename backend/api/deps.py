@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from uuid import UUID as UUIDType
 
 from fastapi import Depends, HTTPException, Request, status
-from jose import JWTError
+from jwt import PyJWTError as JWTError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 

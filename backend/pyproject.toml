@@ -40,7 +40,7 @@ matplotlib = "^3.10.7"
 httpx-sse = "^0.4.3"
 pyproj = "^3.7.2"
 passlib = {extras = ["bcrypt"], version = "^1.7"}
-python-jose = {extras = ["cryptography"], version = "^3.3"}
+pyjwt = {extras = ["crypto"], version = "^2.10"}
 bcrypt = "^5.0.0"
 authlib = "^1.4"
 pydantic-settings = "^2.11.0"
