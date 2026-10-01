@@ -81,6 +81,17 @@ function normalizeSettings(raw: Record<string, any>): Record<string, any> {
   return out;
 }
 
+// True when a tool message reports an explicit styling result.
+export const hasStyleOperation = (
+  messages: Array<{ type?: string; content?: unknown }>,
+): boolean =>
+  messages.some(
+    (msg) =>
+      msg.type === "tool" &&
+      typeof msg.content === "string" &&
+      msg.content.includes("Successfully applied styling"),
+  );
+
 export function useNaLaMapAgent(apiUrl: string) {
   const layerStore = useLayerStore();
   const chatInterfaceStore = useChatInterfaceStore();
@@ -238,15 +249,8 @@ export function useNaLaMapAgent(apiUrl: string) {
 
       chatInterfaceStore.setGeoDataList(data.geodata_results);
       chatInterfaceStore.setMessages(data.messages);
-      if (data.geodata_layers)
-        layerStore.synchronizeLayersFromBackend(data.geodata_layers);
-
       // Check if this was a styling operation by looking for style_map_layers in messages
-      const isStyleOperation = data.messages.some(
-        (msg) =>
-          msg.type === "tool" &&
-          msg.content?.includes("Successfully applied styling"),
-      );
+      const isStyleOperation = hasStyleOperation(data.messages);
 
       if (data.geodata_layers) {
         if (isStyleOperation) {
@@ -484,7 +488,15 @@ export function useNaLaMapAgent(apiUrl: string) {
                 chatInterfaceStore.setMessages(messages);
 
                 if (data.geodata_layers) {
-                  layerStore.synchronizeLayersFromBackend(data.geodata_layers);
+                  // Explicit styling results must win over local style keys;
+                  // all other results keep local style authoritative.
+                  if (hasStyleOperation(messages)) {
+                    layerStore.updateLayersFromBackend(data.geodata_layers);
+                  } else {
+                    layerStore.synchronizeLayersFromBackend(
+                      data.geodata_layers,
+                    );
+                  }
                 }
 
                 // Clear streaming UI state since we now have the final result

@@ -318,4 +318,109 @@ test.describe("Raster layer opacity slider", () => {
     expect(patches[0].opacity).toBeCloseTo(0.25, 5);
     expect(patches[1].opacity).toBeCloseTo(0.9, 5);
   });
+
+  async function streamResult(page: Page, result: any) {
+    await page.route("**/chat/stream", (route) =>
+      route.fulfill({
+        status: 200,
+        headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
+        body:
+          `event: result\ndata: ${JSON.stringify(result)}\n\n` +
+          `event: done\ndata: ${JSON.stringify({ status: "complete" })}\n\n`,
+      }),
+    );
+  }
+
+  async function sendChat(page: Page, text: string) {
+    const input = page.getByPlaceholder(
+      "Ask about maps, search for data, or request analysis...",
+    );
+    await input.fill(text);
+    await input.press("Enter");
+  }
+
+  test("streamed styling result changes an existing layer's style (incoming wins)", async ({
+    page,
+  }) => {
+    await add(page, wmsLayer);
+    await page.getByTitle("Style Layer").first().click();
+    await setSlider(page, "0.9");
+    await streamResult(page, {
+      messages: [
+        { type: "human", content: "make it transparent" },
+        { type: "tool", content: "Successfully applied styling to 1 layer" },
+        { type: "ai", content: "Done" },
+      ],
+      geodata_results: [],
+      geodata_layers: [{ ...wmsLayer, style: { raster_opacity: 0.3 } }],
+    });
+    await sendChat(page, "make it transparent");
+    await expect.poll(() => storeOpacity(page, wmsLayer.id)).toBeCloseTo(0.3, 5);
+    await expect
+      .poll(() => mapOpacity(page, "wms.opacity-test.example"))
+      .toBeCloseTo(0.3, 5);
+  });
+
+  test("streamed non-styling result with stale snapshot keeps local opacity", async ({
+    page,
+  }) => {
+    await add(page, wmsLayer);
+    await page.getByTitle("Style Layer").first().click();
+    await setSlider(page, "0.5");
+    await streamResult(page, {
+      messages: [
+        { type: "human", content: "hello" },
+        { type: "ai", content: "Hi there" },
+      ],
+      geodata_results: [],
+      geodata_layers: [{ ...wmsLayer, style: { raster_opacity: 1 } }],
+    });
+    await sendChat(page, "hello");
+    await expect(page.getByText("Hi there")).toBeVisible();
+    expect(await storeOpacity(page, wmsLayer.id)).toBeCloseTo(0.5, 5);
+  });
+
+  test("catch-up PATCH is serialized with later opacity writes (final state = latest)", async ({
+    page,
+  }) => {
+    const arrivals: { method: string; opacity?: number }[] = [];
+    let releasePost!: () => void;
+    let releasePatch1!: () => void;
+    const postGate = new Promise<void>((r) => (releasePost = r));
+    const patch1Gate = new Promise<void>((r) => (releasePatch1 = r));
+    let patchCount = 0;
+    await page.route(/\/layers\/?(\?.*)?$|\/layers\/[^/]+$/, async (route) => {
+      const req = route.request();
+      const m = req.method();
+      if (m !== "POST" && m !== "PATCH") return route.fallback();
+      const body = JSON.parse(req.postData() || "{}");
+      arrivals.push({ method: m, opacity: body?.style?.raster_opacity });
+      if (m === "POST") await postGate;
+      if (m === "PATCH" && ++patchCount === 1) await patch1Gate;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ id: "db-3" }),
+      });
+    });
+
+    await add(page, wmsLayer);
+    await expect.poll(() => arrivals.length).toBe(1);
+    await page.getByTitle("Style Layer").first().click();
+    await setSlider(page, "0.4");
+    releasePost();
+    // Catch-up PATCH (0.4) is now held in flight
+    await expect.poll(() => arrivals.filter((a) => a.method === "PATCH").length).toBe(1);
+    await setSlider(page, "0.7"); // db_id-based write while catch-up in flight
+    await page.waitForTimeout(400);
+    // Serialized: the newer write must not reach the server before the older one finished
+    expect(arrivals.filter((a) => a.method === "PATCH")).toHaveLength(1);
+    releasePatch1();
+    await expect.poll(() => arrivals.filter((a) => a.method === "PATCH").length).toBe(2);
+    const patches = arrivals.filter((a) => a.method === "PATCH");
+    expect(patches[0].opacity).toBeCloseTo(0.4, 5);
+    expect(patches[1].opacity).toBeCloseTo(0.7, 5);
+    await page.waitForTimeout(300);
+    expect(arrivals.filter((a) => a.method === "PATCH")).toHaveLength(2);
+  });
 });

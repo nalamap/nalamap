@@ -183,10 +183,20 @@ type LayerStore = {
 };
 
 export const useLayerStore = create<LayerStore>()((set, get) => {
-  const pendingCreates = new Map<string, Promise<string>>();
-  const postedPayloads = new Map<string, string>();
+  // Per-layer persistence queue: writes for one layer run strictly in order,
+  // and writes requested while one is running coalesce into a single follow-up
+  // that reads the latest local state when it starts (latest wins). This also
+  // makes the post-create catch-up one ordered PATCH.
+  const persistQueues = new Map<
+    string,
+    {
+      tail: Promise<unknown>;
+      queued: Promise<string | null> | null;
+      order?: number;
+    }
+  >();
 
-  const persistLayer = async (
+  const doPersistLayer = async (
     layerId: string | number,
     orderOverride?: number,
   ): Promise<string | null> => {
@@ -199,58 +209,19 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
     const payload = toApiPayload(layer, order);
 
     if (!layer.db_id) {
-      const pendingKey = String(layer.id);
-      let createPromise = pendingCreates.get(pendingKey);
-      // Only the call that starts the POST owns the post-create catch-up.
-      const isCreator = !createPromise;
-      if (!createPromise) {
-        postedPayloads.set(pendingKey, JSON.stringify(payload));
-        createPromise = (async () => {
-          const created = await fetchJson<LayerApiRecord>(apiUrl("/layers/"), {
-            method: "POST",
-            body: JSON.stringify(payload),
-          });
-          return created.id;
-        })();
-        pendingCreates.set(pendingKey, createPromise);
-      }
-
-      const postedPayloadJson = postedPayloads.get(pendingKey) ?? "";
       try {
-        const createdId = await createPromise;
+        const created = await fetchJson<LayerApiRecord>(apiUrl("/layers/"), {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
         set((state: LayerStore) => ({
           layers: state.layers.map((item) =>
-            item.id === layerId ? { ...item, db_id: createdId } : item,
+            item.id === layerId ? { ...item, db_id: created.id } : item,
           ),
         }));
-        // Edits (e.g. opacity slider) made while the POST was in flight were
-        // not part of the created record: push the latest state via PATCH.
-        const latestState = get();
-        const latestIndex = latestState.layers.findIndex(
-          (item) => item.id === layerId,
-        );
-        if (isCreator && latestIndex !== -1) {
-          const latestPayload = toApiPayload(
-            latestState.layers[latestIndex],
-            orderOverride ?? latestIndex,
-          );
-          if (JSON.stringify(latestPayload) !== postedPayloadJson) {
-            try {
-              await fetchJson<LayerApiRecord>(
-                apiUrl(`/layers/${createdId}`),
-                { method: "PATCH", body: JSON.stringify(latestPayload) },
-              );
-            } catch (err) {
-              Logger.warn("Failed to update layer after creation:", err);
-            }
-          }
-        }
-        return createdId;
+        return created.id;
       } catch (err) {
         Logger.warn("Failed to persist new layer:", err);
-      } finally {
-        pendingCreates.delete(pendingKey);
-        postedPayloads.delete(pendingKey);
       }
       return null;
     }
@@ -265,6 +236,34 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
       Logger.warn("Failed to update layer:", err);
     }
     return null;
+  };
+
+  const persistLayer = (
+    layerId: string | number,
+    orderOverride?: number,
+  ): Promise<string | null> => {
+    const key = String(layerId);
+    let entry = persistQueues.get(key);
+    if (!entry) {
+      entry = { tail: Promise.resolve(), queued: null };
+      persistQueues.set(key, entry);
+    }
+    if (orderOverride !== undefined) entry.order = orderOverride;
+    if (entry.queued) return entry.queued;
+    const current = entry;
+    const run: Promise<string | null> = current.tail.then(() => {
+      current.queued = null; // later requests schedule a new follow-up run
+      const order = current.order;
+      current.order = undefined;
+      return doPersistLayer(layerId, order);
+    });
+    current.queued = run;
+    current.tail = run.catch(() => null).then(() => {
+      if (current.queued === null && persistQueues.get(key) === current) {
+        persistQueues.delete(key);
+      }
+    });
+    return run;
   };
 
   const persistLayerDelete = async (dbId: string) => {
