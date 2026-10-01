@@ -14,7 +14,8 @@ The application now uses **time-limited SAS (Shared Access Signature) URLs** ins
 - Files uploaded to Azure Blob Storage now return time-limited SAS URLs instead of permanent public URLs
 - SAS URLs expire after a configurable period (default: 24 hours)
 - Only read permission is granted, preventing unauthorized modifications
-- Falls back to public URLs if SAS generation fails
+- Never falls back to an unsigned URL: if a SAS cannot be generated the upload fails with a 5xx error (503 on the upload API) and the partially uploaded blob is removed
+- When `AZURE_STORAGE_ACCOUNT_URL` is set, SAS tokens are signed keyless with a user-delegation key obtained via `DefaultAzureCredential` (cached, refreshed at half-life, max 7 days); if that fails, the account key in `AZURE_CONN_STRING` is used
 
 **Files modified:**
 - `backend/services/storage/file_management.py`

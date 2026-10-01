@@ -11,7 +11,7 @@ import {
   Download,
   Info,
   X,
-  BarChart3,
+  ChartColumn,
 } from "lucide-react";
 import { getApiBase } from "../../utils/apiBase";
 import Logger from "../../utils/logger";
@@ -570,7 +570,7 @@ export default function LayerList({
                               title="View World Bank Indicators Chart"
                               className={`p-1 rounded transition-colors cursor-pointer ${activeChartId === layer.id ? "text-blue-600 bg-blue-100" : "text-neutral-600 hover:text-blue-600 hover:bg-neutral-100"}`}
                             >
-                              <BarChart3 size={16} />
+                              <ChartColumn size={16} />
                             </button>
                           )}
                           <button
