@@ -18,6 +18,7 @@ import hashlib
 import ipaddress
 import json
 import logging
+import re
 import socket
 import ssl
 import uuid
@@ -162,6 +163,33 @@ def _safe_get(
     raise UnsafeURLError("Too many redirects")
 
 
+_URL_RE = re.compile(r"https?://[^\s'\"<>)]+")
+
+
+def _redact_urls(text: str) -> str:
+    """Strip userinfo, query strings and fragments from any URL inside ``text``."""
+
+    def _clean(match: "re.Match[str]") -> str:
+        parts = urlsplit(match.group(0))
+        host = parts.netloc.rsplit("@", 1)[-1]
+        return urlunsplit((parts.scheme, host, parts.path, "", ""))
+
+    return _URL_RE.sub(_clean, text)
+
+
+def _describe_error(exc: BaseException) -> str:
+    """Short, credential-free description of a request failure."""
+    if isinstance(exc, httpx.HTTPStatusError):
+        return f"HTTP {exc.response.status_code}"
+    if isinstance(exc, httpx.TimeoutException):
+        return "request timed out"
+    if isinstance(exc, (ssl.SSLError, httpx.ConnectError)):
+        return "connection failed"
+    if isinstance(exc, (UnsafeURLError, ValueError)):
+        return _redact_urls(str(exc))
+    return type(exc).__name__
+
+
 def _normalize_backend_url(url: str) -> str:
     parts = urlsplit(url.strip())
     return urlunsplit(
@@ -198,6 +226,40 @@ def _with_query_params(url: str, params: Dict[str, Any]) -> str:
     return urlunsplit(parts._replace(query=urlencode(query)))
 
 
+def _resolve_link(base_url: str, href: str) -> str:
+    """Resolve ``href`` against the parsed base URL (path joined, query preserved).
+
+    Plain ``urljoin`` against the raw base would drop the base path (when it has no
+    trailing slash) and any query credentials.  Absolute hrefs are returned as-is;
+    relative ones are resolved under the base path and, being same-origin, inherit
+    the base query parameters (e.g. an api key) unless they set their own.
+    """
+    if urlsplit(href).scheme:
+        return href
+    base = urlsplit(base_url.strip())
+    anchor = urlunsplit(base._replace(path=base.path.rstrip("/") + "/", query="", fragment=""))
+    resolved = urljoin(anchor, href)
+    base_query = dict(parse_qsl(base.query, keep_blank_values=True))
+    return _merge_query(resolved, base_query) if base_query else resolved
+
+
+def _merge_query(url: str, defaults: Dict[str, str]) -> str:
+    """Add ``defaults`` to ``url``'s query without overriding keys it already has."""
+    parts = urlsplit(url)
+    query = dict(defaults)
+    query.update(dict(parse_qsl(parts.query, keep_blank_values=True)))
+    return urlunsplit(parts._replace(query=urlencode(query)))
+
+
+def _is_public_http_url(url: str) -> bool:
+    """True if ``url`` is http(s) and resolves only to public addresses."""
+    try:
+        _validate_outbound_url(url)
+    except UnsafeURLError:
+        return False
+    return True
+
+
 def _pick_access_url(collection: Dict[str, Any], base_url: str) -> str:
     """Return a GeoJSON ``/items`` URL for the collection, renderable by the map.
 
@@ -205,38 +267,68 @@ def _pick_access_url(collection: Dict[str, Any], base_url: str) -> str:
     intentionally ignored.  Preference: ``rel="items"`` link whose type is GeoJSON,
     then any ``rel="items"`` link, then ``{base}/collections/{id}/items``.  The URL
     always carries ``f=json`` and ``limit`` so the server answers with GeoJSON.
+
+    Catalog-provided links are untrusted (the browser fetches the result): links
+    that are not http(s) or that point at private/local/link-local hosts are dropped.
     """
     links: List[Dict[str, Any]] = collection.get("links", []) or []
     items_links = [lk for lk in links if lk.get("rel") == "items" and lk.get("href")]
-    chosen: Optional[str] = None
+    items_links.sort(key=lambda lk: "json" not in (lk.get("type") or "").lower())
     for link in items_links:
-        if "json" in (link.get("type") or "").lower():
-            chosen = link["href"]
-            break
-    if chosen is None and items_links:
-        chosen = items_links[0]["href"]
-    if chosen is None:
-        col_id = collection.get("id", "")
-        if not col_id:
-            return base_url
-        chosen = _join_path(base_url, "collections", col_id, "items")
-    chosen = urljoin(base_url.rstrip("/") + "/", chosen)
-    return _with_query_params(chosen, {"f": "json", "limit": _ITEMS_LIMIT})
+        candidate = _resolve_link(base_url, str(link["href"]))
+        if _is_public_http_url(candidate):
+            return _with_query_params(candidate, {"f": "json", "limit": _ITEMS_LIMIT})
+        logger.warning("OGC API: dropping unsafe items link from catalog")
+    col_id = collection.get("id", "")
+    if not col_id:
+        return base_url
+    constructed = _join_path(base_url, "collections", col_id, "items")
+    return _with_query_params(constructed, {"f": "json", "limit": _ITEMS_LIMIT})
+
+
+_CRS84_EQUIVALENTS = {
+    "http://www.opengis.net/def/crs/ogc/1.3/crs84",
+    "http://www.opengis.net/def/crs/ogc/0/crs84h",
+    "http://www.opengis.net/def/crs/epsg/0/4326",
+    "urn:ogc:def:crs:ogc:1.3:crs84",
+    "ogc:crs84",
+    "epsg:4326",
+}
+
+
+def _bbox_to_crs84(
+    bbox_xy: Tuple[float, float, float, float], crs: Optional[str]
+) -> Optional[Tuple[float, float, float, float]]:
+    """Return (minx, miny, maxx, maxy) in CRS84, or None if it cannot be determined."""
+    if not crs or str(crs).strip().lower() in _CRS84_EQUIVALENTS:
+        return bbox_xy
+    try:
+        from pyproj import CRS, Transformer
+
+        transformer = Transformer.from_crs(CRS.from_user_input(crs), "OGC:CRS84", always_xy=True)
+        minx, miny, maxx, maxy = transformer.transform_bounds(*bbox_xy, densify_pts=21)
+        if not all(map(lambda v: v == v and abs(v) != float("inf"), (minx, miny, maxx, maxy))):
+            return None
+        return minx, miny, maxx, maxy
+    except Exception:
+        return None
 
 
 def _extract_bbox_wkt(collection: Dict[str, Any]) -> Optional[str]:
     """Return a WKT POLYGON bbox string from the collection's spatial extent, if present."""
     try:
-        bbox = collection.get("extent", {}).get("spatial", {}).get("bbox", [[]])[0]
+        spatial = collection.get("extent", {}).get("spatial", {})
+        bbox = spatial.get("bbox", [[]])[0]
         if bbox and len(bbox) >= 4:
             # 2D: minX,minY,maxX,maxY; 3D: minX,minY,minZ,maxX,maxY,maxZ
             hi = (3, 4) if len(bbox) >= 6 else (2, 3)
-            min_lon, min_lat, max_lon, max_lat = (
-                float(bbox[0]),
-                float(bbox[1]),
-                float(bbox[hi[0]]),
-                float(bbox[hi[1]]),
+            converted = _bbox_to_crs84(
+                (float(bbox[0]), float(bbox[1]), float(bbox[hi[0]]), float(bbox[hi[1]])),
+                spatial.get("crs"),
             )
+            if converted is None:
+                return None  # unknown/untransformable CRS: omit rather than mislocate
+            min_lon, min_lat, max_lon, max_lat = converted
             return (
                 f"POLYGON(("
                 f"{max_lon} {min_lat}, {max_lon} {max_lat}, "
@@ -379,17 +471,8 @@ def _search_backend(
                     chosen.extend(_local_matches(page))
             return [_collection_to_geodata(c, backend) for c in chosen[:max_results]]
 
-    except httpx.ConnectError as exc:
-        logger.warning("OGC API backend %s: connection error — %s", backend.name, exc)
-        raise
-    except ssl.SSLError as exc:
-        logger.warning("OGC API backend %s: SSL error — %s", backend.name, exc)
-        raise
-    except httpx.TimeoutException as exc:
-        logger.warning("OGC API backend %s: timeout — %s", backend.name, exc)
-        raise
     except Exception as exc:
-        logger.warning("OGC API backend %s: unexpected error — %s", backend.name, exc)
+        logger.warning("OGC API backend %s: %s", backend.name, _describe_error(exc))
         raise
 
 
@@ -454,7 +537,7 @@ def _search_ogcapi_layers_impl(
             results = _search_backend(backend, query, max_results)
             all_results.extend(results)
         except Exception as exc:
-            errors.append(f"{backend.name}: {exc}")
+            errors.append(f"{backend.name}: {_describe_error(exc)}")
 
     if not all_results and errors:
         return ToolMessage(

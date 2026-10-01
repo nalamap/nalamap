@@ -749,3 +749,125 @@ def test_constructed_items_url_preserves_base_query():
     url = _pick_access_url(col, "https://ogcapi.example.com/v1?api_key=secret")
     assert url.startswith("https://ogcapi.example.com/v1/collections/rivers/items?")
     assert "api_key=secret" in url and "f=json" in url
+
+
+# ---------------------------------------------------------------------------
+# Round 5: error redaction, untrusted links, relative links, extent CRS
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_http_error_does_not_leak_query_credentials():
+    backend = OGCAPIBackend(url="https://ogcapi.example.com/v1?api_key=SECRET", name="Keyed")
+    bad = _mock_http_response({}, status_code=500)
+    # The mock's HTTPStatusError message is "error"; use a realistic httpx message.
+    import httpx
+
+    req = httpx.Request("GET", "https://ogcapi.example.com/v1/collections?api_key=SECRET")
+    err = httpx.HTTPStatusError(
+        "Server error for url " + str(req.url),
+        request=req,
+        response=httpx.Response(500, request=req),
+    )
+    bad.raise_for_status.side_effect = err
+    state = _make_state(_make_snapshot([backend]))
+    with _patch_client([bad, bad]):
+        result = _search_ogcapi_layers_impl(state=state, tool_call_id="x", query="a")
+    assert isinstance(result, ToolMessage)
+    assert "SECRET" not in result.content and "api_key" not in result.content
+    assert "Keyed" in result.content and "500" in result.content
+
+
+@pytest.mark.unit
+def test_redact_urls_strips_query_and_userinfo():
+    from services.tools.ogcapi_tools import _redact_urls
+
+    out = _redact_urls("fail https://user:pw@h.example.com/v1/c?api_key=S&x=1#f ok")
+    assert out == "fail https://h.example.com/v1/c ok"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "href",
+    [
+        "http://192.168.1.1/collections/x/items",
+        "http://169.254.169.254/latest",
+        "http://127.0.0.1:8000/items",
+        "ftp://example.com/items",
+        "file:///etc/passwd",
+    ],
+)
+def test_unsafe_catalog_items_link_is_dropped(href):
+    col = _make_collection("x", "X", links=[{"rel": "items", "href": href}])
+    url = _pick_access_url(col, "https://ogcapi.example.com/v1")
+    assert url.startswith("https://ogcapi.example.com/v1/collections/x/items?")
+
+
+@pytest.mark.unit
+def test_safe_absolute_catalog_link_kept_and_unsafe_skipped_for_next():
+    col = _make_collection(
+        "x",
+        "X",
+        links=[
+            {"rel": "items", "type": "application/geo+json", "href": "http://10.0.0.1/items"},
+            {"rel": "items", "href": "https://data.example.org/x/items"},
+        ],
+    )
+    url = _pick_access_url(col, "https://ogcapi.example.com/v1")
+    assert url.startswith("https://data.example.org/x/items?")
+
+
+@pytest.mark.unit
+def test_catalog_link_resolving_to_private_dns_is_dropped():
+    col = _make_collection("x", "X", links=[{"rel": "items", "href": "https://sneaky.example/i"}])
+    with patch("services.tools.ogcapi_tools._resolve_host", return_value=["10.0.0.9"]):
+        url = _pick_access_url(col, "https://ogcapi.example.com/v1")
+    assert url.startswith("https://ogcapi.example.com/v1/collections/x/items?")
+
+
+@pytest.mark.unit
+def test_relative_link_resolves_under_base_path_and_keeps_key():
+    from urllib.parse import parse_qs, urlsplit
+
+    col = _make_collection(
+        "roads", "Roads", links=[{"rel": "items", "href": "collections/roads/items"}]
+    )
+    url = _pick_access_url(col, "https://host.example.com/v1?api_key=abc")
+    parts = urlsplit(url)
+    assert parts.path == "/v1/collections/roads/items"
+    q = parse_qs(parts.query)
+    assert q["api_key"] == ["abc"] and q["f"] == ["json"]
+
+
+@pytest.mark.unit
+def test_link_query_overrides_base_query_on_relative_link():
+    from urllib.parse import parse_qs, urlsplit
+
+    col = _make_collection("r", "R", links=[{"rel": "items", "href": "items?api_key=own"}])
+    url = _pick_access_url(col, "https://host.example.com/v1?api_key=abc")
+    assert parse_qs(urlsplit(url).query)["api_key"] == ["own"]
+
+
+@pytest.mark.unit
+def test_bbox_default_and_explicit_crs84_unchanged():
+    col = _make_collection("c", "C", bbox=[-10.0, -20.0, 30.0, 40.0])
+    col["extent"]["spatial"]["crs"] = "http://www.opengis.net/def/crs/OGC/1.3/CRS84"
+    assert "POLYGON((30.0 -20.0" in _collection_to_geodata(col, MOCK_BACKEND).bounding_box
+
+
+@pytest.mark.unit
+def test_bbox_projected_crs_is_transformed_to_crs84():
+    col = _make_collection("c", "C", bbox=[0.0, 0.0, 111319.49, 111325.14])
+    col["extent"]["spatial"]["crs"] = "http://www.opengis.net/def/crs/EPSG/0/3857"
+    wkt = _collection_to_geodata(col, MOCK_BACKEND).bounding_box
+    coords = [tuple(map(float, p.split())) for p in wkt[len("POLYGON((") : -2].split(", ")]
+    xs, ys = [c[0] for c in coords], [c[1] for c in coords]
+    assert min(xs) == pytest.approx(0.0, abs=1e-3) and max(xs) == pytest.approx(1.0, abs=1e-3)
+    assert min(ys) == pytest.approx(0.0, abs=1e-3) and max(ys) == pytest.approx(1.0, abs=1e-3)
+
+
+@pytest.mark.unit
+def test_bbox_unknown_crs_is_omitted():
+    col = _make_collection("c", "C", bbox=[1.0, 2.0, 3.0, 4.0])
+    col["extent"]["spatial"]["crs"] = "http://example.com/not-a-crs"
+    assert _collection_to_geodata(col, MOCK_BACKEND).bounding_box is None
