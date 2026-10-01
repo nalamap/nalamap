@@ -399,7 +399,7 @@ function parseWMTSUrl(access_url: string) {
     // Detect version if provided (common param names: version / VERSION)
     const versionParam =
       originalParams.get("version") || originalParams.get("VERSION") || "";
-    let version = versionParam; // may be empty; we'll fallback later
+    const version = versionParam; // may be empty; we'll fallback later
 
     // Get layer name from parameters
     let layerName = originalParams.get("layer") || originalParams.get("LAYER");
