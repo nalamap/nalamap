@@ -20,6 +20,16 @@ from services.storage.file_management import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _azure_signing_credentials(monkeypatch):
+    """Signing now fails loudly without credentials (no unsigned-URL fallback), so supply a key."""
+    monkeypatch.setattr(
+        "services.storage.file_management.AZ_CONN",
+        "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdA==",
+    )
+    monkeypatch.setattr("services.storage.file_management.AZ_CONTAINER", "uploads")
+
+
 class TestAzureCompressionHelpers:
     """Test helper functions for Azure compression."""
 

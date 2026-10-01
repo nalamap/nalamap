@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from "react";
 import Sidebar from "../components/sidebar/Sidebar";
 import { useUIStore } from "../stores/uiStore";
 import { useInitializedSettingsStore } from "../hooks/useInitializedSettingsStore";
-import { Activity, Clock, Zap, TrendingUp, AlertCircle, Target, CheckCircle, XCircle } from "lucide-react";
+import { Activity, Clock, Zap, TrendingUp, CircleAlert, Target, CircleCheckBig, CircleX } from "lucide-react";
 
 interface MetricsStats {
   period_hours: number;
@@ -316,7 +316,7 @@ export default function MetricsPage() {
           {/* Main content */}
           <main className="flex-1 overflow-auto bg-primary-50 flex items-center justify-center">
             <div className="text-center max-w-md">
-              <AlertCircle className="h-12 w-12 text-danger-600 mx-auto mb-4" />
+              <CircleAlert className="h-12 w-12 text-danger-600 mx-auto mb-4" />
               <h2 className="text-xl font-semibold text-primary-900 mb-2">
                 Error Loading Metrics
               </h2>
@@ -552,7 +552,7 @@ export default function MetricsPage() {
               <span className="text-sm font-medium text-primary-600">
                 Error Rate
               </span>
-              <AlertCircle className="h-5 w-5 text-danger-600" />
+              <CircleAlert className="h-5 w-5 text-danger-600" />
             </div>
             <div className="text-2xl font-bold text-primary-900">
               {(metrics.errors.rate * 100).toFixed(2)}%
@@ -707,7 +707,7 @@ export default function MetricsPage() {
             {metrics.tool_selector.fallback_rate > 0.1 && (
               <div className="mt-4 p-3 bg-warning-50 border border-warning-200 rounded-lg">
                 <p className="text-sm text-warning-800">
-                  <AlertCircle className="inline h-4 w-4 mr-1" />
+                  <CircleAlert className="inline h-4 w-4 mr-1" />
                   High fallback rate detected. Consider enabling embeddings for semantic tool selection.
                 </p>
               </div>
@@ -737,14 +737,14 @@ export default function MetricsPage() {
               <div>
                 <div className="text-xs text-primary-600 mb-1">Successful</div>
                 <div className="text-lg font-semibold text-success-700 flex items-center gap-1">
-                  <CheckCircle className="h-4 w-4" />
+                  <CircleCheckBig className="h-4 w-4" />
                   {formatNumber(metrics.tool_usage.total_successes)}
                 </div>
               </div>
               <div>
                 <div className="text-xs text-primary-600 mb-1">Failed</div>
                 <div className="text-lg font-semibold text-danger-700 flex items-center gap-1">
-                  <XCircle className="h-4 w-4" />
+                  <CircleX className="h-4 w-4" />
                   {formatNumber(metrics.tool_usage.total_failures)}
                 </div>
               </div>
@@ -818,7 +818,7 @@ export default function MetricsPage() {
             {metrics.tool_usage.top_tools.some(t => t.success_rate < 0.8) && (
               <div className="mt-4 p-3 bg-danger-50 border border-danger-200 rounded-lg">
                 <p className="text-sm text-danger-800">
-                  <AlertCircle className="inline h-4 w-4 mr-1" />
+                  <CircleAlert className="inline h-4 w-4 mr-1" />
                   Some tools have success rates below 80%. Consider investigating these tools.
                 </p>
               </div>
