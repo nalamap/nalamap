@@ -214,7 +214,7 @@ jobs:
           merge-multiple: true
 
       - name: Build payload and dispatch to infra
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         env:
           CLOUD_INFRA_REPO_TOKEN: ${{ secrets.CLOUD_INFRA_REPO_TOKEN }}
         with:
