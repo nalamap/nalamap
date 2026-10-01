@@ -239,7 +239,7 @@ docker-compose -f dev.docker-compose.yml up --build
 - **Uvicorn**: ASGI server for serving the FastAPI application
 
 ### Frontend
-- **Next.js 15**: React framework for building web applications
+- **Next.js 16**: React framework for building web applications
 - **React 19**: JavaScript library for building user interfaces
 - **Leaflet**: Open-source JavaScript library for interactive maps
 - **Tailwind CSS**: Utility-first CSS framework

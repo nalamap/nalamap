@@ -36,7 +36,7 @@
 
 | Layer | Technologies |
 |-------|-------------|
-| **Frontend** | Next.js 15, React 19, TypeScript, Leaflet, Tailwind CSS |
+| **Frontend** | Next.js 16, React 19, TypeScript, Leaflet, Tailwind CSS |
 | **Backend** | Python 3.11+, FastAPI, Uvicorn |
 | **AI/ML** | LangChain, LangGraph, OpenAI/Azure/Google/Mistral/DeepSeek |
 | **Database** | PostgreSQL (with PostGIS), SQLite-vec |
