@@ -16,7 +16,7 @@ langchain = "^1.4.3"
 langchain-core = "^1.6.6"
 langchain_community = "^0.4.2"
 openai = "^3.22.1"
-psycopg = {extras = ["binary","pool"], version = "^3.3.2"}
+psycopg = {extras = ["binary","pool"], version = "^3.3.6"}
 sqlalchemy = {extras = ["asyncio"], version = "^2.1.1"}
 geoalchemy2 = "^0.20.0"
 langgraph = "^1.2.12"
@@ -26,8 +26,8 @@ owslib = "*"
 httpx = "*"
 # transitive (httpx/starlette/openai) — pinned up explicitly to clear
 # CVE-2026-63374 (TLS certificate spoofing), caught by the new trivy CI gate
-anyio = ">=4.14.2"
-sqlite-vec = "^0.1.6"
+anyio = ">=4.15.1"
+sqlite-vec = "^0.1.9"
 langchain_google_genai = "^4.4.0"
 langchain_mistralai = "^1.1.6"
 azure-storage-blob = "*"
@@ -36,25 +36,25 @@ shapely = "*"
 kml2geojson = "*"
 geopandas = "*"
 webcolors = "*"
-matplotlib = "^3.10.7"
+matplotlib = "^3.11.2"
 httpx-sse = "^0.4.3"
 pyproj = "^3.7.2"
 passlib = {extras = ["bcrypt"], version = "^1.7"}
 python-jose = {extras = ["cryptography"], version = "^3.3"}
 bcrypt = "^5.0.0"
-authlib = "^1.4"
-pydantic-settings = "^2.11.0"
-rapidfuzz = "^3.14.3"
+authlib = "^1.8"
+pydantic-settings = "^2.15.0"
+rapidfuzz = "^3.14.6"
 azure-identity = "^1.25.3"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "*"
-pytest-asyncio = ">=1.2.0"
+pytest-asyncio = ">=1.4.0"
 flake8 = "*"
 flake8-pyproject = "*"
 black = "*"
 isort = "*"
-alembic = "^1.11"
+alembic = "^1.20"
 
 [tool.flake8]
 max-line-length = 100
