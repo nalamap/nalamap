@@ -1,6 +1,7 @@
 // hooks/useNaLaMap.ts
 "use client";
 
+import { useRef } from "react";
 import {
   ChatMessage,
   NaLaMapRequest,
@@ -85,8 +86,10 @@ export function useNaLaMapAgent(apiUrl: string) {
   const chatInterfaceStore = useChatInterfaceStore();
   
   // AbortController for cancelling ongoing streaming requests
-  let abortController: AbortController | null = null;
-  let currentSessionId: string | null = null;
+  // Held in refs so they survive re-renders (a plain local would be reset to
+  // null on every render, making cancelRequest a no-op for in-flight streams).
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const currentSessionIdRef = useRef<string | null>(null);
 
   const appendHumanMessage = (query: string) => {
     /* // Don't normalize for now to keep all arguments
@@ -294,10 +297,11 @@ export function useNaLaMapAgent(apiUrl: string) {
     // Generate unique stream_id for this specific request (for cancellation)
     const randomSuffix = window.crypto.getRandomValues(new Uint32Array(1))[0].toString(36).substr(2, 9);
     const streamId = `stream_${Date.now()}_${randomSuffix}`;
-    currentSessionId = streamId; // Used for cancellation
+    currentSessionIdRef.current = streamId; // Used for cancellation
     
     // Create new AbortController for this request
-    abortController = new AbortController();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     try {
       const selectedLayers = useLayerStore
@@ -329,7 +333,7 @@ export function useNaLaMapAgent(apiUrl: string) {
         },
         credentials: "include",
         body: JSON.stringify(payload),
-        signal: abortController.signal, // Add abort signal for cancellation
+        signal: controller.signal, // Add abort signal for cancellation
       });
 
       if (!response.ok) {
@@ -529,6 +533,7 @@ export function useNaLaMapAgent(apiUrl: string) {
    * Cancel the currently running streaming request
    */
   async function cancelRequest() {
+    const currentSessionId = currentSessionIdRef.current;
     if (!currentSessionId) {
       Logger.warn("No active session to cancel");
       return;
@@ -537,9 +542,7 @@ export function useNaLaMapAgent(apiUrl: string) {
     Logger.log(`Cancelling request for session: ${currentSessionId}`);
     
     // Abort the fetch request
-    if (abortController) {
-      abortController.abort();
-    }
+    abortControllerRef.current?.abort();
     
     // Notify the backend to stop processing
     try {
@@ -564,8 +567,8 @@ export function useNaLaMapAgent(apiUrl: string) {
     chatInterfaceStore.clearExecutionPlan();
     
     // Reset references
-    abortController = null;
-    currentSessionId = null;
+    abortControllerRef.current = null;
+    currentSessionIdRef.current = null;
   }
 
   return {
