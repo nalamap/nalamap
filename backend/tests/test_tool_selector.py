@@ -469,3 +469,48 @@ async def test_module_level_metrics_storage(mock_tools):
     assert stored_metrics is not None
     assert stored_metrics["total_selections"] == 1
     assert stored_metrics["avg_tools_selected"] > 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "strategy",
+    [SelectionStrategy.SEMANTIC, SelectionStrategy.CONSERVATIVE, SelectionStrategy.MINIMAL],
+)
+async def test_osint_fire_query_selects_firms_tool_with_default_aliases(strategy):
+    """OSINT tools are selectable under their DEFAULT_AVAILABLE_TOOLS alias keys."""
+    from services.default_agent_settings import DEFAULT_AVAILABLE_TOOLS
+
+    osint_aliases = [
+        "world_bank_indicators",
+        "ecmwf_weather",
+        "nasa_fire_data",
+        "nasa_gibs_layer",
+        "list_nasa_gibs_layers",
+    ]
+    for alias in osint_aliases:
+        assert alias in TOOL_METADATA
+        assert alias in DEFAULT_AVAILABLE_TOOLS
+
+    tools = {name: MockTool(name=name) for name in DEFAULT_AVAILABLE_TOOLS}
+
+    # One-hot embeddings by tool name so "show active fires" matches only the FIRMS tool.
+    names = list(TOOL_METADATA.keys())
+    dim = len(names)
+
+    def vec(idx):
+        return [1.0 if i == idx else 0.0 for i in range(dim)]
+
+    embeddings = AsyncMock()
+    embeddings.aembed_query = AsyncMock(return_value=vec(names.index("nasa_fire_data")))
+
+    async def embed_documents(texts):
+        by_desc = {m.description: i for i, m in enumerate(TOOL_METADATA.values())}
+        return [vec(by_desc[t]) for t in texts]
+
+    embeddings.aembed_documents = embed_documents
+
+    selector = DynamicToolSelector(
+        embeddings=embeddings, strategy=strategy, similarity_threshold=0.5
+    )
+    selected = await selector.select_tools("show active fires", tools)
+    assert "nasa_fire_data" in [t.name for t in selected]
