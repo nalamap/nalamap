@@ -71,6 +71,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 #   libgdal*         → pyogrio / GDAL runtime
 # Note: The exact libgdal package name varies by Debian version.
 RUN apt-get update \
+ && apt-get upgrade -y \
  && apt-get install -y --no-install-recommends \
       libpq5 \
       libgeos-dev \

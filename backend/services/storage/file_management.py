@@ -1,18 +1,28 @@
 import gzip
+import logging
 import os
+import threading
 import uuid
-from datetime import datetime, timedelta
-from typing import BinaryIO, Tuple
+from datetime import datetime, timedelta, timezone
+from typing import Any, BinaryIO, Optional, Tuple
+from urllib.parse import urlparse
 
 from core.config import (
     AZ_CONN,
     AZ_CONTAINER,
     AZURE_SAS_EXPIRY_HOURS,
+    AZURE_STORAGE_ACCOUNT_URL,
     BASE_URL,
     LOCAL_UPLOAD_DIR,
     USE_AZURE,
 )
 from utility.string_methods import sanitize_filename
+
+logger = logging.getLogger(__name__)
+
+# Lower bound on a user-delegation key lifetime
+MIN_KEY = timedelta(hours=1)
+MAX_KEY = timedelta(days=7) - timedelta(minutes=10)  # 7-day service cap, minus margin
 
 # Minimum file size for compression (1MB)
 MIN_COMPRESS_SIZE = 1024 * 1024
@@ -44,46 +54,108 @@ def _compress_for_azure(content: bytes) -> bytes:
     return gzip.compress(content, compresslevel=6)
 
 
-def _generate_sas_url(blob_url: str, blob_name: str) -> str:
-    """Generate a time-limited SAS URL for secure blob access.
+class StorageSigningError(RuntimeError):
+    """Raised when a signed (SAS) blob URL cannot be produced.
 
-    Falls back to public URL if SAS generation fails.
-
-    Args:
-        blob_url: The base blob URL
-        blob_name: The blob name/path
-
-    Returns:
-        SAS URL with time-limited access token
+    Messages never contain keys, tokens or connection strings.
     """
-    try:
-        from azure.storage.blob import BlobSasPermissions, generate_blob_sas
 
-        # Parse connection string to extract account credentials
-        conn_parts = dict(part.split("=", 1) for part in AZ_CONN.split(";") if "=" in part)
-        account_name = conn_parts.get("AccountName")
-        account_key = conn_parts.get("AccountKey")
 
-        if not account_name or not account_key:
-            # Fallback to public URL if credentials not available
-            return blob_url
+# Cached user-delegation key: (key, valid_from, valid_until)
+_delegation_lock = threading.Lock()
+_delegation_cache: Optional[Tuple[Any, datetime, datetime]] = None
 
-        # Generate SAS token with read permission
-        sas_token = generate_blob_sas(
-            account_name=account_name,
-            container_name=AZ_CONTAINER,
-            blob_name=blob_name,
-            account_key=account_key,
-            permission=BlobSasPermissions(read=True),
-            expiry=datetime.utcnow() + timedelta(hours=AZURE_SAS_EXPIRY_HOURS),
-        )
 
-        # Construct SAS URL
-        return f"{blob_url}?{sas_token}"
-    except Exception as e:
-        # Log error and fall back to public URL
-        print(f"Warning: Failed to generate SAS URL: {e}. Using public URL.")
-        return blob_url
+def _account_name_from_url(account_url: str) -> str:
+    host = urlparse(account_url).hostname or ""
+    return host.split(".")[0]
+
+
+def _get_user_delegation_key() -> Tuple[Any, datetime]:
+    """Return (delegation_key, key_expiry), cached and refreshed at half-life."""
+    global _delegation_cache
+    from azure.identity import DefaultAzureCredential
+    from azure.storage.blob import BlobServiceClient
+
+    now = datetime.now(timezone.utc)
+    with _delegation_lock:
+        if _delegation_cache is not None:
+            key, start, expiry = _delegation_cache
+            if now < start + (expiry - start) / 2:
+                return key, expiry
+        # Key must outlive the SAS it signs (refresh at half-life) and is capped at 7 days
+        lifetime = min(timedelta(hours=2 * AZURE_SAS_EXPIRY_HOURS), MAX_KEY)
+        start = now - timedelta(minutes=5)  # tolerate clock skew
+        expiry = min(now + max(lifetime, MIN_KEY), start + MAX_KEY)  # Azure: <= 7 days from start
+        client = BlobServiceClient(AZURE_STORAGE_ACCOUNT_URL, credential=DefaultAzureCredential())
+        key = client.get_user_delegation_key(start, expiry)
+        _delegation_cache = (key, now, expiry)
+        return key, expiry
+
+
+def _generate_sas_url(blob_url: str, blob_name: str) -> str:
+    """Generate a time-limited, read-only SAS URL for secure blob access.
+
+    Signs with a user-delegation key when AZURE_STORAGE_ACCOUNT_URL is set, falling back to the
+    account key from AZURE_CONN_STRING. Never returns an unsigned URL.
+
+    Raises:
+        StorageSigningError: if no SAS could be produced.
+    """
+    from azure.storage.blob import BlobSasPermissions, generate_blob_sas
+
+    expiry = datetime.now(timezone.utc) + timedelta(hours=AZURE_SAS_EXPIRY_HOURS)
+    sas_token = None
+
+    if AZURE_STORAGE_ACCOUNT_URL:
+        try:
+            key, key_expiry = _get_user_delegation_key()
+            sas_token = generate_blob_sas(
+                account_name=_account_name_from_url(AZURE_STORAGE_ACCOUNT_URL),
+                container_name=AZ_CONTAINER,
+                blob_name=blob_name,
+                user_delegation_key=key,
+                permission=BlobSasPermissions(read=True),
+                expiry=min(expiry, key_expiry),
+            )
+        except Exception as e:
+            logger.warning("User-delegation SAS failed (%s); trying account key.", type(e).__name__)
+            sas_token = None
+
+    if not sas_token:
+        try:
+            conn_parts = dict(part.split("=", 1) for part in AZ_CONN.split(";") if "=" in part)
+            account_name = conn_parts.get("AccountName")
+            account_key = conn_parts.get("AccountKey")
+            if account_name and account_key:
+                sas_token = generate_blob_sas(
+                    account_name=account_name,
+                    container_name=AZ_CONTAINER,
+                    blob_name=blob_name,
+                    account_key=account_key,
+                    permission=BlobSasPermissions(read=True),
+                    expiry=expiry,
+                )
+        except Exception as e:
+            logger.error("Account-key SAS generation failed (%s).", type(e).__name__)
+
+    if not sas_token:
+        logger.error("Could not generate a SAS URL: no usable signing credential.")
+        raise StorageSigningError("Unable to generate a signed URL for the stored file.")
+    return f"{blob_url}?{sas_token}"
+
+
+def get_blob_service_client():
+    """Blob service client from the connection string, else from the account URL + identity."""
+    from azure.storage.blob import BlobServiceClient
+
+    if AZ_CONN:
+        return BlobServiceClient.from_connection_string(AZ_CONN)
+    if AZURE_STORAGE_ACCOUNT_URL:
+        from azure.identity import DefaultAzureCredential
+
+        return BlobServiceClient(AZURE_STORAGE_ACCOUNT_URL, credential=DefaultAzureCredential())
+    raise StorageSigningError("Azure storage is enabled but not configured.")
 
 
 def store_file(name: str, content: bytes) -> Tuple[str, str]:
@@ -97,9 +169,9 @@ def store_file(name: str, content: bytes) -> Tuple[str, str]:
     unique_name = f"{uuid.uuid4().hex}_{safe_name}"
 
     if USE_AZURE:
-        from azure.storage.blob import BlobServiceClient, ContentSettings
+        from azure.storage.blob import ContentSettings
 
-        blob_svc = BlobServiceClient.from_connection_string(AZ_CONN)
+        blob_svc = get_blob_service_client()
         container = blob_svc.get_container_client(AZ_CONTAINER)
 
         # Check if we should compress
@@ -112,9 +184,12 @@ def store_file(name: str, content: bytes) -> Tuple[str, str]:
             compressed_size = len(compressed_content)
             compression_ratio = (1 - compressed_size / original_size) * 100
 
-            print(
-                f"Compressed {safe_name}: {original_size} -> {compressed_size} bytes "
-                f"({compression_ratio:.1f}% reduction)"
+            logger.info(
+                "Compressed %s: %d -> %d bytes (%.1f%% reduction)",
+                safe_name,
+                original_size,
+                compressed_size,
+                compression_ratio,
             )
 
             # Upload with Content-Encoding header so browsers auto-decompress
@@ -131,7 +206,15 @@ def store_file(name: str, content: bytes) -> Tuple[str, str]:
 
         # Generate secure SAS URL instead of public URL
         blob_url = f"{container.url}/{unique_name}"
-        url = _generate_sas_url(blob_url, unique_name)
+        try:
+            url = _generate_sas_url(blob_url, unique_name)
+        except StorageSigningError:
+            # Best-effort cleanup: do not leave an upload nobody can be given a URL for
+            try:
+                container.delete_blob(unique_name)
+            except Exception:
+                pass
+            raise
     else:
         dest_path = os.path.join(LOCAL_UPLOAD_DIR, unique_name)
         with open(dest_path, "wb") as f:
@@ -159,9 +242,9 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
     chunk_size = 1024 * 1024  # 1 MiB chunks
 
     if USE_AZURE:
-        from azure.storage.blob import BlobServiceClient, ContentSettings
+        from azure.storage.blob import ContentSettings
 
-        blob_svc = BlobServiceClient.from_connection_string(AZ_CONN)
+        blob_svc = get_blob_service_client()
         container = blob_svc.get_container_client(AZ_CONTAINER)
         blob_client = container.get_blob_client(unique_name)
 
@@ -196,9 +279,12 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
                     compressed_content = _compress_for_azure(content)
                     compression_ratio = (1 - len(compressed_content) / actual_size) * 100
 
-                    print(
-                        f"Compressed {safe_name}: {actual_size} -> "
-                        f"{len(compressed_content)} bytes ({compression_ratio:.1f}% reduction)"
+                    logger.info(
+                        "Compressed %s: %d -> %d bytes (%.1f%% reduction)",
+                        safe_name,
+                        actual_size,
+                        len(compressed_content),
+                        compression_ratio,
                     )
 
                     # Upload compressed with Content-Encoding header
@@ -230,6 +316,10 @@ def store_file_stream(name: str, stream: BinaryIO) -> Tuple[str, str]:
                 from fastapi import HTTPException
 
                 raise HTTPException(status_code=413, detail="File exceeds the 100MB limit.")
+            if isinstance(e, StorageSigningError):
+                from fastapi import HTTPException
+
+                raise HTTPException(status_code=503, detail=str(e))
             raise
     else:
         dest_path = os.path.join(LOCAL_UPLOAD_DIR, unique_name)

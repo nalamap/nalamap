@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Head from "next/head";
-import { LogOut, Maximize, RefreshCcw, Settings, Home, Layers } from "lucide-react";
+import { LogOut, Maximize, RefreshCcw, Settings, House, Layers } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../context/AuthContext";
 import { useChatInterfaceStore } from "../../stores/chatInterfaceStore";
@@ -96,7 +96,7 @@ export default function Sidebar({ onLayerToggle }: { onLayerToggle?: () => void 
             className="hover:bg-secondary-800 rounded focus:outline-none text-white transition-colors cursor-pointer w-full md:w-auto flex items-center md:justify-center justify-start md:px-2 px-4 py-3 md:py-2"
             title="Home"
           >
-            <Home className="w-6 h-6 md:mr-0 mr-3" />
+            <House className="w-6 h-6 md:mr-0 mr-3" />
             <span className="md:hidden text-base">Home</span>
           </button>
         </Link>

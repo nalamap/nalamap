@@ -68,7 +68,7 @@ export default function AgentSettingsComponent() {
               className="w-full border border-primary-300 dark:border-primary-700 rounded p-2 h-24 bg-primary-50 dark:bg-primary-950 text-primary-900 dark:text-primary-100"
             />
             <p className="text-xs text-primary-700 dark:text-primary-400 mt-1">
-              Customize the agent's behavior and personality
+              Customize the agent&apos;s behavior and personality
             </p>
           </div>
 
