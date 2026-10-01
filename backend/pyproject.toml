@@ -13,10 +13,10 @@ python = "^3.11"
 fastapi = "^0.142.2"
 uvicorn = {extras = ["standard"], version = "^0.54.0"}
 langchain = "^0.3.27"
-langchain-core = "^0.3.76"
+langchain-core = "^0.3.86"
 langchain_community = "^0.3.30"
 openai = "^1.108.1"
-psycopg = {extras = ["binary","pool"], version = "^3.3.2"}
+psycopg = {extras = ["binary","pool"], version = "^3.3.6"}
 sqlalchemy = {extras = ["asyncio"], version = "^2.1.1"}
 geoalchemy2 = "^0.20.0"
 langgraph = "^0.6.7"
@@ -26,8 +26,8 @@ owslib = "*"
 httpx = "*"
 # transitive (httpx/starlette/openai) — pinned up explicitly to clear
 # CVE-2026-63374 (TLS certificate spoofing), caught by the new trivy CI gate
-anyio = ">=4.14.2"
-sqlite-vec = "^0.1.6"
+anyio = ">=4.15.1"
+sqlite-vec = "^0.1.9"
 langchain_google_genai = "^2.1.12"
 langchain_mistralai = "^0.2.12"
 azure-storage-blob = "*"
@@ -44,7 +44,7 @@ python-jose = {extras = ["cryptography"], version = "^3.3"}
 bcrypt = "^5.0.0"
 authlib = "^1.4"
 pydantic-settings = "^2.11.0"
-rapidfuzz = "^3.14.3"
+rapidfuzz = "^3.14.6"
 azure-identity = "^1.25.3"
 
 [tool.poetry.group.dev.dependencies]
