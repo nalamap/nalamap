@@ -1,6 +1,9 @@
 
 FROM nginx:alpine
 
+# Pick up Alpine's already-published security fixes (e.g. libexpat) on every rebuild
+RUN apk upgrade --no-cache
+
 COPY nginx.conf.envsubst /etc/nginx/nginx.conf.envsubst
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh

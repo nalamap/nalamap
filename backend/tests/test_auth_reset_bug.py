@@ -12,9 +12,9 @@ and improper UUID validation that causes database errors instead of 401.
 
 from datetime import datetime, timedelta
 
+import jwt
 import pytest
 from fastapi.testclient import TestClient
-from jose import jwt
 
 from core.config import SECRET_KEY
 from db.session import AsyncSessionLocal, get_session

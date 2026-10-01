@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta
 from uuid import uuid4
 
-from jose import jwt  # , JWTError
+import jwt
 from passlib.context import CryptContext
 
 from core.config import ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY
