@@ -36,6 +36,20 @@ class MCPServer(BaseModel):
     )
 
 
+class OGCAPIBackend(BaseModel):
+    url: str = Field(..., description="OGC API base URL, e.g. https://ogcapi.example.com/v1")
+    name: str = Field(..., description="Human-friendly name for this backend")
+    description: Optional[str] = Field(None, description="Optional description / purpose notes")
+    enabled: bool = Field(True, description="Enable or disable this backend")
+    allow_insecure: bool = Field(
+        False,
+        description=(
+            "Allow insecure connections (e.g., expired/self-signed SSL certificates). "
+            "WARNING: Only enable this for trusted servers in development environments."
+        ),
+    )
+
+
 class SearchPortal(BaseModel):
     url: str = Field(..., description="Geodata portal URL")
     enabled: bool = Field(True, description="Enable or disable this portal")
@@ -163,6 +177,9 @@ class SettingsSnapshot(BaseModel):
     )
     geoserver_backends: List[GeoServerBackend] = Field(
         ..., description="Configured GeoServer backends"
+    )
+    ogcapi_backends: List[OGCAPIBackend] = Field(
+        default_factory=list, description="Configured OGC API backends"
     )
     mcp_servers: List[MCPServer] = Field(
         default_factory=list, description="Configured MCP (Model Context Protocol) servers"

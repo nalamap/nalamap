@@ -40,6 +40,11 @@ Tools for managing the current session's data.
 Tools for finding external data.
 - `query_librarian_postgis`: Search the internal PostGIS database for datasets.
 - `get_custom_geoserver_data`: Connect to and fetch data from external GeoServer instances.
+- `search_ogcapi_layers` (`ogcapi_tools.py`): Search collections on user-configured OGC API (Features/Tiles) servers.
+  - **Configuration**: `ogcapi_backends` in the settings snapshot (`url`, `name`, optional `description`, `enabled`, `allow_insecure`). Configured in the frontend under Settings → "OGC API Backends". Without an enabled backend the tool returns a "No OGC API backends configured" message.
+  - **Parameters**: `query` (free text), `max_results` (per backend, default 20, capped at 50).
+  - **Search**: tries server-side `GET {url}/collections?q=...` and compares it with the unfiltered listing. If the server rejects `q` (HTTP 400), returns nothing, or ignores it (same collections as unfiltered), results are filtered locally by substring on title, description and id.
+  - **Returns**: a `Command` updating `geodata_last_results` with `GeoDataObject`s (`data_type="Layer"`, `layer_type="WFS"`, `data_source="ogcapi"`, bbox from the collection extent). `data_link` is a GeoJSON items URL (`.../collections/{id}/items?f=json&limit=1000`) taken from the collection's `rel="items"` link (GeoJSON type preferred); tile links are not used because the Leaflet renderer cannot display them. Unreachable backends are reported in the message without failing the others.
 
 ## 📝 Tool Registration
 

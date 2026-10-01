@@ -26,6 +26,14 @@ export interface GeoServerBackend {
   allow_insecure?: boolean; // Allow insecure connections (expired/self-signed SSL certs)
 }
 
+export interface OGCAPIBackend {
+  url: string;
+  name: string;
+  description?: string;
+  enabled: boolean;
+  allow_insecure?: boolean; // Allow insecure connections (expired/self-signed SSL certs)
+}
+
 export interface MCPServer {
   url: string;
   name?: string;
@@ -122,6 +130,7 @@ export interface ColorSettings {
 export interface SettingsSnapshot {
   search_portals?: SearchPortal[]; // DEPRECATED: No longer used in the application
   geoserver_backends: GeoServerBackend[];
+  ogcapi_backends?: OGCAPIBackend[]; // OGC API server configuration
   mcp_servers?: MCPServer[]; // MCP server configuration
   model_settings: ModelSettings;
   tools: ToolConfig[];
@@ -159,6 +168,14 @@ export interface SettingsState extends SettingsSnapshot {
   removeBackend: (url: string) => void;
   toggleBackend: (url: string) => void;
   toggleBackendInsecure: (url: string) => void;
+
+  // OGC API backend actions
+  addOGCAPIBackend: (
+    backend: Omit<OGCAPIBackend, "enabled"> & { enabled?: boolean },
+  ) => void;
+  removeOGCAPIBackend: (url: string) => void;
+  toggleOGCAPIBackend: (url: string) => void;
+  toggleOGCAPIBackendInsecure: (url: string) => void;
 
   // MCP server actions
   addMCPServer: (
@@ -385,6 +402,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   // initial
   search_portals: [],
   geoserver_backends: [],
+  ogcapi_backends: [],
   mcp_servers: [],
   model_settings: {
     model_provider: "",
@@ -477,6 +495,47 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   toggleBackendInsecure: (url) =>
     set((state) => ({
       geoserver_backends: state.geoserver_backends.map((b) =>
+        b.url === url ? { ...b, allow_insecure: !b.allow_insecure } : b,
+      ),
+    })),
+
+  // ogc api backends
+  addOGCAPIBackend: (backend) =>
+    set((state) => {
+      const current = state.ogcapi_backends || [];
+      const existingIndex = current.findIndex((b) => b.url === backend.url);
+      if (existingIndex >= 0) {
+        const next = [...current];
+        const previous = next[existingIndex];
+        next[existingIndex] = {
+          ...previous,
+          ...backend,
+          enabled: backend.enabled ?? previous.enabled,
+        };
+        return { ogcapi_backends: next };
+      }
+      return {
+        ogcapi_backends: [
+          ...current,
+          { ...backend, enabled: backend.enabled ?? true },
+        ],
+      };
+    }),
+  removeOGCAPIBackend: (url) =>
+    set((state) => ({
+      ogcapi_backends: (state.ogcapi_backends || []).filter(
+        (b) => b.url !== url,
+      ),
+    })),
+  toggleOGCAPIBackend: (url) =>
+    set((state) => ({
+      ogcapi_backends: (state.ogcapi_backends || []).map((b) =>
+        b.url === url ? { ...b, enabled: !b.enabled } : b,
+      ),
+    })),
+  toggleOGCAPIBackendInsecure: (url) =>
+    set((state) => ({
+      ogcapi_backends: (state.ogcapi_backends || []).map((b) =>
         b.url === url ? { ...b, allow_insecure: !b.allow_insecure } : b,
       ),
     })),
@@ -663,6 +722,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   getSettings: () => ({
     search_portals: get().search_portals || [],
     geoserver_backends: get().geoserver_backends,
+    ogcapi_backends: get().ogcapi_backends || [],
     model_settings: get().model_settings,
     tools: get().tools,
     tool_options: get().tool_options,
@@ -676,6 +736,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const newState = {
         search_portals: settings.search_portals || [],
         geoserver_backends: settings.geoserver_backends,
+        ogcapi_backends: settings.ogcapi_backends || [],
         model_settings: settings.model_settings,
         tools: settings.tools,
         tool_options: settings.tool_options,

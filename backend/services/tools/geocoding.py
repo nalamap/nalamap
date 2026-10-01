@@ -660,7 +660,6 @@ def geocode_using_nominatim_to_geostate(
                 return Command(
                     update={
                         "messages": [
-                            *state["messages"],
                             ToolMessage(
                                 name="geocode_using_nominatim_to_geostate",
                                 content=tool_message_content,
@@ -762,7 +761,6 @@ def geocode_address_via_overpass(
         return Command(
             update={
                 "messages": [
-                    *state["messages"],
                     ToolMessage(
                         name="geocode_address_via_overpass",
                         content=str(exc),
@@ -779,7 +777,6 @@ def geocode_address_via_overpass(
         return Command(
             update={
                 "messages": [
-                    *state["messages"],
                     ToolMessage(
                         name="geocode_address_via_overpass",
                         content=f"Overpass error while searching for '{query_description}': {error_msg}",
@@ -794,7 +791,6 @@ def geocode_address_via_overpass(
         return Command(
             update={
                 "messages": [
-                    *state["messages"],
                     ToolMessage(
                         name="geocode_address_via_overpass",
                         content=f"No address found for '{query_description}' in OSM.",
@@ -827,7 +823,6 @@ def geocode_address_via_overpass(
         return Command(
             update={
                 "messages": [
-                    *state["messages"],
                     ToolMessage(
                         name="geocode_address_via_overpass",
                         content=f"Found OSM elements for '{query_description}' but none had usable geometry.",
@@ -837,22 +832,37 @@ def geocode_address_via_overpass(
             }
         )
 
-    # Group by geometry type and build collections
+    # Group by actual geometry type (ways/relations can be lines or polygons)
     location_label = location.display_name if location else "global"
-    collection_obj = create_feature_collection_geodata(
-        features,
-        "Address",
-        query_description,
-        location_label,
-        "addr:street",
-        city_label or street,
-    )
+    groups: Dict[str, List[Dict[str, Any]]] = {"Points": [], "Lines": [], "Areas": []}
+    for feat in features:
+        gtype = (feat.get("geometry") or {}).get("type", "")
+        if "Polygon" in gtype:
+            groups["Areas"].append(feat)
+        elif "LineString" in gtype:
+            groups["Lines"].append(feat)
+        else:
+            groups["Points"].append(feat)
 
-    if not collection_obj:
+    collection_objs: List[GeoDataObject] = []
+    for collection_type, group_features in groups.items():
+        if not group_features:
+            continue
+        obj = create_feature_collection_geodata(
+            group_features,
+            collection_type,
+            query_description,
+            location_label,
+            f"addr:street={street}",
+            city_label or street,
+        )
+        if obj:
+            collection_objs.append(obj)
+
+    if not collection_objs:
         return Command(
             update={
                 "messages": [
-                    *state["messages"],
                     ToolMessage(
                         name="geocode_address_via_overpass",
                         content=f"Could not create a map layer for '{query_description}'.",
@@ -862,24 +872,24 @@ def geocode_address_via_overpass(
             }
         )
 
-    collection_obj.processing_metadata = ProcessingMetadata(
-        operation="overpass_address_query",
-        crs_used="EPSG:4326",
-        crs_name="WGS 84",
-        auto_selected=True,
-        query_intent=query_description,
-        query_location=city_label or street,
-        resolution_method="address_tags",
-        resolution_detail="OSM addr:* tag lookup",
-        osm_tags_used=[f"{k}={v}" for k, v in address_components.items()],
-        osm_tags_excluded=[],
-        overpass_query=overpass_query,
-    )
+    for collection_obj in collection_objs:
+        collection_obj.processing_metadata = ProcessingMetadata(
+            operation="overpass_address_query",
+            crs_used="EPSG:4326",
+            crs_name="WGS 84",
+            auto_selected=True,
+            query_intent=query_description,
+            query_location=city_label or street,
+            resolution_method="address_tags",
+            resolution_detail="OSM addr:* tag lookup",
+            osm_tags_used=[f"{k}={v}" for k, v in address_components.items()],
+            osm_tags_excluded=[],
+            overpass_query=overpass_query,
+        )
 
     return Command(
         update={
             "messages": [
-                *state["messages"],
                 ToolMessage(
                     name="geocode_address_via_overpass",
                     content=(
@@ -889,8 +899,8 @@ def geocode_address_via_overpass(
                     tool_call_id=tool_call_id,
                 ),
             ],
-            "geodata_last_results": [collection_obj],
-            "geodata_results": [collection_obj],
+            "geodata_last_results": collection_objs,
+            "geodata_results": collection_objs,
         }
     )
 
@@ -1313,7 +1323,6 @@ def geocode_using_overpass_to_geostate(
         return Command(
             update={
                 "messages": [
-                    *state["messages"],
                     ToolMessage(
                         name="geocode_using_overpass_to_geostate",
                         content=hint,
@@ -1352,7 +1361,6 @@ def geocode_using_overpass_to_geostate(
             return Command(
                 update={
                     "messages": [
-                        *state["messages"],
                         ToolMessage(
                             name="geocode_using_overpass_to_geostate",
                             content=error_msg,
@@ -1400,7 +1408,6 @@ def geocode_using_overpass_to_geostate(
         return Command(
             update={
                 "messages": [
-                    *state["messages"],
                     ToolMessage(
                         name="geocode_using_overpass_to_geostate",
                         content=str(e),
@@ -1418,7 +1425,6 @@ def geocode_using_overpass_to_geostate(
         return Command(
             update={
                 "messages": [
-                    *state["messages"],
                     ToolMessage(
                         name="geocode_using_overpass_to_geostate",
                         content=(
@@ -1436,7 +1442,6 @@ def geocode_using_overpass_to_geostate(
         return Command(
             update={
                 "messages": [
-                    *state["messages"],
                     ToolMessage(
                         name="geocode_using_overpass_to_geostate",
                         content=(f"No '{amenity_key_display}' found {search_mode_description}."),
@@ -1581,7 +1586,6 @@ def geocode_using_overpass_to_geostate(
         return Command(
             update={
                 "messages": [
-                    *state["messages"],
                     ToolMessage(
                         name="geocode_using_overpass_to_geostate",
                         content=(
@@ -1615,7 +1619,6 @@ def geocode_using_overpass_to_geostate(
 
     state_update: Dict[str, Any] = {
         "messages": [
-            *state["messages"],
             ToolMessage(
                 name="geocode_using_overpass_to_geostate",
                 content=tool_message_content,
