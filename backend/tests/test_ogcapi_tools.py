@@ -19,6 +19,7 @@ from models.settings_model import (
 )
 from models.states import GeoDataAgentState
 from services.tools.ogcapi_tools import (
+    UnsafeURLError,
     _collection_to_geodata,
     _pick_access_url,
     _search_ogcapi_layers_impl,
@@ -110,6 +111,13 @@ def _patch_client(responses: List[MagicMock]):
         yield mock_client
 
 
+@pytest.fixture(autouse=True)
+def _public_dns():
+    """Resolve every hostname to a public address (no real DNS in unit tests)."""
+    with patch("services.tools.ogcapi_tools._resolve_host", return_value=["93.184.216.34"]):
+        yield
+
+
 # ---------------------------------------------------------------------------
 # Unit tests: helpers
 # ---------------------------------------------------------------------------
@@ -180,7 +188,7 @@ def test_collection_to_geodata_maps_fields():
     assert "f=json" in obj.data_link
     assert obj.data_source == "ogcapi"
     assert obj.name == "kba"
-    assert obj.data_source_id == "Test OGC API"
+    assert obj.data_source_id.startswith("ogcapi:")
     assert obj.data_link is not None
     assert obj.bounding_box is not None
     assert "POLYGON" in obj.bounding_box
@@ -393,3 +401,172 @@ def test_search_no_results_returns_tool_message():
 
     assert isinstance(result, ToolMessage)
     assert "No collections found" in result.content
+
+
+# ---------------------------------------------------------------------------
+# SSRF protection
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://169.254.169.254/latest/meta-data",
+        "http://127.0.0.1:8000",
+        "http://localhost/x",
+        "http://10.0.0.5/ogc",
+        "http://[::1]/x",
+        "http://[::ffff:127.0.0.1]/x",
+        "http://0.0.0.0/x",
+        "file:///etc/passwd",
+        "ftp://example.com/x",
+    ],
+)
+def test_validate_outbound_url_blocks_internal(url):
+    from services.tools.ogcapi_tools import _validate_outbound_url
+
+    with pytest.raises(UnsafeURLError):
+        _validate_outbound_url(url)
+
+
+@pytest.mark.unit
+def test_validate_outbound_url_blocks_hostname_resolving_to_private():
+    from services.tools.ogcapi_tools import _validate_outbound_url
+
+    with patch(
+        "services.tools.ogcapi_tools._resolve_host", return_value=["93.184.216.34", "10.1.2.3"]
+    ):
+        with pytest.raises(UnsafeURLError):
+            _validate_outbound_url("https://evil.example.com/v1")
+
+
+@pytest.mark.unit
+def test_search_internal_backend_makes_no_request():
+    backend = OGCAPIBackend(url="http://169.254.169.254/latest", name="evil")
+    state = _make_state(_make_snapshot([backend]))
+    with _patch_client([]) as client:
+        result = _search_ogcapi_layers_impl(state=state, tool_call_id="x", query="a")
+    assert isinstance(result, ToolMessage)
+    assert "evil" in result.content
+    client.get.assert_not_called()
+
+
+@pytest.mark.unit
+def test_redirect_to_internal_host_is_blocked():
+    redirect = MagicMock()
+    redirect.status_code = 302
+    redirect.headers = {"location": "http://169.254.169.254/latest/meta-data"}
+    state = _make_state(_make_snapshot([MOCK_BACKEND]))
+    with _patch_client([redirect]) as client:
+        result = _search_ogcapi_layers_impl(state=state, tool_call_id="x", query="a")
+    assert isinstance(result, ToolMessage)
+    assert client.get.call_count == 1
+
+
+@pytest.mark.unit
+def test_safe_redirect_is_followed():
+    redirect = MagicMock()
+    redirect.status_code = 301
+    redirect.headers = {"location": "https://ogcapi2.example.com/v1/collections"}
+    ok = _mock_http_response({"collections": [_make_collection("rivers", "Rivers")]})
+    state = _make_state(_make_snapshot([MOCK_BACKEND]))
+    # q request: redirect -> ok ; unfiltered request: ok
+    with _patch_client([redirect, ok, ok]):
+        result = _search_ogcapi_layers_impl(state=state, tool_call_id="x", query="rivers")
+    assert isinstance(result, Command)
+
+
+# ---------------------------------------------------------------------------
+# Pagination of the client-side fallback
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_fallback_follows_next_links():
+    bad = _mock_http_response({}, status_code=400)
+    page1 = _mock_http_response(
+        {
+            "collections": [_make_collection("a", "Alpha")],
+            "links": [{"rel": "next", "href": "https://ogcapi.example.com/v1/collections?o=1"}],
+        }
+    )
+    page2 = _mock_http_response({"collections": [_make_collection("rivers", "Rivers")]})
+    state = _make_state(_make_snapshot([MOCK_BACKEND]))
+    with _patch_client([bad, page1, page2]) as client:
+        result = _search_ogcapi_layers_impl(state=state, tool_call_id="x", query="rivers")
+    assert isinstance(result, Command)
+    assert [g.name for g in result.update["geodata_last_results"]] == ["rivers"]
+    assert client.get.call_args_list[-1].args[0].endswith("?o=1")
+
+
+@pytest.mark.unit
+def test_fallback_next_link_to_internal_host_is_blocked():
+    bad = _mock_http_response({}, status_code=400)
+    page1 = _mock_http_response(
+        {
+            "collections": [_make_collection("a", "Alpha")],
+            "links": [{"rel": "next", "href": "http://169.254.169.254/x"}],
+        }
+    )
+    state = _make_state(_make_snapshot([MOCK_BACKEND]))
+    with _patch_client([bad, page1]) as client:
+        result = _search_ogcapi_layers_impl(state=state, tool_call_id="x", query="rivers")
+    assert isinstance(result, ToolMessage)
+    assert client.get.call_count == 2
+
+
+@pytest.mark.unit
+def test_fallback_uses_offset_when_no_next_link():
+    bad = _mock_http_response({}, status_code=400)
+    page1 = _mock_http_response(
+        {"collections": [_make_collection("a", "Alpha")], "numberMatched": 2}
+    )
+    page2 = _mock_http_response({"collections": [_make_collection("rivers", "Rivers")]})
+    state = _make_state(_make_snapshot([MOCK_BACKEND]))
+    with _patch_client([bad, page1, page2]) as client:
+        result = _search_ogcapi_layers_impl(state=state, tool_call_id="x", query="rivers")
+    assert [g.name for g in result.update["geodata_last_results"]] == ["rivers"]
+    assert client.get.call_args_list[-1].kwargs["params"]["offset"] == 1
+
+
+@pytest.mark.unit
+def test_fallback_stops_once_max_results_reached():
+    bad = _mock_http_response({}, status_code=400)
+    page1 = _mock_http_response(
+        {
+            "collections": [_make_collection("r1", "River 1"), _make_collection("r2", "River 2")],
+            "links": [{"rel": "next", "href": "https://ogcapi.example.com/v1/collections?o=2"}],
+        }
+    )
+    state = _make_state(_make_snapshot([MOCK_BACKEND]))
+    with _patch_client([bad, page1]) as client:
+        result = _search_ogcapi_layers_impl(
+            state=state, tool_call_id="x", query="river", max_results=2
+        )
+    assert len(result.update["geodata_last_results"]) == 2
+    assert client.get.call_count == 2
+
+
+# ---------------------------------------------------------------------------
+# Identity
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_same_name_same_collection_different_endpoints_have_distinct_identity():
+    a = OGCAPIBackend(url="https://a.example.com/v1", name="Shared")
+    b = OGCAPIBackend(url="https://b.example.com/v1", name="Shared")
+    col = _make_collection("rivers", "Rivers")
+    oa, ob = _collection_to_geodata(col, a), _collection_to_geodata(col, b)
+    assert oa.id != ob.id
+    assert oa.data_source_id != ob.data_source_id
+
+
+@pytest.mark.unit
+def test_identity_stable_across_url_normalization_and_rename():
+    a = OGCAPIBackend(url="https://A.example.com/v1/", name="One")
+    b = OGCAPIBackend(url="https://a.example.com/v1", name="Two")
+    col = _make_collection("rivers", "Rivers")
+    oa, ob = _collection_to_geodata(col, a), _collection_to_geodata(col, b)
+    assert (oa.id, oa.data_source_id) == (ob.id, ob.data_source_id)

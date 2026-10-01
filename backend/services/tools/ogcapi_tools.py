@@ -15,13 +15,16 @@ Results are exposed as GeoJSON feature layers (``layer_type="WFS"`` with an
 """
 
 import hashlib
+import ipaddress
 import logging
+import socket
 import ssl
 import uuid
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Iterator, List, Optional, Union
 from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 
 import httpx
+from fastapi import HTTPException
 from langchain_core.messages import ToolMessage
 from langchain_core.tools import tool
 from langchain_core.tools.base import InjectedToolCallId
@@ -29,6 +32,7 @@ from langgraph.prebuilt import InjectedState
 from langgraph.types import Command
 from typing_extensions import Annotated
 
+from api.proxy import validate_url as _proxy_validate_url
 from models.geodata import DataOrigin, DataType, GeoDataObject
 from models.settings_model import OGCAPIBackend, SettingsSnapshot
 from models.states import GeoDataAgentState
@@ -38,6 +42,80 @@ logger = logging.getLogger(__name__)
 _DEFAULT_TIMEOUT = 15.0  # seconds
 _MAX_RESULTS = 50  # upper bound to avoid oversized ToolMessage
 _ITEMS_LIMIT = 1000  # max features requested per layer when displaying on the map
+
+
+_MAX_PAGES = 10  # cap on followed pagination links per backend
+_MAX_REDIRECTS = 3
+
+
+class UnsafeURLError(Exception):
+    """Raised when a configured/followed URL targets a disallowed destination."""
+
+
+def _resolve_host(host: str) -> List[str]:
+    """Resolve ``host`` to all of its IP addresses (patched in tests)."""
+    infos = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
+    return [info[4][0] for info in infos]
+
+
+def _validate_outbound_url(url: str) -> None:
+    """SSRF guard applied before every request (initial, paginated and redirected).
+
+    Reuses the proxy's scheme/host validation, then resolves the hostname and rejects
+    it if *any* resolved address is private, loopback, link-local (incl. cloud
+    metadata 169.254.169.254), multicast, reserved or unspecified.  Note: resolution
+    and connection are separate lookups, so DNS rebinding is not fully excluded.
+    """
+    try:
+        _proxy_validate_url(url)
+    except HTTPException as exc:
+        raise UnsafeURLError(str(exc.detail)) from exc
+    host = urlsplit(url).hostname or ""
+    try:
+        addresses = [str(ipaddress.ip_address(host))]
+    except ValueError:
+        try:
+            addresses = _resolve_host(host)
+        except OSError as exc:
+            raise UnsafeURLError(f"Cannot resolve host {host!r}: {exc}") from exc
+    if not addresses:
+        raise UnsafeURLError(f"Host {host!r} did not resolve")
+    for addr in addresses:
+        ip = ipaddress.ip_address(addr.split("%")[0])
+        if ip.version == 6 and ip.ipv4_mapped:
+            ip = ip.ipv4_mapped
+        if not ip.is_global or ip.is_multicast:
+            raise UnsafeURLError(f"Host {host!r} resolves to a non-public address ({ip})")
+
+
+def _safe_get(
+    client: httpx.Client, url: str, params: Optional[Dict[str, Any]] = None
+) -> httpx.Response:
+    """GET ``url`` validating the destination and every redirect hop manually."""
+    for _ in range(_MAX_REDIRECTS + 1):
+        _validate_outbound_url(url)
+        resp = client.get(url, params=params, follow_redirects=False)
+        if resp.status_code in (301, 302, 303, 307, 308):
+            location = resp.headers.get("location")
+            if not location:
+                return resp
+            url = urljoin(url, location)
+            params = None
+            continue
+        return resp
+    raise UnsafeURLError("Too many redirects")
+
+
+def _normalize_backend_url(url: str) -> str:
+    parts = urlsplit(url.strip())
+    return urlunsplit(
+        (parts.scheme.lower(), parts.netloc.lower(), parts.path.rstrip("/"), parts.query, "")
+    )
+
+
+def _backend_key(backend: OGCAPIBackend) -> str:
+    """Stable identifier of an endpoint (hash of its normalized URL), independent of name."""
+    return hashlib.sha1(_normalize_backend_url(backend.url).encode()).hexdigest()[:16]
 
 
 def _make_client(allow_insecure: bool) -> httpx.Client:
@@ -113,7 +191,9 @@ def _collection_to_geodata(
     access_url = _pick_access_url(collection, backend.url)
     bbox_wkt = _extract_bbox_wkt(collection)
     # Stable deterministic ID so the same collection is deduplicated in agent state.
-    stable_id = str(uuid.UUID(hashlib.sha1(f"{backend.name}:{col_id}".encode()).hexdigest()[:32]))
+    stable_id = str(
+        uuid.UUID(hashlib.sha1(f"{_backend_key(backend)}:{col_id}".encode()).hexdigest()[:32])
+    )
     return GeoDataObject(
         id=stable_id,
         name=col_id,
@@ -121,7 +201,7 @@ def _collection_to_geodata(
         description=collection.get("description") or "",
         data_type=DataType.LAYER,
         data_source="ogcapi",
-        data_source_id=backend.name,
+        data_source_id=f"ogcapi:{_backend_key(backend)}",
         data_origin=DataOrigin.TOOL.value,
         data_link=access_url,
         layer_type="WFS",  # renderer treats this as a GeoJSON feature layer
@@ -129,6 +209,7 @@ def _collection_to_geodata(
         properties={
             "collection_id": col_id,
             "backend_name": backend.name,
+            "backend_key": _backend_key(backend),
             "backend_url": backend.url,
         },
     )
@@ -149,11 +230,36 @@ def _search_backend(
     try:
         with _make_client(backend.allow_insecure) as client:
 
-            def _list(params: Dict[str, Any]) -> List[Dict[str, Any]]:
-                resp = client.get(f"{base}/collections", params=params)
-                resp.raise_for_status()
-                data = resp.json()
-                return data.get("collections", data if isinstance(data, list) else [])
+            def _pages(params: Dict[str, Any]) -> Iterator[List[Dict[str, Any]]]:
+                """Yield collection pages, following rel=next links (or offset)."""
+                url = f"{base}/collections"
+                page_params: Optional[Dict[str, Any]] = params
+                fetched = 0
+                for _ in range(_MAX_PAGES):
+                    resp = _safe_get(client, url, page_params)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    if isinstance(data, list):
+                        yield data
+                        return
+                    cols = data.get("collections", [])
+                    yield cols
+                    fetched += len(cols)
+                    next_href = next(
+                        (
+                            lk.get("href")
+                            for lk in data.get("links", []) or []
+                            if lk.get("rel") == "next" and lk.get("href")
+                        ),
+                        None,
+                    )
+                    if next_href:
+                        url, page_params = urljoin(url, next_href), None
+                    elif cols and fetched < (data.get("numberMatched") or 0):
+                        url = f"{base}/collections"
+                        page_params = {**params, "offset": fetched}
+                    else:
+                        return
 
             def _local_matches(cols: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 q = query.lower()
@@ -168,26 +274,33 @@ def _search_backend(
             # Same limit for both requests so their results are comparable.
             base_params: Dict[str, Any] = {"limit": _MAX_RESULTS}
 
-            # --- Attempt 1: server-side q= search ---
+            # --- Attempt 1: server-side q= search (first page only) ---
             searched: List[Dict[str, Any]] = []
             try:
-                searched = _list({**base_params, "q": query})
+                searched = next(_pages({**base_params, "q": query}), [])
             except (ValueError, httpx.HTTPStatusError):
                 searched = []  # e.g. HTTP 400: q= unsupported
 
-            all_collections = _list(base_params)
+            unfiltered_pages = _pages(base_params)
+            first_page = next(unfiltered_pages, [])
 
             # A server that does not implement q= typically ignores it and returns its
             # normal listing with HTTP 200.  We only trust the server-side result when
             # it demonstrably narrowed the listing, i.e. the set of collection ids
-            # differs from the unfiltered listing.  Otherwise (identical, empty or
-            # failed) the local title/description/id predicate is applied.
+            # differs from the unfiltered first page.  Otherwise (identical, empty or
+            # failed) the local predicate is applied, following pagination until
+            # max_results matches are found or the catalog (or page cap) is exhausted.
             searched_ids = {c.get("id") for c in searched}
-            all_ids = {c.get("id") for c in all_collections}
-            if searched and searched_ids != all_ids:
+            first_ids = {c.get("id") for c in first_page}
+            if searched and searched_ids != first_ids:
                 chosen = searched
             else:
-                chosen = _local_matches(all_collections)
+                chosen = _local_matches(first_page)
+                while len(chosen) < max_results:
+                    page = next(unfiltered_pages, None)
+                    if page is None:
+                        break
+                    chosen.extend(_local_matches(page))
             return [_collection_to_geodata(c, backend) for c in chosen[:max_results]]
 
     except httpx.ConnectError as exc:
