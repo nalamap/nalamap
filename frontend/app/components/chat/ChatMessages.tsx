@@ -68,8 +68,8 @@ export default function ChatMessages({
               <div key={msgKey} className="flex justify-start">
                 <div className="max-w px-4 py-2 rounded-lg bg-primary-100 rounded-tl-none border border-primary-300">
                   <div className="text-sm font-medium text-primary-900">
-                    Using tool '{call.function.name}' with arguments '{" "}
-                    {call.function.arguments}'
+                    Using tool &apos;{call.function.name}&apos; with arguments &apos;{" "}
+                    {call.function.arguments}&apos;
                   </div>
 
                   <button

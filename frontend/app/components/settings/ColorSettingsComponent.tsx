@@ -191,7 +191,7 @@ const ColorScaleEditor = memo(function ColorScaleEditor({
                 🪄 Quick Color Set
               </p>
               <p className="text-xs text-secondary-800">
-                Pick your main color and we'll automatically generate all 11 shades (lighter to darker).
+                Pick your main color and we&apos;ll automatically generate all 11 shades (lighter to darker).
               </p>
             </div>
           </div>
@@ -283,7 +283,7 @@ export default function ColorSettingsComponent() {
               <Info className="w-4 h-4 text-info-600 mt-0.5 flex-shrink-0" />
               <div className="text-info-900">
                 <p className="font-medium mb-1">
-                  Customize your app's color scheme
+                  Customize your app&apos;s color scheme
                 </p>
                 <ul className="text-xs space-y-1 text-info-800">
                   <li>
