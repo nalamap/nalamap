@@ -519,3 +519,13 @@ async def test_osint_fire_query_selects_firms_tool_with_default_aliases(strategy
     )
     selected = await selector.select_tools("show active fires", tools)
     assert "nasa_fire_data" in [t.name for t in selected]
+
+
+def test_osint_prompt_guidance_matches_tool_behaviour():
+    """Prompt must not promise behaviour the OSINT tools lack."""
+    from services.default_agent_settings import DEFAULT_SYSTEM_PROMPT as P
+
+    assert "individual countries" in P and "Sub-Saharan Africa" in P
+    assert "Pass the place name directly" in P
+    assert "NASA GIBS layers are live tile layers without a fixed date" in P
+    assert "burn areas" not in P
