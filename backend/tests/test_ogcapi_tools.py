@@ -3,6 +3,7 @@
 All HTTP calls are mocked via unittest.mock so no network access is needed.
 """
 
+import json
 from contextlib import contextmanager
 from typing import Any, Dict, List
 from unittest.mock import MagicMock, patch
@@ -85,6 +86,9 @@ def _mock_http_response(json_data: Any, status_code: int = 200) -> MagicMock:
     mock_resp = MagicMock()
     mock_resp.status_code = status_code
     mock_resp.json.return_value = json_data
+    body = json.dumps(json_data).encode()
+    mock_resp.headers = {}
+    mock_resp.iter_bytes.side_effect = lambda: iter([body])
     if status_code >= 400:
         import httpx
 
@@ -100,12 +104,18 @@ def _mock_http_response(json_data: Any, status_code: int = 200) -> MagicMock:
 def _patch_client(responses: List[MagicMock]):
     """Context manager that patches _make_client to return a mock httpx.Client.
 
-    ``responses`` is consumed in order — one response per client.get() call.
+    ``responses`` is consumed in order — one response per client.stream() call.
     """
     mock_client = MagicMock()
     mock_client.__enter__ = MagicMock(return_value=mock_client)
     mock_client.__exit__ = MagicMock(return_value=False)
-    mock_client.get.side_effect = responses
+    queue = list(responses)
+
+    @contextmanager
+    def _stream(*args, **kwargs):
+        yield queue.pop(0)
+
+    mock_client.stream.side_effect = _stream
 
     with patch("services.tools.ogcapi_tools._make_client", return_value=mock_client):
         yield mock_client
@@ -293,7 +303,7 @@ def test_search_ssl_error_handled():
     mock_client = MagicMock()
     mock_client.__enter__ = MagicMock(return_value=mock_client)
     mock_client.__exit__ = MagicMock(return_value=False)
-    mock_client.get.side_effect = ssl.SSLError("certificate verify failed")
+    mock_client.stream.side_effect = ssl.SSLError("certificate verify failed")
 
     with patch("services.tools.ogcapi_tools._make_client", return_value=mock_client):
         result = _search_ogcapi_layers_impl(
@@ -449,7 +459,7 @@ def test_search_internal_backend_makes_no_request():
         result = _search_ogcapi_layers_impl(state=state, tool_call_id="x", query="a")
     assert isinstance(result, ToolMessage)
     assert "evil" in result.content
-    client.get.assert_not_called()
+    client.stream.assert_not_called()
 
 
 @pytest.mark.unit
@@ -461,7 +471,7 @@ def test_redirect_to_internal_host_is_blocked():
     with _patch_client([redirect]) as client:
         result = _search_ogcapi_layers_impl(state=state, tool_call_id="x", query="a")
     assert isinstance(result, ToolMessage)
-    assert client.get.call_count == 1
+    assert client.stream.call_count == 1
 
 
 @pytest.mark.unit
@@ -497,7 +507,7 @@ def test_fallback_follows_next_links():
         result = _search_ogcapi_layers_impl(state=state, tool_call_id="x", query="rivers")
     assert isinstance(result, Command)
     assert [g.name for g in result.update["geodata_last_results"]] == ["rivers"]
-    assert client.get.call_args_list[-1].args[0].endswith("?o=1")
+    assert client.stream.call_args_list[-1].args[1].endswith("?o=1")
 
 
 @pytest.mark.unit
@@ -513,7 +523,7 @@ def test_fallback_next_link_to_internal_host_is_blocked():
     with _patch_client([bad, page1]) as client:
         result = _search_ogcapi_layers_impl(state=state, tool_call_id="x", query="rivers")
     assert isinstance(result, ToolMessage)
-    assert client.get.call_count == 2
+    assert client.stream.call_count == 2
 
 
 @pytest.mark.unit
@@ -527,7 +537,7 @@ def test_fallback_uses_offset_when_no_next_link():
     with _patch_client([bad, page1, page2]) as client:
         result = _search_ogcapi_layers_impl(state=state, tool_call_id="x", query="rivers")
     assert [g.name for g in result.update["geodata_last_results"]] == ["rivers"]
-    assert client.get.call_args_list[-1].kwargs["params"]["offset"] == 1
+    assert client.stream.call_args_list[-1].kwargs["params"]["offset"] == 1
 
 
 @pytest.mark.unit
@@ -545,7 +555,7 @@ def test_fallback_stops_once_max_results_reached():
             state=state, tool_call_id="x", query="river", max_results=2
         )
     assert len(result.update["geodata_last_results"]) == 2
-    assert client.get.call_count == 2
+    assert client.stream.call_count == 2
 
 
 # ---------------------------------------------------------------------------
@@ -570,3 +580,134 @@ def test_identity_stable_across_url_normalization_and_rename():
     col = _make_collection("rivers", "Rivers")
     oa, ob = _collection_to_geodata(col, a), _collection_to_geodata(col, b)
     assert (oa.id, oa.data_source_id) == (ob.id, ob.data_source_id)
+
+
+# ---------------------------------------------------------------------------
+# DNS pinning, body caps, server-side paging, max_results, 3D bbox
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_pinned_backend_connects_to_validated_ip_only():
+    import httpcore
+
+    from services.tools.ogcapi_tools import _PinnedNetworkBackend
+
+    seen = []
+
+    def fake_connect(self, host, port, **kw):
+        seen.append(host)
+        return "stream"
+
+    with patch("services.tools.ogcapi_tools._resolve_host", return_value=["93.184.216.34"]):
+        with patch.object(httpcore.SyncBackend, "connect_tcp", fake_connect):
+            assert _PinnedNetworkBackend().connect_tcp("ogc.example.com", 443) == "stream"
+    assert seen == ["93.184.216.34"]  # the validated IP, not the hostname
+
+
+@pytest.mark.unit
+def test_pinned_backend_rejects_rebound_internal_address():
+    """A hostname that validated as public earlier but resolves internally at connect."""
+    import httpcore
+
+    from services.tools.ogcapi_tools import _PinnedNetworkBackend
+
+    with patch("services.tools.ogcapi_tools._resolve_host", return_value=["169.254.169.254"]):
+        with patch.object(httpcore.SyncBackend, "connect_tcp") as inner:
+            with pytest.raises(UnsafeURLError):
+                _PinnedNetworkBackend().connect_tcp("rebind.example.com", 80)
+    inner.assert_not_called()
+
+
+@pytest.mark.unit
+def test_make_client_installs_pinned_backend():
+    from services.tools.ogcapi_tools import _make_client, _PinnedNetworkBackend
+
+    with _make_client(False) as client:
+        assert isinstance(client._transport._pool._network_backend, _PinnedNetworkBackend)
+
+
+@pytest.mark.unit
+def test_oversized_content_length_rejected():
+    big = _mock_http_response({"collections": []})
+    big.headers = {"content-length": str(50 * 1024 * 1024)}
+    state = _make_state(_make_snapshot([MOCK_BACKEND]))
+    with _patch_client([big, big]):
+        result = _search_ogcapi_layers_impl(state=state, tool_call_id="x", query="a")
+    assert isinstance(result, ToolMessage)
+    assert "No collections" in result.content or "Could not reach" in result.content
+
+
+@pytest.mark.unit
+def test_oversized_streamed_body_rejected():
+    from services.tools import ogcapi_tools as mod
+
+    resp = _mock_http_response({})
+    resp.iter_bytes.side_effect = lambda: iter([b"x" * (mod._MAX_BODY_BYTES + 1)])
+    client = MagicMock()
+
+    from contextlib import contextmanager as cm
+
+    @cm
+    def _stream(*a, **k):
+        yield resp
+
+    client.stream.side_effect = _stream
+    with pytest.raises(ValueError):
+        mod._safe_get(client, "https://ogcapi.example.com/v1/collections")
+
+
+@pytest.mark.unit
+def test_server_side_search_follows_next_pages():
+    q1 = _mock_http_response(
+        {
+            "collections": [_make_collection("r1", "River 1")],
+            "links": [{"rel": "next", "href": "https://ogcapi.example.com/v1/collections?o=1"}],
+        }
+    )
+    q2 = _mock_http_response({"collections": [_make_collection("r2", "River 2")]})
+    unfiltered = _mock_http_response(
+        {"collections": [_make_collection("r1", "River 1"), _make_collection("x", "Other")]}
+    )
+    state = _make_state(_make_snapshot([MOCK_BACKEND]))
+    # Order: q page 1, unfiltered page 1, q page 2
+    with _patch_client([q1, unfiltered, q2]):
+        result = _search_ogcapi_layers_impl(state=state, tool_call_id="x", query="river")
+    assert [g.name for g in result.update["geodata_last_results"]] == ["r1", "r2"]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("value", [-5, 0, 10_000])
+def test_max_results_is_clamped(value):
+    bad = _mock_http_response({}, status_code=400)
+    cols = [_make_collection(f"r{i}", f"River {i}") for i in range(60)]
+    page = _mock_http_response({"collections": cols})
+    state = _make_state(_make_snapshot([MOCK_BACKEND]))
+    with _patch_client([bad, page]):
+        result = _search_ogcapi_layers_impl(
+            state=state, tool_call_id="x", query="river", max_results=value
+        )
+    n = len(result.update["geodata_last_results"])
+    assert 1 <= n <= 50
+
+
+@pytest.mark.unit
+def test_tool_schema_bounds_max_results():
+    from services.tools.ogcapi_tools import search_ogcapi_layers
+
+    props = search_ogcapi_layers.args_schema.model_json_schema()["properties"]["max_results"]
+    assert props["minimum"] == 1 and props["maximum"] == 50
+
+
+@pytest.mark.unit
+def test_bbox_3d_uses_upper_xy_indices():
+    col = _make_collection("c", "C", bbox=[-10.0, -20.0, 0.0, 30.0, 40.0, 500.0])
+    wkt = _collection_to_geodata(col, MOCK_BACKEND).bounding_box
+    assert wkt == "POLYGON((30.0 -20.0, 30.0 40.0, -10.0 40.0, -10.0 -20.0, 30.0 -20.0))"
+
+
+@pytest.mark.unit
+def test_bbox_2d_unchanged():
+    col = _make_collection("c", "C", bbox=[-10.0, -20.0, 30.0, 40.0])
+    wkt = _collection_to_geodata(col, MOCK_BACKEND).bounding_box
+    assert wkt == "POLYGON((30.0 -20.0, 30.0 40.0, -10.0 40.0, -10.0 -20.0, 30.0 -20.0))"

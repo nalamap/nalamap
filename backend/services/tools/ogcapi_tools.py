@@ -16,13 +16,15 @@ Results are exposed as GeoJSON feature layers (``layer_type="WFS"`` with an
 
 import hashlib
 import ipaddress
+import json
 import logging
 import socket
 import ssl
 import uuid
-from typing import Any, Dict, Iterator, List, Optional, Union
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Union
 from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 
+import httpcore
 import httpx
 from fastapi import HTTPException
 from langchain_core.messages import ToolMessage
@@ -30,6 +32,7 @@ from langchain_core.tools import tool
 from langchain_core.tools.base import InjectedToolCallId
 from langgraph.prebuilt import InjectedState
 from langgraph.types import Command
+from pydantic import Field
 from typing_extensions import Annotated
 
 from api.proxy import validate_url as _proxy_validate_url
@@ -46,6 +49,7 @@ _ITEMS_LIMIT = 1000  # max features requested per layer when displaying on the m
 
 _MAX_PAGES = 10  # cap on followed pagination links per backend
 _MAX_REDIRECTS = 3
+_MAX_BODY_BYTES = 5 * 1024 * 1024  # cap on any single response body
 
 
 class UnsafeURLError(Exception):
@@ -58,26 +62,8 @@ def _resolve_host(host: str) -> List[str]:
     return [info[4][0] for info in infos]
 
 
-def _validate_outbound_url(url: str) -> None:
-    """SSRF guard applied before every request (initial, paginated and redirected).
-
-    Reuses the proxy's scheme/host validation, then resolves the hostname and rejects
-    it if *any* resolved address is private, loopback, link-local (incl. cloud
-    metadata 169.254.169.254), multicast, reserved or unspecified.  Note: resolution
-    and connection are separate lookups, so DNS rebinding is not fully excluded.
-    """
-    try:
-        _proxy_validate_url(url)
-    except HTTPException as exc:
-        raise UnsafeURLError(str(exc.detail)) from exc
-    host = urlsplit(url).hostname or ""
-    try:
-        addresses = [str(ipaddress.ip_address(host))]
-    except ValueError:
-        try:
-            addresses = _resolve_host(host)
-        except OSError as exc:
-            raise UnsafeURLError(f"Cannot resolve host {host!r}: {exc}") from exc
+def _assert_public(host: str, addresses: List[str]) -> None:
+    """Raise UnsafeURLError unless every address is a public unicast address."""
     if not addresses:
         raise UnsafeURLError(f"Host {host!r} did not resolve")
     for addr in addresses:
@@ -88,21 +74,88 @@ def _validate_outbound_url(url: str) -> None:
             raise UnsafeURLError(f"Host {host!r} resolves to a non-public address ({ip})")
 
 
+def _resolve_public(host: str) -> List[str]:
+    """Resolve ``host`` (or accept an IP literal) and require only public addresses."""
+    try:
+        addresses = [str(ipaddress.ip_address(host.strip("[]")))]
+    except ValueError:
+        try:
+            addresses = _resolve_host(host)
+        except OSError as exc:
+            raise UnsafeURLError(f"Cannot resolve host {host!r}: {exc}") from exc
+    _assert_public(host, addresses)
+    return addresses
+
+
+def _validate_outbound_url(url: str) -> None:
+    """Early SSRF check (scheme, host, resolved addresses) with a clear error.
+
+    Reuses the proxy's scheme/host validation, then rejects hosts resolving to
+    private, loopback, link-local (incl. cloud metadata), multicast or reserved
+    addresses.  This pre-check is advisory: the authoritative enforcement happens at
+    connect time in :class:`_PinnedNetworkBackend`, which closes the DNS-rebinding
+    window between validation and connection.
+    """
+    try:
+        _proxy_validate_url(url)
+    except HTTPException as exc:
+        raise UnsafeURLError(str(exc.detail)) from exc
+    _resolve_public(urlsplit(url).hostname or "")
+
+
+class _PinnedNetworkBackend(httpcore.SyncBackend):
+    """httpcore backend that resolves, validates and connects to the *same* IP.
+
+    TLS SNI / certificate verification and the Host header still use the original
+    hostname because httpcore derives them from the request origin, not from the
+    address passed to ``connect_tcp``.
+    """
+
+    def connect_tcp(self, host, port, timeout=None, local_address=None, socket_options=None):
+        addresses = _resolve_public(host)
+        last_exc: Optional[Exception] = None
+        for addr in addresses:
+            try:
+                return super().connect_tcp(
+                    addr,
+                    port,
+                    timeout=timeout,
+                    local_address=local_address,
+                    socket_options=socket_options,
+                )
+            except httpcore.ConnectError as exc:
+                last_exc = exc
+        raise last_exc or UnsafeURLError(f"Host {host!r} did not resolve")
+
+
 def _safe_get(
     client: httpx.Client, url: str, params: Optional[Dict[str, Any]] = None
-) -> httpx.Response:
-    """GET ``url`` validating the destination and every redirect hop manually."""
+) -> Tuple[httpx.Response, bytes]:
+    """GET ``url`` with SSRF validation per hop and a bounded, streamed body.
+
+    Redirects are followed manually (each hop re-validated).  The body is read in
+    chunks and rejected once it exceeds ``_MAX_BODY_BYTES`` (also checked up front
+    against Content-Length).  HTTP error statuses raise ``httpx.HTTPStatusError``.
+    """
     for _ in range(_MAX_REDIRECTS + 1):
         _validate_outbound_url(url)
-        resp = client.get(url, params=params, follow_redirects=False)
-        if resp.status_code in (301, 302, 303, 307, 308):
-            location = resp.headers.get("location")
-            if not location:
-                return resp
-            url = urljoin(url, location)
-            params = None
-            continue
-        return resp
+        with client.stream("GET", url, params=params, follow_redirects=False) as resp:
+            if resp.status_code in (301, 302, 303, 307, 308):
+                location = resp.headers.get("location")
+                if location:
+                    url = urljoin(url, location)
+                    params = None
+                    continue
+            resp.raise_for_status()
+            declared = resp.headers.get("content-length")
+            if declared and declared.isdigit() and int(declared) > _MAX_BODY_BYTES:
+                raise ValueError(f"Response too large ({declared} bytes)")
+            body = bytearray()
+            for chunk in resp.iter_bytes():
+                body.extend(chunk)
+                if len(body) > _MAX_BODY_BYTES:
+                    raise ValueError(f"Response exceeds {_MAX_BODY_BYTES} bytes")
+            return resp, bytes(body)
     raise UnsafeURLError("Too many redirects")
 
 
@@ -120,9 +173,11 @@ def _backend_key(backend: OGCAPIBackend) -> str:
 
 def _make_client(allow_insecure: bool) -> httpx.Client:
     """Return a synchronous httpx client, optionally skipping TLS verification."""
-    if allow_insecure:
-        return httpx.Client(verify=False, timeout=_DEFAULT_TIMEOUT)
-    return httpx.Client(timeout=_DEFAULT_TIMEOUT)
+    transport = httpx.HTTPTransport(verify=not allow_insecure)
+    # Pin connections to validated public IPs (DNS-rebinding safe).  Passing an explicit
+    # transport also disables environment proxies, which would bypass the guard.
+    transport._pool._network_backend = _PinnedNetworkBackend()
+    return httpx.Client(transport=transport, timeout=_DEFAULT_TIMEOUT)
 
 
 def _with_query_params(url: str, params: Dict[str, Any]) -> str:
@@ -164,11 +219,13 @@ def _extract_bbox_wkt(collection: Dict[str, Any]) -> Optional[str]:
     try:
         bbox = collection.get("extent", {}).get("spatial", {}).get("bbox", [[]])[0]
         if bbox and len(bbox) >= 4:
+            # 2D: minX,minY,maxX,maxY; 3D: minX,minY,minZ,maxX,maxY,maxZ
+            hi = (3, 4) if len(bbox) >= 6 else (2, 3)
             min_lon, min_lat, max_lon, max_lat = (
                 float(bbox[0]),
                 float(bbox[1]),
-                float(bbox[2]),
-                float(bbox[3]),
+                float(bbox[hi[0]]),
+                float(bbox[hi[1]]),
             )
             return (
                 f"POLYGON(("
@@ -236,11 +293,12 @@ def _search_backend(
                 page_params: Optional[Dict[str, Any]] = params
                 fetched = 0
                 for _ in range(_MAX_PAGES):
-                    resp = _safe_get(client, url, page_params)
-                    resp.raise_for_status()
-                    data = resp.json()
+                    _, body = _safe_get(client, url, page_params)
+                    data = json.loads(body)
                     if isinstance(data, list):
                         yield data
+                        return
+                    if not isinstance(data, dict):
                         return
                     cols = data.get("collections", [])
                     yield cols
@@ -276,10 +334,11 @@ def _search_backend(
 
             # --- Attempt 1: server-side q= search (first page only) ---
             searched: List[Dict[str, Any]] = []
+            searched_pages = _pages({**base_params, "q": query})
             try:
-                searched = next(_pages({**base_params, "q": query}), [])
+                searched = next(searched_pages, [])
             except (ValueError, httpx.HTTPStatusError):
-                searched = []  # e.g. HTTP 400: q= unsupported
+                searched = []  # e.g. HTTP 400: q= unsupported, or non-JSON body
 
             unfiltered_pages = _pages(base_params)
             first_page = next(unfiltered_pages, [])
@@ -293,7 +352,16 @@ def _search_backend(
             searched_ids = {c.get("id") for c in searched}
             first_ids = {c.get("id") for c in first_page}
             if searched and searched_ids != first_ids:
-                chosen = searched
+                chosen = list(searched)
+                # Server honored q: keep paging while it returns fewer than we need.
+                try:
+                    while len(chosen) < max_results:
+                        page = next(searched_pages, None)
+                        if page is None:
+                            break
+                        chosen.extend(page)
+                except (ValueError, httpx.HTTPStatusError):
+                    pass
             else:
                 chosen = _local_matches(first_page)
                 while len(chosen) < max_results:
@@ -322,7 +390,7 @@ def search_ogcapi_layers(
     state: Annotated[GeoDataAgentState, InjectedState],
     tool_call_id: Annotated[str, InjectedToolCallId],
     query: str,
-    max_results: int = 20,
+    max_results: Annotated[int, Field(ge=1, le=_MAX_RESULTS)] = 20,
 ) -> Union[Dict[str, Any], Command, ToolMessage]:
     """Search for geospatial layers on configured OGC API servers.
 
@@ -330,7 +398,7 @@ def search_ogcapi_layers(
     Searches collection title, description, and id for the given query.
 
     query: natural-language search string, e.g. "rivers Germany"
-    max_results: maximum number of results to return per backend (default 20)
+    max_results: maximum number of results per backend (1-50, default 20)
     """
     return _search_ogcapi_layers_impl(
         state=state, tool_call_id=tool_call_id, query=query, max_results=max_results
@@ -343,6 +411,10 @@ def _search_ogcapi_layers_impl(
     query: str,
     max_results: int = 20,
 ) -> Union[Dict[str, Any], Command, ToolMessage]:
+    try:
+        max_results = max(1, min(int(max_results), _MAX_RESULTS))
+    except (TypeError, ValueError):
+        max_results = 20
     settings = state.get("options")
     snapshot: Optional[SettingsSnapshot] = None
     if isinstance(settings, SettingsSnapshot):
