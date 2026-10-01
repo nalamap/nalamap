@@ -40,7 +40,7 @@ Thank you for your interest in contributing to NaLaMap! This guide provides comp
 
 ### Prerequisites
 - **Python 3.11+**
-- **Node.js 18+**
+- **Node.js 20.9+ (Node 24 LTS recommended)**
 - **Poetry** (Python dependency management)
 - **Docker & Docker Compose** (optional)
 - **Git**
