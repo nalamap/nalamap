@@ -245,7 +245,12 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
     );
   };
 
+  // Bumped by resetLayers(); in-flight loads started before a reset must not
+  // write their (stale) result into the store afterwards.
+  let loadGeneration = 0;
+
   const loadLayersFromBackend = async () => {
+    const generation = loadGeneration;
     try {
       const records = await fetchJson<LayerApiRecord[]>(apiUrl("/layers/"));
       const withOrder = records.map((record, index) => ({
@@ -258,6 +263,7 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
       const sorted = hasOrdering
         ? [...withOrder].sort((a, b) => a.order - b.order)
         : withOrder;
+      if (generation !== loadGeneration) return;
       set({ layers: sorted.map((item) => item.layer) });
     } catch (err) {
       Logger.warn("Failed to load layers:", err);
@@ -265,14 +271,17 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
   };
 
   const loadLayersForMap = async (mapId: string) => {
+    const generation = loadGeneration;
     try {
       const records = await fetchJson<MapLayerApiRecord[]>(
         apiUrl(`/maps/${mapId}/layers`),
       );
       const sorted = [...records].sort((a, b) => a.z_index - b.z_index);
+      if (generation !== loadGeneration) return;
       set({ layers: sorted.map((record) => fromMapLayerRecord(record)) });
     } catch (err) {
       Logger.warn("Failed to load map layers:", err);
+      if (generation !== loadGeneration) return;
       set({ layers: [] });
     }
   };
@@ -343,7 +352,10 @@ export const useLayerStore = create<LayerStore>()((set, get) => {
       }));
       void persistLayer(resource_id);
     },
-    resetLayers: () => set({ layers: [] }),
+    resetLayers: () => {
+      loadGeneration += 1; // invalidate any in-flight layer loads
+      set({ layers: [] });
+    },
     selectLayerForSearch: (resource_id: string | number) =>
       set((state: LayerStore) => ({
         layers: state.layers.map((l: GeoDataObject) => ({

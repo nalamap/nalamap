@@ -300,4 +300,41 @@ test.describe("AgentInterface reset button", () => {
     expect(n).toBe(0);
     await expect(page.getByText("late a")).toHaveCount(0);
   });
+
+  test("reset invalidates an in-flight map layer load", async ({ page }) => {
+    await page.waitForFunction(() => !!(window as any).useLayerStore);
+    await page.route("**/maps/m1/layers", async (route) => {
+      await new Promise((r) => setTimeout(r, 1500));
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([
+          {
+            id: "late-layer-1",
+            name: "Late layer",
+            data_type: "geojson",
+            data_link: "https://example.com/late.geojson",
+            z_index: 0,
+            visible: true,
+            payload: {},
+          },
+        ]),
+      });
+    });
+    await page.evaluate(() => {
+      (window as any).__loadDone = (window as any).useLayerStore
+        .getState()
+        .loadLayersForMap("m1")
+        .then(() => true);
+    });
+
+    page.on("dialog", (dialog) => dialog.accept());
+    await page.getByTestId("agent-reset-button").click();
+
+    await page.evaluate(() => (window as any).__loadDone);
+    const count = await page.evaluate(
+      () => (window as any).useLayerStore.getState().layers.length,
+    );
+    expect(count).toBe(0);
+  });
 });
