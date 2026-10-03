@@ -9,6 +9,8 @@ sys.path.insert(0, str(backend_root))
 Pytest configuration and fixtures for styling tools tests.
 """
 
+import os
+
 import pytest
 import pytest_asyncio  # noqa: F401
 
@@ -336,3 +338,13 @@ def _reset_langchain_openai_http_clients():
         _client_utils._cached_sync_httpx_client.cache_clear()
     except Exception:  # pragma: no cover - private API may move
         pass
+
+
+def pytest_collection_modifyitems(config, items):
+    """Skip tests that call a real LLM unless explicitly enabled (keys may be revoked)."""
+    if os.getenv("RUN_LIVE_LLM_TESTS", "").lower() in {"1", "true", "yes"}:
+        return
+    skip = pytest.mark.skip(reason="live LLM test; set RUN_LIVE_LLM_TESTS=1 to run")
+    for item in items:
+        if "live_llm" in item.keywords:
+            item.add_marker(skip)
