@@ -44,6 +44,7 @@ def get_test_payload(query: str, tools: list = None):
     }
 
 
+@pytest.mark.live_llm
 @pytest.mark.asyncio
 async def test_streaming_endpoint_basic(async_client: AsyncClient):
     """Test basic streaming endpoint functionality."""
@@ -72,6 +73,7 @@ async def test_streaming_endpoint_basic(async_client: AsyncClient):
     assert done_events[0]["data"]["status"] == "complete"
 
 
+@pytest.mark.live_llm
 @pytest.mark.asyncio
 async def test_streaming_endpoint_with_tools(async_client: AsyncClient):
     """Test streaming endpoint with tool execution."""
@@ -123,6 +125,7 @@ async def test_streaming_endpoint_with_tools(async_client: AsyncClient):
     assert "geodata_layers" in result_data
 
 
+@pytest.mark.live_llm
 @pytest.mark.asyncio
 async def test_streaming_endpoint_performance_metrics(async_client: AsyncClient):
     """Test that streaming endpoint includes performance metrics."""
@@ -221,6 +224,7 @@ async def test_streaming_endpoint_empty_query(async_client: AsyncClient):
     assert len(done_events) == 1
 
 
+@pytest.mark.live_llm
 @pytest.mark.asyncio
 async def test_streaming_event_sequence(async_client: AsyncClient):
     """Test that events arrive in expected sequence."""

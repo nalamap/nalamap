@@ -105,6 +105,7 @@ markers = [
     "integration: Integration tests via API",
     "e2e: End-to-end tests for complete user journeys",
     "slow: Slow running tests (>5 seconds)",
+    "live_llm: Needs a real LLM provider key; skipped unless RUN_LIVE_LLM_TESTS=1",
     "performance: Performance and stress tests",
     "edge_case: Edge case and boundary condition tests",
     "styling: All styling-related tests",

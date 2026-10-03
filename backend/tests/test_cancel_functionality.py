@@ -259,6 +259,7 @@ async def _set_flag(session_id: str):
     _cancellation_flags[session_id] = True
 
 
+@pytest.mark.live_llm
 @pytest.mark.integration
 @pytest.mark.slow
 def test_cancel_during_active_streaming(client, complete_chat_payload):
