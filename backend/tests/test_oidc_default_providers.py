@@ -6,6 +6,8 @@ import core.config as config
 
 
 def _reload(monkeypatch, **env):
+    # Isolate from developer .env / .env.local files read at import time.
+    monkeypatch.setattr("dotenv.load_dotenv", lambda *a, **k: False)
     for key in ("OIDC_PROVIDERS", "OIDC_GOOGLE_ISSUER", "OIDC_GOOGLE_CLIENT_ID"):
         monkeypatch.delenv(key, raising=False)
     for key, value in env.items():
