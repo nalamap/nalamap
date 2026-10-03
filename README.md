@@ -324,7 +324,7 @@ npx playwright test --ui
 * Regular security audits and dependency updates
 
 **Reporting Security Vulnerabilities:**
-If you discover a security vulnerability, please send an email to [info@nalamap.org] instead of using the issue tracker.
+If you discover a security vulnerability, please email [security@nalamap.org](mailto:security@nalamap.org) instead of using the issue tracker. See [SECURITY.md](SECURITY.md) for the full policy.
 
 ## Documentation
 
