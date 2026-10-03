@@ -46,6 +46,7 @@ Available markers:
 - `edge_case`: Edge case and boundary condition tests
 - `styling`: Tests related to map styling and color theory
 - `geoserver`: Tests for GeoServer integration
+- `live_llm`: Calls a real LLM provider (needs a valid key); skipped unless `RUN_LIVE_LLM_TESTS=1`, e.g. `RUN_LIVE_LLM_TESTS=1 poetry run pytest tests/ -m live_llm`
 
 ### Coverage
 
