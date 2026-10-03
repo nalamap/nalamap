@@ -9,6 +9,9 @@ import pytest
 from httpx import AsyncClient
 from httpx_sse import aconnect_sse
 
+# Every test here needs a real LLM to produce tool events (vacuous otherwise).
+pytestmark = pytest.mark.live_llm
+
 
 def get_test_payload(query: str, tools: list | None = None):
     """Helper function to create a properly formatted test payload."""
