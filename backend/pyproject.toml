@@ -13,13 +13,13 @@ python = "^3.11"
 fastapi = "^0.142.2"
 uvicorn = {extras = ["standard"], version = "^0.54.0"}
 langchain = "^1.4.3"
-langchain-core = "^1.6.6"
+langchain-core = "^1.6.7"
 langchain_community = "^0.4.2"
 openai = "^3.22.1"
 psycopg = {extras = ["binary","pool"], version = "^3.3.2"}
-sqlalchemy = {extras = ["asyncio"], version = "^2.1.1"}
+sqlalchemy = {extras = ["asyncio"], version = "^2.1.3"}
 geoalchemy2 = "^0.20.0"
-langgraph = "^1.2.12"
+langgraph = "^1.2.14"
 langchain_openai = "^1.6.7"
 langchain-anthropic = "^1.7.5"
 owslib = "*"
@@ -45,7 +45,7 @@ bcrypt = "^5.0.0"
 authlib = "^1.4"
 pydantic-settings = "^2.11.0"
 rapidfuzz = "^3.14.3"
-azure-identity = "^1.25.3"
+azure-identity = "^1.26.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "*"
