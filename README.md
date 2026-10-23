@@ -73,7 +73,7 @@ The following model was created to give you a high level overview of how NaLaMap
 
 - **Git**  
 - **Python 3.10+**  
-- **Node.js 20.19+ / 22.13+ / 24 (Node 24 LTS recommended)**  
+- **Node.js 22.23.4+ / 24.22.1+ / 26.12.1+ (Node 24 LTS recommended; older patch releases are affected by CVE-2026-111497)**  
 - **Docker & Docker Compose** (optional)  
 - **[Poetry](https://python-poetry.org/docs/)** (for backend)
 
@@ -303,7 +303,7 @@ npx playwright test --ui
 - Ensure `LLM_PROVIDER` matches your chosen provider (openai, azure, google, mistral, or deepseek)
 
 **Frontend fails to start:**
-- Ensure Node.js 20.19+ / 22.13+ / 24 (Node 24 LTS recommended) is installed: `node --version`
+- Ensure Node.js 22.23.4+ / 24.22.1+ / 26.12.1+ (Node 24 LTS recommended; older patch releases are affected by CVE-2026-111497) is installed: `node --version`
 - Clear npm cache: `npm cache clean --force`
 - Delete node_modules and reinstall: `rm -rf node_modules && npm i`
 
