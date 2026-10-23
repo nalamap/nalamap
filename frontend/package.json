@@ -21,7 +21,7 @@
     "leaflet-defaulticon-compatibility": "^0.1.2",
     "leaflet-geosearch": "^4.4.0",
     "lucide-react": "^1.49.0",
-    "next": "^16.3.8",
+    "next": "^16.4.2",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-leaflet": "^5.0.0",
@@ -46,6 +46,6 @@
     "typescript": "^5"
   },
   "engines": {
-    "node": "^20.19.0 || ^22.13.0 || >=24"
+    "node": "^22.23.4 || ^24.22.1 || >=26.12.1"
   }
 }

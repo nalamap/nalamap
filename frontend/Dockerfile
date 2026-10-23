@@ -2,7 +2,7 @@
 # # syntax=docker/dockerfile:1
 
 ### 1) deps stage: install and cache all dependencies ###
-FROM node:24-alpine AS deps
+FROM node:24.22.1-alpine AS deps
 
 # glibc compatibility for some native modules / prebuilt binaries
 RUN apk add --no-cache libc6-compat
@@ -22,7 +22,7 @@ RUN \
 
 
 ### 2) builder stage: bring down the build deps & build the app ###
-FROM node:24-alpine AS builder
+FROM node:24.22.1-alpine AS builder
 
 # Install only what’s needed to compile any native modules (e.g. SWC, image libs, etc.)
 RUN apk add --no-cache libc6-compat python3 make g++
@@ -45,7 +45,7 @@ RUN \
 
 
 ### 3) runner stage: production image ###
-FROM node:24-alpine AS runner
+FROM node:24.22.1-alpine AS runner
 
 WORKDIR /app
 ENV NODE_ENV=production \
