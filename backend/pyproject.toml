@@ -22,6 +22,9 @@ geoalchemy2 = "^0.20.0"
 langgraph = "^1.2.18"
 langchain_openai = "^1.7.3"
 langchain-anthropic = "^1.7.7"
+# transitive (langchain-anthropic) - keep on 1.x: anthropic 2.x docstrings trip the
+# trivy image secret scanner (false-positive "gcp-service-account" CRITICALs)
+anthropic = ">=1.11,<2"
 owslib = "*"
 httpx = "*"
 # transitive (httpx/starlette/openai) — pinned up explicitly to clear
