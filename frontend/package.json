@@ -37,12 +37,13 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/wellknown": "^0.5.8",
+    "@typescript/native": "npm:typescript@^7.0.2",
     "autoprefixer": "^10.6.2",
-    "eslint": "^9.37.0",
+    "eslint": "^10.14.0",
     "eslint-config-next": "^16.4.3",
     "postcss": "^8.5.32",
     "tailwindcss": "^4.3.3",
-    "typescript": "^5"
+    "typescript": "npm:@typescript/typescript6@^6.0.2"
   },
   "engines": {
     "node": "^22.23.4 || ^24.22.1 || >=26.12.1"
