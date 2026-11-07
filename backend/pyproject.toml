@@ -15,7 +15,7 @@ uvicorn = {extras = ["standard"], version = "^0.54.0"}
 langchain = "^1.4.3"
 langchain-core = "^1.7.0"
 langchain_community = "^0.4.2"
-openai = "^3.40.0"
+openai = "^3.45.0"
 psycopg = {extras = ["binary","pool"], version = "^3.3.2"}
 sqlalchemy = {extras = ["asyncio"], version = "^2.1.6"}
 geoalchemy2 = "^0.20.0"
