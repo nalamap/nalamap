@@ -52,7 +52,7 @@ azure-identity = "^1.27.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "*"
-pytest-asyncio = ">=1.4.1"
+pytest-asyncio = ">=1.4.1.post1"
 flake8 = "*"
 flake8-pyproject = "*"
 black = "*"
