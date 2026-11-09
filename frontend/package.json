@@ -47,5 +47,9 @@
   },
   "engines": {
     "node": "^22.23.4 || ^24.22.1 || >=26.12.1"
+  },
+  "overrides": {
+    "minimatch@^10": "^11.0.5",
+    "postcss-selector-parser@6.0.10": "6.1.6"
   }
 }
