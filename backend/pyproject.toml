@@ -24,7 +24,7 @@ langchain_openai = "^1.7.4"
 langchain-anthropic = "^1.7.10"
 # transitive (langchain-anthropic) - stay on 1.x until 2.x is validated with
 # langchain-anthropic (see also trivy-secret.yaml)
-anthropic = ">=1.11,<2"
+anthropic = ">=2.6.0,<3"
 owslib = "*"
 httpx = "*"
 # transitive (httpx/starlette/openai) — pinned up explicitly to clear
