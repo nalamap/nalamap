@@ -6,9 +6,9 @@
 # *export* a pinned requirements.txt, then let pip do the heavy
 # lifting in the build stage.
 # ──────────────────────────────────────────────────────────────
-FROM python:3.13-slim AS export
+FROM python:3.15-slim AS export
 
-ENV POETRY_VERSION=2.1.3 \
+ENV POETRY_VERSION=2.5.1 \
     POETRY_HOME=/opt/poetry \
     POETRY_NO_INTERACTION=1
 
@@ -29,7 +29,7 @@ RUN poetry export --only main --without-hashes -f requirements.txt -o requiremen
 # ──────────────────────────────────────────────────────────────
 # Stage 2 – BUILD: pip install into a venv using requirements.txt
 # ──────────────────────────────────────────────────────────────
-FROM python:3.13-slim AS build
+FROM python:3.15-slim AS build
 
 # Install every system library needed to *compile* native wheels:
 #   build-essential  → gcc / g++ / make (contourpy, etc.)
@@ -59,7 +59,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # ──────────────────────────────────────────────────────────────
 # Stage 3 – RUNTIME: slim image with only runtime libraries
 # ──────────────────────────────────────────────────────────────
-FROM python:3.13-slim
+FROM python:3.15-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -82,7 +82,7 @@ COPY --from=build /app/.venv .venv
 # pip is not needed at runtime; its vendored setuptools/urllib3/msgpack carry
 # CVEs that cannot be updated independently of pip.
 RUN python -m pip uninstall -y pip setuptools wheel >/dev/null 2>&1 || true \
- && rm -rf /usr/local/lib/python3.13/site-packages/pip* /usr/local/lib/python3.13/site-packages/setuptools* /usr/local/lib/python3.13/site-packages/pkg_resources* /app/.venv/lib/python3.13/site-packages/pip* /app/.venv/bin/pip*
+ && rm -rf /usr/local/lib/python3.15/site-packages/pip* /usr/local/lib/python3.15/site-packages/setuptools* /usr/local/lib/python3.15/site-packages/pkg_resources* /app/.venv/lib/python3.15/site-packages/pip* /app/.venv/bin/pip*
 
 # Put the venv's Python on PATH
 ENV PATH="/app/.venv/bin:$PATH"
